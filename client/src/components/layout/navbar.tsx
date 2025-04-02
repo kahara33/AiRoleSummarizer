@@ -52,7 +52,7 @@ export default function Navbar() {
             <Link href="/">
               <a className="flex-shrink-0 flex items-center">
                 <LightningIcon className="h-8 w-8 text-primary-600" />
-                <span className="ml-2 text-xl font-bold font-heading">AISERA</span>
+                <span className="ml-2 text-xl font-bold font-heading">EVERYS</span>
               </a>
             </Link>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -112,7 +112,7 @@ export default function Navbar() {
             <Link href="/">
               <a className="flex-shrink-0 flex items-center">
                 <LightningIcon className="h-8 w-8 text-primary-600" />
-                <span className="ml-2 text-xl font-bold font-heading">AISERA</span>
+                <span className="ml-2 text-xl font-bold font-heading">EVERYS</span>
               </a>
             </Link>
           </div>

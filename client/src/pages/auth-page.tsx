@@ -102,7 +102,7 @@ export default function AuthPage() {
               <LightningIcon className="h-12 w-12 text-primary-600" />
             </div>
             <h1 className="text-2xl font-bold font-heading text-gray-900 dark:text-gray-100">
-              AISERA
+              EVERYS
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               個人に最適化されたAI情報収集サービス
