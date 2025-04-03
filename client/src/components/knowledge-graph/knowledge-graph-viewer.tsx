@@ -159,7 +159,7 @@ export default function KnowledgeGraphViewer({
     fetchGraphData();
   }, [fetchGraphData]);
   
-  // ノードの階層構造に基づいて座標を設定する処理
+  // Mapify風のレイアウトを実現するための放射状配置
   useEffect(() => {
     if (nodes.length === 0 || !graphRef.current) return;
     
@@ -167,10 +167,11 @@ export default function KnowledgeGraphViewer({
     const rootNode = nodes.find(n => n.level === 0);
     if (rootNode) {
       rootNode.fx = width / 2;
-      rootNode.fy = height / 3;
+      rootNode.fy = height / 2; // 中央に配置
+      rootNode.val = 20; // ルートノードを大きく表示
     }
     
-    // カスタム階層型フォースレイアウトを適用
+    // カスタム放射状フォースレイアウトの適用
     // ForceGraphは初期レンダリング時にd3Forceがまだないことがあるため安全に処理
     setTimeout(() => {
       if (!graphRef.current) return;
@@ -187,33 +188,50 @@ export default function KnowledgeGraphViewer({
         simulation.force('charge', null);
         simulation.force('center', null);
         
-        // 階層ごとに垂直方向に配置するフォース
-        simulation.force('y', d3.forceY().y((d: any) => {
-          const levelMultiplier = 120; // レベル間の垂直距離
-          return height / 3 + (d.level * levelMultiplier);
-        }).strength(0.8));
+        // 中心からの距離を調整するための変数
+        const distanceMultiplier = 200;
         
-        // 同じレベルのノードを水平方向に広げるフォース
-        simulation.force('x', d3.forceX().x((d: any) => {
-          if (d.level === 0) return width / 2; // ルートノードは中央
-          // 親ノードのx座標を基準に配置
-          const parent = nodes.find(n => n.id === d.parentId);
-          return parent && typeof parent.x === 'number' ? parent.x : width / 2;
-        }).strength(0.3));
+        // 放射状に配置するカスタムフォース
+        simulation.force('radial', d3.forceRadial((d: any) => {
+          if (d.level === 0) return 0; // ルートノードは中心
+          return d.level * distanceMultiplier; // レベルに応じた距離
+        }, width / 2, height / 2).strength(0.8));
         
         // 同じレベルのノード同士が重ならないようにする
-        simulation.force('collision', d3.forceCollide().radius((d: any) => 30 + (d.val || 10)));
+        simulation.force('collision', d3.forceCollide().radius((d: any) => {
+          // ノードの大きさに応じた衝突半径
+          const baseSize = d.level === 0 ? 80 : 40; // ルートノードは大きく
+          return baseSize + (d.val || 10) * 0.8;
+        }));
         
-        // より強いリンク制約を設定
+        // ノード間の反発力
+        simulation.force('charge', d3.forceManyBody().strength((d: any) => {
+          return d.level === 0 ? -2000 : -1000; // ルートノードは強い反発力
+        }));
+        
+        // リンク制約設定
         simulation.force('link', d3.forceLink(links)
           .id((d: any) => d.id)
           .distance((link: any) => {
-            // 親子関係のリンクは距離を短く
-            if (link.label === "CONTAINS") return 100;
-            // その他の関係は距離を長く
-            return 200;
+            const source = link.source as any;
+            const target = link.target as any;
+            
+            // 親子関係（ルートノードから直接つながるノード）
+            if ((source.level === 0 || target.level === 0) && link.label === "CONTAINS") {
+              return distanceMultiplier * 0.8;
+            }
+            
+            // 親子関係（一般）
+            if (link.label === "CONTAINS") {
+              return distanceMultiplier * 0.7;
+            }
+            
+            // その他の関係
+            return distanceMultiplier * 1.2;
           })
-          .strength(0.7)
+          .strength((link: any) => {
+            return link.label === "CONTAINS" ? 0.7 : 0.3;
+          })
         );
         
         // グラフを再加熱して新しい力を適用
@@ -430,47 +448,119 @@ export default function KnowledgeGraphViewer({
             nodeLabel="name"
             nodeColor={(node: any) => node.color || getNodeColor(node.type)}
             nodeCanvasObject={(node: any, ctx: any, globalScale: any) => {
-              const { id, name, color, val = 10 } = node as GraphNode;
-              const fontSize = val * 0.3; // ノードの大きさに応じたフォントサイズ
-              const radius = val * 0.6; // ノードの大きさに応じた半径
+              const { id, name, color, val = 10, level = 0 } = node as GraphNode;
+              // ノードのサイズとスタイル調整
+              const isRoot = level === 0;
+              const fontSize = isRoot ? 14 : 12; // フォントサイズを固定
+              const nodeWidth = isRoot ? 160 : Math.max(100, Math.min(name.length * 8, 150)); // ノードの幅を名前に応じて調整
+              const nodeHeight = isRoot ? 70 : 40; // ノードの高さ
+              const cornerRadius = 10; // 角の丸さ
               
-              // ノードの描画
+              // 位置調整
+              const x = node.x || 0;
+              const y = node.y || 0;
+              
+              // 角丸長方形の描画
               ctx.beginPath();
-              ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
+              
+              // 角丸長方形のパスを描く
+              ctx.moveTo(x - nodeWidth/2 + cornerRadius, y - nodeHeight/2);
+              ctx.lineTo(x + nodeWidth/2 - cornerRadius, y - nodeHeight/2);
+              ctx.quadraticCurveTo(x + nodeWidth/2, y - nodeHeight/2, x + nodeWidth/2, y - nodeHeight/2 + cornerRadius);
+              ctx.lineTo(x + nodeWidth/2, y + nodeHeight/2 - cornerRadius);
+              ctx.quadraticCurveTo(x + nodeWidth/2, y + nodeHeight/2, x + nodeWidth/2 - cornerRadius, y + nodeHeight/2);
+              ctx.lineTo(x - nodeWidth/2 + cornerRadius, y + nodeHeight/2);
+              ctx.quadraticCurveTo(x - nodeWidth/2, y + nodeHeight/2, x - nodeWidth/2, y + nodeHeight/2 - cornerRadius);
+              ctx.lineTo(x - nodeWidth/2, y - nodeHeight/2 + cornerRadius);
+              ctx.quadraticCurveTo(x - nodeWidth/2, y - nodeHeight/2, x - nodeWidth/2 + cornerRadius, y - nodeHeight/2);
+              ctx.closePath();
+              
+              // ノードの塗りつぶし
               ctx.fillStyle = color || getNodeColor((node as GraphNode).type);
               ctx.fill();
+              
+              // 枠線の追加（オプション）
+              ctx.strokeStyle = isRoot ? '#FFFFFF' : 'rgba(255,255,255,0.3)';
+              ctx.lineWidth = isRoot ? 2 : 1;
+              ctx.stroke();
               
               // テキストの描画
               ctx.font = `${fontSize}px Arial`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillStyle = '#FFF';
-              // 長いノード名を適切に表示する
-              const displayName = name.length > 10 ? name.substring(0, 10) + '...' : name;
-              ctx.fillText(displayName, node.x || 0, node.y || 0);
               
-              // ホバー時のノード情報を表示
+              // テキストフィッティング
+              let displayName = name;
+              const maxTextWidth = nodeWidth - 16; // パディング考慮
+              let textMetrics = ctx.measureText(displayName);
+              
+              // 長いテキストを処理
+              if (textMetrics.width > maxTextWidth) {
+                // 2行に分ける場合
+                if (name.length > 15 && !isRoot) {
+                  const halfIndex = Math.floor(name.length / 2);
+                  const firstHalf = name.substring(0, halfIndex);
+                  const secondHalf = name.substring(halfIndex);
+                  
+                  ctx.fillText(firstHalf, x, y - 8);
+                  ctx.fillText(secondHalf, x, y + 8);
+                } else {
+                  // 切り詰める場合
+                  let truncatedName = name;
+                  while (ctx.measureText(truncatedName + "...").width > maxTextWidth && truncatedName.length > 3) {
+                    truncatedName = truncatedName.substring(0, truncatedName.length - 1);
+                  }
+                  displayName = truncatedName + (truncatedName !== name ? "..." : "");
+                  ctx.fillText(displayName, x, y);
+                }
+              } else {
+                ctx.fillText(displayName, x, y);
+              }
+              
+              // ホバー時のツールチップ表示
               if ((node as any).__hover) {
-                const boxPadding = 5;
-                const textWidth = ctx.measureText(name).width;
-                const boxWidth = textWidth + (boxPadding * 2);
-                const boxHeight = fontSize + (boxPadding * 2);
+                const tooltipPadding = 8;
+                const tooltipWidth = Math.max(ctx.measureText(name).width + tooltipPadding * 2, 100);
+                const tooltipHeight = 30;
                 
-                // 情報ボックスの背景
+                // ツールチップの背景（角丸長方形）
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(
-                  (node.x || 0) - boxWidth / 2,
-                  (node.y || 0) - radius - boxHeight - 5,
-                  boxWidth,
-                  boxHeight
-                );
+                ctx.beginPath();
                 
-                // ノード名の表示
+                const tooltipX = x - tooltipWidth/2;
+                const tooltipY = y - nodeHeight/2 - tooltipHeight - 10;
+                const tooltipRadius = 5;
+                
+                // 角丸長方形の描画
+                ctx.moveTo(tooltipX + tooltipRadius, tooltipY);
+                ctx.lineTo(tooltipX + tooltipWidth - tooltipRadius, tooltipY);
+                ctx.quadraticCurveTo(tooltipX + tooltipWidth, tooltipY, tooltipX + tooltipWidth, tooltipY + tooltipRadius);
+                ctx.lineTo(tooltipX + tooltipWidth, tooltipY + tooltipHeight - tooltipRadius);
+                ctx.quadraticCurveTo(tooltipX + tooltipWidth, tooltipY + tooltipHeight, tooltipX + tooltipWidth - tooltipRadius, tooltipY + tooltipHeight);
+                ctx.lineTo(tooltipX + tooltipRadius, tooltipY + tooltipHeight);
+                ctx.quadraticCurveTo(tooltipX, tooltipY + tooltipHeight, tooltipX, tooltipY + tooltipHeight - tooltipRadius);
+                ctx.lineTo(tooltipX, tooltipY + tooltipRadius);
+                ctx.quadraticCurveTo(tooltipX, tooltipY, tooltipX + tooltipRadius, tooltipY);
+                ctx.closePath();
+                
+                ctx.fill();
+                
+                // ツールチップの三角形（ポインタ）
+                ctx.beginPath();
+                ctx.moveTo(x, y - nodeHeight/2 - 2);
+                ctx.lineTo(x - 8, y - nodeHeight/2 - 10);
+                ctx.lineTo(x + 8, y - nodeHeight/2 - 10);
+                ctx.closePath();
+                ctx.fill();
+                
+                // ツールチップのテキスト
                 ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
                 ctx.fillText(
                   name,
-                  node.x || 0,
-                  (node.y || 0) - radius - 5 - boxHeight / 2
+                  x,
+                  y - nodeHeight/2 - tooltipHeight/2 - 10
                 );
               }
             }}
