@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useRoute } from "wouter";
+import { useLocation, useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { KnowledgeNode, RoleModel, KnowledgeEdge } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -84,7 +84,7 @@ export default function KnowledgeGraphPage() {
   };
 
   const handleBackToRoleModels = () => {
-    window.location.href = "/role-models";
+    setLocation("/role-models");
   };
   
   // AI グラフ自動生成Mutation

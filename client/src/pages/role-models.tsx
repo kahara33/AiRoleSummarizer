@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { RoleModel } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useRoute } from "wouter";
+import { useRoute, useLocation, Link } from "wouter";
 
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/app-layout";
@@ -46,11 +46,17 @@ import {
 export default function RoleModelsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isCreateOpen, setIsCreateOpen] = useState(window.location.pathname === "/role-models/new");
+  const [location, setLocation] = useLocation();
+  const [isCreateOpen, setIsCreateOpen] = useState(location === "/role-models/new");
   const [editingModel, setEditingModel] = useState<RoleModel | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [modelToDelete, setModelToDelete] = useState<RoleModel | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  
+  // ルートの変更を検出して新規作成ダイアログの状態を同期
+  useEffect(() => {
+    setIsCreateOpen(location === "/role-models/new");
+  }, [location]);
 
   // Fetch role models
   const {
@@ -106,8 +112,8 @@ export default function RoleModelsPage() {
     setIsCreateOpen(false);
     refetch();
     // 新規作成ページからロールモデル一覧に戻る
-    if (window.location.pathname === "/role-models/new") {
-      window.location.href = "/role-models";
+    if (location === "/role-models/new") {
+      setLocation("/role-models");
     }
   };
 
@@ -147,8 +153,8 @@ export default function RoleModelsPage() {
         <Dialog open={isCreateOpen} onOpenChange={(open) => {
             setIsCreateOpen(open);
             // ダイアログが閉じられた時、新規作成ページからロールモデル一覧に戻る
-            if (!open && window.location.pathname === "/role-models/new") {
-              window.location.href = "/role-models";
+            if (!open && location === "/role-models/new") {
+              setLocation("/role-models");
             }
           }}>
           <DialogTrigger asChild>
@@ -223,20 +229,21 @@ export default function RoleModelsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="知識グラフを表示"
-                          onClick={() => window.location.href = `/role-model/${model.id}/knowledge-graph`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                            <circle cx="18" cy="5" r="3" />
-                            <circle cx="6" cy="12" r="3" />
-                            <circle cx="18" cy="19" r="3" />
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                          </svg>
-                        </Button>
+                        <Link href={`/role-model/${model.id}/knowledge-graph`}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="知識グラフを表示"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                              <circle cx="18" cy="5" r="3" />
+                              <circle cx="6" cy="12" r="3" />
+                              <circle cx="18" cy="19" r="3" />
+                              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                            </svg>
+                          </Button>
+                        </Link>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -275,20 +282,21 @@ export default function RoleModelsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="知識グラフを表示"
-                            onClick={() => window.location.href = `/role-model/${model.id}/knowledge-graph`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                              <circle cx="18" cy="5" r="3" />
-                              <circle cx="6" cy="12" r="3" />
-                              <circle cx="18" cy="19" r="3" />
-                              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                            </svg>
-                          </Button>
+                          <Link href={`/role-model/${model.id}/knowledge-graph`}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="知識グラフを表示"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                <circle cx="18" cy="5" r="3" />
+                                <circle cx="6" cy="12" r="3" />
+                                <circle cx="18" cy="19" r="3" />
+                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                              </svg>
+                            </Button>
+                          </Link>
                           <span className="text-xs text-gray-500 my-auto">閲覧のみ</span>
                         </div>
                       </TableCell>
