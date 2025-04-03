@@ -34,6 +34,8 @@ export const roleModels = pgTable("role_models", {
   description: text("description").notNull(),
   userId: uuid("user_id").notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
+  isShared: integer("is_shared").notNull().default(0), // 0: private, 1: company-shared
   createdAt: timestamp("created_at").defaultNow(),
 });
 

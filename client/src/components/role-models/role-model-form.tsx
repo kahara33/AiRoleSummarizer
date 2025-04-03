@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 
 const formSchema = insertRoleModelSchema.extend({
@@ -32,6 +33,7 @@ interface RoleModelFormProps {
     id: string;
     name: string;
     description: string;
+    isShared?: number;
   };
 }
 
@@ -49,6 +51,8 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
       name: roleModel?.name || "",
       description: roleModel?.description || "",
       userId: user?.id || "",
+      companyId: user?.companyId || null,
+      isShared: roleModel?.isShared || 0,
     },
   });
 
@@ -177,6 +181,32 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
                 </FormItem>
               )}
             />
+            
+            {/* 会社に所属しているユーザーのみ共有設定を表示 */}
+            {user?.companyId && (
+              <FormField
+                control={form.control}
+                name="isShared"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value === 1}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked ? 1 : 0);
+                        }}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>組織内で共有する</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        このロールモデルを同じ組織のメンバーと共有します
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
           </CardContent>
           
           <CardFooter className="flex justify-between">

@@ -53,12 +53,23 @@ export default function RoleModelsPage() {
   // Fetch role models
   const {
     data: roleModels = [],
-    isLoading,
-    error,
-    refetch,
+    isLoading: isLoadingModels,
+    error: roleModelsError,
+    refetch: refetchModels,
   } = useQuery<RoleModel[]>({
     queryKey: ["/api/role-models"],
     enabled: !!user,
+  });
+  
+  // Fetch shared role models
+  const {
+    data: sharedRoleModels = [],
+    isLoading: isLoadingShared,
+    error: sharedModelsError,
+    refetch: refetchShared,
+  } = useQuery<RoleModel[]>({
+    queryKey: ["/api/role-models/shared"],
+    enabled: !!user && !!user.companyId,
   });
 
   // Delete role model mutation
@@ -82,6 +93,12 @@ export default function RoleModelsPage() {
       });
     },
   });
+
+  // 全てのクエリを再取得する関数
+  const refetch = () => {
+    refetchModels();
+    refetchShared();
+  };
 
   const handleCreateSuccess = () => {
     setIsCreateOpen(false);
@@ -137,19 +154,19 @@ export default function RoleModelsPage() {
         </Dialog>
       </div>
 
-      {isLoading ? (
+      {isLoadingModels || isLoadingShared ? (
         <div className="flex justify-center py-10">
           <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
         </div>
-      ) : error ? (
+      ) : roleModelsError || sharedModelsError ? (
         <Card>
           <CardContent className="pt-6">
             <p className="text-red-500">
-              ロールモデルの読み込みに失敗しました: {error.message}
+              ロールモデルの読み込みに失敗しました: {roleModelsError?.message || sharedModelsError?.message}
             </p>
           </CardContent>
         </Card>
-      ) : roleModels.length === 0 ? (
+      ) : roleModels.length === 0 && sharedRoleModels.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>ロールモデルがありません</CardTitle>
@@ -176,9 +193,17 @@ export default function RoleModelsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {/* 自分が所有するロールモデル */}
                 {roleModels.map((model) => (
                   <TableRow key={model.id}>
-                    <TableCell className="font-medium">{model.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {model.name}
+                      {model.isShared === 1 && (
+                        <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          共有中
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {model.description.length > 100
                         ? `${model.description.substring(0, 100)}...`
@@ -205,6 +230,29 @@ export default function RoleModelsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
+                
+                {/* 組織の共有ロールモデル */}
+                {sharedRoleModels
+                  .filter(shared => !roleModels.some(own => own.id === shared.id)) // 自分のモデルと重複しないもの
+                  .map((model) => (
+                    <TableRow key={model.id} className="bg-gray-50 dark:bg-gray-900">
+                      <TableCell className="font-medium">
+                        {model.name}
+                        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-200">
+                          組織共有
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {model.description.length > 100
+                          ? `${model.description.substring(0, 100)}...`
+                          : model.description}
+                      </TableCell>
+                      <TableCell>
+                        {/* 共有モデルは編集・削除不可 */}
+                        <div className="text-xs text-gray-500">閲覧のみ</div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           </CardContent>

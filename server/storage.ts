@@ -34,6 +34,7 @@ export interface IStorage {
   
   // Role model operations
   getRoleModels(userId: string): Promise<RoleModel[]>;
+  getSharedRoleModels(companyId: string): Promise<RoleModel[]>;
   getRoleModelWithTags(id: string): Promise<RoleModelWithTags | undefined>;
   createRoleModel(roleModel: InsertRoleModel): Promise<RoleModel>;
   updateRoleModel(id: string, roleModel: Partial<InsertRoleModel>): Promise<RoleModel | undefined>;
@@ -174,8 +175,23 @@ export class MemStorage implements IStorage {
 
   // Role model methods
   async getRoleModels(userId: string): Promise<RoleModel[]> {
-    return Array.from(this.roleModels.values()).filter(
+    const user = Array.from(this.users.values()).find(u => u.id === userId);
+    const models = Array.from(this.roleModels.values()).filter(
       (roleModel) => roleModel.userId === userId
+    );
+    
+    // 所属している会社の共有ロールモデルも取得
+    if (user && user.companyId) {
+      const companySharedModels = await this.getSharedRoleModels(user.companyId);
+      return [...models, ...companySharedModels];
+    }
+    
+    return models;
+  }
+  
+  async getSharedRoleModels(companyId: string): Promise<RoleModel[]> {
+    return Array.from(this.roleModels.values()).filter(
+      (roleModel) => roleModel.companyId === companyId && roleModel.isShared === 1
     );
   }
 
@@ -198,6 +214,8 @@ export class MemStorage implements IStorage {
     const roleModel: RoleModel = { 
       ...insertRoleModel, 
       id,
+      companyId: insertRoleModel.companyId || null,
+      isShared: insertRoleModel.isShared || 0,
       createdAt: new Date() 
     };
     this.roleModels.set(id, roleModel);

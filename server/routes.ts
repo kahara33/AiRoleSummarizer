@@ -41,6 +41,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching role models" });
     }
   });
+  
+  // 組織の共有ロールモデルを取得するルート
+  app.get("/api/role-models/shared", isAuthenticated, async (req, res) => {
+    try {
+      // ユーザーの会社IDが必要
+      const companyId = req.user?.companyId;
+      
+      if (!companyId) {
+        return res.status(200).json([]); // 個人ユーザーの場合は空の配列を返す
+      }
+      
+      const sharedRoleModels = await storage.getSharedRoleModels(companyId);
+      res.json(sharedRoleModels);
+    } catch (error) {
+      console.error("Error fetching shared role models:", error);
+      res.status(500).json({ message: "Error fetching shared role models" });
+    }
+  });
 
   app.get("/api/role-models/:id", isAuthenticated, async (req, res) => {
     try {
@@ -50,8 +68,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Role model not found" });
       }
       
-      // Check if role model belongs to user
-      if (roleModel.userId !== req.user!.id) {
+      // ユーザーのロールモデルか、ユーザーが所属する組織の共有ロールモデルかチェック
+      const isUserModel = roleModel.userId === req.user!.id;
+      const isSharedCompanyModel = roleModel.isShared === 1 && 
+                                roleModel.companyId === req.user!.companyId;
+      
+      if (!isUserModel && !isSharedCompanyModel) {
         return res.status(403).json({ message: "Not authorized to access this role model" });
       }
       
@@ -98,7 +120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update role model
       const updatedRoleModel = await storage.updateRoleModel(roleModelId, {
         name: req.body.name,
-        description: req.body.description
+        description: req.body.description,
+        isShared: req.body.isShared
       });
       
       res.json(updatedRoleModel);
