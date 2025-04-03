@@ -55,6 +55,18 @@ export function setupAuth(app: Express) {
     }, async (email, password, done) => {
       try {
         console.log("Passport認証開始:", { email });
+        // インメモリストレージでデバッグ用のユーザーを作成（すでに存在する場合は作成されない）
+        if (email === 'k.harada@everys.jp' && !await storage.getUserByEmail(email)) {
+          console.log("デバッグ用管理者ユーザーを作成します...");
+          const hashedPassword = await hashPassword('3Bdf902@5155');
+          await storage.createUser({
+            email: 'k.harada@everys.jp',
+            name: '原田一樹',
+            password: hashedPassword
+          });
+          console.log("デバッグ用管理者ユーザー作成完了");
+        }
+        
         const user = await storage.getUserByEmail(email);
         
         if (!user) {
