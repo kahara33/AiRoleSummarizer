@@ -89,9 +89,9 @@ export default function IndustrySelector({
   const excludedCategoryNames = ["製造業", "情報通信業", "金融業", "小売業", "サービス業"];
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xl font-bold">{title}</CardTitle>
+    <Card className="w-full h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg font-bold">{title}</CardTitle>
         <div className="relative mt-2">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -115,7 +115,7 @@ export default function IndustrySelector({
             <p>読み込み中...</p>
           </div>
         ) : (
-          <ScrollArea style={{ height: maxHeight }} className="pr-4">
+          <ScrollArea style={{ height: maxHeight }}>
             <Accordion
               type="multiple"
               value={expandedCategories}

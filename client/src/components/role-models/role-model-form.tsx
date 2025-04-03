@@ -171,13 +171,13 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
   });
 
   return (
-    <Card className="w-full max-w-4xl">
-      <CardHeader>
+    <Card className="w-full max-w-5xl">
+      <CardHeader className="pb-2">
         <CardTitle className="text-center text-xl">{isEditMode ? "ロールモデルを編集" : "新しいロールモデルを作成"}</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full mb-6">
+          <TabsList className="grid grid-cols-3 w-full mb-4">
             <TabsTrigger value="basic">基本情報</TabsTrigger>
             <TabsTrigger value="industries" disabled={!basicFormData && !isEditMode}>業界カテゴリ</TabsTrigger>
             <TabsTrigger value="keywords" disabled={!basicFormData || activeTab === "basic"}>キーワード</TabsTrigger>
@@ -263,19 +263,21 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
           
           {/* 業界カテゴリ選択タブ */}
           <TabsContent value="industries">
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col h-full">
+              <p className="text-sm text-muted-foreground mb-4">
                 このロールモデルに関連する業界カテゴリを選択してください。
                 選択した業界カテゴリに基づいて情報を収集します。
               </p>
               
-              <IndustrySelectionContainer
-                initialSelectedIndustries={selectedIndustries}
-                onIndustriesChange={setSelectedIndustries}
-                maxSelections={10}
-              />
+              <div className="flex-grow mb-4">
+                <IndustrySelectionContainer
+                  initialSelectedIndustries={selectedIndustries}
+                  onIndustriesChange={setSelectedIndustries}
+                  maxSelections={10}
+                />
+              </div>
               
-              <div className="flex justify-between mt-4 sticky bottom-0 bg-card pb-4 pt-2">
+              <div className="border-t pt-4 flex justify-between items-center">
                 <Button 
                   variant="outline" 
                   onClick={() => setActiveTab("basic")}
@@ -296,19 +298,21 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
           
           {/* キーワード選択タブ */}
           <TabsContent value="keywords">
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col h-full">
+              <p className="text-sm text-muted-foreground mb-4">
                 このロールモデルに関連するキーワードを入力または選択してください。
                 入力したキーワードに基づいて情報を収集します。
               </p>
               
-              <KeywordSelectionContainer
-                initialSelectedKeywords={selectedKeywords}
-                onKeywordsChange={setSelectedKeywords}
-                maxSelections={20}
-              />
+              <div className="flex-grow mb-4">
+                <KeywordSelectionContainer
+                  initialSelectedKeywords={selectedKeywords}
+                  onKeywordsChange={setSelectedKeywords}
+                  maxSelections={20}
+                />
+              </div>
               
-              <div className="flex justify-between mt-4 sticky bottom-0 bg-card pb-4 pt-2">
+              <div className="border-t pt-4 flex justify-between items-center">
                 <Button 
                   variant="outline" 
                   onClick={() => setActiveTab("industries")}

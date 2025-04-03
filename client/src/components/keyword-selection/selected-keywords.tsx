@@ -21,14 +21,14 @@ export default function SelectedKeywords({
   title = "選択したキーワード"
 }: SelectedKeywordsProps) {
   // 全キーワードを取得
-  const { data: allKeywords = [], isLoading } = useQuery({
+  const { data: allKeywords = [], isLoading } = useQuery<Keyword[]>({
     queryKey: ["/api/keywords"],
     staleTime: 60 * 60 * 1000, // 1時間キャッシュ
   });
 
   // 選択されたキーワードを取得
   const selectedKeywords = allKeywords.filter(
-    (keyword: Keyword) => selectedKeywordIds.includes(keyword.id)
+    (keyword) => selectedKeywordIds.includes(keyword.id)
   );
 
   return (
@@ -54,7 +54,7 @@ export default function SelectedKeywords({
         ) : (
           <ScrollArea style={{ height: maxHeight }} className="pr-2">
             <div className="flex flex-wrap gap-1 p-1">
-              {selectedKeywords.map((keyword) => (
+              {selectedKeywords.map((keyword: Keyword) => (
                 <Badge
                   key={keyword.id}
                   variant="secondary"
