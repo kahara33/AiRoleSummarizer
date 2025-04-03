@@ -215,12 +215,14 @@ export default function RoleModelsPage() {
                 {roleModels.map((model) => (
                   <TableRow key={model.id}>
                     <TableCell className="font-medium">
-                      {model.name}
-                      {model.isShared === 1 && (
-                        <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          共有中
-                        </span>
-                      )}
+                      <Link href={`/role-model/${model.id}`} className="hover:underline">
+                        {model.name}
+                        {model.isShared === 1 && (
+                          <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            共有中
+                          </span>
+                        )}
+                      </Link>
                     </TableCell>
                     <TableCell>
                       {model.description.length > 100
@@ -270,10 +272,12 @@ export default function RoleModelsPage() {
                   .map((model) => (
                     <TableRow key={model.id} className="bg-gray-50 dark:bg-gray-900">
                       <TableCell className="font-medium">
-                        {model.name}
-                        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-200">
-                          組織共有
-                        </span>
+                        <Link href={`/role-model/${model.id}`} className="hover:underline">
+                          {model.name}
+                          <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-200">
+                            組織共有
+                          </span>
+                        </Link>
                       </TableCell>
                       <TableCell>
                         {model.description.length > 100

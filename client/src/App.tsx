@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/lib/protected-route";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import RoleModelsPage from "@/pages/role-models";
+import RoleModelDetailPage from "@/pages/role-model-detail";
 import TagsPage from "@/pages/tags";
 import SummariesPage from "@/pages/summaries";
 import KnowledgeGraphPage from "@/pages/knowledge-graph";
@@ -20,6 +21,7 @@ function Router() {
       <ProtectedRoute path="/role-models/new" component={RoleModelsPage} />
       <ProtectedRoute path="/role-models" component={RoleModelsPage} />
       <ProtectedRoute path="/role-model/:id/knowledge-graph" component={KnowledgeGraphPage} />
+      <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPage} />
       <ProtectedRoute path="/knowledge-graph" component={KnowledgeGraphPage} />
       <ProtectedRoute path="/tags" component={TagsPage} />
       <ProtectedRoute path="/summaries" component={SummariesPage} />

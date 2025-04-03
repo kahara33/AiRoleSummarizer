@@ -101,6 +101,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching role model" });
     }
   });
+  
+  // Get role model with tags
+  app.get("/api/role-models/:id/with-tags", isAuthenticated, async (req, res) => {
+    try {
+      const roleModel = await storage.getRoleModelWithTags(req.params.id);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // ユーザーのロールモデルか、ユーザーが所属する組織の共有ロールモデルかチェック
+      const isUserModel = roleModel.userId === req.user!.id;
+      const isSharedCompanyModel = roleModel.isShared === 1 && 
+                                roleModel.companyId === req.user!.companyId;
+      
+      if (!isUserModel && !isSharedCompanyModel) {
+        return res.status(403).json({ message: "Not authorized to access this role model" });
+      }
+      
+      // タグを取得
+      const tags = await storage.getTags(roleModel.id);
+      const roleModelWithTags = {
+        ...roleModel,
+        tags
+      };
+      
+      res.json(roleModelWithTags);
+    } catch (error) {
+      console.error("Error fetching role model with tags:", error);
+      res.status(500).json({ message: "Error fetching role model with tags" });
+    }
+  });
 
   app.post("/api/role-models", isAuthenticated, async (req, res) => {
     try {
