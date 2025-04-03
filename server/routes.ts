@@ -1,12 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { setupAuth, requireRole } from "./auth";
 import { z } from "zod";
 import { 
   insertRoleModelSchema, 
   insertTagSchema,
-  insertUserSchema
+  insertUserSchema,
+  insertCompanySchema,
+  USER_ROLES
 } from "@shared/schema";
 import { 
   suggestTags, 
@@ -285,6 +287,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error collecting information:", error);
       res.status(500).json({ message: "Error collecting information" });
+    }
+  });
+
+  // Company management (system admin only)
+  app.get("/api/companies", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
+    try {
+      const companies = await storage.getCompanies();
+      res.json(companies);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      res.status(500).json({ message: "Error fetching companies" });
+    }
+  });
+
+  app.post("/api/companies", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
+    try {
+      // Validate company data
+      const validatedData = insertCompanySchema.parse(req.body);
+      const company = await storage.createCompany(validatedData);
+      res.status(201).json(company);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid company data", errors: error.errors });
+      }
+      console.error("Error creating company:", error);
+      res.status(500).json({ message: "Error creating company" });
+    }
+  });
+
+  app.put("/api/companies/:id", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      const existingCompany = await storage.getCompany(companyId);
+      
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Update company
+      const updatedCompany = await storage.updateCompany(companyId, {
+        name: req.body.name,
+        description: req.body.description
+      });
+      
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      res.status(500).json({ message: "Error updating company" });
+    }
+  });
+
+  app.delete("/api/companies/:id", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      const existingCompany = await storage.getCompany(companyId);
+      
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Delete company
+      await storage.deleteCompany(companyId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      res.status(500).json({ message: "Error deleting company" });
+    }
+  });
+
+  // User management routes
+  // System admins can manage company admins
+  app.post("/api/company-admins", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
+    try {
+      const { name, email, password, companyId } = req.body;
+      
+      if (!name || !email || !password || !companyId) {
+        return res.status(400).json({ message: "Name, email, password, and companyId are required" });
+      }
+      
+      // Validate if company exists
+      const company = await storage.getCompany(companyId);
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Create a company admin user
+      const admin = await storage.createUser({
+        name,
+        email,
+        password,
+        role: USER_ROLES.COMPANY_ADMIN,
+        companyId
+      });
+      
+      res.status(201).json(admin);
+    } catch (error) {
+      console.error("Error creating company admin:", error);
+      res.status(500).json({ message: "Error creating company admin" });
+    }
+  });
+
+  // Company admins can manage company users
+  app.get("/api/companies/:id/users", requireRole([USER_ROLES.SYSTEM_ADMIN, USER_ROLES.COMPANY_ADMIN]), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      
+      // If company admin, verify they are from this company
+      if (req.user.role === USER_ROLES.COMPANY_ADMIN && req.user.companyId !== companyId) {
+        return res.status(403).json({ message: "You can only access users from your own company" });
+      }
+      
+      const users = await storage.getUsers(companyId);
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching company users:", error);
+      res.status(500).json({ message: "Error fetching company users" });
+    }
+  });
+
+  app.post("/api/company-users", requireRole(USER_ROLES.COMPANY_ADMIN), async (req, res) => {
+    try {
+      const { name, email, password } = req.body;
+      
+      if (!name || !email || !password) {
+        return res.status(400).json({ message: "Name, email, and password are required" });
+      }
+      
+      // Company admin can only create users for their own company
+      const companyId = req.user.companyId;
+      
+      // Create a company user
+      const user = await storage.createUser({
+        name,
+        email,
+        password,
+        role: USER_ROLES.COMPANY_USER,
+        companyId
+      });
+      
+      res.status(201).json(user);
+    } catch (error) {
+      console.error("Error creating company user:", error);
+      res.status(500).json({ message: "Error creating company user" });
     }
   });
 

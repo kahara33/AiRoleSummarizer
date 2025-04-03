@@ -15,7 +15,7 @@ type AuthContextType = {
   error: Error | null;
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<User, Error, RegisterData>;
+  // No register mutation in this application
 };
 
 const loginSchema = z.object({
@@ -23,16 +23,7 @@ const loginSchema = z.object({
   password: z.string().min(1, "パスワードを入力してください"),
 });
 
-const registerSchema = insertUserSchema.extend({
-  password: z.string().min(6, "パスワードは6文字以上入力してください"),
-  confirmPassword: z.string().min(1, "確認用パスワードを入力してください"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "パスワードが一致しません",
-  path: ["confirmPassword"],
-});
-
 export type LoginData = z.infer<typeof loginSchema>;
-export type RegisterData = z.infer<typeof registerSchema>;
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -78,28 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (userData: RegisterData) => {
-      // Remove confirmPassword before sending to server
-      const { confirmPassword, ...userDataWithoutConfirm } = userData;
-      const res = await apiRequest("POST", "/api/register", userDataWithoutConfirm);
-      return await res.json();
-    },
-    onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
-      toast({
-        title: "登録が完了しました",
-        description: `${user.name}さん、AIによる情報収集サービスへようこそ！`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "登録に失敗しました",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // 登録機能は管理者画面で行うため、こちらでは実装しません
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -128,7 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         loginMutation,
         logoutMutation,
-        registerMutation,
       }}
     >
       {children}

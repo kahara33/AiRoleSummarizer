@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth, LoginData, RegisterData } from "@/hooks/use-auth";
+import { useAuth, LoginData } from "@/hooks/use-auth";
 import { LightningIcon } from "@/components/ui/svg-icons";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +22,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 
 // Login form schema
@@ -31,20 +30,9 @@ const loginSchema = z.object({
   password: z.string().min(1, "パスワードを入力してください"),
 });
 
-// Register form schema
-const registerSchema = z.object({
-  name: z.string().min(1, "お名前を入力してください"),
-  email: z.string().email("有効なメールアドレスを入力してください"),
-  password: z.string().min(6, "パスワードは6文字以上入力してください"),
-  confirmPassword: z.string().min(1, "確認用パスワードを入力してください"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "パスワードが一致しません",
-  path: ["confirmPassword"],
-});
-
 export default function AuthPage() {
   const [_, navigate] = useLocation();
-  const { user, loginMutation, registerMutation, isLoading } = useAuth();
+  const { user, loginMutation, isLoading } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -62,25 +50,9 @@ export default function AuthPage() {
     },
   });
 
-  // Setup register form
-  const registerForm = useForm<RegisterData>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-    },
-  });
-
   // Handle login form submission
   const onLoginSubmit = (data: LoginData) => {
     loginMutation.mutate(data);
-  };
-
-  // Handle register form submission
-  const onRegisterSubmit = (data: RegisterData) => {
-    registerMutation.mutate(data);
   };
 
   // If still checking auth status, show loading
@@ -109,175 +81,66 @@ export default function AuthPage() {
             </p>
           </div>
           
-          <Tabs defaultValue="login" className="space-y-4">
-            <TabsList className="grid grid-cols-2">
-              <TabsTrigger value="login">ログイン</TabsTrigger>
-              <TabsTrigger value="register">新規登録</TabsTrigger>
-            </TabsList>
-            
-            {/* Login Form */}
-            <TabsContent value="login">
-              <Card>
-                <CardHeader>
-                  <CardTitle>アカウントにログイン</CardTitle>
-                  <CardDescription>
-                    メールアドレスとパスワードを入力してください
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Form {...loginForm}>
-                    <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
-                      <FormField
-                        control={loginForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>メールアドレス</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="email" 
-                                placeholder="your@email.com" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={loginForm.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>パスワード</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="password" 
-                                placeholder="********" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={loginMutation.isPending}
-                      >
-                        {loginMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        ログイン
-                      </Button>
-                    </form>
-                  </Form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            {/* Register Form */}
-            <TabsContent value="register">
-              <Card>
-                <CardHeader>
-                  <CardTitle>新規アカウント登録</CardTitle>
-                  <CardDescription>
-                    AIによる情報収集サービスを利用するためのアカウントを作成します
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Form {...registerForm}>
-                    <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
-                      <FormField
-                        control={registerForm.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>お名前</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="山田 太郎" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={registerForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>メールアドレス</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="email" 
-                                placeholder="your@email.com" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={registerForm.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>パスワード</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="password" 
-                                placeholder="********" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={registerForm.control}
-                        name="confirmPassword"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>パスワード（確認）</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="password" 
-                                placeholder="********" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={registerMutation.isPending}
-                      >
-                        {registerMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        アカウント作成
-                      </Button>
-                    </form>
-                  </Form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Card>
+            <CardHeader>
+              <CardTitle>アカウントにログイン</CardTitle>
+              <CardDescription>
+                メールアドレスとパスワードを入力してください
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...loginForm}>
+                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                  <FormField
+                    control={loginForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>メールアドレス</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="email" 
+                            placeholder="your@email.com" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={loginForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>パスワード</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="password" 
+                            placeholder="********" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={loginMutation.isPending}
+                  >
+                    {loginMutation.isPending && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    ログイン
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
         </div>
       </div>
       

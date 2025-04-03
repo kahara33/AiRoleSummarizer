@@ -1,5 +1,6 @@
 import { 
   User, InsertUser, 
+  Company, InsertCompany,
   RoleModel, InsertRoleModel, 
   Tag, InsertTag, 
   Summary, InsertSummary, 
@@ -13,10 +14,20 @@ const MemoryStore = createMemoryStore(session);
 
 // Storage interface
 export interface IStorage {
+  // Company operations
+  getCompany(id: string): Promise<Company | undefined>;
+  getCompanies(): Promise<Company[]>;
+  createCompany(company: InsertCompany): Promise<Company>;
+  updateCompany(id: string, company: Partial<InsertCompany>): Promise<Company | undefined>;
+  deleteCompany(id: string): Promise<boolean>;
+
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(companyId?: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
   
   // Role model operations
   getRoleModels(userId: string): Promise<RoleModel[]>;
@@ -38,18 +49,20 @@ export interface IStorage {
   updateSummaryFeedback(id: string, feedback: number): Promise<Summary | undefined>;
 
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: any; // session.SessionStore
 }
 
 // In-memory storage implementation
 export class MemStorage implements IStorage {
+  private companies: Map<string, Company>;
   private users: Map<string, User>;
   private roleModels: Map<string, RoleModel>;
   private tags: Map<string, Tag>;
   private summaries: Map<string, Summary>;
-  sessionStore: session.SessionStore;
+  sessionStore: any; // session.SessionStore
 
   constructor() {
+    this.companies = new Map();
     this.users = new Map();
     this.roleModels = new Map();
     this.tags = new Map();
@@ -57,6 +70,39 @@ export class MemStorage implements IStorage {
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     });
+  }
+
+  // Company methods
+  async getCompany(id: string): Promise<Company | undefined> {
+    return this.companies.get(id);
+  }
+
+  async getCompanies(): Promise<Company[]> {
+    return Array.from(this.companies.values());
+  }
+
+  async createCompany(insertCompany: InsertCompany): Promise<Company> {
+    const id = crypto.randomUUID();
+    const company: Company = { 
+      ...insertCompany, 
+      id,
+      description: insertCompany.description || null
+    };
+    this.companies.set(id, company);
+    return company;
+  }
+
+  async updateCompany(id: string, company: Partial<InsertCompany>): Promise<Company | undefined> {
+    const existingCompany = this.companies.get(id);
+    if (!existingCompany) return undefined;
+
+    const updatedCompany = { ...existingCompany, ...company };
+    this.companies.set(id, updatedCompany);
+    return updatedCompany;
+  }
+
+  async deleteCompany(id: string): Promise<boolean> {
+    return this.companies.delete(id);
   }
 
   // User methods
@@ -70,11 +116,39 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUsers(companyId?: string): Promise<User[]> {
+    if (companyId) {
+      return Array.from(this.users.values()).filter(
+        (user) => user.companyId === companyId
+      );
+    }
+    return Array.from(this.users.values());
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = crypto.randomUUID();
-    const user: User = { ...insertUser, id };
+    // デフォルト値を設定
+    const user: User = { 
+      ...insertUser, 
+      id,
+      role: insertUser.role || 'individual_user',
+      companyId: insertUser.companyId || null
+    };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: string, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const existingUser = this.users.get(id);
+    if (!existingUser) return undefined;
+
+    const updatedUser = { ...existingUser, ...userData };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    return this.users.delete(id);
   }
 
   // Role model methods
@@ -151,7 +225,9 @@ export class MemStorage implements IStorage {
       .filter((summary) => summary.roleModelId === roleModelId)
       .sort((a, b) => {
         // Sort by createdAt in descending order
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        const dateA = a.createdAt instanceof Date ? a.createdAt : new Date();
+        const dateB = b.createdAt instanceof Date ? b.createdAt : new Date();
+        return dateB.getTime() - dateA.getTime();
       });
   }
 
@@ -173,7 +249,13 @@ export class MemStorage implements IStorage {
   async createSummary(insertSummary: InsertSummary): Promise<Summary> {
     const id = crypto.randomUUID();
     const createdAt = new Date();
-    const summary: Summary = { ...insertSummary, id, createdAt };
+    const summary: Summary = { 
+      ...insertSummary, 
+      id, 
+      createdAt,
+      sources: insertSummary.sources || null,
+      feedback: insertSummary.feedback || null
+    };
     this.summaries.set(id, summary);
     return summary;
   }

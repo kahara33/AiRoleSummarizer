@@ -55,18 +55,6 @@ export function setupAuth(app: Express) {
     }, async (email, password, done) => {
       try {
         console.log("Passport認証開始:", { email });
-        // インメモリストレージでデバッグ用のユーザーを作成（すでに存在する場合は作成されない）
-        if (email === 'k.harada@everys.jp' && !await storage.getUserByEmail(email)) {
-          console.log("デバッグ用管理者ユーザーを作成します...");
-          const hashedPassword = await hashPassword('3Bdf902@5155');
-          await storage.createUser({
-            email: 'k.harada@everys.jp',
-            name: '原田一樹',
-            password: hashedPassword
-          });
-          console.log("デバッグ用管理者ユーザー作成完了");
-        }
-        
         const user = await storage.getUserByEmail(email);
         
         if (!user) {
@@ -101,26 +89,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
-    try {
-      const existingUser = await storage.getUserByEmail(req.body.email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
-
-      const user = await storage.createUser({
-        ...req.body,
-        password: await hashPassword(req.body.password),
-      });
-
-      req.login(user, (err) => {
-        if (err) return next(err);
-        res.status(201).json(user);
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+  // Admin APIエンドポイントは別途実装します
 
   app.post("/api/login", (req, res, next) => {
     console.log("ログインリクエスト受信:", { email: req.body.email });
@@ -158,4 +127,23 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
   });
+
+  // ロールベースの認可ミドルウェアはここには含めない
+}
+
+// 別途エクスポート
+export const requireRole = (role: string | string[]) => {
+  const roleArray = Array.isArray(role) ? role : [role];
+  
+  return (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "認証が必要です" });
+    }
+
+    if (!roleArray.includes(req.user.role)) {
+      return res.status(403).json({ message: "この操作を行う権限がありません" });
+    }
+
+    next();
+  };
 }
