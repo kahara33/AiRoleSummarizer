@@ -49,10 +49,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      console.log("ログイン試行:", credentials);
+      try {
+        const res = await apiRequest("POST", "/api/login", credentials);
+        const data = await res.json();
+        console.log("ログイン応答:", data);
+        return data;
+      } catch (error) {
+        console.error("ログインエラー:", error);
+        throw error;
+      }
     },
     onSuccess: (user: User) => {
+      console.log("ログイン成功:", user);
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "ログイン成功",
@@ -60,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     },
     onError: (error: Error) => {
+      console.error("ログイン失敗:", error);
       toast({
         title: "ログインに失敗しました",
         description: error.message,
