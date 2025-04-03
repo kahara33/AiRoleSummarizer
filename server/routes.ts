@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { setupAuth, requireRole } from "./auth";
 import { z } from "zod";
 import { 
   insertRoleModelSchema, 
@@ -30,20 +30,7 @@ const isAuthenticated = (req: any, res: any, next: any) => {
 };
 
 // 特定の役割を持つユーザーのみアクセスを許可するミドルウェア
-const requireRole = (role: string | string[]) => {
-  return (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-    
-    const roles = Array.isArray(role) ? role : [role];
-    if (roles.includes(req.user.role)) {
-      return next();
-    }
-    
-    res.status(403).json({ message: "Access denied" });
-  };
-};
+// auth.tsで定義されている関数を使用
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
@@ -153,6 +140,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error creating role model" });
     }
   });
+  
+  // ロールモデル削除エンドポイント
+  app.delete("/api/role-models/:id", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // ユーザーのロールモデルかチェック
+      const isUserModel = roleModel.userId === req.user!.id;
+      // システム管理者か組織管理者は自組織の共有ロールモデルも削除可能
+      const isAdminOrOrgAdmin = [USER_ROLES.SYSTEM_ADMIN, USER_ROLES.COMPANY_ADMIN].includes(req.user!.role as any);
+      const isSameCompany = roleModel.companyId === req.user!.companyId;
+      const canDeleteShared = isAdminOrOrgAdmin && isSameCompany && roleModel.isShared === 1;
+      
+      if (!isUserModel && !canDeleteShared) {
+        return res.status(403).json({ message: "Not authorized to delete this role model" });
+      }
+      
+      // 関連するデータを削除
+      // 1. 知識エッジを削除
+      const edges = await storage.getKnowledgeEdges(roleModelId);
+      for (const edge of edges) {
+        await storage.deleteKnowledgeEdge(edge.id);
+      }
+      
+      // 2. 知識ノードを削除
+      const nodes = await storage.getKnowledgeNodes(roleModelId);
+      for (const node of nodes) {
+        await storage.deleteKnowledgeNode(node.id);
+      }
+      
+      // 3. タグを削除
+      const tags = await storage.getTags(roleModelId);
+      for (const tag of tags) {
+        await storage.deleteTag(tag.id);
+      }
+      
+      // 4. サマリーを削除
+      const summaries = await storage.getSummaries(roleModelId);
+      for (const summary of summaries) {
+        await storage.updateSummaryFeedback(summary.id, 0); // 削除用のダミー操作
+      }
+      
+      // 5. ロールモデル自体を削除
+      const success = await storage.deleteRoleModel(roleModelId);
+      
+      if (!success) {
+        return res.status(500).json({ message: "Failed to delete role model" });
+      }
+      
+      res.status(200).json({ message: "Role model and related data deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting role model:", error);
+      res.status(500).json({ message: "Error deleting role model" });
+    }
+  });
 
   app.put("/api/role-models/:id", isAuthenticated, async (req, res) => {
     try {
@@ -182,28 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/role-models/:id", isAuthenticated, async (req, res) => {
-    try {
-      const roleModelId = req.params.id;
-      const existingRoleModel = await storage.getRoleModelWithTags(roleModelId);
-      
-      if (!existingRoleModel) {
-        return res.status(404).json({ message: "Role model not found" });
-      }
-      
-      // Ensure role model belongs to user
-      if (existingRoleModel.userId !== req.user!.id) {
-        return res.status(403).json({ message: "Not authorized to delete this role model" });
-      }
-      
-      // Delete role model
-      await storage.deleteRoleModel(roleModelId);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting role model:", error);
-      res.status(500).json({ message: "Error deleting role model" });
-    }
-  });
+
 
   // Tag routes
   app.get("/api/role-models/:id/tags", isAuthenticated, async (req, res) => {

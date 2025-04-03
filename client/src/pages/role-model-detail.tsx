@@ -1,20 +1,40 @@
 import { useState, useEffect } from "react";
-import { useRoute, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useRoute, Link, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { RoleModel, Tag } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2, Tag as TagIcon } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Loader2, 
+  Tag as TagIcon, 
+  Trash, 
+  AlertTriangle 
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
 
 export default function RoleModelDetailPage() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [isRoleModelRoute, roleModelParams] = useRoute("/role-model/:id");
   const [isRoleModelsRoute, roleModelsParams] = useRoute("/role-models/:id");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // どちらかのルートからIDを取得
   const roleModelId = (isRoleModelRoute ? roleModelParams?.id : 
@@ -26,6 +46,39 @@ export default function RoleModelDetailPage() {
     console.log("パスの種類:", isRoleModelRoute ? "/role-model/:id" : 
                        isRoleModelsRoute ? "/role-models/:id" : "未マッチ");
   }, [roleModelId, isRoleModelRoute, isRoleModelsRoute]);
+  
+  // ロールモデル削除のミューテーション
+  const deleteRoleModelMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `/api/role-models/${roleModelId}`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "削除に失敗しました");
+      }
+    },
+    onMutate: () => {
+      setIsDeleting(true);
+    },
+    onSuccess: () => {
+      toast({
+        title: "削除完了",
+        description: "ロールモデルを削除しました",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/role-models"] });
+      navigate("/role-models");
+    },
+    onError: (error) => {
+      toast({
+        title: "削除エラー",
+        description: error instanceof Error ? error.message : "削除に失敗しました",
+        variant: "destructive",
+      });
+      setIsDeleting(false);
+    },
+    onSettled: () => {
+      setShowDeleteDialog(false);
+    }
+  });
 
   // Fetch role model with tags
   const { data: roleModel, isLoading, error } = useQuery({
@@ -105,6 +158,13 @@ export default function RoleModelDetailPage() {
                 サマリー一覧
               </Button>
             </Link>
+            <Button 
+              variant="destructive" 
+              size="icon"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -153,6 +213,41 @@ export default function RoleModelDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 削除確認ダイアログ */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              ロールモデルを削除
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              「{roleModel.name}」を削除しますか？この操作は元に戻せません。関連するすべての知識グラフとサマリーも削除されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteRoleModelMutation.mutate();
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  削除中...
+                </>
+              ) : (
+                "削除する"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
