@@ -16,16 +16,23 @@ const getEndpoint = (): string => {
          '';
 };
 
+// Function to get Azure OpenAI deployment name from environment variables
+const getDeploymentName = (): string => {
+  return process.env.AZURE_OPENAI_DEPLOYMENT || 
+         'gpt-4o';
+};
+
 // Azure OpenAI API request function
 async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTokens = 1500): Promise<any> {
   const apiKey = getAPIKey();
   const endpoint = getEndpoint();
+  const deploymentName = getDeploymentName();
   
   if (!apiKey || !endpoint) {
     throw new Error('Azure OpenAI API key or endpoint not configured');
   }
   
-  const url = `${endpoint}/openai/deployments/gpt-4o/chat/completions?api-version=2024-02-15-preview`;
+  const url = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2024-02-15-preview`;
   
   try {
     const response = await fetch(url, {
