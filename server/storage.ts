@@ -174,7 +174,11 @@ export class MemStorage implements IStorage {
 
   async createRoleModel(insertRoleModel: InsertRoleModel): Promise<RoleModel> {
     const id = crypto.randomUUID();
-    const roleModel: RoleModel = { ...insertRoleModel, id };
+    const roleModel: RoleModel = { 
+      ...insertRoleModel, 
+      id,
+      createdAt: new Date() 
+    };
     this.roleModels.set(id, roleModel);
     return roleModel;
   }

@@ -34,6 +34,7 @@ export const roleModels = pgTable("role_models", {
   description: text("description").notNull(),
   userId: uuid("user_id").notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Tag model
@@ -60,7 +61,7 @@ export const summaries = pgTable("summaries", {
 // Insert schemas
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
-export const insertRoleModelSchema = createInsertSchema(roleModels).omit({ id: true });
+export const insertRoleModelSchema = createInsertSchema(roleModels).omit({ id: true, createdAt: true });
 export const insertTagSchema = createInsertSchema(tags).omit({ id: true });
 export const insertSummarySchema = createInsertSchema(summaries).omit({ id: true, createdAt: true });
 
