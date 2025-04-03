@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,23 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { ChevronDown, Bell, Menu } from "lucide-react";
+import { ChevronDown, Bell, Menu, Building } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useQuery } from "@tanstack/react-query";
+import { USER_ROLES } from "@shared/schema";
 
 export default function Navbar() {
   const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  
+  // システム管理者の場合は組織一覧を取得
+  const { data: companies = [] } = useQuery<any[]>({
+    queryKey: ['/api/companies'],
+    enabled: user?.role === USER_ROLES.SYSTEM_ADMIN,
+  });
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -33,6 +42,22 @@ export default function Navbar() {
       .map((n) => n[0])
       .join("")
       .toUpperCase();
+  };
+  
+  // ロール名を日本語に変換
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case USER_ROLES.SYSTEM_ADMIN:
+        return 'システム管理者';
+      case USER_ROLES.COMPANY_ADMIN:
+        return '組織管理者';
+      case USER_ROLES.COMPANY_USER:
+        return '組織ユーザー';
+      case USER_ROLES.INDIVIDUAL_USER:
+        return '個人ユーザー';
+      default:
+        return role;
+    }
   };
 
   if (!user) return null;
@@ -78,6 +103,34 @@ export default function Navbar() {
             </div>
           </div>
           <div className="flex items-center">
+            {/* システム管理者の場合、組織切り替えドロップダウンを表示 */}
+            {user.role === USER_ROLES.SYSTEM_ADMIN && companies.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="mr-2">
+                    <Building className="h-4 w-4 mr-1" />
+                    {selectedOrgId 
+                      ? companies.find((org: any) => org.id === selectedOrgId)?.name || '組織を選択'
+                      : '組織を選択'}
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setSelectedOrgId(null)}>
+                    すべての組織
+                  </DropdownMenuItem>
+                  {companies.map((company: any) => (
+                    <DropdownMenuItem 
+                      key={company.id}
+                      onClick={() => setSelectedOrgId(company.id)}
+                    >
+                      {company.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            
             <Button
               variant="ghost"
               size="icon"
@@ -97,6 +150,9 @@ export default function Navbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem className="font-medium">{user.name}</DropdownMenuItem>
+                <DropdownMenuItem className="font-medium text-xs text-muted-foreground">
+                  {getRoleDisplayName(user.role)}
+                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Button variant="ghost" className="w-full justify-start p-0" onClick={handleLogout}>
                     ログアウト
@@ -123,6 +179,34 @@ export default function Navbar() {
             </Link>
           </div>
           <div className="flex items-center">
+            {/* システム管理者の場合、組織切り替えドロップダウンを表示 */}
+            {user.role === USER_ROLES.SYSTEM_ADMIN && companies.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="mr-2">
+                    <Building className="h-4 w-4 mr-1" />
+                    {selectedOrgId 
+                      ? companies.find((org: any) => org.id === selectedOrgId)?.name || '組織'
+                      : '組織'}
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setSelectedOrgId(null)}>
+                    すべての組織
+                  </DropdownMenuItem>
+                  {companies.map((company: any) => (
+                    <DropdownMenuItem 
+                      key={company.id}
+                      onClick={() => setSelectedOrgId(company.id)}
+                    >
+                      {company.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            
             <Button
               variant="ghost"
               size="icon"
@@ -157,6 +241,9 @@ export default function Navbar() {
                   <hr className="border-gray-200 dark:border-gray-700" />
                   <div className="pl-3 pr-4 py-2 text-base font-medium">
                     {user.name}
+                  </div>
+                  <div className="pl-3 pr-4 py-1 text-sm text-muted-foreground">
+                    {getRoleDisplayName(user.role)}
                   </div>
                   <Button 
                     variant="ghost" 

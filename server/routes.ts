@@ -596,12 +596,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingUser) {
         return res.status(400).json({ message: "このメールアドレスは既に使用されています" });
       }
+
+      // システム管理者は常にcompanyIdなし（組織に所属させない）で作成できるようにする
+      let userData;
+      if (req.body.role === USER_ROLES.SYSTEM_ADMIN) {
+        // システム管理者の場合は組織に所属させない
+        userData = {
+          ...req.body,
+          companyId: null
+        };
+      } else {
+        // それ以外のユーザーは指定された組織に所属させる
+        userData = {
+          ...req.body,
+          companyId
+        };
+      }
       
       // Validate user data
-      const validatedData = insertUserSchema.parse({
-        ...req.body,
-        companyId
-      });
+      const validatedData = insertUserSchema.parse(userData);
       
       const user = await storage.createUser(validatedData);
       res.status(201).json(user);

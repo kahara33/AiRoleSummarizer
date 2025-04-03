@@ -174,8 +174,19 @@ export default function OrganizationsPage() {
   const addUserMutation = useMutation({
     mutationFn: async (data: AddUserFormValues) => {
       if (!selectedOrg) throw new Error('組織が選択されていません');
-      const res = await apiRequest('POST', `/api/companies/${selectedOrg.id}/users`, data);
-      return await res.json();
+      try {
+        const res = await apiRequest('POST', `/api/companies/${selectedOrg.id}/users`, data);
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'ユーザーの追加に失敗しました');
+        }
+        return await res.json();
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error;
+        }
+        throw new Error('ユーザーの追加に失敗しました');
+      }
     },
     onSuccess: () => {
       toast({
@@ -572,12 +583,27 @@ export default function OrganizationsPage() {
                   <FormItem>
                     <FormLabel>役割</FormLabel>
                     <div className="space-y-2">
+                      {user?.role === "system_admin" && (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="system_admin"
+                            value={USER_ROLES.SYSTEM_ADMIN}
+                            checked={field.value as string === USER_ROLES.SYSTEM_ADMIN}
+                            onChange={() => field.onChange(USER_ROLES.SYSTEM_ADMIN)}
+                            className="accent-primary"
+                          />
+                          <Label htmlFor="system_admin" className="font-normal">
+                            システム管理者
+                          </Label>
+                        </div>
+                      )}
                       <div className="flex items-center space-x-2">
                         <input
                           type="radio"
                           id="company_admin"
                           value={USER_ROLES.COMPANY_ADMIN}
-                          checked={field.value === USER_ROLES.COMPANY_ADMIN}
+                          checked={field.value as string === USER_ROLES.COMPANY_ADMIN}
                           onChange={() => field.onChange(USER_ROLES.COMPANY_ADMIN)}
                           className="accent-primary"
                         />
@@ -590,7 +616,7 @@ export default function OrganizationsPage() {
                           type="radio"
                           id="company_user"
                           value={USER_ROLES.COMPANY_USER}
-                          checked={field.value === USER_ROLES.COMPANY_USER}
+                          checked={field.value as string === USER_ROLES.COMPANY_USER}
                           onChange={() => field.onChange(USER_ROLES.COMPANY_USER)}
                           className="accent-primary"
                         />
