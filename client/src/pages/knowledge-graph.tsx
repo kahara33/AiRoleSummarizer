@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { KnowledgeNode, RoleModel } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { KnowledgeNode, RoleModel, KnowledgeEdge } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -11,8 +11,17 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, ArrowLeft, Plus, RefreshCw } from "lucide-react";
+import { 
+  Loader2, 
+  ArrowLeft, 
+  Plus, 
+  RefreshCw, 
+  Sparkles, 
+  ExpandIcon,
+  ZapIcon 
+} from "lucide-react";
 import KnowledgeGraphViewer from "@/components/knowledge-graph/knowledge-graph-viewer";
 import KnowledgeNodeForm from "@/components/knowledge-graph/knowledge-node-form";
 import KnowledgeEdgeForm from "@/components/knowledge-graph/knowledge-edge-form";
@@ -30,6 +39,9 @@ export default function KnowledgeGraphPage() {
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | undefined>();
   const [dialogType, setDialogType] = useState<DialogType>(null);
   const [showAddRootNodePrompt, setShowAddRootNodePrompt] = useState(false);
+  const [showAIGenerateDialog, setShowAIGenerateDialog] = useState(false);
+  const [showNodeExpandDialog, setShowNodeExpandDialog] = useState(false);
+  const [expandingNode, setExpandingNode] = useState<KnowledgeNode | undefined>();
 
   // Fetch role model
   const { data: roleModel, isLoading: isLoadingRoleModel } = useQuery({
@@ -73,6 +85,86 @@ export default function KnowledgeGraphPage() {
 
   const handleBackToRoleModels = () => {
     setLocation("/");
+  };
+  
+  // AI グラフ自動生成Mutation
+  const generateGraphMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest(
+        "POST", 
+        `/api/role-models/${roleModelId}/generate-knowledge-graph`
+      );
+      return await res.json() as { 
+        nodes: KnowledgeNode[], 
+        edges: KnowledgeEdge[] 
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/role-models/${roleModelId}/knowledge-nodes`]
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/role-models/${roleModelId}/knowledge-edges`] 
+      });
+      toast({
+        title: "知識グラフが自動生成されました",
+        description: "AIによって役割モデルの知識構造が生成されました。",
+      });
+      setShowAIGenerateDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "エラー",
+        description: error.message || "知識グラフの自動生成に失敗しました。",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // ノード展開Mutation
+  const expandNodeMutation = useMutation({
+    mutationFn: async (nodeId: string) => {
+      const res = await apiRequest(
+        "POST", 
+        `/api/knowledge-nodes/${nodeId}/expand`
+      );
+      return await res.json() as { 
+        nodes: KnowledgeNode[], 
+        edges: KnowledgeEdge[] 
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/role-models/${roleModelId}/knowledge-nodes`]
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/role-models/${roleModelId}/knowledge-edges`] 
+      });
+      toast({
+        title: "ノードが展開されました",
+        description: "AIによってノードの関連知識が追加されました。",
+      });
+      setShowNodeExpandDialog(false);
+      setExpandingNode(undefined);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "エラー",
+        description: error.message || "ノードの展開に失敗しました。",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // ノード展開ハンドラ
+  const handleExpandNode = (node: KnowledgeNode) => {
+    setExpandingNode(node);
+    setShowNodeExpandDialog(true);
+  };
+  
+  // AIグラフ生成ハンドラ
+  const handleGenerateGraph = () => {
+    setShowAIGenerateDialog(true);
   };
 
   // Check if there are no nodes and show the root node creation prompt
@@ -122,6 +214,17 @@ export default function KnowledgeGraphPage() {
             </p>
           </div>
           <div className="flex space-x-2">
+            {/* AIによる知識グラフ自動生成ボタン */}
+            {hasNoNodes && (
+              <Button 
+                onClick={handleGenerateGraph} 
+                variant="secondary"
+                className="bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                AIで自動生成
+              </Button>
+            )}
             <Button onClick={() => handleAddNode()} disabled={hasNoNodes}>
               <Plus className="h-4 w-4 mr-2" />
               新規ノード
@@ -175,10 +278,9 @@ export default function KnowledgeGraphPage() {
                     key={node.id}
                     className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                     style={{ borderLeft: `4px solid ${node.color || "#AAAAAA"}` }}
-                    onClick={() => handleNodeClick(node)}
                   >
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div onClick={() => handleNodeClick(node)}>
                         <h3 className="font-medium">{node.name}</h3>
                         <span className="text-xs px-2 py-1 bg-muted rounded-full">
                           {node.type}
@@ -187,6 +289,18 @@ export default function KnowledgeGraphPage() {
                           {node.description || "説明なし"}
                         </p>
                       </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExpandNode(node);
+                        }}
+                        title="このノードをAIで展開"
+                      >
+                        <ExpandIcon className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -259,6 +373,122 @@ export default function KnowledgeGraphPage() {
             }}
             onCancel={() => setShowAddRootNodePrompt(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Graph Generation Dialog */}
+      <Dialog
+        open={showAIGenerateDialog}
+        onOpenChange={setShowAIGenerateDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>AIによる知識グラフ自動生成</DialogTitle>
+            <DialogDescription>
+              Azure OpenAI APIを利用して、この役割モデルに適した知識グラフを自動生成します。
+              生成されたグラフはいつでも編集や拡張が可能です。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              役割名: <span className="font-medium text-foreground">{roleModel.name}</span>
+            </p>
+            {roleModel.description && (
+              <p className="text-sm text-muted-foreground">
+                役割の説明: <span className="font-medium text-foreground">{roleModel.description}</span>
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAIGenerateDialog(false)}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={() => generateGraphMutation.mutate()}
+              disabled={generateGraphMutation.isPending}
+              className="bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600"
+            >
+              {generateGraphMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  自動生成する
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Node Expansion Dialog */}
+      <Dialog
+        open={showNodeExpandDialog}
+        onOpenChange={setShowNodeExpandDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>ノード展開</DialogTitle>
+            <DialogDescription>
+              AIを使用して選択したノードを展開し、関連する新しいサブノードを生成します。
+            </DialogDescription>
+          </DialogHeader>
+          {expandingNode && (
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground mb-2">
+                展開するノード:
+              </p>
+              <div 
+                className="border rounded-lg p-4 mb-4"
+                style={{ borderLeft: `4px solid ${expandingNode.color || "#AAAAAA"}` }}
+              >
+                <h3 className="font-medium">{expandingNode.name}</h3>
+                <span className="text-xs px-2 py-1 bg-muted rounded-full">
+                  {expandingNode.type}
+                </span>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {expandingNode.description || "説明なし"}
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                このノードに関連する新しいサブノードをAIが自動的に生成します。
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowNodeExpandDialog(false);
+                setExpandingNode(undefined);
+              }}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={() => expandingNode && expandNodeMutation.mutate(expandingNode.id)}
+              disabled={expandNodeMutation.isPending || !expandingNode}
+              className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:from-emerald-600 hover:to-cyan-600"
+            >
+              {expandNodeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  展開中...
+                </>
+              ) : (
+                <>
+                  <ExpandIcon className="h-4 w-4 mr-2" />
+                  ノードを展開する
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>

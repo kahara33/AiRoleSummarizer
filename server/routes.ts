@@ -15,7 +15,9 @@ import {
 import { 
   suggestTags, 
   collectInformation,
-  generateSummary
+  generateSummary,
+  generateKnowledgeGraph,
+  generateKnowledgeGraphForNode
 } from "./azure-openai";
 
 // Middleware to ensure user is authenticated
@@ -679,6 +681,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Create HTTP server
+  // AI Knowledge Graph Generation routes
+  app.post("/api/role-models/:id/generate-knowledge-graph", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to generate knowledge graph for this role model" });
+      }
+      
+      // Check if knowledge nodes already exist for this role model
+      const existingNodes = await storage.getKnowledgeNodes(roleModelId);
+      if (existingNodes.length > 0) {
+        return res.status(400).json({ 
+          message: "This role model already has a knowledge graph. Please delete existing nodes first or create a new role model."
+        });
+      }
+      
+      // Generate the knowledge graph
+      const success = await generateKnowledgeGraph(
+        roleModelId,
+        roleModel.name,
+        roleModel.description || ""
+      );
+      
+      if (success) {
+        // Return the newly created nodes and edges
+        const nodes = await storage.getKnowledgeNodes(roleModelId);
+        const edges = await storage.getKnowledgeEdges(roleModelId);
+        
+        res.status(201).json({
+          message: "Knowledge graph generated successfully",
+          nodes,
+          edges
+        });
+      } else {
+        res.status(500).json({ message: "Failed to generate knowledge graph" });
+      }
+    } catch (error) {
+      console.error("Error generating knowledge graph:", error);
+      res.status(500).json({ message: "Error generating knowledge graph" });
+    }
+  });
+  
+  app.post("/api/knowledge-nodes/:id/expand", isAuthenticated, async (req, res) => {
+    try {
+      const nodeId = req.params.id;
+      const node = await storage.getKnowledgeNode(nodeId);
+      
+      if (!node) {
+        return res.status(404).json({ message: "Knowledge node not found" });
+      }
+      
+      // Verify ownership by checking the role model
+      const roleModel = await storage.getRoleModelWithTags(node.roleModelId);
+      if (!roleModel || roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to expand this knowledge node" });
+      }
+      
+      // Generate additional knowledge nodes for this node
+      const success = await generateKnowledgeGraphForNode(
+        node.roleModelId,
+        node.name,
+        nodeId
+      );
+      
+      if (success) {
+        // Return the newly created nodes and edges connected to this node
+        const allNodes = await storage.getKnowledgeNodes(node.roleModelId);
+        const allEdges = await storage.getKnowledgeEdges(node.roleModelId);
+        
+        // Filter edges to only include those connected to the expanded node
+        const relevantEdges = allEdges.filter(edge => edge.sourceId === nodeId || edge.targetId === nodeId);
+        
+        // Get the IDs of nodes connected to the expanded node
+        const connectedNodeIds = new Set<string>();
+        relevantEdges.forEach(edge => {
+          connectedNodeIds.add(edge.sourceId);
+          connectedNodeIds.add(edge.targetId);
+        });
+        
+        // Filter nodes to only include the connected ones
+        const relevantNodes = allNodes.filter(n => connectedNodeIds.has(n.id));
+        
+        res.status(201).json({
+          message: "Knowledge node expanded successfully",
+          nodes: relevantNodes,
+          edges: relevantEdges
+        });
+      } else {
+        res.status(500).json({ message: "Failed to expand knowledge node" });
+      }
+    } catch (error) {
+      console.error("Error expanding knowledge node:", error);
+      res.status(500).json({ message: "Error expanding knowledge node" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { InsertSummary, Tag } from '@shared/schema';
+import { InsertSummary, Tag, InsertKnowledgeNode, InsertKnowledgeEdge } from '@shared/schema';
 
 // Function to get Azure OpenAI API key from environment variables
 const getAPIKey = (): string => {
@@ -155,4 +155,470 @@ export async function collectInformation(
     console.error('Error collecting information:', error);
     return false;
   }
+}
+
+// Type definitions for knowledge graph generation
+type KnowledgeNodeData = {
+  name: string;
+  level: number;
+  type?: string;
+  parentId?: string | null;
+  description?: string | null;
+  color?: string | null;
+};
+
+type KnowledgeEdgeData = {
+  source: string;
+  target: string;
+  label?: string | null;
+  strength?: number;
+};
+
+type KnowledgeGraphData = {
+  nodes: KnowledgeNodeData[];
+  edges: KnowledgeEdgeData[];
+};
+
+// Function to generate a knowledge graph for a role model using Azure OpenAI
+export async function generateKnowledgeGraph(
+  roleModelId: string,
+  roleName: string,
+  roleDescription: string
+): Promise<boolean> {
+  try {
+    console.log(`Generating knowledge graph for role model: ${roleName}`);
+    const apiKey = getAPIKey();
+    const endpoint = getEndpoint();
+    
+    if (!apiKey || !endpoint) {
+      console.warn('Azure OpenAI API key or endpoint not configured, using mock data');
+    }
+    
+    // In production, this would make a real API call to Azure OpenAI
+    // For now, we'll use predefined knowledge graph for "ビジネスアーキテクト"
+    // Eventually this would be replaced with actual Azure OpenAI API call
+    
+    // Simulated API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    let graphData: KnowledgeGraphData;
+    
+    // Check if the role is related to business architect
+    if (roleName.toLowerCase().includes('business') || 
+        roleName.toLowerCase().includes('architect') || 
+        roleName.toLowerCase().includes('ビジネス') || 
+        roleName.toLowerCase().includes('アーキテクト') ||
+        roleDescription.toLowerCase().includes('business architect') ||
+        roleDescription.toLowerCase().includes('ビジネスアーキテクト')) {
+      graphData = getBusinessArchitectGraph(roleModelId);
+    } else {
+      // Use a generic graph structure
+      graphData = getGenericRoleGraph(roleModelId, roleName);
+    }
+    
+    // Create all the nodes first
+    const nodeIdMap = new Map<string, string>(); // Maps original node names to their database IDs
+    
+    for (const node of graphData.nodes) {
+      const nodeData: InsertKnowledgeNode = {
+        name: node.name,
+        roleModelId: roleModelId,
+        level: node.level,
+        type: node.type || 'keyword',
+        parentId: node.parentId || null,
+        description: node.description || null,
+        color: node.color || null
+      };
+      
+      const createdNode = await storage.createKnowledgeNode(nodeData);
+      nodeIdMap.set(node.name, createdNode.id);
+    }
+    
+    // Create all the edges
+    for (const edge of graphData.edges) {
+      const sourceId = nodeIdMap.get(edge.source);
+      const targetId = nodeIdMap.get(edge.target);
+      
+      if (sourceId && targetId) {
+        const edgeData: InsertKnowledgeEdge = {
+          sourceId,
+          targetId,
+          roleModelId,
+          label: edge.label || null,
+          strength: edge.strength || 1
+        };
+        
+        await storage.createKnowledgeEdge(edgeData);
+      }
+    }
+    
+    console.log(`Successfully created knowledge graph for ${roleName} with ${graphData.nodes.length} nodes and ${graphData.edges.length} edges`);
+    return true;
+    
+  } catch (error) {
+    console.error('Error generating knowledge graph:', error);
+    return false;
+  }
+}
+
+// Function to generate knowledge graph for a specific node
+export async function generateKnowledgeGraphForNode(
+  roleModelId: string,
+  nodeName: string,
+  nodeId: string
+): Promise<boolean> {
+  try {
+    console.log(`Generating additional knowledge graph for node: ${nodeName}`);
+    
+    // In production, this would call Azure OpenAI to expand on the specific node
+    // For now, we'll simulate it with predefined data
+    
+    // Simulated API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Generate 2-4 sub-nodes based on the given node
+    const numNodes = Math.floor(Math.random() * 3) + 2; // 2-4 nodes
+    const subNodes: KnowledgeNodeData[] = [];
+    const edges: KnowledgeEdgeData[] = [];
+    
+    // Get the parent node to determine its level
+    const parentNode = await storage.getKnowledgeNode(nodeId);
+    if (!parentNode) {
+      throw new Error(`Parent node not found: ${nodeId}`);
+    }
+    
+    const childLevel = parentNode.level + 1;
+    
+    // Generate sub-nodes based on the node name
+    if (nodeName.toLowerCase().includes('digital')) {
+      subNodes.push(
+        { name: 'Digital Transformation', level: childLevel, parentId: nodeId },
+        { name: 'Digital Marketing', level: childLevel, parentId: nodeId },
+        { name: 'Digital Product Design', level: childLevel, parentId: nodeId }
+      );
+    } else if (nodeName.toLowerCase().includes('data')) {
+      subNodes.push(
+        { name: 'Data Visualization', level: childLevel, parentId: nodeId },
+        { name: 'Data Engineering', level: childLevel, parentId: nodeId },
+        { name: 'Business Intelligence', level: childLevel, parentId: nodeId }
+      );
+    } else if (nodeName.toLowerCase().includes('strategy')) {
+      subNodes.push(
+        { name: 'Strategic Planning', level: childLevel, parentId: nodeId },
+        { name: 'Competitive Analysis', level: childLevel, parentId: nodeId },
+        { name: 'Market Positioning', level: childLevel, parentId: nodeId }
+      );
+    } else {
+      // Generate generic sub-nodes
+      const prefixes = ['Advanced', 'Strategic', 'Modern', 'Innovative'];
+      const suffixes = ['Approach', 'Methodology', 'Framework', 'Practice'];
+      
+      for (let i = 0; i < numNodes; i++) {
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+        const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+        subNodes.push({
+          name: `${prefix} ${nodeName} ${suffix}`,
+          level: childLevel,
+          parentId: nodeId
+        });
+      }
+    }
+    
+    // Create nodes and edges in the database
+    for (const node of subNodes) {
+      const nodeData: InsertKnowledgeNode = {
+        name: node.name,
+        roleModelId,
+        level: node.level,
+        type: node.type || 'keyword',
+        parentId: node.parentId || null,
+        description: node.description || null,
+        color: node.color || null
+      };
+      
+      const createdNode = await storage.createKnowledgeNode(nodeData);
+      
+      // Create edge from parent to this node
+      const edgeData: InsertKnowledgeEdge = {
+        sourceId: nodeId,
+        targetId: createdNode.id,
+        roleModelId,
+        label: null,
+        strength: 1
+      };
+      
+      await storage.createKnowledgeEdge(edgeData);
+    }
+    
+    console.log(`Successfully created ${subNodes.length} sub-nodes for ${nodeName}`);
+    return true;
+    
+  } catch (error) {
+    console.error('Error generating knowledge graph for node:', error);
+    return false;
+  }
+}
+
+// Helper function to generate a business architect knowledge graph structure
+function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
+  // Define central node
+  const centralNode = { 
+    name: 'ビジネスアーキテクト', 
+    level: 0,
+    type: 'central',
+    color: '#4F46E5' // Indigo-600
+  };
+  
+  // Define main category nodes (level 1)
+  const mainCategories = [
+    { name: 'Digital Working Skills', level: 1, color: '#10B981' }, // Emerald-500
+    { name: 'Entrepreneurial Skills', level: 1, color: '#8B5CF6' }, // Violet-500
+    { name: 'Evidence Based Working Skills', level: 1, color: '#EC4899' }, // Pink-500
+    { name: 'Communication Skills', level: 1, color: '#F59E0B' }, // Amber-500
+    { name: 'Collaboration Skills', level: 1, color: '#06B6D4' }, // Cyan-500
+    { name: 'Adaptation Skills', level: 1, color: '#34D399' }  // Emerald-400
+  ];
+  
+  // Define subcategories (level 2)
+  const subCategories = [
+    // Digital Working Skills subcategories
+    { name: 'Fundamental Digital Working Skills', level: 2, parentId: 'Digital Working Skills', color: '#A7F3D0' }, // Emerald-200
+    { name: 'Advanced Digital Working Skills', level: 2, parentId: 'Digital Working Skills', color: '#A7F3D0' },
+    
+    // Entrepreneurial Skills subcategories
+    { name: 'Fundamental Entrepreneurial Skills', level: 2, parentId: 'Entrepreneurial Skills', color: '#C4B5FD' }, // Violet-200
+    { name: 'Value Creation Skills', level: 2, parentId: 'Entrepreneurial Skills', color: '#C4B5FD' },
+    { name: 'Openness to Novelty', level: 2, parentId: 'Entrepreneurial Skills', color: '#C4B5FD' },
+    
+    // Evidence Based Working Skills subcategories
+    { name: 'Fundamental Evidence Based Working Skills', level: 2, parentId: 'Evidence Based Working Skills', color: '#FBCFE8' }, // Pink-200
+    { name: 'Information Processing Skills', level: 2, parentId: 'Evidence Based Working Skills', color: '#FBCFE8' },
+    { name: 'Data Fluency Skills', level: 2, parentId: 'Evidence Based Working Skills', color: '#FBCFE8' }
+  ];
+  
+  // Define specific skills (level 3)
+  const specificSkills = [
+    // Fundamental Digital Working Skills
+    { name: 'Handling hardware', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' }, // Emerald-50
+    { name: 'Handling software', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
+    { name: 'Handling social media and the internet', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
+    { name: 'Sharing information and data', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
+    { name: 'Solving basic digital problems', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
+    
+    // Advanced Digital Working Skills
+    { name: 'Programming', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
+    { name: 'Digital content creation', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
+    { name: 'Dealing with laws, copyrights and licenses', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
+    { name: 'Digital safety', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
+    
+    // Fundamental Entrepreneurial Skills
+    { name: 'Creativity and innovation', level: 3, parentId: 'Fundamental Entrepreneurial Skills', color: '#F5F3FF' }, // Violet-50
+    { name: 'Problem solving', level: 3, parentId: 'Fundamental Entrepreneurial Skills', color: '#F5F3FF' },
+    
+    // Openness to novelty
+    { name: 'Spotting opportunities', level: 3, parentId: 'Openness to Novelty', color: '#F5F3FF' },
+    { name: 'Sensemaking', level: 3, parentId: 'Openness to Novelty', color: '#F5F3FF' },
+    
+    // Value Creation Skills
+    { name: 'Taking initiative', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: 'Strategic planning', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: 'Decision making', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: 'Anticipation', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: 'Risk taking', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: 'Risk management', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: 'Leadership', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    
+    // Fundamental Evidence Based Working Skills
+    { name: 'Formulating research questions', level: 3, parentId: 'Fundamental Evidence Based Working Skills', color: '#FCE7F3' }, // Pink-50
+    { name: 'Critical thinking', level: 3, parentId: 'Fundamental Evidence Based Working Skills', color: '#FCE7F3' },
+    
+    // Information Processing Skills
+    { name: 'Searching and selecting information', level: 3, parentId: 'Information Processing Skills', color: '#FCE7F3' },
+    { name: 'Information interpretation and evaluation', level: 3, parentId: 'Information Processing Skills', color: '#FCE7F3' },
+    { name: 'Information management', level: 3, parentId: 'Information Processing Skills', color: '#FCE7F3' },
+    
+    // Data Fluency Skills
+    { name: 'Data collection', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    { name: 'Data analysis', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    { name: 'Data interpretation', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    { name: 'Data visualization', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    { name: 'Data management', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    { name: 'Data ethics and security', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    
+    // Communication Skills
+    { name: 'Using appropriate ways to communicate', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' }, // Amber-100
+    { name: 'Storytelling', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' },
+    { name: 'Networking', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' },
+    { name: 'Digital identity management', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' },
+    
+    // Collaboration Skills
+    { name: 'Negotiation', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' }, // Cyan-100
+    { name: 'Multidisciplinary teamwork', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
+    { name: 'Social intelligence', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
+    { name: 'Cultural awareness', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
+    { name: 'Networking', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
+    
+    // Adaptation Skills
+    { name: 'Self-directed learning', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' }, // Emerald-100
+    { name: 'Experiential learning', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' },
+    { name: 'Training others', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' },
+    { name: 'Resilience', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' }
+  ];
+  
+  // Combine all nodes
+  const allNodes = [centralNode, ...mainCategories, ...subCategories, ...specificSkills];
+  
+  // Create edges
+  const edges: KnowledgeEdgeData[] = [];
+  
+  // Connect central node to main categories
+  mainCategories.forEach(category => {
+    edges.push({
+      source: centralNode.name,
+      target: category.name
+    });
+  });
+  
+  // Connect main categories to subcategories
+  subCategories.forEach(subCategory => {
+    if (subCategory.parentId) {
+      edges.push({
+        source: subCategory.parentId,
+        target: subCategory.name
+      });
+    }
+  });
+  
+  // Connect subcategories to specific skills
+  specificSkills.forEach(skill => {
+    if (skill.parentId) {
+      edges.push({
+        source: skill.parentId,
+        target: skill.name
+      });
+    }
+  });
+  
+  return {
+    nodes: allNodes,
+    edges: edges
+  };
+}
+
+// Helper function to generate a generic role knowledge graph structure
+function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGraphData {
+  // Define central node
+  const centralNode = { 
+    name: roleName, 
+    level: 0,
+    type: 'central',
+    color: '#4F46E5' // Indigo-600
+  };
+  
+  // Define main category nodes (level 1)
+  const mainCategories = [
+    { name: 'Technical Skills', level: 1, color: '#10B981' }, // Emerald-500
+    { name: 'Domain Knowledge', level: 1, color: '#8B5CF6' }, // Violet-500
+    { name: 'Soft Skills', level: 1, color: '#EC4899' }, // Pink-500
+    { name: 'Tools & Technologies', level: 1, color: '#F59E0B' } // Amber-500
+  ];
+  
+  // Define subcategories (level 2)
+  const subCategories = [
+    // Technical Skills subcategories
+    { name: 'Core Technical Competencies', level: 2, parentId: 'Technical Skills', color: '#A7F3D0' }, // Emerald-200
+    { name: 'Advanced Technical Skills', level: 2, parentId: 'Technical Skills', color: '#A7F3D0' },
+    
+    // Domain Knowledge subcategories
+    { name: 'Industry Knowledge', level: 2, parentId: 'Domain Knowledge', color: '#C4B5FD' }, // Violet-200
+    { name: 'Process Expertise', level: 2, parentId: 'Domain Knowledge', color: '#C4B5FD' },
+    
+    // Soft Skills subcategories
+    { name: 'Communication', level: 2, parentId: 'Soft Skills', color: '#FBCFE8' }, // Pink-200
+    { name: 'Leadership', level: 2, parentId: 'Soft Skills', color: '#FBCFE8' },
+    { name: 'Teamwork', level: 2, parentId: 'Soft Skills', color: '#FBCFE8' },
+    
+    // Tools & Technologies subcategories
+    { name: 'Software Tools', level: 2, parentId: 'Tools & Technologies', color: '#FDE68A' }, // Amber-200
+    { name: 'Platforms', level: 2, parentId: 'Tools & Technologies', color: '#FDE68A' }
+  ];
+  
+  // Define specific skills (level 3) - generic placeholders
+  const specificSkills = [
+    // Core Technical Competencies
+    { name: 'Skill A', level: 3, parentId: 'Core Technical Competencies', color: '#ECFDF5' }, // Emerald-50
+    { name: 'Skill B', level: 3, parentId: 'Core Technical Competencies', color: '#ECFDF5' },
+    { name: 'Skill C', level: 3, parentId: 'Core Technical Competencies', color: '#ECFDF5' },
+    
+    // Advanced Technical Skills
+    { name: 'Advanced Skill A', level: 3, parentId: 'Advanced Technical Skills', color: '#ECFDF5' },
+    { name: 'Advanced Skill B', level: 3, parentId: 'Advanced Technical Skills', color: '#ECFDF5' },
+    
+    // Industry Knowledge
+    { name: 'Industry Trend A', level: 3, parentId: 'Industry Knowledge', color: '#F5F3FF' }, // Violet-50
+    { name: 'Industry Trend B', level: 3, parentId: 'Industry Knowledge', color: '#F5F3FF' },
+    
+    // Process Expertise
+    { name: 'Process A', level: 3, parentId: 'Process Expertise', color: '#F5F3FF' },
+    { name: 'Process B', level: 3, parentId: 'Process Expertise', color: '#F5F3FF' },
+    
+    // Communication
+    { name: 'Effective Presentation', level: 3, parentId: 'Communication', color: '#FCE7F3' }, // Pink-50
+    { name: 'Technical Writing', level: 3, parentId: 'Communication', color: '#FCE7F3' },
+    
+    // Leadership
+    { name: 'Team Management', level: 3, parentId: 'Leadership', color: '#FCE7F3' },
+    { name: 'Strategic Vision', level: 3, parentId: 'Leadership', color: '#FCE7F3' },
+    
+    // Teamwork
+    { name: 'Collaboration', level: 3, parentId: 'Teamwork', color: '#FCE7F3' },
+    { name: 'Conflict Resolution', level: 3, parentId: 'Teamwork', color: '#FCE7F3' },
+    
+    // Software Tools
+    { name: 'Tool A', level: 3, parentId: 'Software Tools', color: '#FFFBEB' }, // Amber-50
+    { name: 'Tool B', level: 3, parentId: 'Software Tools', color: '#FFFBEB' },
+    
+    // Platforms
+    { name: 'Platform A', level: 3, parentId: 'Platforms', color: '#FFFBEB' },
+    { name: 'Platform B', level: 3, parentId: 'Platforms', color: '#FFFBEB' }
+  ];
+  
+  // Combine all nodes
+  const allNodes = [centralNode, ...mainCategories, ...subCategories, ...specificSkills];
+  
+  // Create edges
+  const edges: KnowledgeEdgeData[] = [];
+  
+  // Connect central node to main categories
+  mainCategories.forEach(category => {
+    edges.push({
+      source: centralNode.name,
+      target: category.name
+    });
+  });
+  
+  // Connect main categories to subcategories
+  subCategories.forEach(subCategory => {
+    if (subCategory.parentId) {
+      edges.push({
+        source: subCategory.parentId,
+        target: subCategory.name
+      });
+    }
+  });
+  
+  // Connect subcategories to specific skills
+  specificSkills.forEach(skill => {
+    if (skill.parentId) {
+      edges.push({
+        source: skill.parentId,
+        target: skill.name
+      });
+    }
+  });
+  
+  return {
+    nodes: allNodes,
+    edges: edges
+  };
 }
