@@ -32,11 +32,11 @@ export default function SelectedKeywords({
   );
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xl font-bold flex items-center justify-between">
+    <Card className="w-full h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-md font-bold flex items-center justify-between">
           {title}
-          <Badge variant="outline">
+          <Badge variant="outline" className="ml-2">
             {selectedKeywordIds.length}件
           </Badge>
         </CardTitle>
@@ -46,24 +46,23 @@ export default function SelectedKeywords({
           <div className="space-y-2">
             <Skeleton className="h-5 w-full" />
             <Skeleton className="h-5 w-full" />
-            <Skeleton className="h-5 w-full" />
           </div>
         ) : selectedKeywordIds.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
+          <p className="text-sm text-muted-foreground text-center py-2">
             キーワードが選択されていません
           </p>
         ) : (
-          <ScrollArea className={`h-[${maxHeight}]`}>
-            <div className="flex flex-wrap gap-2 p-1">
+          <ScrollArea style={{ height: maxHeight }} className="pr-2">
+            <div className="flex flex-wrap gap-1 p-1">
               {selectedKeywords.map((keyword) => (
                 <Badge
                   key={keyword.id}
                   variant="secondary"
-                  className="flex items-center gap-1 px-3 py-1.5"
+                  className="flex items-center gap-1 px-2 py-0.5 text-xs"
                 >
-                  <span>{keyword.name}</span>
+                  <span className="truncate max-w-[100px]">{keyword.name}</span>
                   <X
-                    className="h-3 w-3 cursor-pointer"
+                    className="h-3 w-3 cursor-pointer flex-shrink-0"
                     onClick={() => onRemoveKeyword(keyword.id)}
                   />
                 </Badge>

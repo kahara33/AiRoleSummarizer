@@ -171,9 +171,9 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
   });
 
   return (
-    <Card className="w-[800px]">
+    <Card className="w-full max-w-4xl">
       <CardHeader>
-        <CardTitle>{isEditMode ? "ロールモデルを編集" : "新しいロールモデルを作成"}</CardTitle>
+        <CardTitle className="text-center text-xl">{isEditMode ? "ロールモデルを編集" : "新しいロールモデルを作成"}</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

@@ -64,11 +64,11 @@ export default function SelectedIndustries({
   }, [selectedSubcategories, categories]);
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xl font-bold flex items-center justify-between">
+    <Card className="w-full h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-md font-bold flex items-center justify-between">
           {title}
-          <Badge variant="outline">
+          <Badge variant="outline" className="ml-2">
             {selectedIndustryIds.length}件
           </Badge>
         </CardTitle>
@@ -78,28 +78,27 @@ export default function SelectedIndustries({
           <div className="space-y-2">
             <Skeleton className="h-5 w-full" />
             <Skeleton className="h-5 w-full" />
-            <Skeleton className="h-5 w-full" />
           </div>
         ) : selectedIndustryIds.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
+          <p className="text-sm text-muted-foreground text-center py-2">
             業界が選択されていません
           </p>
         ) : (
-          <ScrollArea style={{ height: maxHeight }} className="pr-4">
-            <div className="space-y-4">
+          <ScrollArea style={{ height: maxHeight }} className="pr-2">
+            <div className="space-y-2">
               {Object.entries(categoryGroups).map(([categoryId, subcategories]) => (
-                <div key={categoryId} className="space-y-2">
-                  <h4 className="text-sm font-medium">{getCategoryName(categoryId)}</h4>
-                  <div className="flex flex-wrap gap-2">
+                <div key={categoryId} className="space-y-1">
+                  <h4 className="text-xs font-medium text-muted-foreground">{getCategoryName(categoryId)}</h4>
+                  <div className="flex flex-wrap gap-1">
                     {subcategories.map((sub) => (
                       <Badge
                         key={sub.id}
                         variant="secondary"
-                        className="flex items-center gap-1 px-3 py-1"
+                        className="flex items-center gap-1 px-2 py-0.5 text-xs"
                       >
-                        <span>{sub.name}</span>
+                        <span className="truncate max-w-[100px]">{sub.name}</span>
                         <X
-                          className="h-3 w-3 cursor-pointer"
+                          className="h-3 w-3 cursor-pointer flex-shrink-0"
                           onClick={() => onRemoveIndustry(sub.id)}
                         />
                       </Badge>

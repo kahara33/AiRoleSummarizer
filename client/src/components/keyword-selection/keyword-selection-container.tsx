@@ -49,19 +49,24 @@ export default function KeywordSelectionContainer({
   };
 
   return (
-    <div className="space-y-6 w-full">
-      <KeywordSearch
-        selectedKeywords={selectedKeywords}
-        onSelectKeyword={handleSelectKeyword}
-        maxHeight="400px"
-        title={`キーワード検索・選択 (最大${maxSelections}件)`}
-      />
-      
-      <SelectedKeywords
-        selectedKeywordIds={selectedKeywords}
-        onRemoveKeyword={handleRemoveKeyword}
-        maxHeight="250px"
-      />
+    <div className="space-y-4 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="md:col-span-3">
+          <KeywordSearch
+            selectedKeywords={selectedKeywords}
+            onSelectKeyword={handleSelectKeyword}
+            maxHeight="450px"
+            title={`キーワード検索・選択 (最大${maxSelections}件)`}
+          />
+        </div>
+        <div>
+          <SelectedKeywords
+            selectedKeywordIds={selectedKeywords}
+            onRemoveKeyword={handleRemoveKeyword}
+            maxHeight="150px"
+          />
+        </div>
+      </div>
     </div>
   );
 }

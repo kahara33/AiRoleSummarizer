@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Search } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface KeywordSearchProps {
   selectedKeywords: string[];
@@ -32,7 +32,8 @@ export default function KeywordSearch({
   // 検索語が変更されたときにサジェスト表示
   useEffect(() => {
     if (searchTerm.trim().length > 0) {
-      const matchedKeywords = keywords.filter((keyword: Keyword) => 
+      // 既存のキーワードから検索
+      const matchedKeywords = keywords.filter((keyword) => 
         keyword.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
         !selectedKeywords.includes(keyword.id)
       ).slice(0, 5); // 最大5件表示
@@ -47,7 +48,7 @@ export default function KeywordSearch({
     if (!searchTerm.trim()) return;
     
     // 既存のキーワードを検索
-    const existingKeyword = keywords.find((k: Keyword) => 
+    const existingKeyword = keywords.find((k) => 
       k.name.toLowerCase() === searchTerm.toLowerCase()
     );
     
@@ -64,6 +65,9 @@ export default function KeywordSearch({
         
         // 選択済みリストに追加
         onSelectKeyword(newKeyword.id, true);
+        
+        // キャッシュを更新するためにキーワードリストを再取得する
+        queryClient.invalidateQueries({ queryKey: ["/api/keywords"] });
       } catch (error) {
         console.error("キーワードの作成に失敗しました", error);
       }

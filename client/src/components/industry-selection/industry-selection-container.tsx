@@ -49,19 +49,24 @@ export default function IndustrySelectionContainer({
   };
 
   return (
-    <div className="space-y-6 w-full">
-      <IndustrySelector
-        selectedIndustries={selectedIndustries}
-        onSelectIndustry={handleSelectIndustry}
-        maxHeight="300px"
-        title={`業界カテゴリー選択 (最大${maxSelections}件)`}
-      />
-      
-      <SelectedIndustries
-        selectedIndustryIds={selectedIndustries}
-        onRemoveIndustry={handleRemoveIndustry}
-        maxHeight="200px"
-      />
+    <div className="space-y-4 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="md:col-span-3">
+          <IndustrySelector
+            selectedIndustries={selectedIndustries}
+            onSelectIndustry={handleSelectIndustry}
+            maxHeight="450px"
+            title={`業界カテゴリー選択 (最大${maxSelections}件)`}
+          />
+        </div>
+        <div>
+          <SelectedIndustries
+            selectedIndustryIds={selectedIndustries}
+            onRemoveIndustry={handleRemoveIndustry}
+            maxHeight="150px"
+          />
+        </div>
+      </div>
     </div>
   );
 }
