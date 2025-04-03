@@ -247,34 +247,56 @@ export async function generateKnowledgeGraph(
       const messages = [
         {
           role: "system",
-          content: `You are an expert knowledge graph creator. Your task is to create a hierarchical knowledge graph for a professional role. 
-          The output should be a JSON object with two arrays: "nodes" and "edges".
-          Each node should have: name, level (0 for central, 1-3 for hierarchy levels), type (default is "keyword"), and color (optional hex code).
-          Each edge should have: source (node name), target (node name), and strength (1-5).
-          Create a comprehensive, hierarchical graph with a central node (level 0) for the role, main categories (level 1), 
-          subcategories (level 2), and specific skills or knowledge areas (level 3).
-          Provide meaningful connections between nodes.`
+          content: `あなたは知識グラフ生成の専門家です。専門的な役割のための階層的な知識グラフを作成してください。
+          
+          出力は2つの配列（"nodes"と"edges"）を持つJSONオブジェクトである必要があります。
+          
+          各ノードは以下のプロパティを持ちます：
+          - name: ノードの名前（日本語、簡潔で明確な表現）
+          - level: 階層レベル（0: 中心、1: 主要カテゴリ、2: サブカテゴリ、3: 具体的なスキルや知識領域）
+          - type: タイプ（"central", "category", "subcategory", "skill", "knowledge"など。デフォルトは"keyword"）
+          - color: 色（オプション、ヘキサカラーコード）
+          - description: ノードの説明（オプション、そのスキルや知識がなぜ重要かを説明）
+          - parentId: 親ノードの名前（level 0, 1のノードには不要、level 2, 3のノードには必須）
+          
+          各エッジは以下のプロパティを持ちます：
+          - source: 始点ノードの名前
+          - target: 終点ノードの名前
+          - label: 関係性の説明（"必要とする", "含む", "関連する"など。オプション）
+          - strength: 関係性の強さ（1-5の整数。5が最も強い）
+          
+          以下の点に注意してください：
+          1. 階層構造を明確にし、親子関係を適切に設定すること
+          2. ノード間の関係性を意味のある形で表現すること
+          3. 中心ノード（level 0）から各カテゴリへの接続を確実に行うこと
+          4. 関連する概念間には直接的なエッジを追加すること
+          5. 色は階層レベルや概念のグループごとに一貫性を持たせること
+          6. 日本語での表現を優先すること`
         },
         {
           role: "user",
-          content: `Create a knowledge graph for the role: "${roleName}".
-          Additional context about this role: "${roleDescription}"
+          content: `役割「${roleName}」の知識グラフを作成してください。
           
-          Output should be valid JSON with the format:
+          この役割に関する追加情報: 「${roleDescription}」
+          
+          以下の形式の有効なJSONで出力してください:
           {
             "nodes": [
-              {"name": "Role Name", "level": 0, "type": "central", "color": "#hexcode"},
-              {"name": "Category 1", "level": 1, "color": "#hexcode"},
-              {"name": "Subcategory 1.1", "level": 2, "parentId": "Category 1", "color": "#hexcode"},
-              {"name": "Specific Skill 1.1.1", "level": 3, "parentId": "Subcategory 1.1", "color": "#hexcode"},
+              {"name": "役割名", "level": 0, "type": "central", "color": "#hexcode", "description": "この役割の説明"},
+              {"name": "カテゴリ1", "level": 1, "type": "category", "color": "#hexcode", "description": "このカテゴリの説明"},
+              {"name": "サブカテゴリ1.1", "level": 2, "type": "subcategory", "parentId": "カテゴリ1", "color": "#hexcode", "description": "このサブカテゴリの説明"},
+              {"name": "具体的スキル1.1.1", "level": 3, "type": "skill", "parentId": "サブカテゴリ1.1", "color": "#hexcode", "description": "このスキルの説明"},
               ...
             ],
             "edges": [
-              {"source": "Role Name", "target": "Category 1", "strength": 5},
-              {"source": "Category 1", "target": "Subcategory 1.1", "strength": 4},
+              {"source": "役割名", "target": "カテゴリ1", "label": "含む", "strength": 5},
+              {"source": "カテゴリ1", "target": "サブカテゴリ1.1", "label": "含む", "strength": 4},
+              {"source": "サブカテゴリ1.1", "target": "サブカテゴリ1.2", "label": "関連する", "strength": 3},
               ...
             ]
-          }`
+          }
+          
+          重要なスキルと知識領域を網羅し、意味のある関連性を持たせるようにしてください。最低でも4つの主要カテゴリ、各カテゴリに2-3のサブカテゴリ、各サブカテゴリに2-4の具体的スキルを含めるようにしてください。`
         }
       ];
       
@@ -375,6 +397,204 @@ export async function generateKnowledgeGraph(
   }
 }
 
+// Function to update knowledge graph based on chat prompt
+export async function updateKnowledgeGraphByChat(
+  roleModelId: string,
+  prompt: string
+): Promise<boolean> {
+  try {
+    console.log(`Updating knowledge graph for role model ${roleModelId} with prompt: ${prompt}`);
+    
+    // Get existing nodes and edges
+    const existingNodes = await storage.getKnowledgeNodes(roleModelId);
+    const existingEdges = await storage.getKnowledgeEdges(roleModelId);
+    
+    if (existingNodes.length === 0) {
+      throw new Error("ナレッジグラフが存在しません。まず基本的なグラフを生成してください。");
+    }
+    
+    // Format existing data for context
+    const nodesInfo = existingNodes.map(node => 
+      `ID: ${node.id}, 名前: ${node.name}, レベル: ${node.level}, タイプ: ${node.type}, 親: ${node.parentId || 'なし'}`
+    ).join('\n');
+    
+    const edgesInfo = existingEdges.map(edge => 
+      `ID: ${edge.id}, ソース: ${edge.sourceId}, ターゲット: ${edge.targetId}, ラベル: ${edge.label || 'なし'}`
+    ).join('\n');
+    
+    // Ask OpenAI for graph updates
+    const messages = [
+      {
+        role: "system",
+        content: `あなたは知識グラフを更新する専門家です。ユーザーの指示に基づいて既存の知識グラフを拡張・修正します。
+
+        現在の知識グラフ構造は以下の通りです：
+        
+        【ノード一覧】
+        ${nodesInfo}
+        
+        【エッジ（関連性）一覧】
+        ${edgesInfo}
+        
+        ユーザーの指示に基づいて、追加・修正すべきノードとエッジを提案してください。出力は以下のJSON形式で行ってください：
+        
+        {
+          "addNodes": [
+            {
+              "name": "新しいノード名",
+              "level": 2,
+              "type": "subcategory",
+              "parentId": "親ノードのID",
+              "description": "ノードの説明",
+              "color": "#hexcode"
+            },
+            ...
+          ],
+          "addEdges": [
+            {
+              "sourceId": "始点ノードのID",
+              "targetId": "終点ノードのID",
+              "label": "関係性の説明",
+              "strength": 3
+            },
+            ...
+          ],
+          "updateNodes": [
+            {
+              "id": "更新するノードのID",
+              "name": "新しい名前",
+              "description": "新しい説明",
+              "color": "新しい色"
+            },
+            ...
+          ]
+        }
+        
+        注意点：
+        1. 新しいノードを追加する場合は、必ず既存のノード構造と整合性を保つこと
+        2. エッジを追加する場合は、実在するノードIDを使用すること
+        3. ノードを更新する場合は、必ず実在するノードIDを使用すること
+        4. ユーザーの指示に直接応答せず、JSONデータのみを出力すること`
+      },
+      {
+        role: "user",
+        content: `以下のユーザー指示に基づいて知識グラフを更新してください：
+        
+        "${prompt}"`
+      }
+    ];
+    
+    const response = await callAzureOpenAI(messages, 0.7, 2000);
+    
+    if (!response || !response.choices || response.choices.length === 0) {
+      throw new Error("Azure OpenAIからの応答が無効です");
+    }
+    
+    const content = response.choices[0].message.content;
+    const updates = JSON.parse(content);
+    
+    // Process node additions
+    if (updates.addNodes && Array.isArray(updates.addNodes)) {
+      for (const node of updates.addNodes) {
+        // Find parent ID if specified by name instead of ID
+        let parentId = node.parentId;
+        if (parentId && !existingNodes.some(n => n.id === parentId)) {
+          // This might be a node name, not an ID
+          const parentNode = existingNodes.find(n => n.name === parentId);
+          if (parentNode) {
+            parentId = parentNode.id;
+          } else {
+            parentId = null;
+          }
+        }
+        
+        const nodeData: InsertKnowledgeNode = {
+          name: node.name,
+          roleModelId,
+          level: node.level || 2,
+          type: node.type || 'keyword',
+          parentId: parentId,
+          description: node.description || null,
+          color: node.color || null
+        };
+        
+        const createdNode = await storage.createKnowledgeNode(nodeData);
+        
+        // Connect to parent if exists
+        if (parentId) {
+          const edgeData: InsertKnowledgeEdge = {
+            sourceId: parentId,
+            targetId: createdNode.id,
+            roleModelId,
+            label: "contains",
+            strength: 3
+          };
+          
+          await storage.createKnowledgeEdge(edgeData);
+        }
+        
+        console.log(`Created new node: ${node.name} -> ${createdNode.id}`);
+      }
+    }
+    
+    // Process edge additions
+    if (updates.addEdges && Array.isArray(updates.addEdges)) {
+      for (const edge of updates.addEdges) {
+        // Ensure source and target nodes exist
+        let sourceId = edge.sourceId;
+        let targetId = edge.targetId;
+        
+        // Check if IDs are actually node names
+        if (sourceId && !existingNodes.some(n => n.id === sourceId)) {
+          const sourceNode = existingNodes.find(n => n.name === sourceId);
+          if (sourceNode) sourceId = sourceNode.id;
+        }
+        
+        if (targetId && !existingNodes.some(n => n.id === targetId)) {
+          const targetNode = existingNodes.find(n => n.name === targetId);
+          if (targetNode) targetId = targetNode.id;
+        }
+        
+        if (!sourceId || !targetId) {
+          console.warn(`Cannot create edge: Invalid source or target ID`);
+          continue;
+        }
+        
+        const edgeData: InsertKnowledgeEdge = {
+          sourceId,
+          targetId,
+          roleModelId,
+          label: edge.label || null,
+          strength: edge.strength || 2
+        };
+        
+        const createdEdge = await storage.createKnowledgeEdge(edgeData);
+        console.log(`Created new edge: ${sourceId} -> ${targetId}`);
+      }
+    }
+    
+    // Process node updates
+    if (updates.updateNodes && Array.isArray(updates.updateNodes)) {
+      for (const nodeUpdate of updates.updateNodes) {
+        if (!nodeUpdate.id) continue;
+        
+        const updateData: Partial<InsertKnowledgeNode> = {};
+        if (nodeUpdate.name) updateData.name = nodeUpdate.name;
+        if (nodeUpdate.description) updateData.description = nodeUpdate.description;
+        if (nodeUpdate.color) updateData.color = nodeUpdate.color;
+        
+        await storage.updateKnowledgeNode(nodeUpdate.id, updateData);
+        console.log(`Updated node: ${nodeUpdate.id}`);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error updating knowledge graph by chat:', error);
+    return false;
+  }
+}
+
 // Function to generate knowledge graph for a specific node
 export async function generateKnowledgeGraphForNode(
   roleModelId: string,
@@ -398,20 +618,38 @@ export async function generateKnowledgeGraphForNode(
       const messages = [
         {
           role: "system",
-          content: `You are an expert knowledge graph creator. Your task is to expand a knowledge node by creating 3-5 relevant sub-nodes.
-          Create nodes that are specific, informative, and directly related to the parent concept.
-          The output should be a JSON array of node objects, each with a "name" property.`
+          content: `あなたは知識グラフ生成の専門家です。与えられた概念やスキルを詳細に分解し、適切なサブノードを作成してください。
+          
+          以下の点に注意してください：
+          1. 生成するサブノードは特定的、情報豊富、かつ親概念に直接関連するものにすること
+          2. それぞれのサブノードには名前(name)と説明(description)を含めること
+          3. サブノードはビジネス/技術領域で実際に使用される具体的な概念やスキルであること
+          4. 日本語で出力すること
+          5. 出力はJSON形式の配列であること`
         },
         {
           role: "user",
-          content: `Create 3-5 sub-nodes for the concept: "${nodeName}".
-          These sub-nodes should represent more specific concepts or skills that are part of the parent concept.
+          content: `概念「${nodeName}」のサブノードを4-6個生成してください。
+          これらのサブノードは親概念の一部であるより具体的な概念やスキルを表します。
           
-          Output format should be valid JSON array:
+          現在のノードレベルは${parentNode.level}で、サブノードのレベルは${childLevel}になります。
+          レベル${childLevel}は${childLevel <= 2 ? 'まだ抽象的な概念' : 'より具体的なスキルや知識'}を表します。
+          
+          それぞれのサブノードには下記の情報を含めてください：
+          1. name: サブノードの名前（簡潔で明確な表現）
+          2. description: このサブノードが${nodeName}に関連する理由や重要性の説明
+          3. type: "${childLevel <= 2 ? 'subcategory' : 'skill'}"（すでに設定済み）
+          
+          以下の形式の有効なJSONで出力してください:
           [
-            {"name": "Sub-concept 1"},
-            {"name": "Sub-concept 2"},
-            {"name": "Sub-concept 3"},
+            {
+              "name": "サブ概念1",
+              "description": "このサブ概念の説明と親概念との関連性"
+            },
+            {
+              "name": "サブ概念2",
+              "description": "このサブ概念の説明と親概念との関連性"
+            },
             ...
           ]`
         }

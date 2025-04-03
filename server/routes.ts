@@ -17,7 +17,8 @@ import {
   collectInformation,
   generateSummary,
   generateKnowledgeGraph,
-  generateKnowledgeGraphForNode
+  generateKnowledgeGraphForNode,
+  updateKnowledgeGraphByChat
 } from "./azure-openai";
 
 // Middleware to ensure user is authenticated
@@ -714,6 +715,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Create HTTP server
   // AI Knowledge Graph Generation routes
+  // チャット指示による知識グラフ更新
+  app.post("/api/role-models/:id/update-by-chat", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const { prompt } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ message: "Chat prompt is required" });
+      }
+      
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to update this role model" });
+      }
+      
+      const success = await updateKnowledgeGraphByChat(roleModelId, prompt);
+      
+      if (success) {
+        res.json({ message: "Knowledge graph updated successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to update knowledge graph" });
+      }
+    } catch (error) {
+      console.error("Error updating knowledge graph by chat:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
   app.post("/api/role-models/:id/generate-knowledge-graph", isAuthenticated, async (req, res) => {
     try {
       const roleModelId = req.params.id;
