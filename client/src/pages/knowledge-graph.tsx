@@ -31,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 type DialogType = "node" | "edge" | null;
 
 export default function KnowledgeGraphPage() {
-  const [, params] = useRoute("/role-models/:id/knowledge-graph");
+  const [, params] = useRoute("/role-model/:id/knowledge-graph");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const roleModelId = params?.id || "";

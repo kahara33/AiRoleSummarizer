@@ -1,6 +1,8 @@
 import { storage } from './storage';
 import { InsertSummary, Tag, InsertKnowledgeNode, InsertKnowledgeEdge } from '@shared/schema';
 
+import fetch from 'node-fetch';
+
 // Function to get Azure OpenAI API key from environment variables
 const getAPIKey = (): string => {
   return process.env.AZURE_OPENAI_KEY || 
@@ -13,6 +15,45 @@ const getEndpoint = (): string => {
   return process.env.AZURE_OPENAI_ENDPOINT || 
          '';
 };
+
+// Azure OpenAI API request function
+async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTokens = 1500): Promise<any> {
+  const apiKey = getAPIKey();
+  const endpoint = getEndpoint();
+  
+  if (!apiKey || !endpoint) {
+    throw new Error('Azure OpenAI API key or endpoint not configured');
+  }
+  
+  const url = `${endpoint}/openai/deployments/gpt-4o/chat/completions?api-version=2024-02-15-preview`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify({
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        response_format: { type: "json_object" }
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Azure OpenAI API error: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error calling Azure OpenAI:', error);
+    throw error;
+  }
+}
 
 // Mock function to simulate Azure OpenAI API call for development
 // In production, this would use the Azure OpenAI SDK
@@ -187,33 +228,70 @@ export async function generateKnowledgeGraph(
 ): Promise<boolean> {
   try {
     console.log(`Generating knowledge graph for role model: ${roleName}`);
-    const apiKey = getAPIKey();
-    const endpoint = getEndpoint();
-    
-    if (!apiKey || !endpoint) {
-      console.warn('Azure OpenAI API key or endpoint not configured, using mock data');
-    }
-    
-    // In production, this would make a real API call to Azure OpenAI
-    // For now, we'll use predefined knowledge graph for "ビジネスアーキテクト"
-    // Eventually this would be replaced with actual Azure OpenAI API call
-    
-    // Simulated API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
     
     let graphData: KnowledgeGraphData;
     
-    // Check if the role is related to business architect
-    if (roleName.toLowerCase().includes('business') || 
-        roleName.toLowerCase().includes('architect') || 
-        roleName.toLowerCase().includes('ビジネス') || 
-        roleName.toLowerCase().includes('アーキテクト') ||
-        roleDescription.toLowerCase().includes('business architect') ||
-        roleDescription.toLowerCase().includes('ビジネスアーキテクト')) {
-      graphData = getBusinessArchitectGraph(roleModelId);
-    } else {
-      // Use a generic graph structure
-      graphData = getGenericRoleGraph(roleModelId, roleName);
+    try {
+      // Try to get data from Azure OpenAI API
+      const messages = [
+        {
+          role: "system",
+          content: `You are an expert knowledge graph creator. Your task is to create a hierarchical knowledge graph for a professional role. 
+          The output should be a JSON object with two arrays: "nodes" and "edges".
+          Each node should have: name, level (0 for central, 1-3 for hierarchy levels), type (default is "keyword"), and color (optional hex code).
+          Each edge should have: source (node name), target (node name), and strength (1-5).
+          Create a comprehensive, hierarchical graph with a central node (level 0) for the role, main categories (level 1), 
+          subcategories (level 2), and specific skills or knowledge areas (level 3).
+          Provide meaningful connections between nodes.`
+        },
+        {
+          role: "user",
+          content: `Create a knowledge graph for the role: "${roleName}".
+          Additional context about this role: "${roleDescription}"
+          
+          Output should be valid JSON with the format:
+          {
+            "nodes": [
+              {"name": "Role Name", "level": 0, "type": "central", "color": "#hexcode"},
+              {"name": "Category 1", "level": 1, "color": "#hexcode"},
+              {"name": "Subcategory 1.1", "level": 2, "parentId": "Category 1", "color": "#hexcode"},
+              {"name": "Specific Skill 1.1.1", "level": 3, "parentId": "Subcategory 1.1", "color": "#hexcode"},
+              ...
+            ],
+            "edges": [
+              {"source": "Role Name", "target": "Category 1", "strength": 5},
+              {"source": "Category 1", "target": "Subcategory 1.1", "strength": 4},
+              ...
+            ]
+          }`
+        }
+      ];
+      
+      const response = await callAzureOpenAI(messages, 0.7, 2000);
+      
+      if (response && response.choices && response.choices.length > 0) {
+        const content = response.choices[0].message.content;
+        graphData = JSON.parse(content);
+        console.log("Successfully generated knowledge graph using Azure OpenAI");
+      } else {
+        throw new Error("Invalid response from Azure OpenAI");
+      }
+    } catch (apiError) {
+      console.error("Error calling Azure OpenAI:", apiError);
+      console.warn("Falling back to predefined graph templates");
+      
+      // Fallback to predefined templates
+      if (roleName.toLowerCase().includes('business') || 
+          roleName.toLowerCase().includes('architect') || 
+          roleName.toLowerCase().includes('ビジネス') || 
+          roleName.toLowerCase().includes('アーキテクト') ||
+          roleDescription.toLowerCase().includes('business architect') ||
+          roleDescription.toLowerCase().includes('ビジネスアーキテクト')) {
+        graphData = getBusinessArchitectGraph(roleModelId);
+      } else {
+        // Use a generic graph structure
+        graphData = getGenericRoleGraph(roleModelId, roleName);
+      }
     }
     
     // Create all the nodes first
@@ -270,17 +348,6 @@ export async function generateKnowledgeGraphForNode(
   try {
     console.log(`Generating additional knowledge graph for node: ${nodeName}`);
     
-    // In production, this would call Azure OpenAI to expand on the specific node
-    // For now, we'll simulate it with predefined data
-    
-    // Simulated API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Generate 2-4 sub-nodes based on the given node
-    const numNodes = Math.floor(Math.random() * 3) + 2; // 2-4 nodes
-    const subNodes: KnowledgeNodeData[] = [];
-    const edges: KnowledgeEdgeData[] = [];
-    
     // Get the parent node to determine its level
     const parentNode = await storage.getKnowledgeNode(nodeId);
     if (!parentNode) {
@@ -288,39 +355,89 @@ export async function generateKnowledgeGraphForNode(
     }
     
     const childLevel = parentNode.level + 1;
+    const subNodes: KnowledgeNodeData[] = [];
     
-    // Generate sub-nodes based on the node name
-    if (nodeName.toLowerCase().includes('digital')) {
-      subNodes.push(
-        { name: 'Digital Transformation', level: childLevel, parentId: nodeId },
-        { name: 'Digital Marketing', level: childLevel, parentId: nodeId },
-        { name: 'Digital Product Design', level: childLevel, parentId: nodeId }
-      );
-    } else if (nodeName.toLowerCase().includes('data')) {
-      subNodes.push(
-        { name: 'Data Visualization', level: childLevel, parentId: nodeId },
-        { name: 'Data Engineering', level: childLevel, parentId: nodeId },
-        { name: 'Business Intelligence', level: childLevel, parentId: nodeId }
-      );
-    } else if (nodeName.toLowerCase().includes('strategy')) {
-      subNodes.push(
-        { name: 'Strategic Planning', level: childLevel, parentId: nodeId },
-        { name: 'Competitive Analysis', level: childLevel, parentId: nodeId },
-        { name: 'Market Positioning', level: childLevel, parentId: nodeId }
-      );
-    } else {
-      // Generate generic sub-nodes
-      const prefixes = ['Advanced', 'Strategic', 'Modern', 'Innovative'];
-      const suffixes = ['Approach', 'Methodology', 'Framework', 'Practice'];
+    try {
+      // Try to generate sub-nodes using Azure OpenAI
+      const messages = [
+        {
+          role: "system",
+          content: `You are an expert knowledge graph creator. Your task is to expand a knowledge node by creating 3-5 relevant sub-nodes.
+          Create nodes that are specific, informative, and directly related to the parent concept.
+          The output should be a JSON array of node objects, each with a "name" property.`
+        },
+        {
+          role: "user",
+          content: `Create 3-5 sub-nodes for the concept: "${nodeName}".
+          These sub-nodes should represent more specific concepts or skills that are part of the parent concept.
+          
+          Output format should be valid JSON array:
+          [
+            {"name": "Sub-concept 1"},
+            {"name": "Sub-concept 2"},
+            {"name": "Sub-concept 3"},
+            ...
+          ]`
+        }
+      ];
       
-      for (let i = 0; i < numNodes; i++) {
-        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-        const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-        subNodes.push({
-          name: `${prefix} ${nodeName} ${suffix}`,
-          level: childLevel,
-          parentId: nodeId
+      const response = await callAzureOpenAI(messages, 0.7, 1000);
+      
+      if (response && response.choices && response.choices.length > 0) {
+        const content = response.choices[0].message.content;
+        const generatedNodes = JSON.parse(content);
+        
+        // Convert to the right format
+        generatedNodes.forEach((node: any) => {
+          subNodes.push({
+            name: node.name,
+            level: childLevel,
+            parentId: nodeId
+          });
         });
+        
+        console.log(`Successfully generated ${subNodes.length} sub-nodes with Azure OpenAI`);
+      } else {
+        throw new Error("Invalid response from Azure OpenAI");
+      }
+    } catch (apiError) {
+      console.error("Error calling Azure OpenAI for node expansion:", apiError);
+      console.warn("Falling back to predefined templates");
+      
+      // Fallback to predefined templates
+      if (nodeName.toLowerCase().includes('digital')) {
+        subNodes.push(
+          { name: 'Digital Transformation', level: childLevel, parentId: nodeId },
+          { name: 'Digital Marketing', level: childLevel, parentId: nodeId },
+          { name: 'Digital Product Design', level: childLevel, parentId: nodeId }
+        );
+      } else if (nodeName.toLowerCase().includes('data')) {
+        subNodes.push(
+          { name: 'Data Visualization', level: childLevel, parentId: nodeId },
+          { name: 'Data Engineering', level: childLevel, parentId: nodeId },
+          { name: 'Business Intelligence', level: childLevel, parentId: nodeId }
+        );
+      } else if (nodeName.toLowerCase().includes('strategy')) {
+        subNodes.push(
+          { name: 'Strategic Planning', level: childLevel, parentId: nodeId },
+          { name: 'Competitive Analysis', level: childLevel, parentId: nodeId },
+          { name: 'Market Positioning', level: childLevel, parentId: nodeId }
+        );
+      } else {
+        // Generate generic sub-nodes
+        const prefixes = ['Advanced', 'Strategic', 'Modern', 'Innovative'];
+        const suffixes = ['Approach', 'Methodology', 'Framework', 'Practice'];
+        
+        const numNodes = Math.floor(Math.random() * 3) + 2; // 2-4 nodes
+        for (let i = 0; i < numNodes; i++) {
+          const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+          const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+          subNodes.push({
+            name: `${prefix} ${nodeName} ${suffix}`,
+            level: childLevel,
+            parentId: nodeId
+          });
+        }
       }
     }
     
