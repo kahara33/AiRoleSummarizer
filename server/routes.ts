@@ -8,6 +8,8 @@ import {
   insertTagSchema,
   insertUserSchema,
   insertCompanySchema,
+  insertKnowledgeNodeSchema,
+  insertKnowledgeEdgeSchema,
   USER_ROLES
 } from "@shared/schema";
 import { 
@@ -193,6 +195,221 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting tag:", error);
       res.status(500).json({ message: "Error deleting tag" });
+    }
+  });
+
+  // Knowledge Node routes
+  app.get("/api/role-models/:id/knowledge-nodes", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to access this role model's knowledge nodes" });
+      }
+      
+      const nodes = await storage.getKnowledgeNodes(roleModelId);
+      res.json(nodes);
+    } catch (error) {
+      console.error("Error fetching knowledge nodes:", error);
+      res.status(500).json({ message: "Error fetching knowledge nodes" });
+    }
+  });
+
+  app.get("/api/knowledge-nodes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const nodeId = req.params.id;
+      const node = await storage.getKnowledgeNode(nodeId);
+      
+      if (!node) {
+        return res.status(404).json({ message: "Knowledge node not found" });
+      }
+      
+      // Verify ownership by checking the role model
+      const roleModel = await storage.getRoleModelWithTags(node.roleModelId);
+      if (!roleModel || roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to access this knowledge node" });
+      }
+      
+      res.json(node);
+    } catch (error) {
+      console.error("Error fetching knowledge node:", error);
+      res.status(500).json({ message: "Error fetching knowledge node" });
+    }
+  });
+
+  app.post("/api/role-models/:id/knowledge-nodes", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to add knowledge nodes to this role model" });
+      }
+      
+      // Validate node data
+      const validatedData = insertKnowledgeNodeSchema.parse({
+        ...req.body,
+        roleModelId
+      });
+      
+      const node = await storage.createKnowledgeNode(validatedData);
+      res.status(201).json(node);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid knowledge node data", errors: error.errors });
+      }
+      console.error("Error creating knowledge node:", error);
+      res.status(500).json({ message: "Error creating knowledge node" });
+    }
+  });
+
+  app.put("/api/knowledge-nodes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const nodeId = req.params.id;
+      const node = await storage.getKnowledgeNode(nodeId);
+      
+      if (!node) {
+        return res.status(404).json({ message: "Knowledge node not found" });
+      }
+      
+      // Verify ownership by checking the role model
+      const roleModel = await storage.getRoleModelWithTags(node.roleModelId);
+      if (!roleModel || roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to modify this knowledge node" });
+      }
+      
+      // Update node
+      const updatedNode = await storage.updateKnowledgeNode(nodeId, req.body);
+      res.json(updatedNode);
+    } catch (error) {
+      console.error("Error updating knowledge node:", error);
+      res.status(500).json({ message: "Error updating knowledge node" });
+    }
+  });
+
+  app.delete("/api/knowledge-nodes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const nodeId = req.params.id;
+      const node = await storage.getKnowledgeNode(nodeId);
+      
+      if (!node) {
+        return res.status(404).json({ message: "Knowledge node not found" });
+      }
+      
+      // Verify ownership by checking the role model
+      const roleModel = await storage.getRoleModelWithTags(node.roleModelId);
+      if (!roleModel || roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to delete this knowledge node" });
+      }
+      
+      // Delete node
+      await storage.deleteKnowledgeNode(nodeId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting knowledge node:", error);
+      res.status(500).json({ message: "Error deleting knowledge node" });
+    }
+  });
+
+  // Knowledge Edge routes
+  app.get("/api/role-models/:id/knowledge-edges", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to access this role model's knowledge edges" });
+      }
+      
+      const edges = await storage.getKnowledgeEdges(roleModelId);
+      res.json(edges);
+    } catch (error) {
+      console.error("Error fetching knowledge edges:", error);
+      res.status(500).json({ message: "Error fetching knowledge edges" });
+    }
+  });
+
+  app.post("/api/role-models/:id/knowledge-edges", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to add knowledge edges to this role model" });
+      }
+      
+      // Validate that source and target nodes exist and belong to the role model
+      const { sourceId, targetId } = req.body;
+      const sourceNode = await storage.getKnowledgeNode(sourceId);
+      const targetNode = await storage.getKnowledgeNode(targetId);
+      
+      if (!sourceNode || sourceNode.roleModelId !== roleModelId) {
+        return res.status(400).json({ message: "Source node not found or does not belong to this role model" });
+      }
+      
+      if (!targetNode || targetNode.roleModelId !== roleModelId) {
+        return res.status(400).json({ message: "Target node not found or does not belong to this role model" });
+      }
+      
+      // Validate edge data
+      const validatedData = insertKnowledgeEdgeSchema.parse({
+        ...req.body,
+        roleModelId
+      });
+      
+      const edge = await storage.createKnowledgeEdge(validatedData);
+      res.status(201).json(edge);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid knowledge edge data", errors: error.errors });
+      }
+      console.error("Error creating knowledge edge:", error);
+      res.status(500).json({ message: "Error creating knowledge edge" });
+    }
+  });
+
+  app.delete("/api/knowledge-edges/:id", isAuthenticated, async (req, res) => {
+    try {
+      const edgeId = req.params.id;
+      const edge = await storage.getKnowledgeEdge(edgeId);
+      
+      if (!edge) {
+        return res.status(404).json({ message: "Knowledge edge not found" });
+      }
+      
+      // Verify ownership by checking the role model
+      const roleModel = await storage.getRoleModelWithTags(edge.roleModelId);
+      if (!roleModel || roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to delete this knowledge edge" });
+      }
+      
+      // Delete edge
+      await storage.deleteKnowledgeEdge(edgeId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting knowledge edge:", error);
+      res.status(500).json({ message: "Error deleting knowledge edge" });
     }
   });
 

@@ -3,12 +3,15 @@ import {
   Company, InsertCompany,
   RoleModel, InsertRoleModel, 
   Tag, InsertTag, 
+  KnowledgeNode, InsertKnowledgeNode,
+  KnowledgeEdge, InsertKnowledgeEdge,
   Summary, InsertSummary, 
   RoleModelWithTags,
   SummaryWithTags
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import crypto from "crypto";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -42,6 +45,20 @@ export interface IStorage {
   updateTag(id: string, tag: Partial<InsertTag>): Promise<Tag | undefined>;
   deleteTag(id: string): Promise<boolean>;
   
+  // Knowledge Node operations
+  getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]>;
+  getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined>;
+  createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode>;
+  updateKnowledgeNode(id: string, node: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined>;
+  deleteKnowledgeNode(id: string): Promise<boolean>;
+  
+  // Knowledge Edge operations
+  getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]>;
+  getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined>;
+  createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge>;
+  updateKnowledgeEdge(id: string, edge: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined>;
+  deleteKnowledgeEdge(id: string): Promise<boolean>;
+
   // Summary operations
   getSummaries(roleModelId: string): Promise<Summary[]>;
   getSummaryWithTags(id: string): Promise<SummaryWithTags | undefined>;
@@ -58,6 +75,8 @@ export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private roleModels: Map<string, RoleModel>;
   private tags: Map<string, Tag>;
+  private knowledgeNodes: Map<string, KnowledgeNode>;
+  private knowledgeEdges: Map<string, KnowledgeEdge>;
   private summaries: Map<string, Summary>;
   sessionStore: any; // session.SessionStore
 
@@ -66,6 +85,8 @@ export class MemStorage implements IStorage {
     this.users = new Map();
     this.roleModels = new Map();
     this.tags = new Map();
+    this.knowledgeNodes = new Map();
+    this.knowledgeEdges = new Map();
     this.summaries = new Map();
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
@@ -221,6 +242,93 @@ export class MemStorage implements IStorage {
 
   async deleteTag(id: string): Promise<boolean> {
     return this.tags.delete(id);
+  }
+  
+  // Knowledge Node methods
+  async getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]> {
+    return Array.from(this.knowledgeNodes.values())
+      .filter((node) => node.roleModelId === roleModelId)
+      .sort((a, b) => a.level - b.level); // Sort by level ascending
+  }
+  
+  async getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined> {
+    return this.knowledgeNodes.get(id);
+  }
+  
+  async createKnowledgeNode(insertNode: InsertKnowledgeNode): Promise<KnowledgeNode> {
+    const id = crypto.randomUUID();
+    const node: KnowledgeNode = {
+      ...insertNode,
+      id,
+      createdAt: new Date(),
+      description: insertNode.description || null,
+      color: insertNode.color || null,
+      parentId: insertNode.parentId || null,
+      type: insertNode.type || "keyword",
+      level: insertNode.level || 0
+    };
+    this.knowledgeNodes.set(id, node);
+    return node;
+  }
+  
+  async updateKnowledgeNode(id: string, nodeData: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined> {
+    const existingNode = this.knowledgeNodes.get(id);
+    if (!existingNode) return undefined;
+    
+    const updatedNode = { ...existingNode, ...nodeData };
+    this.knowledgeNodes.set(id, updatedNode);
+    return updatedNode;
+  }
+  
+  async deleteKnowledgeNode(id: string): Promise<boolean> {
+    // 削除するノードに依存する子ノードも削除
+    const childNodes = Array.from(this.knowledgeNodes.values())
+      .filter(node => node.parentId === id);
+      
+    childNodes.forEach(node => this.knowledgeNodes.delete(node.id));
+    
+    // 関連するエッジも削除
+    const relatedEdges = Array.from(this.knowledgeEdges.values())
+      .filter(edge => edge.sourceId === id || edge.targetId === id);
+      
+    relatedEdges.forEach(edge => this.knowledgeEdges.delete(edge.id));
+    
+    return this.knowledgeNodes.delete(id);
+  }
+  
+  // Knowledge Edge methods
+  async getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]> {
+    return Array.from(this.knowledgeEdges.values())
+      .filter((edge) => edge.roleModelId === roleModelId);
+  }
+  
+  async getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined> {
+    return this.knowledgeEdges.get(id);
+  }
+  
+  async createKnowledgeEdge(insertEdge: InsertKnowledgeEdge): Promise<KnowledgeEdge> {
+    const id = crypto.randomUUID();
+    const edge: KnowledgeEdge = {
+      ...insertEdge,
+      id,
+      label: insertEdge.label || null,
+      strength: insertEdge.strength || 1
+    };
+    this.knowledgeEdges.set(id, edge);
+    return edge;
+  }
+  
+  async updateKnowledgeEdge(id: string, edgeData: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined> {
+    const existingEdge = this.knowledgeEdges.get(id);
+    if (!existingEdge) return undefined;
+    
+    const updatedEdge = { ...existingEdge, ...edgeData };
+    this.knowledgeEdges.set(id, updatedEdge);
+    return updatedEdge;
+  }
+  
+  async deleteKnowledgeEdge(id: string): Promise<boolean> {
+    return this.knowledgeEdges.delete(id);
   }
 
   // Summary methods

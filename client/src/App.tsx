@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import RoleModelsPage from "@/pages/role-models";
 import TagsPage from "@/pages/tags";
 import SummariesPage from "@/pages/summaries";
+import KnowledgeGraphPage from "@/pages/knowledge-graph";
 
 function Router() {
   return (
@@ -17,6 +18,8 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/" component={Dashboard} />
       <ProtectedRoute path="/role-models" component={RoleModelsPage} />
+      <ProtectedRoute path="/role-models/:id/knowledge-graph" component={KnowledgeGraphPage} />
+      <ProtectedRoute path="/knowledge-graph" component={KnowledgeGraphPage} />
       <ProtectedRoute path="/tags" component={TagsPage} />
       <ProtectedRoute path="/summaries" component={SummariesPage} />
       <Route component={NotFound} />

@@ -37,11 +37,27 @@ export const roleModels = pgTable("role_models", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Tag model
-export const tags = pgTable("tags", {
+// Knowledge Node model
+export const knowledgeNodes = pgTable("knowledge_nodes", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  category: text("category").notNull(),
+  description: text("description"),
+  type: text("type").notNull().default("keyword"), // keyword, concept, tool, etc.
+  color: text("color"), // for visualization
+  roleModelId: uuid("role_model_id").notNull()
+    .references(() => roleModels.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id"),
+  level: integer("level").notNull().default(0), // 0 for root, 1 for first level, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Knowledge Edge model (relationships between nodes)
+export const knowledgeEdges = pgTable("knowledge_edges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sourceId: uuid("source_id").notNull(),
+  targetId: uuid("target_id").notNull(),
+  label: text("label"), // CONTAINS, RELATED_TO, etc.
+  strength: integer("strength").default(1), // 1-10, for visualization
   roleModelId: uuid("role_model_id").notNull()
     .references(() => roleModels.id, { onDelete: "cascade" }),
 });
@@ -58,11 +74,22 @@ export const summaries = pgTable("summaries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Tag table (keeping for backward compatibility until migration is complete)
+export const tags = pgTable("tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  roleModelId: uuid("role_model_id").notNull()
+    .references(() => roleModels.id, { onDelete: "cascade" }),
+});
+
 // Insert schemas
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertRoleModelSchema = createInsertSchema(roleModels).omit({ id: true, createdAt: true });
 export const insertTagSchema = createInsertSchema(tags).omit({ id: true });
+export const insertKnowledgeNodeSchema = createInsertSchema(knowledgeNodes).omit({ id: true, createdAt: true });
+export const insertKnowledgeEdgeSchema = createInsertSchema(knowledgeEdges).omit({ id: true });
 export const insertSummarySchema = createInsertSchema(summaries).omit({ id: true, createdAt: true });
 
 // Define types
@@ -77,6 +104,12 @@ export type InsertRoleModel = z.infer<typeof insertRoleModelSchema>;
 
 export type Tag = typeof tags.$inferSelect;
 export type InsertTag = z.infer<typeof insertTagSchema>;
+
+export type KnowledgeNode = typeof knowledgeNodes.$inferSelect;
+export type InsertKnowledgeNode = z.infer<typeof insertKnowledgeNodeSchema>;
+
+export type KnowledgeEdge = typeof knowledgeEdges.$inferSelect;
+export type InsertKnowledgeEdge = z.infer<typeof insertKnowledgeEdgeSchema>;
 
 export type Summary = typeof summaries.$inferSelect;
 export type InsertSummary = z.infer<typeof insertSummarySchema>;

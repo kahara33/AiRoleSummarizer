@@ -40,6 +40,7 @@ export default function Navbar() {
   const navLinks = [
     { path: "/", label: "ダッシュボード" },
     { path: "/role-models", label: "ロールモデル" },
+    { path: "/knowledge-graph", label: "知識グラフ" },
     { path: "/tags", label: "タグ管理" },
     { path: "/summaries", label: "要約一覧" },
   ];
