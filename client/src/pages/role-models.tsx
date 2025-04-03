@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { RoleModel } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/app-layout";
 import RoleModelForm from "@/components/role-models/role-model-form";
@@ -214,8 +215,8 @@ export default function RoleModelsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => window.location.href = `/role-model/${model.id}/knowledge-graph`}
                           title="知識グラフを表示"
+                          onClick={() => window.location.href = `/role-model/${model.id}/knowledge-graph`}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                             <circle cx="18" cy="5" r="3" />
@@ -266,8 +267,8 @@ export default function RoleModelsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => window.location.href = `/role-model/${model.id}/knowledge-graph`}
                             title="知識グラフを表示"
+                            onClick={() => window.location.href = `/role-model/${model.id}/knowledge-graph`}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                               <circle cx="18" cy="5" r="3" />

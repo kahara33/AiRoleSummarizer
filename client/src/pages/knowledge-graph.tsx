@@ -84,7 +84,7 @@ export default function KnowledgeGraphPage() {
   };
 
   const handleBackToRoleModels = () => {
-    setLocation("/");
+    setLocation("/role-models");
   };
   
   // AI グラフ自動生成Mutation
