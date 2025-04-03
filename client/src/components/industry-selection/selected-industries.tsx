@@ -23,13 +23,13 @@ export default function SelectedIndustries({
   const [categoryGroups, setCategoryGroups] = useState<Record<string, IndustrySubcategory[]>>({});
 
   // 全業界サブカテゴリを取得
-  const { data: allSubcategories = [], isLoading: isLoadingSubcategories } = useQuery({
+  const { data: allSubcategories = [], isLoading: isLoadingSubcategories } = useQuery<IndustrySubcategory[]>({
     queryKey: ["/api/industry-subcategories"],
     staleTime: 60 * 60 * 1000, // 1時間キャッシュ
   });
 
   // 業界カテゴリの取得
-  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<IndustryCategory[]>({
     queryKey: ["/api/industry-categories"],
     staleTime: 60 * 60 * 1000, // 1時間キャッシュ
   });
@@ -85,7 +85,7 @@ export default function SelectedIndustries({
             業界が選択されていません
           </p>
         ) : (
-          <ScrollArea className={`h-[${maxHeight}]`}>
+          <ScrollArea style={{ height: maxHeight }} className="pr-4">
             <div className="space-y-4">
               {Object.entries(categoryGroups).map(([categoryId, subcategories]) => (
                 <div key={categoryId} className="space-y-2">

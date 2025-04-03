@@ -309,7 +309,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
           {/* 業界カテゴリ選択 */}
           <TabsContent value="industries">
             {isEditMode || createdRoleModelId ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   このロールモデルに関連する業界カテゴリを選択してください。
                   選択した業界カテゴリに基づいて情報を収集します。
@@ -321,7 +321,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
                   maxSelections={10}
                 />
                 
-                <div className="flex justify-between mt-6">
+                <div className="flex justify-between mt-4 sticky bottom-0 bg-card pb-4 pt-2">
                   <Button 
                     variant="outline" 
                     onClick={() => isEditMode ? onSuccess?.() : setActiveTab("basic")}
@@ -351,7 +351,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
           {/* キーワード選択 */}
           <TabsContent value="keywords">
             {isEditMode || (createdRoleModelId && activeTab === "keywords") ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   このロールモデルに関連するキーワードを選択してください。
                   選択したキーワードに基づいて情報を収集します。
@@ -363,7 +363,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
                   maxSelections={20}
                 />
                 
-                <div className="flex justify-between mt-6">
+                <div className="flex justify-between mt-4 sticky bottom-0 bg-card pb-4 pt-2">
                   <Button 
                     variant="outline" 
                     onClick={() => setActiveTab("industries")}

@@ -27,13 +27,13 @@ export default function IndustrySelector({
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
   // 業界カテゴリーの取得
-  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<IndustryCategory[]>({
     queryKey: ["/api/industry-categories"],
     staleTime: 60 * 60 * 1000, // 1時間キャッシュ
   });
 
   // 業界サブカテゴリーの取得（すべて）
-  const { data: subcategories = [], isLoading: isLoadingSubcategories } = useQuery({
+  const { data: subcategories = [], isLoading: isLoadingSubcategories } = useQuery<IndustrySubcategory[]>({
     queryKey: ["/api/industry-subcategories"],
     staleTime: 60 * 60 * 1000, // 1時間キャッシュ
   });
@@ -85,6 +85,9 @@ export default function IndustrySelector({
   // 選択済みの業界数
   const selectedCount = selectedIndustries.length;
 
+  // 除外する大カテゴリーの名前
+  const excludedCategoryNames = ["製造業", "情報通信業", "金融業", "小売業", "サービス業"];
+
   return (
     <Card className="w-full">
       <CardHeader className="pb-3">
@@ -112,63 +115,65 @@ export default function IndustrySelector({
             <p>読み込み中...</p>
           </div>
         ) : (
-          <ScrollArea className={`h-[${maxHeight}]`}>
+          <ScrollArea style={{ height: maxHeight }} className="pr-4">
             <Accordion
               type="multiple"
               value={expandedCategories}
               className="w-full"
             >
-              {categories.map((category: IndustryCategory) => {
-                const categorySubcategories = getSubcategoriesForCategory(category.id);
-                // 検索時、一致するサブカテゴリーがない場合はカテゴリーを表示しない
-                if (searchTerm && !categorySubcategories.some(matchesSearchTerm)) {
-                  return null;
-                }
-                
-                return (
-                  <AccordionItem 
-                    key={category.id} 
-                    value={category.id}
-                    className="border-b"
-                  >
-                    <AccordionTrigger 
-                      onClick={() => toggleCategory(category.id)}
-                      className="hover:no-underline py-2 px-1"
+              {categories
+                .filter((category: IndustryCategory) => !excludedCategoryNames.includes(category.name))
+                .map((category: IndustryCategory) => {
+                  const categorySubcategories = getSubcategoriesForCategory(category.id);
+                  // 検索時、一致するサブカテゴリーがない場合はカテゴリーを表示しない
+                  if (searchTerm && !categorySubcategories.some(matchesSearchTerm)) {
+                    return null;
+                  }
+                  
+                  return (
+                    <AccordionItem 
+                      key={category.id} 
+                      value={category.id}
+                      className="border-b"
                     >
-                      <span className="font-medium">{category.name}</span>
-                      <Badge variant="outline" className="ml-2 font-normal">
-                        {categorySubcategories.length}
-                      </Badge>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="grid grid-cols-1 gap-2 py-2">
-                        {categorySubcategories
-                          .filter(matchesSearchTerm)
-                          .map((subcategory: IndustrySubcategory) => (
-                          <div 
-                            key={subcategory.id}
-                            className="flex items-center space-x-2 px-2 py-1 rounded-md hover:bg-accent/50 transition-colors"
-                          >
-                            <Checkbox
-                              id={`industry-${subcategory.id}`}
-                              checked={selectedIndustries.includes(subcategory.id)}
-                              onCheckedChange={(checked) => {
-                                onSelectIndustry(subcategory.id, checked === true);
-                              }}
-                            />
-                            <label
-                              htmlFor={`industry-${subcategory.id}`}
-                              className="text-sm cursor-pointer flex-grow"
+                      <AccordionTrigger 
+                        onClick={() => toggleCategory(category.id)}
+                        className="hover:no-underline py-2 px-1"
+                      >
+                        <span className="font-medium">{category.name}</span>
+                        <Badge variant="outline" className="ml-2 font-normal">
+                          {categorySubcategories.length}
+                        </Badge>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 gap-2 py-2">
+                          {categorySubcategories
+                            .filter(matchesSearchTerm)
+                            .map((subcategory: IndustrySubcategory) => (
+                            <div 
+                              key={subcategory.id}
+                              className="flex items-center space-x-2 px-2 py-1 rounded-md hover:bg-accent/50 transition-colors"
                             >
-                              {subcategory.name}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                );
-              })}
+                              <Checkbox
+                                id={`industry-${subcategory.id}`}
+                                checked={selectedIndustries.includes(subcategory.id)}
+                                onCheckedChange={(checked) => {
+                                  onSelectIndustry(subcategory.id, checked === true);
+                                }}
+                              />
+                              <label
+                                htmlFor={`industry-${subcategory.id}`}
+                                className="text-sm cursor-pointer flex-grow"
+                              >
+                                {subcategory.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
             </Accordion>
           </ScrollArea>
         )}
