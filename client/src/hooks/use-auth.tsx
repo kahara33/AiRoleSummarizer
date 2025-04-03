@@ -61,9 +61,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onError: (error: Error) => {
       console.error("ログイン失敗:", error);
+      
+      // エラーメッセージをユーザーにとってわかりやすく表示
+      let description = "ログイン処理中にエラーが発生しました。";
+      
+      if (error.message.includes("401")) {
+        description = "メールアドレスまたはパスワードが正しくありません。";
+      } else if (error.message.includes("404")) {
+        description = "サーバーに接続できません。";
+      } else if (error.message.includes("500")) {
+        description = "サーバーでエラーが発生しました。後ほど再度お試しください。";
+      }
+      
       toast({
         title: "ログインに失敗しました",
-        description: error.message,
+        description: description,
         variant: "destructive",
       });
     },

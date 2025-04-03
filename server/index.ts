@@ -1,6 +1,10 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { storage } from "./storage";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
+import { USER_ROLES } from "@shared/schema";
 
 const app = express();
 app.use(express.json());
@@ -36,7 +40,47 @@ app.use((req, res, next) => {
   next();
 });
 
+// ハッシュ化のためのヘルパー関数
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
+
+// システム管理者ユーザーを初期化する関数
+async function initializeAdminUser() {
+  try {
+    // すでに管理者ユーザーが存在するか確認
+    const existingAdmin = await storage.getUserByEmail('k.harada@everys.jp');
+    
+    if (existingAdmin) {
+      log('管理者ユーザーが既に存在しています');
+      return;
+    }
+    
+    // パスワードをハッシュ化
+    const hashedPassword = await hashPassword('3Bdf902@5155');
+    
+    // 管理者ユーザーを作成
+    const adminUser = await storage.createUser({
+      email: 'k.harada@everys.jp',
+      name: '原田一樹',
+      password: hashedPassword,
+      role: USER_ROLES.SYSTEM_ADMIN
+    });
+    
+    log('システム管理者ユーザーを初期化しました:', adminUser.id);
+  } catch (error) {
+    console.error('管理者ユーザーの初期化中にエラーが発生しました:', error);
+  }
+}
+
 (async () => {
+  // サーバー起動前に管理者ユーザーを初期化
+  await initializeAdminUser();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
