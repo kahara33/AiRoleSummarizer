@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { KnowledgeNode, KnowledgeEdge } from "@shared/schema";
+import { KnowledgeNode, KnowledgeEdge, InsertKnowledgeNode } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2, Plus, Edit, Trash, MessageSquarePlus, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, Plus, Edit, Trash, MessageSquarePlus, ZoomIn, ZoomOut, ArrowRight, CornerDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import ForceGraph from "react-force-graph-2d";
@@ -14,7 +14,9 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-  ContextMenuSeparator
+  ContextMenuSeparator,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem
 } from "@/components/ui/context-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -89,6 +91,12 @@ export default function KnowledgeGraphViewer({
   const [nodeSizeValue, setNodeSizeValue] = useState<number>(10);
   const [showChatPromptDialog, setShowChatPromptDialog] = useState(false);
   const [chatPrompt, setChatPrompt] = useState("");
+  const [inlineNodeName, setInlineNodeName] = useState("");
+  const [editingNode, setEditingNode] = useState<{
+    parent: GraphNode | null;
+    isSibling: boolean;
+    position: { x: number, y: number }
+  } | null>(null);
   
   const graphRef = useRef<any>();
 
@@ -376,7 +384,102 @@ export default function KnowledgeGraphViewer({
     }
   }, []);
   
-  // 親ノードに子ノードを追加
+  // クイック子ノード追加（グラフ上で直接編集）
+  const handleAddQuickChildNode = useCallback(async (parentNode: GraphNode) => {
+    // 新しいノードの位置を計算（親ノードの少し下）
+    const position = {
+      x: parentNode.x || width / 2,
+      y: (parentNode.y || height / 2) + 100
+    };
+    
+    // 編集モードを開始
+    setEditingNode({
+      parent: parentNode,
+      isSibling: false,
+      position
+    });
+    setInlineNodeName("");
+    
+    // コンテキストメニューを閉じる
+    setContextMenuNode(null);
+  }, [width, height]);
+  
+  // クイック兄弟ノード追加（グラフ上で直接編集）
+  const handleAddQuickSiblingNode = useCallback(async (siblingNode: GraphNode) => {
+    if (!siblingNode.parentId) return;
+    
+    // 親ノードを探す
+    const parentNode = nodes.find(n => n.id === siblingNode.parentId);
+    if (!parentNode) return;
+    
+    // 新しいノードの位置を計算（兄弟ノードの横）
+    const position = {
+      x: (siblingNode.x || width / 2) + 150,
+      y: siblingNode.y || height / 2
+    };
+    
+    // 編集モードを開始
+    setEditingNode({
+      parent: parentNode,
+      isSibling: true,
+      position
+    });
+    setInlineNodeName("");
+    
+    // コンテキストメニューを閉じる
+    setContextMenuNode(null);
+  }, [nodes, width, height]);
+  
+  // インラインノード追加の確定
+  const handleInlineNodeCreate = useCallback(async () => {
+    if (!editingNode || !editingNode.parent || !inlineNodeName.trim()) return;
+    
+    try {
+      const parentNode = editingNode.parent;
+      
+      // 新しいノードを作成
+      const newNode: InsertKnowledgeNode = {
+        name: inlineNodeName.trim(),
+        roleModelId,
+        type: "keyword", // デフォルトのタイプ
+        level: parentNode.level + (editingNode.isSibling ? 0 : 1),
+        parentId: editingNode.isSibling ? parentNode.parentId : parentNode.id,
+        color: null,
+        description: null
+      };
+      
+      // APIリクエストで新規ノード作成
+      const res = await apiRequest("POST", "/api/knowledge-nodes", newNode);
+      
+      if (res.ok) {
+        // グラフを更新
+        toast({
+          title: "ノード追加完了",
+          description: `新しいノード「${inlineNodeName.trim()}」を追加しました`
+        });
+        fetchGraphData();
+      } else {
+        toast({
+          title: "エラー",
+          description: "ノードの追加に失敗しました",
+          variant: "destructive"
+        });
+      }
+    } catch (e) {
+      console.error("Error creating node:", e);
+      toast({
+        title: "エラー",
+        description: "ノードの追加処理中にエラーが発生しました",
+        variant: "destructive"
+      });
+    } finally {
+      // 編集モードを終了
+      setEditingNode(null);
+      setInlineNodeName("");
+    }
+  }, [editingNode, inlineNodeName, roleModelId, fetchGraphData]);
+  
+  // 親ノードに子ノードを追加（従来のダイアログ方式 - バックアップ）
   const handleAddChildNode = useCallback((parentNode: GraphNode) => {
     if (onNodeCreate) {
       // 親ノードのKnowledgeNode形式に変換
@@ -461,10 +564,6 @@ export default function KnowledgeGraphViewer({
             <Button size="sm" onClick={() => setShowChatPromptDialog(true)}>
               <MessageSquarePlus className="h-4 w-4 mr-2" />
               チャット指示
-            </Button>
-            <Button size="sm" onClick={handleCreateNodeClick}>
-              <Plus className="h-4 w-4 mr-2" /> 
-              ノード追加
             </Button>
             <Button size="sm" variant="outline" onClick={fetchGraphData}>更新</Button>
           </div>
@@ -614,6 +713,51 @@ export default function KnowledgeGraphViewer({
             height={height}
             cooldownTicks={50}
           />
+          
+          {/* インラインノード追加UI */}
+          {editingNode && (
+            <div 
+              className="absolute z-20 bg-white dark:bg-gray-800 p-2 rounded-md shadow-lg border border-primary/50"
+              style={{ 
+                left: editingNode.position.x,
+                top: editingNode.position.y,
+                transform: 'translate(-50%, -50%)'
+              }}
+            >
+              <div className="flex flex-col gap-2 min-w-[200px]">
+                <Input
+                  autoFocus
+                  placeholder="ノード名を入力"
+                  value={inlineNodeName}
+                  onChange={(e) => setInlineNodeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleInlineNodeCreate();
+                    } else if (e.key === 'Escape') {
+                      setEditingNode(null);
+                    }
+                  }}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setEditingNode(null)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button 
+                    size="sm"
+                    onClick={handleInlineNodeCreate}
+                    disabled={!inlineNodeName.trim()}
+                  >
+                    追加
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </ContextMenuTrigger>
       
@@ -626,24 +770,32 @@ export default function KnowledgeGraphViewer({
               編集
             </ContextMenuItem>
             
-            <ContextMenuItem onClick={() => {
-              setSelectedNodeForSize(contextMenuNode);
-              setNodeSizeValue(contextMenuNode.val || 10);
-              setShowNodeSizeDialog(true);
-            }}>
-              <ZoomIn className="h-4 w-4 mr-2" />
-              重要度を変更
-            </ContextMenuItem>
+            <ContextMenuSeparator />
             
-            <ContextMenuItem onClick={() => handleAddChildNode(contextMenuNode)}>
-              <Plus className="h-4 w-4 mr-2" />
+            <ContextMenuItem onClick={() => handleAddQuickChildNode(contextMenuNode)}>
+              <CornerDownRight className="h-4 w-4 mr-2" />
               子ノードを追加
             </ContextMenuItem>
             
-            <ContextMenuItem onClick={() => handleExpandNodeWithAI(contextMenuNode)}>
-              <MessageSquarePlus className="h-4 w-4 mr-2" />
-              AIで展開
-            </ContextMenuItem>
+            {contextMenuNode.parentId && (
+              <ContextMenuItem onClick={() => handleAddQuickSiblingNode(contextMenuNode)}>
+                <ArrowRight className="h-4 w-4 mr-2" />
+                兄弟ノードを追加
+              </ContextMenuItem>
+            )}
+            
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <MessageSquarePlus className="h-4 w-4 mr-2" />
+                AIで展開
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-56">
+                <ContextMenuItem onClick={() => handleExpandNodeWithAI(contextMenuNode)}>
+                  <MessageSquarePlus className="h-4 w-4 mr-2" />
+                  AIでノード展開
+                </ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
           </>
         )}
       </ContextMenuContent>

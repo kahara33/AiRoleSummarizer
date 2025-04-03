@@ -8,13 +8,25 @@ import {
   Summary, InsertSummary, 
   RoleModelWithTags,
   SummaryWithTags,
+  IndustryCategory, InsertIndustryCategory,
+  IndustrySubcategory, InsertIndustrySubcategory,
+  Keyword, InsertKeyword,
+  RoleModelIndustry, InsertRoleModelIndustry,
+  RoleModelKeyword, InsertRoleModelKeyword,
+  IndustrySubcategoryWithCategory,
+  RoleModelWithIndustriesAndKeywords,
   companies,
   users,
   roleModels,
   tags,
   knowledgeNodes,
   knowledgeEdges,
-  summaries
+  summaries,
+  industryCategories,
+  industrySubcategories,
+  keywords,
+  roleModelIndustries,
+  roleModelKeywords
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -81,6 +93,43 @@ export interface IStorage {
   createSummary(summary: InsertSummary): Promise<Summary>;
   updateSummaryFeedback(id: string, feedback: number): Promise<Summary | undefined>;
 
+  // Industry category operations
+  getIndustryCategories(): Promise<IndustryCategory[]>;
+  getIndustryCategory(id: string): Promise<IndustryCategory | undefined>;
+  createIndustryCategory(category: InsertIndustryCategory): Promise<IndustryCategory>;
+  updateIndustryCategory(id: string, category: Partial<InsertIndustryCategory>): Promise<IndustryCategory | undefined>;
+  deleteIndustryCategory(id: string): Promise<boolean>;
+
+  // Industry subcategory operations
+  getIndustrySubcategories(categoryId?: string): Promise<IndustrySubcategory[]>;
+  getIndustrySubcategoriesWithCategory(): Promise<IndustrySubcategoryWithCategory[]>;
+  getIndustrySubcategory(id: string): Promise<IndustrySubcategory | undefined>;
+  createIndustrySubcategory(subcategory: InsertIndustrySubcategory): Promise<IndustrySubcategory>;
+  updateIndustrySubcategory(id: string, subcategory: Partial<InsertIndustrySubcategory>): Promise<IndustrySubcategory | undefined>;
+  deleteIndustrySubcategory(id: string): Promise<boolean>;
+
+  // Keyword operations
+  getKeywords(search?: string): Promise<Keyword[]>;
+  getKeyword(id: string): Promise<Keyword | undefined>;
+  createKeyword(keyword: InsertKeyword): Promise<Keyword>;
+  updateKeyword(id: string, keyword: Partial<InsertKeyword>): Promise<Keyword | undefined>;
+  deleteKeyword(id: string): Promise<boolean>;
+
+  // Role model industry mapping operations
+  getRoleModelIndustries(roleModelId: string): Promise<RoleModelIndustry[]>;
+  getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]>;
+  createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry>;
+  deleteRoleModelIndustry(id: string): Promise<boolean>;
+  
+  // Role model keyword mapping operations
+  getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]>;
+  getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]>;
+  createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword>;
+  deleteRoleModelKeyword(id: string): Promise<boolean>;
+  
+  // Extended role model operations
+  getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined>;
+
   // Session store
   sessionStore: any; // session.SessionStore
 }
@@ -94,6 +143,11 @@ export class MemStorage implements IStorage {
   private knowledgeNodes: Map<string, KnowledgeNode>;
   private knowledgeEdges: Map<string, KnowledgeEdge>;
   private summaries: Map<string, Summary>;
+  private industryCategories: Map<string, IndustryCategory>;
+  private industrySubcategories: Map<string, IndustrySubcategory>;
+  private keywords: Map<string, Keyword>;
+  private roleModelIndustries: Map<string, RoleModelIndustry>;
+  private roleModelKeywords: Map<string, RoleModelKeyword>;
   sessionStore: any; // session.SessionStore
 
   constructor() {
@@ -104,6 +158,11 @@ export class MemStorage implements IStorage {
     this.knowledgeNodes = new Map();
     this.knowledgeEdges = new Map();
     this.summaries = new Map();
+    this.industryCategories = new Map();
+    this.industrySubcategories = new Map();
+    this.keywords = new Map();
+    this.roleModelIndustries = new Map();
+    this.roleModelKeywords = new Map();
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     });
@@ -415,6 +474,221 @@ export class MemStorage implements IStorage {
     this.summaries.set(id, updatedSummary);
     return updatedSummary;
   }
+
+  // Industry category methods
+  async getIndustryCategories(): Promise<IndustryCategory[]> {
+    return Array.from(this.industryCategories.values());
+  }
+
+  async getIndustryCategory(id: string): Promise<IndustryCategory | undefined> {
+    return this.industryCategories.get(id);
+  }
+
+  async createIndustryCategory(category: InsertIndustryCategory): Promise<IndustryCategory> {
+    const id = crypto.randomUUID();
+    const newCategory: IndustryCategory = {
+      ...category,
+      id,
+      description: category.description || "",
+      displayOrder: category.displayOrder || 0,
+      createdAt: new Date()
+    };
+    this.industryCategories.set(id, newCategory);
+    return newCategory;
+  }
+
+  async updateIndustryCategory(id: string, categoryData: Partial<InsertIndustryCategory>): Promise<IndustryCategory | undefined> {
+    const existingCategory = this.industryCategories.get(id);
+    if (!existingCategory) return undefined;
+
+    const updatedCategory = { ...existingCategory, ...categoryData };
+    this.industryCategories.set(id, updatedCategory);
+    return updatedCategory;
+  }
+
+  async deleteIndustryCategory(id: string): Promise<boolean> {
+    return this.industryCategories.delete(id);
+  }
+
+  // Industry subcategory methods
+  async getIndustrySubcategories(categoryId?: string): Promise<IndustrySubcategory[]> {
+    if (categoryId) {
+      return Array.from(this.industrySubcategories.values()).filter(
+        subcategory => subcategory.categoryId === categoryId
+      );
+    }
+    return Array.from(this.industrySubcategories.values());
+  }
+
+  async getIndustrySubcategoriesWithCategory(): Promise<IndustrySubcategoryWithCategory[]> {
+    return Array.from(this.industrySubcategories.values()).map(subcategory => {
+      const category = this.industryCategories.get(subcategory.categoryId);
+      if (!category) {
+        throw new Error(`Category not found for subcategory: ${subcategory.id}`);
+      }
+      return {
+        ...subcategory,
+        category
+      };
+    });
+  }
+
+  async getIndustrySubcategory(id: string): Promise<IndustrySubcategory | undefined> {
+    return this.industrySubcategories.get(id);
+  }
+
+  async createIndustrySubcategory(subcategory: InsertIndustrySubcategory): Promise<IndustrySubcategory> {
+    const id = crypto.randomUUID();
+    const newSubcategory: IndustrySubcategory = {
+      ...subcategory,
+      id,
+      createdAt: new Date()
+    };
+    this.industrySubcategories.set(id, newSubcategory);
+    return newSubcategory;
+  }
+
+  async updateIndustrySubcategory(id: string, subcategoryData: Partial<InsertIndustrySubcategory>): Promise<IndustrySubcategory | undefined> {
+    const existingSubcategory = this.industrySubcategories.get(id);
+    if (!existingSubcategory) return undefined;
+
+    const updatedSubcategory = { ...existingSubcategory, ...subcategoryData };
+    this.industrySubcategories.set(id, updatedSubcategory);
+    return updatedSubcategory;
+  }
+
+  async deleteIndustrySubcategory(id: string): Promise<boolean> {
+    return this.industrySubcategories.delete(id);
+  }
+
+  // Keyword methods
+  async getKeywords(search?: string): Promise<Keyword[]> {
+    if (search) {
+      return Array.from(this.keywords.values()).filter(
+        keyword => keyword.name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    return Array.from(this.keywords.values());
+  }
+
+  async getKeyword(id: string): Promise<Keyword | undefined> {
+    return this.keywords.get(id);
+  }
+
+  async createKeyword(keyword: InsertKeyword): Promise<Keyword> {
+    const id = crypto.randomUUID();
+    const newKeyword: Keyword = {
+      ...keyword,
+      id,
+      createdAt: new Date()
+    };
+    this.keywords.set(id, newKeyword);
+    return newKeyword;
+  }
+
+  async updateKeyword(id: string, keywordData: Partial<InsertKeyword>): Promise<Keyword | undefined> {
+    const existingKeyword = this.keywords.get(id);
+    if (!existingKeyword) return undefined;
+
+    const updatedKeyword = { ...existingKeyword, ...keywordData };
+    this.keywords.set(id, updatedKeyword);
+    return updatedKeyword;
+  }
+
+  async deleteKeyword(id: string): Promise<boolean> {
+    return this.keywords.delete(id);
+  }
+
+  // Role model industry mapping methods
+  async getRoleModelIndustries(roleModelId: string): Promise<RoleModelIndustry[]> {
+    return Array.from(this.roleModelIndustries.values()).filter(
+      mapping => mapping.roleModelId === roleModelId
+    );
+  }
+
+  async getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]> {
+    const mappings = await this.getRoleModelIndustries(roleModelId);
+    
+    return Promise.all(mappings.map(async mapping => {
+      const subcategory = this.industrySubcategories.get(mapping.industrySubcategoryId);
+      if (!subcategory) {
+        throw new Error(`Subcategory not found for mapping: ${mapping.id}`);
+      }
+      
+      const category = this.industryCategories.get(subcategory.categoryId);
+      if (!category) {
+        throw new Error(`Category not found for subcategory: ${subcategory.id}`);
+      }
+      
+      return {
+        ...subcategory,
+        category
+      };
+    }));
+  }
+
+  async createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
+    const id = crypto.randomUUID();
+    const newMapping: RoleModelIndustry = {
+      ...mapping,
+      id
+    };
+    this.roleModelIndustries.set(id, newMapping);
+    return newMapping;
+  }
+
+  async deleteRoleModelIndustry(id: string): Promise<boolean> {
+    return this.roleModelIndustries.delete(id);
+  }
+  
+  // Role model keyword mapping methods
+  async getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]> {
+    return Array.from(this.roleModelKeywords.values()).filter(
+      mapping => mapping.roleModelId === roleModelId
+    );
+  }
+
+  async getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]> {
+    const mappings = await this.getRoleModelKeywords(roleModelId);
+    
+    return Promise.all(mappings.map(async mapping => {
+      const keyword = this.keywords.get(mapping.keywordId);
+      if (!keyword) {
+        throw new Error(`Keyword not found for mapping: ${mapping.id}`);
+      }
+      
+      return keyword;
+    }));
+  }
+
+  async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
+    const id = crypto.randomUUID();
+    const newMapping: RoleModelKeyword = {
+      ...mapping,
+      id
+    };
+    this.roleModelKeywords.set(id, newMapping);
+    return newMapping;
+  }
+
+  async deleteRoleModelKeyword(id: string): Promise<boolean> {
+    return this.roleModelKeywords.delete(id);
+  }
+  
+  // Extended role model operations
+  async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
+    const roleModel = this.roleModels.get(id);
+    if (!roleModel) return undefined;
+
+    const industries = await this.getRoleModelIndustriesWithData(id);
+    const keywords = await this.getRoleModelKeywordsWithData(id);
+
+    return {
+      ...roleModel,
+      industries,
+      keywords
+    };
+  }
 }
 
 // PostgreSQL Storage Implementation
@@ -720,6 +994,198 @@ export class PostgresStorage implements IStorage {
       .where(eq(summaries.id, id))
       .returning();
     return result[0];
+  }
+
+  // Industry category methods
+  async getIndustryCategories(): Promise<IndustryCategory[]> {
+    return await db.select().from(industryCategories);
+  }
+
+  async getIndustryCategory(id: string): Promise<IndustryCategory | undefined> {
+    const result = await db.select().from(industryCategories).where(eq(industryCategories.id, id));
+    return result[0];
+  }
+
+  async createIndustryCategory(category: InsertIndustryCategory): Promise<IndustryCategory> {
+    const result = await db.insert(industryCategories).values(category).returning();
+    return result[0];
+  }
+
+  async updateIndustryCategory(id: string, categoryData: Partial<InsertIndustryCategory>): Promise<IndustryCategory | undefined> {
+    const result = await db.update(industryCategories)
+      .set(categoryData)
+      .where(eq(industryCategories.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteIndustryCategory(id: string): Promise<boolean> {
+    const result = await db.delete(industryCategories).where(eq(industryCategories.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Industry subcategory methods
+  async getIndustrySubcategories(categoryId?: string): Promise<IndustrySubcategory[]> {
+    if (categoryId) {
+      return await db.select().from(industrySubcategories).where(eq(industrySubcategories.categoryId, categoryId));
+    }
+    return await db.select().from(industrySubcategories);
+  }
+
+  async getIndustrySubcategoriesWithCategory(): Promise<IndustrySubcategoryWithCategory[]> {
+    const result = await db
+      .select({
+        subcategory: industrySubcategories,
+        category: industryCategories
+      })
+      .from(industrySubcategories)
+      .leftJoin(industryCategories, eq(industrySubcategories.categoryId, industryCategories.id));
+
+    return result.map(({ subcategory, category }) => ({
+      ...subcategory,
+      category
+    }));
+  }
+
+  async getIndustrySubcategory(id: string): Promise<IndustrySubcategory | undefined> {
+    const result = await db.select().from(industrySubcategories).where(eq(industrySubcategories.id, id));
+    return result[0];
+  }
+
+  async createIndustrySubcategory(subcategory: InsertIndustrySubcategory): Promise<IndustrySubcategory> {
+    const result = await db.insert(industrySubcategories).values(subcategory).returning();
+    return result[0];
+  }
+
+  async updateIndustrySubcategory(id: string, subcategoryData: Partial<InsertIndustrySubcategory>): Promise<IndustrySubcategory | undefined> {
+    const result = await db.update(industrySubcategories)
+      .set(subcategoryData)
+      .where(eq(industrySubcategories.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteIndustrySubcategory(id: string): Promise<boolean> {
+    const result = await db.delete(industrySubcategories).where(eq(industrySubcategories.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Keyword methods
+  async getKeywords(search?: string): Promise<Keyword[]> {
+    if (search) {
+      return await db.select().from(keywords)
+        .where(sql`${keywords.name} ILIKE ${`%${search}%`}`);
+    }
+    return await db.select().from(keywords);
+  }
+
+  async getKeyword(id: string): Promise<Keyword | undefined> {
+    const result = await db.select().from(keywords).where(eq(keywords.id, id));
+    return result[0];
+  }
+
+  async createKeyword(keyword: InsertKeyword): Promise<Keyword> {
+    const result = await db.insert(keywords).values(keyword).returning();
+    return result[0];
+  }
+
+  async updateKeyword(id: string, keywordData: Partial<InsertKeyword>): Promise<Keyword | undefined> {
+    const result = await db.update(keywords)
+      .set(keywordData)
+      .where(eq(keywords.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteKeyword(id: string): Promise<boolean> {
+    const result = await db.delete(keywords).where(eq(keywords.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Role model industry mapping methods
+  async getRoleModelIndustries(roleModelId: string): Promise<RoleModelIndustry[]> {
+    return await db.select()
+      .from(roleModelIndustries)
+      .where(eq(roleModelIndustries.roleModelId, roleModelId));
+  }
+
+  async getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]> {
+    const result = await db
+      .select({
+        mapping: roleModelIndustries,
+        subcategory: industrySubcategories,
+        category: industryCategories
+      })
+      .from(roleModelIndustries)
+      .leftJoin(industrySubcategories, eq(roleModelIndustries.industrySubcategoryId, industrySubcategories.id))
+      .leftJoin(industryCategories, eq(industrySubcategories.categoryId, industryCategories.id))
+      .where(eq(roleModelIndustries.roleModelId, roleModelId));
+
+    return result.map(({ subcategory, category }) => ({
+      ...subcategory,
+      category
+    }));
+  }
+
+  async createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
+    const result = await db.insert(roleModelIndustries).values(mapping).returning();
+    return result[0];
+  }
+
+  async deleteRoleModelIndustry(id: string): Promise<boolean> {
+    const result = await db.delete(roleModelIndustries).where(eq(roleModelIndustries.id, id)).returning();
+    return result.length > 0;
+  }
+  
+  // Role model keyword mapping methods
+  async getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]> {
+    return await db.select()
+      .from(roleModelKeywords)
+      .where(eq(roleModelKeywords.roleModelId, roleModelId));
+  }
+
+  async getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]> {
+    const result = await db
+      .select({
+        mapping: roleModelKeywords,
+        keyword: keywords
+      })
+      .from(roleModelKeywords)
+      .leftJoin(keywords, eq(roleModelKeywords.keywordId, keywords.id))
+      .where(eq(roleModelKeywords.roleModelId, roleModelId));
+
+    return result.map(({ keyword }) => keyword);
+  }
+
+  async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
+    const result = await db.insert(roleModelKeywords).values(mapping).returning();
+    return result[0];
+  }
+
+  async deleteRoleModelKeyword(id: string): Promise<boolean> {
+    const result = await db.delete(roleModelKeywords).where(eq(roleModelKeywords.id, id)).returning();
+    return result.length > 0;
+  }
+  
+  // Extended role model operations
+  async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
+    const roleModelResult = await db.select()
+      .from(roleModels)
+      .where(eq(roleModels.id, id));
+      
+    if (roleModelResult.length === 0) {
+      return undefined;
+    }
+    
+    const roleModel = roleModelResult[0];
+    const industries = await this.getRoleModelIndustriesWithData(id);
+    const keywords = await this.getRoleModelKeywordsWithData(id);
+    
+    return {
+      ...roleModel,
+      industries,
+      keywords
+    };
   }
 }
 

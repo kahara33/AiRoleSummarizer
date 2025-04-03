@@ -105,7 +105,7 @@ export default function Dashboard() {
             : "flex flex-col space-y-3"
           }>
             {roleModels.map((roleModel) => (
-              <Link key={roleModel.id} href={`/role-models/${roleModel.id}`}>
+              <Link key={roleModel.id} href={`/role-model/${roleModel.id}/knowledge-graph`}>
                 <Card className={`
                   cursor-pointer transition-all duration-200 
                   hover:shadow-md border border-gray-200 dark:border-gray-700
@@ -136,7 +136,7 @@ export default function Dashboard() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                window.location.href = `/role-models/${roleModel.id}/knowledge-graph`;
+                                window.location.href = `/role-model/${roleModel.id}/knowledge-graph`;
                               }}
                               title="知識グラフ"
                             >

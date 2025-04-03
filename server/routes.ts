@@ -10,6 +10,11 @@ import {
   insertCompanySchema,
   insertKnowledgeNodeSchema,
   insertKnowledgeEdgeSchema,
+  insertIndustryCategorySchema,
+  insertIndustrySubcategorySchema,
+  insertKeywordSchema,
+  insertRoleModelIndustrySchema,
+  insertRoleModelKeywordSchema,
   USER_ROLES
 } from "@shared/schema";
 import { 
@@ -874,6 +879,250 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error expanding knowledge node:", error);
       res.status(500).json({ message: "Error expanding knowledge node" });
+    }
+  });
+
+  // Industry Category routes
+  app.get("/api/industry-categories", isAuthenticated, async (req, res) => {
+    try {
+      const categories = await storage.getIndustryCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching industry categories:", error);
+      res.status(500).json({ message: "Error fetching industry categories" });
+    }
+  });
+
+  app.get("/api/industry-categories/:id/subcategories", isAuthenticated, async (req, res) => {
+    try {
+      const categoryId = req.params.id;
+      const subcategories = await storage.getIndustrySubcategories(categoryId);
+      res.json(subcategories);
+    } catch (error) {
+      console.error("Error fetching industry subcategories:", error);
+      res.status(500).json({ message: "Error fetching industry subcategories" });
+    }
+  });
+
+  app.get("/api/industry-subcategories", isAuthenticated, async (req, res) => {
+    try {
+      const subcategories = await storage.getIndustrySubcategories();
+      res.json(subcategories);
+    } catch (error) {
+      console.error("Error fetching all industry subcategories:", error);
+      res.status(500).json({ message: "Error fetching all industry subcategories" });
+    }
+  });
+
+  // Keywords routes
+  app.get("/api/keywords", isAuthenticated, async (req, res) => {
+    try {
+      const keywords = await storage.getKeywords();
+      res.json(keywords);
+    } catch (error) {
+      console.error("Error fetching keywords:", error);
+      res.status(500).json({ message: "Error fetching keywords" });
+    }
+  });
+
+  app.post("/api/keywords", isAuthenticated, requireRole([USER_ROLES.SYSTEM_ADMIN, USER_ROLES.COMPANY_ADMIN]), async (req, res) => {
+    try {
+      // Validate keyword data
+      const validatedData = insertKeywordSchema.parse(req.body);
+      const keyword = await storage.createKeyword(validatedData);
+      res.status(201).json(keyword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid keyword data", errors: error.errors });
+      }
+      console.error("Error creating keyword:", error);
+      res.status(500).json({ message: "Error creating keyword" });
+    }
+  });
+
+  // Role Model Industry and Keyword routes
+  app.get("/api/role-models/:id/industries", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Check authorization
+      const isUserModel = roleModel.userId === req.user!.id;
+      const isSharedCompanyModel = roleModel.isShared === 1 && 
+                                roleModel.companyId === req.user!.companyId;
+      
+      if (!isUserModel && !isSharedCompanyModel) {
+        return res.status(403).json({ message: "Not authorized to access this role model's industries" });
+      }
+      
+      const industries = await storage.getRoleModelIndustries(roleModelId);
+      res.json(industries);
+    } catch (error) {
+      console.error("Error fetching role model industries:", error);
+      res.status(500).json({ message: "Error fetching role model industries" });
+    }
+  });
+
+  app.post("/api/role-models/:id/industries", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to add industries to this role model" });
+      }
+      
+      // Validate data
+      const validatedData = insertRoleModelIndustrySchema.parse({
+        ...req.body,
+        roleModelId
+      });
+      
+      const industry = await storage.createRoleModelIndustry(validatedData);
+      res.status(201).json(industry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid industry data", errors: error.errors });
+      }
+      console.error("Error adding industry to role model:", error);
+      res.status(500).json({ message: "Error adding industry to role model" });
+    }
+  });
+
+  app.delete("/api/role-models/:roleModelId/industries/:industryId", isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, industryId } = req.params;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to remove industries from this role model" });
+      }
+      
+      await storage.deleteRoleModelIndustry(roleModelId, industryId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing industry from role model:", error);
+      res.status(500).json({ message: "Error removing industry from role model" });
+    }
+  });
+
+  app.get("/api/role-models/:id/keywords", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Check authorization
+      const isUserModel = roleModel.userId === req.user!.id;
+      const isSharedCompanyModel = roleModel.isShared === 1 && 
+                                roleModel.companyId === req.user!.companyId;
+      
+      if (!isUserModel && !isSharedCompanyModel) {
+        return res.status(403).json({ message: "Not authorized to access this role model's keywords" });
+      }
+      
+      const keywords = await storage.getRoleModelKeywords(roleModelId);
+      res.json(keywords);
+    } catch (error) {
+      console.error("Error fetching role model keywords:", error);
+      res.status(500).json({ message: "Error fetching role model keywords" });
+    }
+  });
+
+  app.post("/api/role-models/:id/keywords", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to add keywords to this role model" });
+      }
+      
+      // Validate data
+      const validatedData = insertRoleModelKeywordSchema.parse({
+        ...req.body,
+        roleModelId
+      });
+      
+      const keyword = await storage.createRoleModelKeyword(validatedData);
+      res.status(201).json(keyword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid keyword data", errors: error.errors });
+      }
+      console.error("Error adding keyword to role model:", error);
+      res.status(500).json({ message: "Error adding keyword to role model" });
+    }
+  });
+
+  app.delete("/api/role-models/:roleModelId/keywords/:keywordId", isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, keywordId } = req.params;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Ensure role model belongs to user
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to remove keywords from this role model" });
+      }
+      
+      await storage.deleteRoleModelKeyword(keywordId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing keyword from role model:", error);
+      res.status(500).json({ message: "Error removing keyword from role model" });
+    }
+  });
+
+  // Role Model with Industries and Keywords
+  app.get("/api/role-models/:id/with-industries-keywords", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.id;
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      // Check authorization
+      const isUserModel = roleModel.userId === req.user!.id;
+      const isSharedCompanyModel = roleModel.isShared === 1 && 
+                                roleModel.companyId === req.user!.companyId;
+      
+      if (!isUserModel && !isSharedCompanyModel) {
+        return res.status(403).json({ message: "Not authorized to access this role model" });
+      }
+      
+      const roleModelWithDetails = await storage.getRoleModelWithIndustriesAndKeywords(roleModelId);
+      res.json(roleModelWithDetails);
+    } catch (error) {
+      console.error("Error fetching role model with industries and keywords:", error);
+      res.status(500).json({ message: "Error fetching role model details" });
     }
   });
 
