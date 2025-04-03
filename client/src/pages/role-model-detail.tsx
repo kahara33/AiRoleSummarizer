@@ -9,17 +9,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Loader2, Tag as TagIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import AppLayout from "@/components/layout/app-layout";
+import { useToast } from "@/hooks/use-toast";
 
 export default function RoleModelDetailPage() {
+  const { toast } = useToast();
   const [, params] = useRoute("/role-model/:id");
   const roleModelId = params?.id || "";
+  
+  // デバッグログの追加
+  useEffect(() => {
+    console.log("RoleModelDetailPage - パラメータID:", roleModelId);
+  }, [roleModelId]);
 
   // Fetch role model with tags
   const { data: roleModel, isLoading, error } = useQuery({
     queryKey: [`/api/role-models/${roleModelId}/with-tags`],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/role-models/${roleModelId}/with-tags`);
-      return await res.json() as RoleModel & { tags: Tag[] };
+      console.log("APIリクエスト開始:", `/api/role-models/${roleModelId}/with-tags`);
+      try {
+        const res = await apiRequest("GET", `/api/role-models/${roleModelId}/with-tags`);
+        const data = await res.json() as RoleModel & { tags: Tag[] };
+        console.log("APIレスポンス:", data);
+        return data;
+      } catch (err) {
+        console.error("APIリクエストエラー:", err);
+        toast({
+          title: "データ取得エラー",
+          description: err instanceof Error ? err.message : "不明なエラーが発生しました",
+          variant: "destructive"
+        });
+        throw err;
+      }
     },
     enabled: !!roleModelId
   });

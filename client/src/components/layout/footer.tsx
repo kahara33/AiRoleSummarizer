@@ -11,16 +11,16 @@ export default function Footer() {
           </div>
           <div className="flex space-x-6">
             <Link href="#support">
-              <a className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300">
+              <div className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 cursor-pointer">
                 <span className="sr-only">サポート</span>
                 <LifeBuoy className="h-5 w-5" />
-              </a>
+              </div>
             </Link>
             <Link href="#settings">
-              <a className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300">
+              <div className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 cursor-pointer">
                 <span className="sr-only">設定</span>
                 <Settings className="h-5 w-5" />
-              </a>
+              </div>
             </Link>
           </div>
         </div>
