@@ -80,24 +80,26 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link href="/">
-              <a className="flex-shrink-0 flex items-center">
-                <LightningIcon className="h-8 w-8 text-primary-600" />
-                <span className="ml-2 text-xl font-bold font-heading">EVERYS</span>
-              </a>
-            </Link>
+            <div className="flex-shrink-0 flex items-center">
+              <Link href="/">
+                <div className="flex items-center cursor-pointer">
+                  <LightningIcon className="h-8 w-8 text-primary-600" />
+                  <span className="ml-2 text-xl font-bold font-heading">EVERYS</span>
+                </div>
+              </Link>
+            </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
               {navLinks.map((link) => (
                 <Link key={link.path} href={link.path}>
-                  <a
+                  <div
                     className={`${
                       location === link.path
                         ? "border-primary-500 text-gray-900 dark:text-gray-100"
                         : "border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-300"
-                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium cursor-pointer`}
                   >
                     {link.label}
-                  </a>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -171,12 +173,14 @@ export default function Navbar() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link href="/">
-              <a className="flex-shrink-0 flex items-center">
-                <LightningIcon className="h-8 w-8 text-primary-600" />
-                <span className="ml-2 text-xl font-bold font-heading">EVERYS</span>
-              </a>
-            </Link>
+            <div className="flex-shrink-0 flex items-center">
+              <Link href="/">
+                <div className="flex items-center cursor-pointer">
+                  <LightningIcon className="h-8 w-8 text-primary-600" />
+                  <span className="ml-2 text-xl font-bold font-heading">EVERYS</span>
+                </div>
+              </Link>
+            </div>
           </div>
           <div className="flex items-center">
             {/* システム管理者の場合、組織切り替えドロップダウンを表示 */}
@@ -226,16 +230,16 @@ export default function Navbar() {
                 <div className="flex flex-col space-y-4 mt-6">
                   {navLinks.map((link) => (
                     <Link key={link.path} href={link.path}>
-                      <a
+                      <div
                         className={`${
                           location === link.path
                             ? "bg-primary-50 dark:bg-primary-900 border-primary-500 text-primary-700 dark:text-primary-200"
                             : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300"
-                        } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
+                        } block pl-3 pr-4 py-2 border-l-4 text-base font-medium cursor-pointer`}
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {link.label}
-                      </a>
+                      </div>
                     </Link>
                   ))}
                   <hr className="border-gray-200 dark:border-gray-700" />
