@@ -5,21 +5,25 @@ import fetch from 'node-fetch';
 
 // Function to get Azure OpenAI API key from environment variables
 const getAPIKey = (): string => {
-  return process.env.AZURE_OPENAI_KEY || 
-         process.env.AZURE_OPENAI_API_KEY || 
-         '';
+  const key = process.env.AZURE_OPENAI_KEY || 
+              process.env.AZURE_OPENAI_API_KEY || 
+              '';
+  console.log(`Azure OpenAI Key configured: ${key ? 'Yes (Length: ' + key.length + ')' : 'No'}`);
+  return key;
 };
 
 // Function to get Azure OpenAI endpoint from environment variables
 const getEndpoint = (): string => {
-  return process.env.AZURE_OPENAI_ENDPOINT || 
-         '';
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT || '';
+  console.log(`Azure OpenAI Endpoint: ${endpoint}`);
+  return endpoint;
 };
 
 // Function to get Azure OpenAI deployment name from environment variables
 const getDeploymentName = (): string => {
-  return process.env.AZURE_OPENAI_DEPLOYMENT || 
-         'gpt-4o';
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+  console.log(`Azure OpenAI Deployment: ${deployment}`);
+  return deployment;
 };
 
 // Azure OpenAI API request function
@@ -302,21 +306,46 @@ export async function generateKnowledgeGraph(
     }
     
     // Create all the nodes first
+    // 最初に親ノード参照がないノードを作成し、次に親参照があるノードを作成する
+    // これによりparentIdにノード名ではなく実際のノードIDを使用できる
     const nodeIdMap = new Map<string, string>(); // Maps original node names to their database IDs
     
-    for (const node of graphData.nodes) {
+    // 1. 親がないノード（レベル0と1）を先に作成
+    const nodesWithoutParents = graphData.nodes.filter(node => !node.parentId);
+    for (const node of nodesWithoutParents) {
       const nodeData: InsertKnowledgeNode = {
         name: node.name,
         roleModelId: roleModelId,
         level: node.level,
         type: node.type || 'keyword',
-        parentId: node.parentId || null,
+        parentId: null,
         description: node.description || null,
         color: node.color || null
       };
       
       const createdNode = await storage.createKnowledgeNode(nodeData);
       nodeIdMap.set(node.name, createdNode.id);
+      console.log(`Created node without parent: ${node.name} -> ${createdNode.id}`);
+    }
+    
+    // 2. 親が参照されているノードを作成（レベル2以上）- 親のIDをnodeIdMapから取得
+    const nodesWithParents = graphData.nodes.filter(node => node.parentId);
+    for (const node of nodesWithParents) {
+      const parentId = node.parentId ? nodeIdMap.get(node.parentId) : null;
+      
+      const nodeData: InsertKnowledgeNode = {
+        name: node.name,
+        roleModelId: roleModelId,
+        level: node.level,
+        type: node.type || 'keyword',
+        parentId: parentId, // 親ノードのID（文字列ではなく）
+        description: node.description || null,
+        color: node.color || null
+      };
+      
+      const createdNode = await storage.createKnowledgeNode(nodeData);
+      nodeIdMap.set(node.name, createdNode.id);
+      console.log(`Created node with parent: ${node.name} -> ${createdNode.id}, parent: ${parentId}`);
     }
     
     // Create all the edges
@@ -495,98 +524,98 @@ function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
   
   // Define main category nodes (level 1)
   const mainCategories = [
-    { name: 'Digital Working Skills', level: 1, color: '#10B981' }, // Emerald-500
-    { name: 'Entrepreneurial Skills', level: 1, color: '#8B5CF6' }, // Violet-500
-    { name: 'Evidence Based Working Skills', level: 1, color: '#EC4899' }, // Pink-500
-    { name: 'Communication Skills', level: 1, color: '#F59E0B' }, // Amber-500
-    { name: 'Collaboration Skills', level: 1, color: '#06B6D4' }, // Cyan-500
-    { name: 'Adaptation Skills', level: 1, color: '#34D399' }  // Emerald-400
+    { name: 'デジタル業務スキル', level: 1, color: '#10B981' }, // Emerald-500
+    { name: '起業家スキル', level: 1, color: '#8B5CF6' }, // Violet-500
+    { name: '根拠に基づく業務スキル', level: 1, color: '#EC4899' }, // Pink-500
+    { name: 'コミュニケーションスキル', level: 1, color: '#F59E0B' }, // Amber-500
+    { name: 'コラボレーションスキル', level: 1, color: '#06B6D4' }, // Cyan-500
+    { name: '適応スキル', level: 1, color: '#34D399' }  // Emerald-400
   ];
   
   // Define subcategories (level 2)
   const subCategories = [
     // Digital Working Skills subcategories
-    { name: 'Fundamental Digital Working Skills', level: 2, parentId: 'Digital Working Skills', color: '#A7F3D0' }, // Emerald-200
-    { name: 'Advanced Digital Working Skills', level: 2, parentId: 'Digital Working Skills', color: '#A7F3D0' },
+    { name: '基本的デジタル業務スキル', level: 2, parentId: 'デジタル業務スキル', color: '#A7F3D0' }, // Emerald-200
+    { name: '高度なデジタル業務スキル', level: 2, parentId: 'デジタル業務スキル', color: '#A7F3D0' },
     
     // Entrepreneurial Skills subcategories
-    { name: 'Fundamental Entrepreneurial Skills', level: 2, parentId: 'Entrepreneurial Skills', color: '#C4B5FD' }, // Violet-200
-    { name: 'Value Creation Skills', level: 2, parentId: 'Entrepreneurial Skills', color: '#C4B5FD' },
-    { name: 'Openness to Novelty', level: 2, parentId: 'Entrepreneurial Skills', color: '#C4B5FD' },
+    { name: '基本的起業家スキル', level: 2, parentId: '起業家スキル', color: '#C4B5FD' }, // Violet-200
+    { name: '価値創造スキル', level: 2, parentId: '起業家スキル', color: '#C4B5FD' },
+    { name: '革新性への適応', level: 2, parentId: '起業家スキル', color: '#C4B5FD' },
     
     // Evidence Based Working Skills subcategories
-    { name: 'Fundamental Evidence Based Working Skills', level: 2, parentId: 'Evidence Based Working Skills', color: '#FBCFE8' }, // Pink-200
-    { name: 'Information Processing Skills', level: 2, parentId: 'Evidence Based Working Skills', color: '#FBCFE8' },
-    { name: 'Data Fluency Skills', level: 2, parentId: 'Evidence Based Working Skills', color: '#FBCFE8' }
+    { name: '基本的根拠ベーススキル', level: 2, parentId: '根拠に基づく業務スキル', color: '#FBCFE8' }, // Pink-200
+    { name: '情報処理スキル', level: 2, parentId: '根拠に基づく業務スキル', color: '#FBCFE8' },
+    { name: 'データ活用スキル', level: 2, parentId: '根拠に基づく業務スキル', color: '#FBCFE8' }
   ];
   
   // Define specific skills (level 3)
   const specificSkills = [
     // Fundamental Digital Working Skills
-    { name: 'Handling hardware', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' }, // Emerald-50
-    { name: 'Handling software', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
-    { name: 'Handling social media and the internet', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
-    { name: 'Sharing information and data', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
-    { name: 'Solving basic digital problems', level: 3, parentId: 'Fundamental Digital Working Skills', color: '#ECFDF5' },
+    { name: 'ハードウェア操作', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' }, // Emerald-50
+    { name: 'ソフトウェア操作', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
+    { name: 'SNSとインターネット活用', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
+    { name: '情報・データ共有', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
+    { name: '基本的デジタル問題解決', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
     
     // Advanced Digital Working Skills
-    { name: 'Programming', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
-    { name: 'Digital content creation', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
-    { name: 'Dealing with laws, copyrights and licenses', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
-    { name: 'Digital safety', level: 3, parentId: 'Advanced Digital Working Skills', color: '#ECFDF5' },
+    { name: 'プログラミング', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
+    { name: 'デジタルコンテンツ作成', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
+    { name: '法律・著作権・ライセンス対応', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
+    { name: 'デジタルセキュリティ', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
     
     // Fundamental Entrepreneurial Skills
-    { name: 'Creativity and innovation', level: 3, parentId: 'Fundamental Entrepreneurial Skills', color: '#F5F3FF' }, // Violet-50
-    { name: 'Problem solving', level: 3, parentId: 'Fundamental Entrepreneurial Skills', color: '#F5F3FF' },
+    { name: '創造性とイノベーション', level: 3, parentId: '基本的起業家スキル', color: '#F5F3FF' }, // Violet-50
+    { name: '問題解決能力', level: 3, parentId: '基本的起業家スキル', color: '#F5F3FF' },
     
     // Openness to novelty
-    { name: 'Spotting opportunities', level: 3, parentId: 'Openness to Novelty', color: '#F5F3FF' },
-    { name: 'Sensemaking', level: 3, parentId: 'Openness to Novelty', color: '#F5F3FF' },
+    { name: '機会発見力', level: 3, parentId: '革新性への適応', color: '#F5F3FF' },
+    { name: '状況理解力', level: 3, parentId: '革新性への適応', color: '#F5F3FF' },
     
     // Value Creation Skills
-    { name: 'Taking initiative', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
-    { name: 'Strategic planning', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
-    { name: 'Decision making', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
-    { name: 'Anticipation', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
-    { name: 'Risk taking', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
-    { name: 'Risk management', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
-    { name: 'Leadership', level: 3, parentId: 'Value Creation Skills', color: '#F5F3FF' },
+    { name: '主体性', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
+    { name: '戦略的計画立案', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
+    { name: '意思決定力', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
+    { name: '予測力', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
+    { name: 'リスクテイキング', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
+    { name: 'リスク管理', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
+    { name: 'リーダーシップ', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
     
     // Fundamental Evidence Based Working Skills
-    { name: 'Formulating research questions', level: 3, parentId: 'Fundamental Evidence Based Working Skills', color: '#FCE7F3' }, // Pink-50
-    { name: 'Critical thinking', level: 3, parentId: 'Fundamental Evidence Based Working Skills', color: '#FCE7F3' },
+    { name: '研究課題設定', level: 3, parentId: '基本的根拠ベーススキル', color: '#FCE7F3' }, // Pink-50
+    { name: '批判的思考', level: 3, parentId: '基本的根拠ベーススキル', color: '#FCE7F3' },
     
     // Information Processing Skills
-    { name: 'Searching and selecting information', level: 3, parentId: 'Information Processing Skills', color: '#FCE7F3' },
-    { name: 'Information interpretation and evaluation', level: 3, parentId: 'Information Processing Skills', color: '#FCE7F3' },
-    { name: 'Information management', level: 3, parentId: 'Information Processing Skills', color: '#FCE7F3' },
+    { name: '情報検索・選別', level: 3, parentId: '情報処理スキル', color: '#FCE7F3' },
+    { name: '情報解釈・評価', level: 3, parentId: '情報処理スキル', color: '#FCE7F3' },
+    { name: '情報管理', level: 3, parentId: '情報処理スキル', color: '#FCE7F3' },
     
     // Data Fluency Skills
-    { name: 'Data collection', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
-    { name: 'Data analysis', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
-    { name: 'Data interpretation', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
-    { name: 'Data visualization', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
-    { name: 'Data management', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
-    { name: 'Data ethics and security', level: 3, parentId: 'Data Fluency Skills', color: '#FCE7F3' },
+    { name: 'データ収集', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
+    { name: 'データ分析', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
+    { name: 'データ解釈', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
+    { name: 'データ可視化', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
+    { name: 'データ管理', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
+    { name: 'データ倫理・セキュリティ', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
     
     // Communication Skills
-    { name: 'Using appropriate ways to communicate', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' }, // Amber-100
-    { name: 'Storytelling', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' },
-    { name: 'Networking', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' },
-    { name: 'Digital identity management', level: 3, parentId: 'Communication Skills', color: '#FEF3C7' },
+    { name: '適切なコミュニケーション方法', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' }, // Amber-100
+    { name: 'ストーリーテリング', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' },
+    { name: 'ネットワーキング', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' },
+    { name: 'デジタルアイデンティティ管理', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' },
     
     // Collaboration Skills
-    { name: 'Negotiation', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' }, // Cyan-100
-    { name: 'Multidisciplinary teamwork', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
-    { name: 'Social intelligence', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
-    { name: 'Cultural awareness', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
-    { name: 'Networking', level: 3, parentId: 'Collaboration Skills', color: '#CFFAFE' },
+    { name: '交渉力', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' }, // Cyan-100
+    { name: '多分野チームワーク', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
+    { name: '社会的知性', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
+    { name: '文化的感受性', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
+    { name: '人脈構築', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
     
     // Adaptation Skills
-    { name: 'Self-directed learning', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' }, // Emerald-100
-    { name: 'Experiential learning', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' },
-    { name: 'Training others', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' },
-    { name: 'Resilience', level: 3, parentId: 'Adaptation Skills', color: '#D1FAE5' }
+    { name: '自己主導学習', level: 3, parentId: '適応スキル', color: '#D1FAE5' }, // Emerald-100
+    { name: '経験学習', level: 3, parentId: '適応スキル', color: '#D1FAE5' },
+    { name: '他者への指導', level: 3, parentId: '適応スキル', color: '#D1FAE5' },
+    { name: 'レジリエンス', level: 3, parentId: '適応スキル', color: '#D1FAE5' }
   ];
   
   // Combine all nodes
@@ -641,70 +670,70 @@ function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGr
   
   // Define main category nodes (level 1)
   const mainCategories = [
-    { name: 'Technical Skills', level: 1, color: '#10B981' }, // Emerald-500
-    { name: 'Domain Knowledge', level: 1, color: '#8B5CF6' }, // Violet-500
-    { name: 'Soft Skills', level: 1, color: '#EC4899' }, // Pink-500
-    { name: 'Tools & Technologies', level: 1, color: '#F59E0B' } // Amber-500
+    { name: '専門技術スキル', level: 1, color: '#10B981' }, // Emerald-500
+    { name: 'ドメイン知識', level: 1, color: '#8B5CF6' }, // Violet-500
+    { name: 'ソフトスキル', level: 1, color: '#EC4899' }, // Pink-500
+    { name: 'ツール・技術', level: 1, color: '#F59E0B' } // Amber-500
   ];
   
   // Define subcategories (level 2)
   const subCategories = [
     // Technical Skills subcategories
-    { name: 'Core Technical Competencies', level: 2, parentId: 'Technical Skills', color: '#A7F3D0' }, // Emerald-200
-    { name: 'Advanced Technical Skills', level: 2, parentId: 'Technical Skills', color: '#A7F3D0' },
+    { name: '基本的技術能力', level: 2, parentId: '専門技術スキル', color: '#A7F3D0' }, // Emerald-200
+    { name: '高度な技術スキル', level: 2, parentId: '専門技術スキル', color: '#A7F3D0' },
     
     // Domain Knowledge subcategories
-    { name: 'Industry Knowledge', level: 2, parentId: 'Domain Knowledge', color: '#C4B5FD' }, // Violet-200
-    { name: 'Process Expertise', level: 2, parentId: 'Domain Knowledge', color: '#C4B5FD' },
+    { name: '業界知識', level: 2, parentId: 'ドメイン知識', color: '#C4B5FD' }, // Violet-200
+    { name: 'プロセス専門知識', level: 2, parentId: 'ドメイン知識', color: '#C4B5FD' },
     
     // Soft Skills subcategories
-    { name: 'Communication', level: 2, parentId: 'Soft Skills', color: '#FBCFE8' }, // Pink-200
-    { name: 'Leadership', level: 2, parentId: 'Soft Skills', color: '#FBCFE8' },
-    { name: 'Teamwork', level: 2, parentId: 'Soft Skills', color: '#FBCFE8' },
+    { name: 'コミュニケーション', level: 2, parentId: 'ソフトスキル', color: '#FBCFE8' }, // Pink-200
+    { name: 'リーダーシップ', level: 2, parentId: 'ソフトスキル', color: '#FBCFE8' },
+    { name: 'チームワーク', level: 2, parentId: 'ソフトスキル', color: '#FBCFE8' },
     
     // Tools & Technologies subcategories
-    { name: 'Software Tools', level: 2, parentId: 'Tools & Technologies', color: '#FDE68A' }, // Amber-200
-    { name: 'Platforms', level: 2, parentId: 'Tools & Technologies', color: '#FDE68A' }
+    { name: 'ソフトウェアツール', level: 2, parentId: 'ツール・技術', color: '#FDE68A' }, // Amber-200
+    { name: 'プラットフォーム', level: 2, parentId: 'ツール・技術', color: '#FDE68A' }
   ];
   
   // Define specific skills (level 3) - generic placeholders
   const specificSkills = [
     // Core Technical Competencies
-    { name: 'Skill A', level: 3, parentId: 'Core Technical Competencies', color: '#ECFDF5' }, // Emerald-50
-    { name: 'Skill B', level: 3, parentId: 'Core Technical Competencies', color: '#ECFDF5' },
-    { name: 'Skill C', level: 3, parentId: 'Core Technical Competencies', color: '#ECFDF5' },
+    { name: 'スキルA', level: 3, parentId: '基本的技術能力', color: '#ECFDF5' }, // Emerald-50
+    { name: 'スキルB', level: 3, parentId: '基本的技術能力', color: '#ECFDF5' },
+    { name: 'スキルC', level: 3, parentId: '基本的技術能力', color: '#ECFDF5' },
     
     // Advanced Technical Skills
-    { name: 'Advanced Skill A', level: 3, parentId: 'Advanced Technical Skills', color: '#ECFDF5' },
-    { name: 'Advanced Skill B', level: 3, parentId: 'Advanced Technical Skills', color: '#ECFDF5' },
+    { name: '高度なスキルA', level: 3, parentId: '高度な技術スキル', color: '#ECFDF5' },
+    { name: '高度なスキルB', level: 3, parentId: '高度な技術スキル', color: '#ECFDF5' },
     
     // Industry Knowledge
-    { name: 'Industry Trend A', level: 3, parentId: 'Industry Knowledge', color: '#F5F3FF' }, // Violet-50
-    { name: 'Industry Trend B', level: 3, parentId: 'Industry Knowledge', color: '#F5F3FF' },
+    { name: '業界トレンドA', level: 3, parentId: '業界知識', color: '#F5F3FF' }, // Violet-50
+    { name: '業界トレンドB', level: 3, parentId: '業界知識', color: '#F5F3FF' },
     
     // Process Expertise
-    { name: 'Process A', level: 3, parentId: 'Process Expertise', color: '#F5F3FF' },
-    { name: 'Process B', level: 3, parentId: 'Process Expertise', color: '#F5F3FF' },
+    { name: 'プロセスA', level: 3, parentId: 'プロセス専門知識', color: '#F5F3FF' },
+    { name: 'プロセスB', level: 3, parentId: 'プロセス専門知識', color: '#F5F3FF' },
     
     // Communication
-    { name: 'Effective Presentation', level: 3, parentId: 'Communication', color: '#FCE7F3' }, // Pink-50
-    { name: 'Technical Writing', level: 3, parentId: 'Communication', color: '#FCE7F3' },
+    { name: '効果的なプレゼンテーション', level: 3, parentId: 'コミュニケーション', color: '#FCE7F3' }, // Pink-50
+    { name: '技術文書作成', level: 3, parentId: 'コミュニケーション', color: '#FCE7F3' },
     
     // Leadership
-    { name: 'Team Management', level: 3, parentId: 'Leadership', color: '#FCE7F3' },
-    { name: 'Strategic Vision', level: 3, parentId: 'Leadership', color: '#FCE7F3' },
+    { name: 'チーム管理', level: 3, parentId: 'リーダーシップ', color: '#FCE7F3' },
+    { name: '戦略的ビジョン', level: 3, parentId: 'リーダーシップ', color: '#FCE7F3' },
     
     // Teamwork
-    { name: 'Collaboration', level: 3, parentId: 'Teamwork', color: '#FCE7F3' },
-    { name: 'Conflict Resolution', level: 3, parentId: 'Teamwork', color: '#FCE7F3' },
+    { name: '協働作業', level: 3, parentId: 'チームワーク', color: '#FCE7F3' },
+    { name: '対立解決能力', level: 3, parentId: 'チームワーク', color: '#FCE7F3' },
     
     // Software Tools
-    { name: 'Tool A', level: 3, parentId: 'Software Tools', color: '#FFFBEB' }, // Amber-50
-    { name: 'Tool B', level: 3, parentId: 'Software Tools', color: '#FFFBEB' },
+    { name: 'ツールA', level: 3, parentId: 'ソフトウェアツール', color: '#FFFBEB' }, // Amber-50
+    { name: 'ツールB', level: 3, parentId: 'ソフトウェアツール', color: '#FFFBEB' },
     
     // Platforms
-    { name: 'Platform A', level: 3, parentId: 'Platforms', color: '#FFFBEB' },
-    { name: 'Platform B', level: 3, parentId: 'Platforms', color: '#FFFBEB' }
+    { name: 'プラットフォームA', level: 3, parentId: 'プラットフォーム', color: '#FFFBEB' },
+    { name: 'プラットフォームB', level: 3, parentId: 'プラットフォーム', color: '#FFFBEB' }
   ];
   
   // Combine all nodes

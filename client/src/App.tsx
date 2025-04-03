@@ -19,6 +19,7 @@ function Router() {
     <Switch>
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/role-models/new" component={RoleModelsPage} />
+      <ProtectedRoute path="/role-models/:id" component={RoleModelDetailPage} />
       <ProtectedRoute path="/role-models" component={RoleModelsPage} />
       <ProtectedRoute path="/role-model/:id/knowledge-graph" component={KnowledgeGraphPage} />
       <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPage} />

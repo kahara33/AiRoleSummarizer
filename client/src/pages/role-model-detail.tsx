@@ -13,13 +13,19 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function RoleModelDetailPage() {
   const { toast } = useToast();
-  const [, params] = useRoute("/role-model/:id");
-  const roleModelId = params?.id || "";
+  const [isRoleModelRoute, roleModelParams] = useRoute("/role-model/:id");
+  const [isRoleModelsRoute, roleModelsParams] = useRoute("/role-models/:id");
+  
+  // どちらかのルートからIDを取得
+  const roleModelId = (isRoleModelRoute ? roleModelParams?.id : 
+                        isRoleModelsRoute ? roleModelsParams?.id : "") || "";
   
   // デバッグログの追加
   useEffect(() => {
     console.log("RoleModelDetailPage - パラメータID:", roleModelId);
-  }, [roleModelId]);
+    console.log("パスの種類:", isRoleModelRoute ? "/role-model/:id" : 
+                       isRoleModelsRoute ? "/role-models/:id" : "未マッチ");
+  }, [roleModelId, isRoleModelRoute, isRoleModelsRoute]);
 
   // Fetch role model with tags
   const { data: roleModel, isLoading, error } = useQuery({
