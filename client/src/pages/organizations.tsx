@@ -18,6 +18,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from '@/hooks/use-toast';
 import { USER_ROLES } from '@shared/schema';
 import { Loader2 } from 'lucide-react';
+import AppLayout from '@/components/layout/app-layout';
 
 // スキーマ定義
 const organizationFormSchema = z.object({
@@ -260,194 +261,197 @@ export default function OrganizationsPage() {
     }
   };
 
-  // システム管理者でない場合はアクセス権限がないことを表示
+  // 権限確認とレンダリング
   if (user && user.role !== USER_ROLES.SYSTEM_ADMIN && user.role !== USER_ROLES.COMPANY_ADMIN) {
     return (
-      <div className="container mx-auto py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>アクセス権限がありません</CardTitle>
-            <CardDescription>
-              この機能にアクセスするには、システム管理者または組織管理者の権限が必要です。
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
+      <AppLayout>
+        <div className="container mx-auto py-10">
+          <Card>
+            <CardHeader>
+              <CardTitle>アクセス権限がありません</CardTitle>
+              <CardDescription>
+                この機能にアクセスするには、システム管理者または組織管理者の権限が必要です。
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-6">組織管理</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* 左側: 組織一覧 */}
-        <div className="md:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>組織一覧</CardTitle>
-              <CardDescription>
-                {user?.role === USER_ROLES.SYSTEM_ADMIN ? 
-                  'すべての組織を管理できます' : 
-                  'あなたが管理する組織を表示しています'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingCompanies ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {companies.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">組織がありません</p>
-                  ) : (
-                    companies.map((company) => (
-                      <div
-                        key={company.id}
-                        className={`p-3 rounded-md cursor-pointer ${
-                          selectedOrg?.id === company.id
-                            ? 'bg-primary/10 border border-primary/30'
-                            : 'hover:bg-accent'
-                        }`}
-                        onClick={() => handleOrgSelect(company)}
-                      >
-                        <h3 className="font-medium">{company.name}</h3>
-                        {company.description && (
-                          <p className="text-sm text-muted-foreground mt-1 truncate">{company.description}</p>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </CardContent>
-            <CardFooter>
-              {user?.role === USER_ROLES.SYSTEM_ADMIN && (
-                <Button
-                  onClick={() => {
-                    setIsEditMode(false);
-                    orgForm.reset({ name: '', description: '' });
-                    setIsOrgFormOpen(true);
-                  }}
-                  className="w-full"
-                >
-                  新しい組織を作成
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
-
-        {/* 右側: 選択した組織の詳細とユーザー一覧 */}
-        <div className="md:col-span-2">
-          {selectedOrg ? (
-            <Card>
-              <CardHeader className="flex flex-row items-start justify-between">
-                <div>
-                  <CardTitle>{selectedOrg.name}</CardTitle>
-                  <CardDescription>{selectedOrg.description}</CardDescription>
-                </div>
-                {user?.role === USER_ROLES.SYSTEM_ADMIN && (
-                  <div className="flex space-x-2">
-                    <Button variant="outline" onClick={() => handleEditClick(selectedOrg)}>
-                      編集
-                    </Button>
-                    <Button variant="destructive" onClick={() => handleDeleteClick(selectedOrg)}>
-                      削除
-                    </Button>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="users">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="users">ユーザー</TabsTrigger>
-                    <TabsTrigger value="settings">設定</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="users">
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-medium">ユーザー一覧</h3>
-                        <Button
-                          onClick={() => {
-                            userForm.reset({
-                              name: '',
-                              email: '',
-                              password: '',
-                              role: USER_ROLES.COMPANY_USER,
-                            });
-                            setIsUserFormOpen(true);
-                          }}
-                        >
-                          ユーザーを追加
-                        </Button>
-                      </div>
-
-                      {isLoadingUsers ? (
-                        <div className="flex justify-center py-8">
-                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : (
-                        <div className="border rounded-md">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>名前</TableHead>
-                                <TableHead>メールアドレス</TableHead>
-                                <TableHead>役割</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {users.length === 0 ? (
-                                <TableRow>
-                                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                                    ユーザーがいません
-                                  </TableCell>
-                                </TableRow>
-                              ) : (
-                                users.map((user) => (
-                                  <TableRow key={user.id}>
-                                    <TableCell>{user.name}</TableCell>
-                                    <TableCell>{user.email}</TableCell>
-                                    <TableCell>
-                                      <Badge variant={user.role === USER_ROLES.COMPANY_ADMIN ? 'default' : 'outline'}>
-                                        {getRoleDisplayName(user.role)}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))
-                              )}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="settings">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">組織設定</h3>
-                      <p className="text-muted-foreground">
-                        組織の設定と詳細情報を管理します。
-                      </p>
-                      {/* 将来的に追加設定があればここに */}
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          ) : (
+    <AppLayout>
+      <div className="container mx-auto py-10">
+        <h1 className="text-2xl font-bold mb-6">組織管理</h1>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* 左側: 組織一覧 */}
+          <div className="md:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle>組織を選択してください</CardTitle>
+                <CardTitle>組織一覧</CardTitle>
                 <CardDescription>
-                  左側のリストから組織を選択すると、詳細情報が表示されます。
+                  {user?.role === USER_ROLES.SYSTEM_ADMIN ? 
+                    'すべての組織を管理できます' : 
+                    'あなたが管理する組織を表示しています'}
                 </CardDescription>
               </CardHeader>
+              <CardContent>
+                {isLoadingCompanies ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {companies.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-4">組織がありません</p>
+                    ) : (
+                      companies.map((company) => (
+                        <div
+                          key={company.id}
+                          className={`p-3 rounded-md cursor-pointer ${
+                            selectedOrg?.id === company.id
+                              ? 'bg-primary/10 border border-primary/30'
+                              : 'hover:bg-accent'
+                          }`}
+                          onClick={() => handleOrgSelect(company)}
+                        >
+                          <h3 className="font-medium">{company.name}</h3>
+                          {company.description && (
+                            <p className="text-sm text-muted-foreground mt-1 truncate">{company.description}</p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                {user?.role === USER_ROLES.SYSTEM_ADMIN && (
+                  <Button
+                    onClick={() => {
+                      setIsEditMode(false);
+                      orgForm.reset({ name: '', description: '' });
+                      setIsOrgFormOpen(true);
+                    }}
+                    className="w-full"
+                  >
+                    新しい組織を作成
+                  </Button>
+                )}
+              </CardFooter>
             </Card>
-          )}
+          </div>
+
+        {/* 右側: 選択した組織の詳細とユーザー一覧 */}
+          <div className="md:col-span-2">
+            {selectedOrg ? (
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between">
+                  <div>
+                    <CardTitle>{selectedOrg.name}</CardTitle>
+                    <CardDescription>{selectedOrg.description}</CardDescription>
+                  </div>
+                  {user?.role === USER_ROLES.SYSTEM_ADMIN && (
+                    <div className="flex space-x-2">
+                      <Button variant="outline" onClick={() => handleEditClick(selectedOrg)}>
+                        編集
+                      </Button>
+                      <Button variant="destructive" onClick={() => handleDeleteClick(selectedOrg)}>
+                        削除
+                      </Button>
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="users">
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="users">ユーザー</TabsTrigger>
+                      <TabsTrigger value="settings">設定</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="users">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-lg font-medium">ユーザー一覧</h3>
+                          <Button
+                            onClick={() => {
+                              userForm.reset({
+                                name: '',
+                                email: '',
+                                password: '',
+                                role: USER_ROLES.COMPANY_USER,
+                              });
+                              setIsUserFormOpen(true);
+                            }}
+                          >
+                            ユーザーを追加
+                          </Button>
+                        </div>
+
+                        {isLoadingUsers ? (
+                          <div className="flex justify-center py-8">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <div className="border rounded-md">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>名前</TableHead>
+                                  <TableHead>メールアドレス</TableHead>
+                                  <TableHead>役割</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {users.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                                      ユーザーがいません
+                                    </TableCell>
+                                  </TableRow>
+                                ) : (
+                                  users.map((user) => (
+                                    <TableRow key={user.id}>
+                                      <TableCell>{user.name}</TableCell>
+                                      <TableCell>{user.email}</TableCell>
+                                      <TableCell>
+                                        <Badge variant={user.role === USER_ROLES.COMPANY_ADMIN ? 'default' : 'outline'}>
+                                          {getRoleDisplayName(user.role)}
+                                        </Badge>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="settings">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium">組織設定</h3>
+                        <p className="text-muted-foreground">
+                          組織の設定と詳細情報を管理します。
+                        </p>
+                        {/* 将来的に追加設定があればここに */}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>組織を選択してください</CardTitle>
+                  <CardDescription>
+                    左側のリストから組織を選択すると、詳細情報が表示されます。
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
         </div>
       </div>
 
@@ -656,5 +660,6 @@ export default function OrganizationsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppLayout>
   );
 }
