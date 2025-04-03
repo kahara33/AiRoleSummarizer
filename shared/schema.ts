@@ -36,7 +36,7 @@ export const users = pgTable("users", {
 export const roleModels = pgTable("role_models", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  description: text("description").notNull(),
+  description: text("description"),
   userId: uuid("user_id").notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),

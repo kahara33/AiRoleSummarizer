@@ -27,7 +27,7 @@ import KeywordSelectionContainer from "@/components/keyword-selection/keyword-se
 
 const formSchema = insertRoleModelSchema.extend({
   name: z.string().min(1, "ロールモデル名を入力してください").max(50, "50文字以内で入力してください"),
-  description: z.string().min(10, "説明は10文字以上入力してください").max(500, "500文字以内で入力してください"),
+  description: z.string().max(500, "500文字以内で入力してください").optional(),
 });
 
 interface RoleModelFormProps {
