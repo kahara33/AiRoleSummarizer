@@ -44,6 +44,11 @@ export default function Navbar() {
     { path: "/tags", label: "タグ管理" },
     { path: "/summaries", label: "要約一覧" },
   ];
+  
+  // システム管理者と組織管理者のみ組織管理メニューを表示
+  if (user.role === "system_admin" || user.role === "company_admin") {
+    navLinks.push({ path: "/organizations", label: "組織管理" });
+  }
 
   const desktopNavbar = (
     <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">

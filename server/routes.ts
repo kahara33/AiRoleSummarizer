@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, requireRole } from "./auth";
+import { setupAuth } from "./auth";
 import { z } from "zod";
 import { 
   insertRoleModelSchema, 
@@ -24,6 +24,22 @@ const isAuthenticated = (req: any, res: any, next: any) => {
     return next();
   }
   res.status(401).json({ message: "Authentication required" });
+};
+
+// 特定の役割を持つユーザーのみアクセスを許可するミドルウェア
+const requireRole = (role: string | string[]) => {
+  return (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    const roles = Array.isArray(role) ? role : [role];
+    if (roles.includes(req.user.role)) {
+      return next();
+    }
+    
+    res.status(403).json({ message: "Access denied" });
+  };
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -481,6 +497,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 組織管理ルート
+  // 組織一覧を取得（システム管理者のみ）
+  app.get("/api/companies", requireRole("system_admin"), async (req, res) => {
+    try {
+      const companies = await storage.getCompanies();
+      res.json(companies);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      res.status(500).json({ message: "Error fetching companies" });
+    }
+  });
+
+  // 組織を作成（システム管理者のみ）
+  app.post("/api/companies", requireRole("system_admin"), async (req, res) => {
+    try {
+      // Validate company data
+      const validatedData = insertCompanySchema.parse(req.body);
+      const company = await storage.createCompany(validatedData);
+      res.status(201).json(company);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid company data", errors: error.errors });
+      }
+      console.error("Error creating company:", error);
+      res.status(500).json({ message: "Error creating company" });
+    }
+  });
+
+  // 組織を更新（システム管理者のみ）
+  app.put("/api/companies/:id", requireRole("system_admin"), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      const existingCompany = await storage.getCompany(companyId);
+      
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Update company
+      const updatedCompany = await storage.updateCompany(companyId, req.body);
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      res.status(500).json({ message: "Error updating company" });
+    }
+  });
+
+  // 組織を削除（システム管理者のみ）
+  app.delete("/api/companies/:id", requireRole("system_admin"), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      const existingCompany = await storage.getCompany(companyId);
+      
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Delete company
+      await storage.deleteCompany(companyId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      res.status(500).json({ message: "Error deleting company" });
+    }
+  });
+
+  // 組織のユーザー一覧を取得（システム管理者または組織管理者）
+  app.get("/api/companies/:id/users", requireRole(["system_admin", "company_admin"]), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      
+      // 組織管理者は自分の組織のユーザーのみ取得可能
+      if (req.user && req.user.role === "company_admin" && req.user.companyId !== companyId) {
+        return res.status(403).json({ message: "Not authorized to access this company's users" });
+      }
+      
+      const users = await storage.getUsers(companyId);
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching company users:", error);
+      res.status(500).json({ message: "Error fetching company users" });
+    }
+  });
+
+  // 組織にユーザーを追加（システム管理者または組織管理者）
+  app.post("/api/companies/:id/users", requireRole(["system_admin", "company_admin"]), async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      
+      // 組織管理者は自分の組織のユーザーのみ追加可能
+      if (req.user && req.user.role === "company_admin" && req.user.companyId !== companyId) {
+        return res.status(403).json({ message: "Not authorized to add users to this company" });
+      }
+      
+      // Validate user data
+      const validatedData = insertUserSchema.parse({
+        ...req.body,
+        companyId
+      });
+      
+      const user = await storage.createUser(validatedData);
+      res.status(201).json(user);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid user data", errors: error.errors });
+      }
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "Error creating user" });
+    }
+  });
+
   // AI assistance routes
   app.post("/api/suggest-tags", isAuthenticated, async (req, res) => {
     try {
@@ -530,148 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Company management (system admin only)
-  app.get("/api/companies", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
-    try {
-      const companies = await storage.getCompanies();
-      res.json(companies);
-    } catch (error) {
-      console.error("Error fetching companies:", error);
-      res.status(500).json({ message: "Error fetching companies" });
-    }
-  });
 
-  app.post("/api/companies", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
-    try {
-      // Validate company data
-      const validatedData = insertCompanySchema.parse(req.body);
-      const company = await storage.createCompany(validatedData);
-      res.status(201).json(company);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid company data", errors: error.errors });
-      }
-      console.error("Error creating company:", error);
-      res.status(500).json({ message: "Error creating company" });
-    }
-  });
-
-  app.put("/api/companies/:id", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
-    try {
-      const companyId = req.params.id;
-      const existingCompany = await storage.getCompany(companyId);
-      
-      if (!existingCompany) {
-        return res.status(404).json({ message: "Company not found" });
-      }
-      
-      // Update company
-      const updatedCompany = await storage.updateCompany(companyId, {
-        name: req.body.name,
-        description: req.body.description
-      });
-      
-      res.json(updatedCompany);
-    } catch (error) {
-      console.error("Error updating company:", error);
-      res.status(500).json({ message: "Error updating company" });
-    }
-  });
-
-  app.delete("/api/companies/:id", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
-    try {
-      const companyId = req.params.id;
-      const existingCompany = await storage.getCompany(companyId);
-      
-      if (!existingCompany) {
-        return res.status(404).json({ message: "Company not found" });
-      }
-      
-      // Delete company
-      await storage.deleteCompany(companyId);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting company:", error);
-      res.status(500).json({ message: "Error deleting company" });
-    }
-  });
-
-  // User management routes
-  // System admins can manage company admins
-  app.post("/api/company-admins", requireRole(USER_ROLES.SYSTEM_ADMIN), async (req, res) => {
-    try {
-      const { name, email, password, companyId } = req.body;
-      
-      if (!name || !email || !password || !companyId) {
-        return res.status(400).json({ message: "Name, email, password, and companyId are required" });
-      }
-      
-      // Validate if company exists
-      const company = await storage.getCompany(companyId);
-      if (!company) {
-        return res.status(404).json({ message: "Company not found" });
-      }
-      
-      // Create a company admin user
-      const admin = await storage.createUser({
-        name,
-        email,
-        password,
-        role: USER_ROLES.COMPANY_ADMIN,
-        companyId
-      });
-      
-      res.status(201).json(admin);
-    } catch (error) {
-      console.error("Error creating company admin:", error);
-      res.status(500).json({ message: "Error creating company admin" });
-    }
-  });
-
-  // Company admins can manage company users
-  app.get("/api/companies/:id/users", requireRole([USER_ROLES.SYSTEM_ADMIN, USER_ROLES.COMPANY_ADMIN]), async (req, res) => {
-    try {
-      const companyId = req.params.id;
-      
-      // If company admin, verify they are from this company
-      if (req.user && req.user.role === USER_ROLES.COMPANY_ADMIN && req.user.companyId !== companyId) {
-        return res.status(403).json({ message: "You can only access users from your own company" });
-      }
-      
-      const users = await storage.getUsers(companyId);
-      res.json(users);
-    } catch (error) {
-      console.error("Error fetching company users:", error);
-      res.status(500).json({ message: "Error fetching company users" });
-    }
-  });
-
-  app.post("/api/company-users", requireRole(USER_ROLES.COMPANY_ADMIN), async (req, res) => {
-    try {
-      const { name, email, password } = req.body;
-      
-      if (!name || !email || !password) {
-        return res.status(400).json({ message: "Name, email, and password are required" });
-      }
-      
-      // Company admin can only create users for their own company
-      const companyId = req.user?.companyId;
-      
-      // Create a company user
-      const user = await storage.createUser({
-        name,
-        email,
-        password,
-        role: USER_ROLES.COMPANY_USER,
-        companyId
-      });
-      
-      res.status(201).json(user);
-    } catch (error) {
-      console.error("Error creating company user:", error);
-      res.status(500).json({ message: "Error creating company user" });
-    }
-  });
 
   // Create HTTP server
   const httpServer = createServer(app);
