@@ -1,6 +1,7 @@
 // システム管理者ユーザーを作成するための簡易スクリプト
 const crypto = require('crypto');
 const { promisify } = require('util');
+const fetch = require('node-fetch');
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -24,7 +25,7 @@ async function createAdminUser() {
       body: JSON.stringify({
         email: 'k.harada@everys.jp',
         name: '原田一樹',
-        password: hashedPassword,
+        password: '3Bdf902@5155', // パスワードは平文で送信（APIでハッシュ化される）
         role: 'system_admin'
       }),
     });

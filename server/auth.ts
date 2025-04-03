@@ -89,7 +89,43 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Admin APIエンドポイントは別途実装します
+  // ユーザー登録エンドポイント
+  app.post("/api/register", async (req, res, next) => {
+    try {
+      console.log("ユーザー登録リクエスト受信:", { email: req.body.email });
+      
+      // 既存ユーザーの確認
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        console.log("登録失敗: ユーザーは既に存在します:", { email: req.body.email });
+        return res.status(400).json({ message: "Email already in use" });
+      }
+      
+      // パスワードハッシュ化
+      const hashedPassword = await hashPassword(req.body.password);
+      
+      // ユーザー作成
+      const user = await storage.createUser({
+        ...req.body,
+        password: hashedPassword
+      });
+      
+      console.log("ユーザー登録成功、ログイン処理:", { id: user.id, email: user.email });
+      
+      // 自動ログイン
+      req.login(user, (err) => {
+        if (err) {
+          console.error("自動ログインエラー:", err);
+          return next(err);
+        }
+        console.log("ユーザー登録・ログイン完了:", { id: user.id, email: user.email });
+        return res.status(201).json(user);
+      });
+    } catch (error) {
+      console.error("ユーザー登録エラー:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
 
   app.post("/api/login", (req, res, next) => {
     console.log("ログインリクエスト受信:", { email: req.body.email });

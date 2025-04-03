@@ -394,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = req.params.id;
       
       // If company admin, verify they are from this company
-      if (req.user.role === USER_ROLES.COMPANY_ADMIN && req.user.companyId !== companyId) {
+      if (req.user && req.user.role === USER_ROLES.COMPANY_ADMIN && req.user.companyId !== companyId) {
         return res.status(403).json({ message: "You can only access users from your own company" });
       }
       
@@ -415,7 +415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Company admin can only create users for their own company
-      const companyId = req.user.companyId;
+      const companyId = req.user?.companyId;
       
       // Create a company user
       const user = await storage.createUser({
