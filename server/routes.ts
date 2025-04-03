@@ -1012,7 +1012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to remove industries from this role model" });
       }
       
-      await storage.deleteRoleModelIndustry(roleModelId, industryId);
+      await storage.deleteRoleModelIndustry(industryId);
       res.status(204).send();
     } catch (error) {
       console.error("Error removing industry from role model:", error);
