@@ -84,7 +84,7 @@ export default function KnowledgeGraphPage() {
   };
 
   const handleBackToRoleModels = () => {
-    setLocation("/role-models");
+    window.location.href = "/role-models";
   };
   
   // AI グラフ自動生成Mutation

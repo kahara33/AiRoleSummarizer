@@ -17,13 +17,14 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
-      <ProtectedRoute path="/" component={Dashboard} />
+      <ProtectedRoute path="/role-models/new" component={RoleModelsPage} />
       <ProtectedRoute path="/role-models" component={RoleModelsPage} />
       <ProtectedRoute path="/role-model/:id/knowledge-graph" component={KnowledgeGraphPage} />
       <ProtectedRoute path="/knowledge-graph" component={KnowledgeGraphPage} />
       <ProtectedRoute path="/tags" component={TagsPage} />
       <ProtectedRoute path="/summaries" component={SummariesPage} />
       <ProtectedRoute path="/organizations" component={OrganizationsPage} />
+      <ProtectedRoute path="/" component={Dashboard} />
       <Route path="/:rest*" component={NotFound} />
     </Switch>
   );

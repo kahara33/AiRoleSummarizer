@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { RoleModel } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useRoute } from "wouter";
 
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/app-layout";
@@ -45,7 +46,7 @@ import {
 export default function RoleModelsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(window.location.pathname === "/role-models/new");
   const [editingModel, setEditingModel] = useState<RoleModel | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [modelToDelete, setModelToDelete] = useState<RoleModel | null>(null);
@@ -104,6 +105,10 @@ export default function RoleModelsPage() {
   const handleCreateSuccess = () => {
     setIsCreateOpen(false);
     refetch();
+    // 新規作成ページからロールモデル一覧に戻る
+    if (window.location.pathname === "/role-models/new") {
+      window.location.href = "/role-models";
+    }
   };
 
   const handleEditSuccess = () => {
@@ -139,7 +144,13 @@ export default function RoleModelsPage() {
             情報収集のためのロールモデルを作成・管理します
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={(open) => {
+            setIsCreateOpen(open);
+            // ダイアログが閉じられた時、新規作成ページからロールモデル一覧に戻る
+            if (!open && window.location.pathname === "/role-models/new") {
+              window.location.href = "/role-models";
+            }
+          }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
