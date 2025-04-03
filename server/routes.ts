@@ -591,6 +591,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to add users to this company" });
       }
       
+      // メールアドレスが既に存在するかチェック
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "このメールアドレスは既に使用されています" });
+      }
+      
       // Validate user data
       const validatedData = insertUserSchema.parse({
         ...req.body,

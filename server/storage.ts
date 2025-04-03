@@ -140,8 +140,10 @@ export class MemStorage implements IStorage {
 
   async getUsers(companyId?: string): Promise<User[]> {
     if (companyId) {
+      // companyIdが一致するユーザーのみをフィルタリング
+      // さらに、実際のUserオブジェクトであることを確認（nameとemailプロパティがあるか）
       return Array.from(this.users.values()).filter(
-        (user) => user.companyId === companyId
+        (user) => user.companyId === companyId && typeof user.name === 'string' && typeof user.email === 'string'
       );
     }
     return Array.from(this.users.values());

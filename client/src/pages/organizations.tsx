@@ -94,6 +94,10 @@ export default function OrganizationsPage() {
   } = useQuery<User[]>({
     queryKey: ['/api/companies', selectedOrg?.id, 'users'],
     enabled: !!selectedOrg,
+    // 応答データが有効なユーザーデータであることを確認
+    select: (data) => data.filter(
+      user => typeof user.name === 'string' && typeof user.email === 'string'
+    )
   });
 
   // 組織作成ミューテーション
