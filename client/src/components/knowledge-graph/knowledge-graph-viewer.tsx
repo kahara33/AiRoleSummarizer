@@ -159,20 +159,59 @@ export default function KnowledgeGraphViewer({
     fetchGraphData();
   }, [fetchGraphData]);
   
-  // Mapify風のレイアウトを実現するための放射状配置
+  // Mapifyスタイルの階層構造レイアウト（分離して明確に）
   useEffect(() => {
     if (nodes.length === 0 || !graphRef.current) return;
     
-    // ルートノードを中心に配置
+    // 各レベルのノードをグループ化
+    const nodesByLevel: Record<number, GraphNode[]> = {};
+    nodes.forEach(node => {
+      if (!nodesByLevel[node.level]) {
+        nodesByLevel[node.level] = [];
+      }
+      nodesByLevel[node.level].push(node);
+    });
+    
+    // ルートノードを画面下部中央に配置
     const rootNode = nodes.find(n => n.level === 0);
     if (rootNode) {
       rootNode.fx = width / 2;
-      rootNode.fy = height / 2; // 中央に配置
-      rootNode.val = 20; // ルートノードを大きく表示
+      rootNode.fy = height - 100; // 画面下部に配置
+      rootNode.val = 25; // ルートノードを大きく表示
     }
     
-    // カスタム放射状フォースレイアウトの適用
-    // ForceGraphは初期レンダリング時にd3Forceがまだないことがあるため安全に処理
+    // 最大レベルを計算
+    const maxLevel = Math.max(...nodes.map(n => n.level));
+    
+    // 各ノードの初期位置を設定（レベルに基づく）
+    nodes.forEach(node => {
+      if (node.level === 0) return; // ルートノードはスキップ
+      
+      // レベルに基づいて位置を設定
+      const levelCount = nodesByLevel[node.level].length;
+      const levelIndex = nodesByLevel[node.level].indexOf(node);
+      
+      // レベルごとに行を分ける (上から下へ配置)
+      const verticalSpacing = (height - 200) / (maxLevel + 1);
+      const rowY = 100 + (maxLevel - node.level) * verticalSpacing;
+      
+      // 1行内での水平配置
+      const rowWidth = width - 200;
+      const horizontalSpacing = levelCount > 1 ? rowWidth / (levelCount - 1) : 0;
+      const rowX = levelCount > 1 
+        ? 100 + levelIndex * horizontalSpacing
+        : width / 2;
+      
+      // 初期位置を設定
+      node.fx = rowX;
+      node.fy = rowY;
+      
+      // 子ノードが多いノードは大きく表示
+      const childNodes = nodes.filter(n => n.parentId === node.id);
+      node.val = Math.min(20, 10 + childNodes.length * 2);
+    });
+    
+    // カスタムレイアウトの適用
     setTimeout(() => {
       if (!graphRef.current) return;
       
@@ -187,55 +226,45 @@ export default function KnowledgeGraphViewer({
         simulation.force('link', null);
         simulation.force('charge', null);
         simulation.force('center', null);
+        simulation.force('radial', null);
+        simulation.force('x', null);
+        simulation.force('y', null);
+        simulation.force('collision', null);
         
-        // 中心からの距離を調整するための変数
-        const distanceMultiplier = 200;
-        
-        // 放射状に配置するカスタムフォース
-        simulation.force('radial', d3.forceRadial((d: any) => {
-          if (d.level === 0) return 0; // ルートノードは中心
-          return d.level * distanceMultiplier; // レベルに応じた距離
-        }, width / 2, height / 2).strength(0.8));
-        
-        // 同じレベルのノード同士が重ならないようにする
+        // 同じレベルのノード同士が重ならないようにするための衝突検出
         simulation.force('collision', d3.forceCollide().radius((d: any) => {
           // ノードの大きさに応じた衝突半径
-          const baseSize = d.level === 0 ? 80 : 40; // ルートノードは大きく
-          return baseSize + (d.val || 10) * 0.8;
-        }));
+          const baseSize = d.level === 0 ? 100 : 80;
+          return baseSize;
+        }).strength(1));
         
-        // ノード間の反発力
-        simulation.force('charge', d3.forceManyBody().strength((d: any) => {
-          return d.level === 0 ? -2000 : -1000; // ルートノードは強い反発力
-        }));
-        
-        // リンク制約設定
+        // 固定ノードを動かさないようにする
         simulation.force('link', d3.forceLink(links)
           .id((d: any) => d.id)
-          .distance((link: any) => {
-            const source = link.source as any;
-            const target = link.target as any;
-            
-            // 親子関係（ルートノードから直接つながるノード）
-            if ((source.level === 0 || target.level === 0) && link.label === "CONTAINS") {
-              return distanceMultiplier * 0.8;
-            }
-            
-            // 親子関係（一般）
-            if (link.label === "CONTAINS") {
-              return distanceMultiplier * 0.7;
-            }
-            
-            // その他の関係
-            return distanceMultiplier * 1.2;
-          })
-          .strength((link: any) => {
-            return link.label === "CONTAINS" ? 0.7 : 0.3;
-          })
+          .distance(100)
+          .strength(0.1) // 弱い接続力
         );
         
-        // グラフを再加熱して新しい力を適用
-        simulation.alpha(1).restart();
+        // 一定回数の繰り返し後に全ノードを固定
+        let tickCount = 0;
+        const TICKS_TO_FREEZE = 10;
+        
+        simulation.on('tick', () => {
+          tickCount++;
+          if (tickCount >= TICKS_TO_FREEZE) {
+            // すべてのノードを現在の位置で固定
+            nodes.forEach(node => {
+              node.fx = node.x;
+              node.fy = node.y;
+            });
+            
+            // シミュレーションを止める
+            simulation.stop();
+          }
+        });
+        
+        // 短時間だけシミュレーション実行
+        simulation.alpha(0.3).restart();
       } catch (err) {
         console.error('Error configuring force simulation:', err);
       }
@@ -577,8 +606,7 @@ export default function KnowledgeGraphViewer({
             }}
             onNodeClick={handleNodeClick}
             onNodeRightClick={handleNodeRightClick}
-            linkDirectionalParticles={2}
-            linkDirectionalParticleWidth={3}
+            linkDirectionalParticles={0} // パルスを表示しない
             linkWidth={(link) => (link.label === "CONTAINS") ? 2 : 1}
             linkColor={(link) => (link.label === "CONTAINS") ? '#77AADD' : '#BBBBBB'}
             linkCurvature={(link) => (link.label === "CONTAINS") ? 0 : 0.25}
