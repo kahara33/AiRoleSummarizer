@@ -17,7 +17,7 @@ interface SelectedIndustriesProps {
 export default function SelectedIndustries({
   selectedIndustryIds,
   onRemoveIndustry,
-  maxHeight = "200px",
+  maxHeight = "150px",
   title = "選択した業界"
 }: SelectedIndustriesProps) {
   const [categoryGroups, setCategoryGroups] = useState<Record<string, IndustrySubcategory[]>>({});

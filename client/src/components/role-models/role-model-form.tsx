@@ -171,7 +171,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
   });
 
   return (
-    <Card className="w-full max-w-5xl">
+    <Card className="w-[1000px] max-w-full">
       <CardHeader className="pb-2">
         <CardTitle className="text-center text-xl">{isEditMode ? "ロールモデルを編集" : "新しいロールモデルを作成"}</CardTitle>
       </CardHeader>
