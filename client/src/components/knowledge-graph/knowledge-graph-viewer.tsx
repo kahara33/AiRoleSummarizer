@@ -5,6 +5,7 @@ import { Loader2, Plus, Edit, Trash, MessageSquarePlus, ZoomIn, ZoomOut } from "
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import ForceGraph from "react-force-graph-2d";
+import * as d3 from 'd3-force';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -157,6 +158,58 @@ export default function KnowledgeGraphViewer({
   useEffect(() => {
     fetchGraphData();
   }, [fetchGraphData]);
+  
+  // ノードの階層構造に基づいて座標を設定する処理
+  useEffect(() => {
+    if (nodes.length === 0 || !graphRef.current) return;
+    
+    // ルートノードを中心に配置
+    const rootNode = nodes.find(n => n.level === 0);
+    if (rootNode) {
+      rootNode.fx = width / 2;
+      rootNode.fy = height / 3;
+    }
+    
+    // カスタム階層型フォースレイアウトを適用
+    const simulation = graphRef.current.d3Force();
+    
+    // 既存のフォースをクリア
+    simulation.force('link', null);
+    simulation.force('charge', null);
+    simulation.force('center', null);
+    
+    // 階層ごとに垂直方向に配置するフォース
+    simulation.force('y', d3.forceY().y((d: any) => {
+      const levelMultiplier = 120; // レベル間の垂直距離
+      return height / 3 + (d.level * levelMultiplier);
+    }).strength(0.8));
+    
+    // 同じレベルのノードを水平方向に広げるフォース
+    simulation.force('x', d3.forceX().x((d: any) => {
+      if (d.level === 0) return width / 2; // ルートノードは中央
+      // 親ノードのx座標を基準に配置
+      const parent = nodes.find(n => n.id === d.parentId);
+      return parent && typeof parent.x === 'number' ? parent.x : width / 2;
+    }).strength(0.3));
+    
+    // 同じレベルのノード同士が重ならないようにする
+    simulation.force('collision', d3.forceCollide().radius((d: any) => 30 + (d.val || 10)));
+    
+    // より強いリンク制約を設定
+    simulation.force('link', d3.forceLink(links)
+      .id((d: any) => d.id)
+      .distance((link: any) => {
+        // 親子関係のリンクは距離を短く
+        if (link.label === "CONTAINS") return 100;
+        // その他の関係は距離を長く
+        return 200;
+      })
+      .strength(0.7)
+    );
+    
+    // グラフを再加熱して新しい力を適用
+    simulation.alpha(1).restart();
+  }, [nodes, links, width, height]);
 
   // ノードの右クリックハンドラ
   const handleNodeRightClick = useCallback((node: GraphNode) => {
@@ -423,8 +476,9 @@ export default function KnowledgeGraphViewer({
             onNodeRightClick={handleNodeRightClick}
             linkDirectionalParticles={2}
             linkDirectionalParticleWidth={3}
-            linkWidth={1}
-            linkColor={() => '#BBBBBB'}
+            linkWidth={(link) => (link.label === "CONTAINS") ? 2 : 1}
+            linkColor={(link) => (link.label === "CONTAINS") ? '#77AADD' : '#BBBBBB'}
+            linkCurvature={(link) => (link.label === "CONTAINS") ? 0 : 0.25}
             width={width}
             height={height}
             cooldownTicks={50}

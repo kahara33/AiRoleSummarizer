@@ -40,7 +40,6 @@ interface RoleModelFormProps {
 export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isLoadingTags, setIsLoadingTags] = useState(false);
   
   const isEditMode = !!roleModel;
 
@@ -110,37 +109,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
     }
   };
 
-  const handleSuggestTags = async () => {
-    const { name, description } = form.getValues();
-    if (!name || !description) {
-      toast({
-        title: "情報が不足しています",
-        description: "名前と説明を入力してからタグを提案してください",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    setIsLoadingTags(true);
-    try {
-      // This would normally call the API to suggest tags based on the role model
-      // We'll just simulate it with a delay for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({
-        title: "タグの提案",
-        description: "ロールモデルの作成後、タグ管理画面でタグを追加できます",
-      });
-    } catch (error) {
-      toast({
-        title: "タグの提案に失敗しました",
-        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingTags(false);
-    }
-  };
 
   return (
     <Card>
@@ -209,17 +178,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
             )}
           </CardContent>
           
-          <CardFooter className="flex justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSuggestTags}
-              disabled={isLoadingTags || createMutation.isPending || updateMutation.isPending}
-            >
-              {isLoadingTags && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              AIにタグを提案してもらう
-            </Button>
-            
+          <CardFooter className="flex justify-end">
             <Button 
               type="submit" 
               disabled={createMutation.isPending || updateMutation.isPending}
