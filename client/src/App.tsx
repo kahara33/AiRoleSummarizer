@@ -13,6 +13,7 @@ import TagsPage from "@/pages/tags";
 import SummariesPage from "@/pages/summaries";
 import KnowledgeGraphPage from "@/pages/knowledge-graph";
 import OrganizationsPage from "@/pages/organizations";
+import InformationCollectionPage from "@/pages/information-collection";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <ProtectedRoute path="/role-model/:id/knowledge-graph" component={KnowledgeGraphPage} />
       <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPage} />
       <ProtectedRoute path="/knowledge-graph" component={KnowledgeGraphPage} />
+      <ProtectedRoute path="/information-collection" component={InformationCollectionPage} />
       <ProtectedRoute path="/tags" component={TagsPage} />
       <ProtectedRoute path="/summaries" component={SummariesPage} />
       <ProtectedRoute path="/organizations" component={OrganizationsPage} />

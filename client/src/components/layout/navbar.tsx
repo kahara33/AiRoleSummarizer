@@ -66,6 +66,7 @@ export default function Navbar() {
     { path: "/", label: "ダッシュボード" },
     { path: "/role-models", label: "ロールモデル" },
     { path: "/knowledge-graph", label: "知識グラフ" },
+    { path: "/information-collection", label: "情報収集設定" },
     { path: "/tags", label: "タグ管理" },
     { path: "/summaries", label: "要約一覧" },
   ];

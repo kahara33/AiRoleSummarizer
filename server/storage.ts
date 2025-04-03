@@ -15,6 +15,8 @@ import {
   RoleModelKeyword, InsertRoleModelKeyword,
   IndustrySubcategoryWithCategory,
   RoleModelWithIndustriesAndKeywords,
+  IndustryCombination, InsertIndustryCombination,
+  IndustryCombinationDetail, InsertIndustryCombinationDetail,
   companies,
   users,
   roleModels,
@@ -26,7 +28,9 @@ import {
   industrySubcategories,
   keywords,
   roleModelIndustries,
-  roleModelKeywords
+  roleModelKeywords,
+  industryCombinations,
+  industryCombinationDetails
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -129,6 +133,14 @@ export interface IStorage {
   
   // Extended role model operations
   getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined>;
+  
+  // Industry combination operations
+  getIndustryCombinations(userId: string, companyId: string | null): Promise<IndustryCombination[]>;
+  getIndustryCombination(id: string): Promise<IndustryCombination | undefined>;
+  getIndustryCombinationDetails(combinationId: string): Promise<IndustryCombinationDetail[]>;
+  createIndustryCombination(combination: InsertIndustryCombination): Promise<IndustryCombination>;
+  addIndustryCombinationDetail(combinationId: string, industrySubcategoryId: string): Promise<IndustryCombinationDetail>;
+  deleteIndustryCombination(id: string): Promise<boolean>;
 
   // Session store
   sessionStore: any; // session.SessionStore
@@ -148,6 +160,8 @@ export class MemStorage implements IStorage {
   private keywords: Map<string, Keyword>;
   private roleModelIndustries: Map<string, RoleModelIndustry>;
   private roleModelKeywords: Map<string, RoleModelKeyword>;
+  private industryCombinations: Map<string, IndustryCombination>;
+  private industryCombinationDetails: Map<string, IndustryCombinationDetail>;
   sessionStore: any; // session.SessionStore
 
   constructor() {
@@ -163,6 +177,8 @@ export class MemStorage implements IStorage {
     this.keywords = new Map();
     this.roleModelIndustries = new Map();
     this.roleModelKeywords = new Map();
+    this.industryCombinations = new Map();
+    this.industryCombinationDetails = new Map();
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     });
@@ -688,6 +704,74 @@ export class MemStorage implements IStorage {
       industries,
       keywords
     };
+  }
+  
+  // Industry combination methods
+  async getIndustryCombinations(userId: string, companyId: string | null): Promise<IndustryCombination[]> {
+    // ユーザー自身の組み合わせ
+    const userCombinations = Array.from(this.industryCombinations.values()).filter(
+      combination => combination.userId === userId
+    );
+    
+    // 会社の共有組み合わせ（もし会社IDがあれば）
+    if (companyId) {
+      const companyCombinations = Array.from(this.industryCombinations.values()).filter(
+        combination => combination.companyId === companyId && combination.isShared
+      );
+      return [...userCombinations, ...companyCombinations];
+    }
+    
+    return userCombinations;
+  }
+  
+  async getIndustryCombination(id: string): Promise<IndustryCombination | undefined> {
+    return this.industryCombinations.get(id);
+  }
+  
+  async getIndustryCombinationDetails(combinationId: string): Promise<IndustryCombinationDetail[]> {
+    return Array.from(this.industryCombinationDetails.values()).filter(
+      detail => detail.combinationId === combinationId
+    );
+  }
+  
+  async createIndustryCombination(combination: InsertIndustryCombination): Promise<IndustryCombination> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    const newCombination: IndustryCombination = {
+      ...combination,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      companyId: combination.companyId || null,
+      isShared: combination.isShared || false
+    };
+    this.industryCombinations.set(id, newCombination);
+    return newCombination;
+  }
+  
+  async addIndustryCombinationDetail(combinationId: string, industrySubcategoryId: string): Promise<IndustryCombinationDetail> {
+    const id = crypto.randomUUID();
+    const detail: IndustryCombinationDetail = {
+      id,
+      combinationId,
+      industrySubcategoryId,
+      createdAt: new Date()
+    };
+    this.industryCombinationDetails.set(id, detail);
+    return detail;
+  }
+  
+  async deleteIndustryCombination(id: string): Promise<boolean> {
+    // 関連する詳細情報も削除
+    const details = Array.from(this.industryCombinationDetails.values()).filter(
+      detail => detail.combinationId === id
+    );
+    
+    for (const detail of details) {
+      this.industryCombinationDetails.delete(detail.id);
+    }
+    
+    return this.industryCombinations.delete(id);
   }
 }
 

@@ -1126,6 +1126,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 業界組み合わせの管理 API
+  app.get("/api/industry-combinations", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+      
+      const combinations = await storage.getIndustryCombinations(userId, companyId);
+      res.json(combinations);
+    } catch (error) {
+      console.error("Error fetching industry combinations:", error);
+      res.status(500).json({ message: "Error fetching industry combinations" });
+    }
+  });
+
+  app.get("/api/industry-combinations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const combinationId = req.params.id;
+      const combination = await storage.getIndustryCombination(combinationId);
+      
+      if (!combination) {
+        return res.status(404).json({ message: "Industry combination not found" });
+      }
+      
+      // 自分のものか、共有されたものかチェック
+      const isOwner = combination.userId === req.user!.id;
+      const isSharedCompany = combination.isShared && combination.companyId === req.user!.companyId;
+      
+      if (!isOwner && !isSharedCompany) {
+        return res.status(403).json({ message: "Not authorized to access this industry combination" });
+      }
+      
+      // 詳細情報を取得
+      const details = await storage.getIndustryCombinationDetails(combinationId);
+      
+      res.json({
+        ...combination,
+        details
+      });
+    } catch (error) {
+      console.error("Error fetching industry combination:", error);
+      res.status(500).json({ message: "Error fetching industry combination" });
+    }
+  });
+
+  app.post("/api/industry-combinations", isAuthenticated, async (req, res) => {
+    try {
+      const { name, industrySubcategoryIds, isShared = false } = req.body;
+      
+      if (!name || !Array.isArray(industrySubcategoryIds) || industrySubcategoryIds.length === 0) {
+        return res.status(400).json({ message: "Name and industry subcategory IDs are required" });
+      }
+      
+      // 作成
+      const newCombination = await storage.createIndustryCombination({
+        name,
+        userId: req.user!.id,
+        isShared,
+        companyId: isShared ? req.user!.companyId : null
+      });
+      
+      // 詳細を追加
+      for (const subcategoryId of industrySubcategoryIds) {
+        await storage.addIndustryCombinationDetail(newCombination.id, subcategoryId);
+      }
+      
+      res.status(201).json(newCombination);
+    } catch (error) {
+      console.error("Error creating industry combination:", error);
+      res.status(500).json({ message: "Error creating industry combination" });
+    }
+  });
+
+  app.delete("/api/industry-combinations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const combinationId = req.params.id;
+      const combination = await storage.getIndustryCombination(combinationId);
+      
+      if (!combination) {
+        return res.status(404).json({ message: "Industry combination not found" });
+      }
+      
+      // 所有者かチェック
+      if (combination.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to delete this industry combination" });
+      }
+      
+      // 削除
+      await storage.deleteIndustryCombination(combinationId);
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting industry combination:", error);
+      res.status(500).json({ message: "Error deleting industry combination" });
+    }
+  });
+
+  // 情報収集プラン生成 API
+  app.post("/api/information-collection/plan", isAuthenticated, async (req, res) => {
+    try {
+      const { industryIds, keywordIds } = req.body;
+      
+      if (!industryIds || !Array.isArray(industryIds) || industryIds.length === 0) {
+        return res.status(400).json({ message: "Industry IDs are required" });
+      }
+      
+      // 業界情報を取得
+      const industries = await Promise.all(
+        industryIds.map(async (id) => {
+          const subcategory = await storage.getIndustrySubcategory(id);
+          if (subcategory) {
+            const category = await storage.getIndustryCategory(subcategory.categoryId);
+            return {
+              id: subcategory.id,
+              name: subcategory.name,
+              categoryName: category?.name || 'Unknown',
+              description: subcategory.description
+            };
+          }
+          return null;
+        })
+      );
+      
+      const validIndustries = industries.filter(i => i !== null);
+      
+      // キーワード情報を取得（もし指定されていれば）
+      let keywords = [];
+      if (keywordIds && Array.isArray(keywordIds) && keywordIds.length > 0) {
+        keywords = await Promise.all(
+          keywordIds.map(async (id) => {
+            const keyword = await storage.getKeyword(id);
+            return keyword ? {
+              id: keyword.id,
+              name: keyword.name,
+              description: keyword.description
+            } : null;
+          })
+        );
+        keywords = keywords.filter(k => k !== null);
+      }
+      
+      // プラン生成（今回はモックデータ）
+      const plan = {
+        id: crypto.randomUUID(),
+        name: `情報収集プラン - ${new Date().toLocaleDateString('ja-JP')}`,
+        createdAt: new Date(),
+        userId: req.user!.id,
+        industries: validIndustries,
+        keywords: keywords,
+        status: "active"
+      };
+      
+      res.status(201).json(plan);
+    } catch (error) {
+      console.error("Error generating information collection plan:", error);
+      res.status(500).json({ message: "Error generating information collection plan" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

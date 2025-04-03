@@ -3,11 +3,14 @@ import {
   text, 
   serial, 
   uuid, 
-  timestamp, 
+  timestamp,
+  date, 
   integer, 
   foreignKey,
   primaryKey,
-  boolean
+  boolean,
+  unique,
+  doublePrecision
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -104,7 +107,67 @@ export const keywords = pgTable("keywords", {
   name: text("name").notNull().unique(),
   description: text("description").notNull().default(""),
   isCommon: boolean("is_common").notNull().default(true),  // 全ユーザー共通のキーワードかどうか
+  status: text("status").notNull().default("active"),  // active, pending, rejected
+  parentId: uuid("parent_id"),  // 親キーワード（階層関係）
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),  // 登録ユーザー
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// キーワード同義語・関連語テーブル
+export const keywordRelations = pgTable("keyword_relations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sourceKeywordId: uuid("source_keyword_id").notNull()
+    .references(() => keywords.id, { onDelete: "cascade" }),
+  targetKeywordId: uuid("target_keyword_id").notNull()
+    .references(() => keywords.id, { onDelete: "cascade" }),
+  relationType: text("relation_type").notNull(),  // synonym（同義語）、related（関連語）
+  strength: integer("strength").notNull().default(5),  // 1-10、関連度の強さ
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    unq: unique().on(table.sourceKeywordId, table.targetKeywordId)
+  }
+});
+
+// キーワード分野タグテーブル
+export const keywordFields = pgTable("keyword_fields", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  description: text("description").notNull().default(""),
+  color: text("color"),  // 表示色
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// キーワードと分野タグの関連付けテーブル
+export const keywordFieldRelations = pgTable("keyword_field_relations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  keywordId: uuid("keyword_id").notNull()
+    .references(() => keywords.id, { onDelete: "cascade" }),
+  fieldId: uuid("field_id").notNull()
+    .references(() => keywordFields.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    unq: unique().on(table.keywordId, table.fieldId)
+  }
+});
+
+// 業界とキーワードの関連度テーブル
+export const industryKeywordRelevance = pgTable("industry_keyword_relevance", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  industrySubcategoryId: uuid("industry_subcategory_id").notNull()
+    .references(() => industrySubcategories.id, { onDelete: "cascade" }),
+  keywordId: uuid("keyword_id").notNull()
+    .references(() => keywords.id, { onDelete: "cascade" }),
+  relevanceScore: doublePrecision("relevance_score").notNull().default(0),  // 0.0-1.0、関連度スコア
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    unq: unique().on(table.industrySubcategoryId, table.keywordId)
+  }
 });
 
 // ロールモデルと業界カテゴリの関連付けテーブル
@@ -123,6 +186,58 @@ export const roleModelKeywords = pgTable("role_model_keywords", {
     .references(() => roleModels.id, { onDelete: "cascade" }),
   keywordId: uuid("keyword_id").notNull()
     .references(() => keywords.id, { onDelete: "cascade" }),
+});
+
+// よく使われる業界組み合わせを保存するテーブル
+export const industryCombinations = pgTable("industry_combinations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  userId: uuid("user_id").notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  isShared: boolean("is_shared").notNull().default(false),  // 組織内で共有するかどうか
+  companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// 業界組み合わせの詳細（どのサブカテゴリが含まれるか）
+export const industryCombinationDetails = pgTable("industry_combination_details", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  combinationId: uuid("combination_id").notNull()
+    .references(() => industryCombinations.id, { onDelete: "cascade" }),
+  industrySubcategoryId: uuid("industry_subcategory_id").notNull()
+    .references(() => industrySubcategories.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    unq: unique().on(table.combinationId, table.industrySubcategoryId)
+  }
+});
+
+// よく使われるキーワード組み合わせを保存するテーブル
+export const keywordCollections = pgTable("keyword_collections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  userId: uuid("user_id").notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  isShared: boolean("is_shared").notNull().default(false),  // 組織内で共有するかどうか
+  companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// キーワード組み合わせの詳細（どのキーワードが含まれるか）
+export const keywordCollectionDetails = pgTable("keyword_collection_details", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  collectionId: uuid("collection_id").notNull()
+    .references(() => keywordCollections.id, { onDelete: "cascade" }),
+  keywordId: uuid("keyword_id").notNull()
+    .references(() => keywords.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    unq: unique().on(table.collectionId, table.keywordId)
+  }
 });
 
 // Tag table (keeping for backward compatibility until migration is complete)
@@ -146,9 +261,19 @@ export const insertSummarySchema = createInsertSchema(summaries).omit({ id: true
 // 新規テーブル用のスキーマ
 export const insertIndustryCategorySchema = createInsertSchema(industryCategories).omit({ id: true, createdAt: true });
 export const insertIndustrySubcategorySchema = createInsertSchema(industrySubcategories).omit({ id: true, createdAt: true });
-export const insertKeywordSchema = createInsertSchema(keywords).omit({ id: true, createdAt: true });
+export const insertKeywordSchema = createInsertSchema(keywords).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRoleModelIndustrySchema = createInsertSchema(roleModelIndustries).omit({ id: true });
 export const insertRoleModelKeywordSchema = createInsertSchema(roleModelKeywords).omit({ id: true });
+
+// 新しいテーブル用のスキーマ
+export const insertKeywordRelationSchema = createInsertSchema(keywordRelations).omit({ id: true, createdAt: true });
+export const insertKeywordFieldSchema = createInsertSchema(keywordFields).omit({ id: true, createdAt: true });
+export const insertKeywordFieldRelationSchema = createInsertSchema(keywordFieldRelations).omit({ id: true, createdAt: true });
+export const insertIndustryKeywordRelevanceSchema = createInsertSchema(industryKeywordRelevance).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIndustryCombinationSchema = createInsertSchema(industryCombinations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIndustryCombinationDetailSchema = createInsertSchema(industryCombinationDetails).omit({ id: true, createdAt: true });
+export const insertKeywordCollectionSchema = createInsertSchema(keywordCollections).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertKeywordCollectionDetailSchema = createInsertSchema(keywordCollectionDetails).omit({ id: true, createdAt: true });
 
 // Define types
 export type Company = typeof companies.$inferSelect;
@@ -205,6 +330,40 @@ export type SummaryWithTags = Summary & { tags: Tag[] };
 // 業界カテゴリとサブカテゴリの結合タイプ
 export type IndustrySubcategoryWithCategory = IndustrySubcategory & { 
   category: IndustryCategory 
+};
+
+// 新しいテーブル用の型定義
+export type KeywordRelation = typeof keywordRelations.$inferSelect;
+export type InsertKeywordRelation = z.infer<typeof insertKeywordRelationSchema>;
+
+export type KeywordField = typeof keywordFields.$inferSelect;
+export type InsertKeywordField = z.infer<typeof insertKeywordFieldSchema>;
+
+export type KeywordFieldRelation = typeof keywordFieldRelations.$inferSelect;
+export type InsertKeywordFieldRelation = z.infer<typeof insertKeywordFieldRelationSchema>;
+
+export type IndustryKeywordRelevance = typeof industryKeywordRelevance.$inferSelect;
+export type InsertIndustryKeywordRelevance = z.infer<typeof insertIndustryKeywordRelevanceSchema>;
+
+export type IndustryCombination = typeof industryCombinations.$inferSelect;
+export type InsertIndustryCombination = z.infer<typeof insertIndustryCombinationSchema>;
+
+export type IndustryCombinationDetail = typeof industryCombinationDetails.$inferSelect;
+export type InsertIndustryCombinationDetail = z.infer<typeof insertIndustryCombinationDetailSchema>;
+
+export type KeywordCollection = typeof keywordCollections.$inferSelect;
+export type InsertKeywordCollection = z.infer<typeof insertKeywordCollectionSchema>;
+
+export type KeywordCollectionDetail = typeof keywordCollectionDetails.$inferSelect;
+export type InsertKeywordCollectionDetail = z.infer<typeof insertKeywordCollectionDetailSchema>;
+
+// キーワード辞書関連の拡張タイプ
+export type KeywordWithRelations = Keyword & {
+  synonyms?: Keyword[];
+  related?: Keyword[];
+  parentKeyword?: Keyword;
+  childKeywords?: Keyword[];
+  fields?: KeywordField[];
 };
 
 // 業界・キーワード情報を含むロールモデル
