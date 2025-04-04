@@ -140,8 +140,8 @@ export default function KnowledgeGraphViewer({
         // Add explicit edge links
         ...knowledgeEdges.map(edge => ({
           id: edge.id,
-          source: edge.sourceId,
-          target: edge.targetId,
+          source: edge.source || edge.sourceId, // サーバー側の応答フィールド名の違いに対応
+          target: edge.target || edge.targetId, // サーバー側の応答フィールド名の違いに対応
           label: edge.label || "RELATED_TO",
           strength: edge.strength
         }))

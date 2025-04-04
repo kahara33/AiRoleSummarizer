@@ -195,7 +195,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
             return;
           }
           
-          console.log('WebSocket message received:', data.type);
+          console.log('WebSocket message received:', data.type, data);
           
           // メッセージタイプに応じた処理
           switch (data.type) {
@@ -205,10 +205,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
                 return;
               }
               
-              console.log('Agent thought received:', 
-                data.payload.agentName || 'Unknown', 
-                data.payload.type || 'info'
-              );
+              console.log('Agent thought received in detail:', data.payload);
               
               // 新しい思考オブジェクトを作成
               const newThought: AgentMessage = {
@@ -218,26 +215,29 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
                 type: data.payload.type || 'info'
               };
               
-              // 重複チェックと状態更新のバッチ処理
-              setLocalThoughts(prev => {
-                // メモリ使用量を管理するための制限（最大100項目）
-                const limitedPrev = prev.length > 90 ? prev.slice(-90) : prev;
-                
-                // 重複チェック - 厳密な条件で検証
-                const isDuplicate = limitedPrev.some(thought => 
-                  thought.timestamp === newThought.timestamp && 
-                  thought.agentName === newThought.agentName && 
-                  thought.message === newThought.message
-                );
-                
-                if (isDuplicate) {
-                  console.log('Duplicate thought detected, skipping');
-                  return limitedPrev;
-                }
-                
-                console.log('Adding new thought to state');
-                return [...limitedPrev, newThought];
-              });
+              // React の状態更新を安全に行う
+              if (isComponentMountedRef.current) {
+                // 重複チェックと状態更新のバッチ処理
+                setLocalThoughts(prev => {
+                  // メモリ使用量を管理するための制限（最大100項目）
+                  const limitedPrev = prev.length > 90 ? prev.slice(-90) : prev;
+                  
+                  // 重複チェック - タイムスタンプとエージェント名の組み合わせで判断
+                  const isDuplicate = limitedPrev.some(thought => 
+                    thought.timestamp === newThought.timestamp && 
+                    thought.agentName === newThought.agentName && 
+                    thought.message === newThought.message
+                  );
+                  
+                  if (isDuplicate) {
+                    console.log('Duplicate thought detected, skipping');
+                    return limitedPrev;
+                  }
+                  
+                  console.log('Adding new thought to state:', newThought);
+                  return [...limitedPrev, newThought];
+                });
+              }
               break;
               
             case 'progress_update':
