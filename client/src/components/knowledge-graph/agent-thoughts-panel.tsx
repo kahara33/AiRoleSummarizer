@@ -103,25 +103,36 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
     };
   }, [roleModelId, isVisible]);
   
-  // 受け取ったthoughtsとローカルで保存したthoughtsをマージ
+  // ローカル状態管理
+  const [allThoughts, setAllThoughts] = useState<AgentMessage[]>([]);
+  
+  // 受け取ったthoughtsとローカルで保存したthoughtsをマージ（最大更新深度のエラーを防ぐため、ステート更新を分離）
   useEffect(() => {
     const safeThoughts = thoughts || [];
-    const allThoughts = [...safeThoughts, ...localThoughts];
+    const mergedThoughts = [...safeThoughts, ...localThoughts];
     
     // タイムスタンプでソート
-    allThoughts.sort((a, b) => a.timestamp - b.timestamp);
+    mergedThoughts.sort((a, b) => a.timestamp - b.timestamp);
     
+    // マージされた思考を更新
+    setAllThoughts(mergedThoughts);
+  }, [thoughts, localThoughts]);
+  
+  // フィルタリング適用
+  useEffect(() => {
     if (activeTab === 'all') {
       setFilteredThoughts(allThoughts);
     } else {
       setFilteredThoughts(allThoughts.filter(thought => thought.agentName === activeTab));
     }
-  }, [activeTab, thoughts, localThoughts]);
+  }, [activeTab, allThoughts]);
   
-  // エージェント名のユニークリストを作成
-  const agentNames = Array.from(
-    new Set([...(thoughts || []), ...localThoughts].map(t => t.agentName))
-  );
+  // エージェント名のユニークリストを作成 (useMemoを使わない)
+  const agentNameSet = new Set<string>();
+  allThoughts.forEach(t => {
+    if (t.agentName) agentNameSet.add(t.agentName);
+  });
+  const agentNames = Array.from(agentNameSet);
   
   // メッセージタイプに応じたアイコンを取得
   const getIconForType = (type: string) => {
@@ -162,7 +173,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
   }
 
   return (
-    <Card className="w-full h-full flex flex-col absolute top-12 right-0 z-10 shadow-lg max-w-md">
+    <Card className="fixed right-4 top-20 h-[calc(100vh-120px)] flex flex-col z-50 shadow-lg w-96">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
           <CardTitle>エージェント思考パネル</CardTitle>
