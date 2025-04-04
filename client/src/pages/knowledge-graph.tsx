@@ -396,11 +396,17 @@ export default function KnowledgeGraphPage() {
   
   // AIグラフ生成ハンドラ - ダイアログを表示せずに直接処理を開始する
   const handleGenerateGraph = () => {
-    // 直接AIプロセスを開始
-    generateGraphMutation.mutate();
-    
-    // AIエージェントパネルを表示
+    // 先にパネルを表示してから生成を開始
     setShowAgentPanel(true);
+    
+    // 少し待ってからミューテーションを実行（WebSocket接続を確立するための時間を確保）
+    setTimeout(() => {
+      // 直接AIプロセスを開始
+      generateGraphMutation.mutate();
+      
+      // 思考ログをコンソールに出力
+      console.log("AIプロセスを開始しました。エージェント思考パネルに処理状況が表示されます");
+    }, 1000);
   };
 
   // Check if there are no nodes and show the root node creation prompt

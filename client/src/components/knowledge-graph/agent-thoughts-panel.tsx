@@ -93,78 +93,153 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
+    console.log(`Creating WebSocket connection to ${wsUrl}`);
+    
     const newSocket = new WebSocket(wsUrl);
     socketRef.current = newSocket;
     
-    // WebSocketイベントハンドラを設定
-    newSocket.onopen = () => {
-      console.log('WebSocket connected for agent thoughts');
-      
-      // コンポーネントがマウントされている場合のみ実行
-      if (isComponentMountedRef.current && newSocket.readyState === 1) {
-        try {
-          newSocket.send(JSON.stringify({
-            type: 'subscribe_role_model',
-            payload: { roleModelId }
-          }));
-        } catch (err) {
-          console.error('Error sending subscription message:', err);
-        }
-      }
-    };
+    // 再接続機能のための変数
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAY = 2000; // ms
     
-    newSocket.onmessage = (event) => {
-      if (!isComponentMountedRef.current) return;
-      
-      try {
-        const data = JSON.parse(event.data);
+    // 再接続機能
+    const reconnect = () => {
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && isComponentMountedRef.current) {
+        reconnectAttempts++;
+        console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
         
-        if (data.type === 'agent_thoughts') {
-          const newThought: AgentMessage = {
-            timestamp: data.payload.timestamp || Date.now(),
-            agentName: data.payload.agentName || 'Unknown',
-            message: data.payload.message || '',
-            type: data.payload.type || 'info'
-          };
-          
-          // この関数形式によりステート更新は常に最新の状態に基づいて行われる
-          setLocalThoughts(prev => {
-            const newThoughts = [...prev, newThought];
-            return newThoughts;
-          });
-        } else if (data.type === 'progress_update') {
-          console.log('Progress update received:', data.payload);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+        setTimeout(() => {
+          if (isComponentMountedRef.current) {
+            console.log('Reconnecting WebSocket...');
+            const newSocket = new WebSocket(wsUrl);
+            socketRef.current = newSocket;
+            setupSocketHandlers(newSocket);
+          }
+        }, RECONNECT_DELAY);
+      } else {
+        console.log('Maximum reconnection attempts reached or component unmounted');
       }
     };
     
-    newSocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+    // WebSocketイベントハンドラを設定する関数
+    const setupSocketHandlers = (socket: WebSocket) => {
+      socket.onopen = () => {
+        console.log('WebSocket connected for agent thoughts');
+        reconnectAttempts = 0; // 接続成功時に再接続カウンターをリセット
+        
+        // コンポーネントがマウントされている場合のみ実行
+        if (isComponentMountedRef.current && socket.readyState === 1) {
+          try {
+            console.log(`Subscribing to role model ${roleModelId}`);
+            socket.send(JSON.stringify({
+              type: 'subscribe_role_model',
+              payload: { roleModelId }
+            }));
+            
+            // 定期的なping送信で接続を維持
+            const pingInterval = setInterval(() => {
+              if (socket.readyState === 1) { // WebSocket.OPEN = 1
+                try {
+                  socket.send(JSON.stringify({ type: 'ping', payload: {} }));
+                } catch (err) {
+                  console.error('Error sending ping:', err);
+                  clearInterval(pingInterval);
+                }
+              } else {
+                clearInterval(pingInterval);
+              }
+            }, 30000); // 30秒ごと
+            
+            // クリーンアップのために保存（型アサーションを使用）
+            (socket as any).pingInterval = pingInterval;
+          } catch (err) {
+            console.error('Error sending subscription message:', err);
+          }
+        }
+      };
+      
+      socket.onmessage = (event) => {
+        if (!isComponentMountedRef.current) return;
+        
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data.type);
+          
+          if (data.type === 'agent_thoughts') {
+            console.log('Agent thought received:', data.payload);
+            const newThought: AgentMessage = {
+              timestamp: data.payload.timestamp || Date.now(),
+              agentName: data.payload.agentName || 'Unknown',
+              message: data.payload.message || '',
+              type: data.payload.type || 'info'
+            };
+            
+            // この関数形式によりステート更新は常に最新の状態に基づいて行われる
+            setLocalThoughts(prev => {
+              const newThoughts = [...prev, newThought];
+              return newThoughts;
+            });
+          } else if (data.type === 'progress_update') {
+            console.log('Progress update received:', data.payload);
+          } else if (data.type === 'pong') {
+            console.log('Pong received');
+          } else if (data.type === 'connected') {
+            console.log('Connection confirmed:', data.payload);
+          } else if (data.type === 'subscription_success') {
+            console.log('Subscription success:', data.payload);
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+      
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+      
+      socket.onclose = (event) => {
+        console.log(`WebSocket disconnected for agent thoughts: code=${event.code}, reason=${event.reason}`);
+        
+        // pingIntervalを停止
+        if ((socket as any).pingInterval) {
+          clearInterval((socket as any).pingInterval);
+        }
+        
+        // 非正常な切断の場合は再接続を試みる
+        if (event.code !== 1000 && event.code !== 1001) {
+          reconnect();
+        }
+      };
     };
     
-    newSocket.onclose = () => {
-      console.log('WebSocket disconnected for agent thoughts');
-    };
+    // WebSocketハンドラを設定
+    setupSocketHandlers(newSocket);
     
     // クリーンアップ関数
     return () => {
       try {
         const socket = socketRef.current;
-        if (socket && socket.readyState === 1) {
-          socket.send(JSON.stringify({
-            type: 'unsubscribe_role_model',
-            payload: { roleModelId }
-          }));
-          socket.close();
+        if (socket) {
+          // pingIntervalを停止
+          if ((socket as any).pingInterval) {
+            clearInterval((socket as any).pingInterval);
+          }
+          
+          if (socket.readyState === 1) {
+            socket.send(JSON.stringify({
+              type: 'unsubscribe_role_model',
+              payload: { roleModelId }
+            }));
+            socket.close(1000, 'Component unmounted');
+          }
         }
         socketRef.current = null;
       } catch (e) {
         console.error('Error during WebSocket cleanup:', e);
       }
     };
-  }, [roleModelId, isVisible, thoughts, activeTab, updateFilteredThoughts]); // 依存配列を修正
+  }, [roleModelId, isVisible]); // 依存配列を修正
   
   // このアプローチは重要: 通常の変数としてレンダリング時に直接計算する
   // useStateやuseEffectに依存しないため、更新深度の問題を回避
