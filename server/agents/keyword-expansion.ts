@@ -117,10 +117,78 @@ export async function expandKeywords(
         jsonStr = response.substring(jsonStartIdx);
       }
       
-      console.log("Processing JSON response for keyword expansion");
+      // 不完全なJSONを修復する試み
+      // まず、jsonStrの内容をログに出力して確認
+      console.log("Received JSON string (first 100 chars):", jsonStr.substring(0, 100));
+      console.log("JSON string length:", jsonStr.length);
       
-      // JSONパースを試みる
-      const expansionData = JSON.parse(jsonStr);
+      // JSON文字列の修復を試みる
+      let expansionData;
+      
+      try {
+        // まず閉じ括弧が足りない場合に補完
+        const openBraces = (jsonStr.match(/{/g) || []).length;
+        const closeBraces = (jsonStr.match(/}/g) || []).length;
+        
+        if (openBraces > closeBraces) {
+          // 閉じ括弧が足りない場合は追加
+          const missingBraces = openBraces - closeBraces;
+          jsonStr = jsonStr + "}".repeat(missingBraces);
+          console.log(`JSON文字列を修復しました: ${missingBraces}個の閉じ括弧を追加`);
+        }
+        
+        // 1. 最初のパース試行
+        expansionData = JSON.parse(jsonStr);
+        console.log("JSONのパースに成功しました");
+      } catch (firstParseError) {
+        console.error("JSON修復の最初の試みが失敗:", firstParseError);
+        
+        try {
+          // 2. 正規表現でJSONオブジェクト全体を探す
+          const jsonRegex = /{[\s\S]*?}/;
+          const match = response.match(jsonRegex);
+          
+          if (match && match[0]) {
+            console.log("正規表現でJSONを抽出しました");
+            try {
+              expansionData = JSON.parse(match[0]);
+              console.log("抽出したJSONのパースに成功しました");
+            } catch (regexParseError) {
+              console.error("抽出したJSONのパースに失敗:", regexParseError);
+              throw regexParseError;
+            }
+          } else {
+            // 3. keywords配列だけを抽出
+            console.log("JSONオブジェクト全体の抽出に失敗。キーワード配列のみを抽出します");
+            const keywordsMatch = /"keywords"\s*:\s*\[([\s\S]*?)\]/;
+            const keywordsData = response.match(keywordsMatch);
+            
+            if (keywordsData && keywordsData[0]) {
+              console.log("キーワード配列を見つけました");
+              const wrappedJson = `{${keywordsData[0]}}`;
+              try {
+                expansionData = JSON.parse(wrappedJson);
+                console.log("キーワード配列のパースに成功しました");
+              } catch (keywordsParseError) {
+                console.error("キーワード配列のパースに失敗:", keywordsParseError);
+                
+                // 4. フォールバック - 空のキーワード配列を作成
+                console.log("フォールバック：空のキーワード配列を使用");
+                expansionData = { keywords: [] };
+              }
+            } else {
+              // 5. 最終フォールバック
+              console.log("キーワード配列も見つからず。フォールバックを使用");
+              expansionData = { keywords: [] };
+            }
+          }
+        } catch (secondParseError) {
+          console.error("JSON修復のすべての試みが失敗:", secondParseError);
+          // フォールバック
+          console.log("すべての修復が失敗。フォールバックを使用");
+          expansionData = { keywords: [] };
+        }
+      }
       
       // キーワード情報を検証
       if (!expansionData.keywords || !Array.isArray(expansionData.keywords)) {
