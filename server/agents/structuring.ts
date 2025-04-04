@@ -148,12 +148,65 @@ export async function structureContent(
     const response = await callAzureOpenAI(messages);
     
     try {
+      // JSONデータの抽出と処理
+      let cleanedResponse = response.trim();
+      
+      // JSONデータから余分なテキスト部分を削除
+      if (!cleanedResponse.startsWith('{')) {
+        const jsonStart = cleanedResponse.indexOf('{');
+        if (jsonStart >= 0) {
+          cleanedResponse = cleanedResponse.substring(jsonStart);
+        }
+      }
+      
+      // JSONデータの末尾に余分なテキストがある場合に削除
+      if (!cleanedResponse.endsWith('}')) {
+        const jsonEnd = cleanedResponse.lastIndexOf('}');
+        if (jsonEnd >= 0) {
+          cleanedResponse = cleanedResponse.substring(0, jsonEnd + 1);
+        }
+      }
+      
+      // マークダウンのコードブロックを抽出する試み
+      const patternJsonBlock = /```json\s*([\s\S]*?)\s*```/;
+      const patternCodeBlock = /```\s*([\s\S]*?)\s*```/;
+      const patternJsonObject = /\{[\s\S]*"categories"[\s\S]*\}/;
+      
+      const jsonMatch = cleanedResponse.match(patternJsonBlock) || 
+                       cleanedResponse.match(patternCodeBlock) ||
+                       cleanedResponse.match(patternJsonObject);
+      
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[1] || jsonMatch[0];
+        cleanedResponse = cleanedResponse.trim();
+      }
+      
       // レスポンスをJSONとしてパース
-      const structuringData = JSON.parse(response);
+      let structuringData;
+      try {
+        structuringData = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        console.error('Error parsing structuring JSON:', parseError);
+        
+        // JSONの修復を試みる
+        try {
+          // 不正な制御文字を削除
+          const sanitized = cleanedResponse.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+            .replace(/\\n/g, ' ')
+            .replace(/\\"/g, '"')
+            .replace(/"\s+"/g, '","');
+          
+          structuringData = JSON.parse(sanitized);
+          console.log('Recovered JSON after sanitization');
+        } catch (secondError) {
+          console.error('Could not recover JSON even after sanitization:', secondError);
+          throw new Error('構造化データのJSONをパースできませんでした');
+        }
+      }
       
       // カテゴリ情報を検証
       if (!structuringData.categories || !Array.isArray(structuringData.categories)) {
-        throw new Error('応答データの形式が不正です');
+        throw new Error('応答データの形式が不正です。categoriesフィールドが見つかりません');
       }
       
       // IDを割り当てる関数

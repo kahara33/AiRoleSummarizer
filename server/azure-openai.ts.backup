@@ -947,7 +947,7 @@ function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
   
   return {
     nodes,
-    edges
+    edges: edges
   };
 }
 
@@ -1148,6 +1148,6 @@ function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGr
   
   return {
     nodes,
-    edges
+    edges: edges
   };
 }
