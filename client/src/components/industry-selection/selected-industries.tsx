@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { IndustrySubcategory, IndustryCategory } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export default function SelectedIndustries({
   title = "選択した業界"
 }: SelectedIndustriesProps) {
   const [categoryGroups, setCategoryGroups] = useState<Record<string, IndustrySubcategory[]>>({});
+  const previousSelectedIds = useRef<string[]>([]);
 
   // 全業界サブカテゴリを取得
   const { data: allSubcategories = [], isLoading: isLoadingSubcategories } = useQuery<IndustrySubcategory[]>({
@@ -47,6 +48,15 @@ export default function SelectedIndustries({
 
   // 選択されたサブカテゴリをカテゴリごとにグループ化
   useEffect(() => {
+    // 選択IDが前回と同じなら更新しない（無限ループ防止）
+    if (
+      JSON.stringify(previousSelectedIds.current) === JSON.stringify(selectedIndustryIds)
+    ) {
+      return;
+    }
+    
+    previousSelectedIds.current = [...selectedIndustryIds];
+    
     if (selectedSubcategories.length > 0 && categories.length > 0) {
       const groups: Record<string, IndustrySubcategory[]> = {};
       
@@ -61,7 +71,7 @@ export default function SelectedIndustries({
     } else {
       setCategoryGroups({});
     }
-  }, [selectedSubcategories, categories]);
+  }, [selectedSubcategories, categories, selectedIndustryIds]);
 
   return (
     <Card className="w-full h-full">
