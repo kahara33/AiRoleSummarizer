@@ -436,15 +436,28 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
                       <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center">
                           {getIconForType(thought.type)}
-                          <Badge variant="outline" className="ml-2">
+                          <Badge variant="outline" className={`ml-2 ${
+                            thought.type === 'thinking' ? 'bg-blue-100 text-blue-800 border-blue-300' : 
+                            thought.type === 'error' ? 'bg-red-100 text-red-800 border-red-300' :
+                            thought.type === 'success' ? 'bg-green-100 text-green-800 border-green-300' : ''
+                          }`}>
                             {thought.agentName}
                           </Badge>
+                          {thought.type === 'thinking' && (
+                            <div className="ml-2 inline-flex">
+                              <span className="animate-ping h-2 w-2 rounded-full bg-blue-400 opacity-75 mr-1"></span>
+                              <span className="animate-ping h-2 w-2 rounded-full bg-blue-400 opacity-75 mr-1" style={{ animationDelay: '0.2s' }}></span>
+                              <span className="animate-ping h-2 w-2 rounded-full bg-blue-400 opacity-75" style={{ animationDelay: '0.4s' }}></span>
+                            </div>
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">
                           {formatTime(thought.timestamp)}
                         </span>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap">
+                      <p className={`text-sm whitespace-pre-wrap ${
+                        thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-900 rounded p-2' : ''
+                      }`}>
                         {thought.message}
                       </p>
                     </div>

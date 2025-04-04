@@ -72,7 +72,38 @@ export async function structureContent(
 ): Promise<AgentResult<StructuringData>> {
   try {
     console.log(`構造化エージェント起動: ${input.roleName}`);
-    sendAgentThoughts(input.userId, input.roleModelId, 'StructuringAgent', `役割「${input.roleName}」の知識構造化を開始します。`);
+    
+    // 構造化プロセスの開始を通知
+    sendAgentThoughts(
+      input.userId, 
+      input.roleModelId, 
+      'StructuringAgent', 
+      `役割「${input.roleName}」の知識構造化を開始します。`, 
+      'thinking'
+    );
+    
+    // 詳細な構造化プロセスのステップを説明
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'StructuringAgent',
+      `構造化プロセスの詳細:\n` +
+      `1. 業界分析データとキーワード拡張データを統合分析中...\n` +
+      `2. 主要カテゴリの識別と設計中...\n` +
+      `3. サブカテゴリの形成とグループ化中...\n` +
+      `4. キーワードとスキルの関連付け中...\n` +
+      `5. 最終的な知識構造のバランス調整中...`,
+      'thinking'
+    );
+    
+    // 入力データの分析情報を提供
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'StructuringAgent',
+      `入力データの分析: ${input.keywordExpansionData.keywords.length}個のキーワードと${input.industryAnalysisData.trends.length}個のトレンドを処理します。これらから最適な階層構造を形成します。`,
+      'thinking'
+    );
     
     // 業界情報の要約を作成
     const industries = input.industries.join(', ');
@@ -136,12 +167,36 @@ export async function structureContent(
       }
     ];
     
-    // 思考過程をユーザーに共有
+    // 思考過程をユーザーに共有（詳細）
     sendAgentThoughts(
       input.userId,
       input.roleModelId,
       'StructuringAgent',
-      `業界「${industries}」と拡張されたキーワードに基づいて、役割「${input.roleName}」に必要な知識を体系化しています。カテゴリ、サブカテゴリ、スキルの階層構造を作成中...`
+      `業界「${industries}」と拡張されたキーワードに基づいて、役割「${input.roleName}」に必要な知識を体系化しています。カテゴリ、サブカテゴリ、スキルの階層構造を作成中...`,
+      'thinking'
+    );
+    
+    // 構造化プロセスの詳細ステップを共有
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'StructuringAgent',
+      `構造化プロセスの詳細:\n` +
+      `1. 最重要キーワードの分析と優先順位付け中...\n` +
+      `2. 主要カテゴリの識別と定義中...\n` +
+      `3. サブカテゴリへの論理的グルーピング中...\n` +
+      `4. 各サブカテゴリに必要なスキルセットの特定中...\n` +
+      `5. 階層間の関連性と一貫性の確認中...`,
+      'thinking'
+    );
+    
+    // 重要キーワードに基づく追加の分析情報
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'StructuringAgent',
+      `重要キーワード「${topKeywords.split(', ').slice(0, 3).join('、')}」を中心に主要カテゴリを構築中...`,
+      'thinking'
     );
     
     // APIを呼び出して構造化を実行

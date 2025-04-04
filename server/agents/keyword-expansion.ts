@@ -51,7 +51,38 @@ export async function expandKeywords(
 ): Promise<AgentResult<KeywordExpansionData>> {
   try {
     console.log(`キーワード拡張エージェント起動: ${input.roleName}, 初期キーワード: ${input.keywords.join(', ')}`);
-    sendAgentThoughts(input.userId, input.roleModelId, 'KeywordExpansionAgent', `役割「${input.roleName}」のキーワード拡張を開始します。`);
+    
+    // キーワード拡張プロセスの開始を通知
+    sendAgentThoughts(
+      input.userId, 
+      input.roleModelId, 
+      'KeywordExpansionAgent', 
+      `役割「${input.roleName}」のキーワード拡張を開始します。`, 
+      'thinking'
+    );
+    
+    // 詳細なキーワード拡張プロセスのステップを説明
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KeywordExpansionAgent',
+      `キーワード拡張プロセスの詳細:\n` +
+      `1. 初期キーワード群の分析と意味的関連性の抽出中...\n` +
+      `2. 業界分析データとの統合と関連キーワード候補の生成中...\n` +
+      `3. 専門用語とビジネス用語の特定と収集中...\n` +
+      `4. キーワード関連度のスコアリングと評価中...\n` +
+      `5. 最終キーワードセットの最適化と調整中...`,
+      'thinking'
+    );
+    
+    // 入力キーワードの分析情報を提供
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KeywordExpansionAgent',
+      `入力キーワード「${input.keywords.join('、')}」を分析中。初期キーワード数は${input.keywords.length}個です。これらから関連キーワードを拡張し、関連度スコアを計算します。`,
+      'thinking'
+    );
     
     // 業界情報の要約を作成
     const industries = input.industries.join(', ');
@@ -95,13 +126,39 @@ export async function expandKeywords(
       }
     ];
     
-    // 思考過程をユーザーに共有
+    // 思考過程をユーザーに共有（より詳細に）
     sendAgentThoughts(
       input.userId,
       input.roleModelId,
       'KeywordExpansionAgent',
-      `初期キーワード「${input.keywords.join(', ')}」を業界「${industries}」の文脈で拡張中。役割に関連する重要なキーワードを探索しています。`
+      `初期キーワード「${input.keywords.join(', ')}」を業界「${industries}」の文脈で拡張中。役割に関連する重要なキーワードを探索しています。`,
+      'thinking'
     );
+    
+    // キーワード拡張プロセスの詳細なステップを共有
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KeywordExpansionAgent',
+      `キーワード拡張プロセスの詳細:\n` +
+      `1. 業界分析結果からの関連キーワード抽出中...\n` +
+      `2. 各キーワードの関連度スコアリング中...\n` +
+      `3. 役割「${input.roleName}」に最適なキーワードの優先順位付け中...\n` +
+      `4. 階層的なキーワード構造の検討中...\n` +
+      `5. キーワード間の関連性分析中...`,
+      'thinking'
+    );
+    
+    // 業界トレンドに基づく詳細な分析情報を共有
+    if (input.industryAnalysisData && input.industryAnalysisData.trends && input.industryAnalysisData.trends.length > 0) {
+      sendAgentThoughts(
+        input.userId,
+        input.roleModelId,
+        'KeywordExpansionAgent',
+        `業界トレンド「${input.industryAnalysisData.trends.slice(0, 3).join('、')}」に関連するキーワードを検索中...`,
+        'thinking'
+      );
+    }
     
     // APIを呼び出してキーワード拡張を実行
     const response = await callAzureOpenAI(messages);

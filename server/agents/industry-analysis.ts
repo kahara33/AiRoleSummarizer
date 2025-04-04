@@ -53,7 +53,38 @@ export async function analyzeIndustries(
 ): Promise<AgentResult<IndustryAnalysisData>> {
   try {
     console.log(`業界分析エージェント起動: ${input.roleName}, 業界: ${input.industries.join(', ')}`);
-    sendAgentThoughts(input.userId, input.roleModelId, 'IndustryAnalysisAgent', `役割「${input.roleName}」の業界分析を開始します。`);
+    
+    // 業界分析プロセスの開始を通知
+    sendAgentThoughts(
+      input.userId, 
+      input.roleModelId, 
+      'IndustryAnalysisAgent', 
+      `役割「${input.roleName}」の業界分析を開始します。`, 
+      'thinking'
+    );
+    
+    // 詳細な業界分析プロセスのステップを説明
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'IndustryAnalysisAgent',
+      `業界分析プロセスの詳細:\n` +
+      `1. 選択された業界の市場動向と競争環境の調査中...\n` +
+      `2. 業界特有のトレンドとイノベーションの特定中...\n` +
+      `3. 主要な課題と機会ポイントの分析中...\n` +
+      `4. 主要プレイヤーと競合状況の評価中...\n` +
+      `5. 業界に関連する重要技術の特定と分析中...`,
+      'thinking'
+    );
+    
+    // 対象業界の詳細情報
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'IndustryAnalysisAgent',
+      `対象業界: ${input.industries.join('、')}。業界ごとの特性と相互関連性を含めた包括的な分析を行います。特に役割「${input.roleName}」に関連する側面に焦点を当てます。`,
+      'thinking'
+    );
     
     // OpenAIモデルに送信するメッセージを構築
     const messages = [
@@ -87,13 +118,25 @@ export async function analyzeIndustries(
       }
     ];
     
-    // 思考過程をユーザーに共有
+    // 思考過程をユーザーに共有（詳細）
     sendAgentThoughts(
       input.userId,
       input.roleModelId,
       'IndustryAnalysisAgent',
-      `業界「${input.industries.join(', ')}」のトレンド、課題、機会、主要プレイヤー、技術を分析中...`
+      `業界「${input.industries.join(', ')}」のトレンド、課題、機会、主要プレイヤー、技術を分析中...`,
+      'thinking'
     );
+
+    // 各業界について詳細な分析情報を提供
+    for (const industry of input.industries) {
+      sendAgentThoughts(
+        input.userId,
+        input.roleModelId,
+        'IndustryAnalysisAgent',
+        `${industry}業界の詳細分析プロセス：\n- 市場規模と成長率の評価\n- 主要企業と競争状況の調査\n- 最新技術トレンドの特定\n- 規制環境と法的要件の確認\n- 消費者行動と需要パターンの分析中...`,
+        'thinking'
+      );
+    }
     
     // APIを呼び出して業界分析を実行
     const response = await callAzureOpenAI(messages);

@@ -90,7 +90,36 @@ export async function generateKnowledgeGraph(
 ): Promise<AgentResult<KnowledgeGraphData>> {
   try {
     console.log(`知識グラフ生成エージェント起動: ${input.roleName}`);
-    sendAgentThoughts(input.userId, input.roleModelId, 'KnowledgeGraphAgent', `役割「${input.roleName}」の知識グラフ生成を開始します。`);
+    sendAgentThoughts(
+      input.userId, 
+      input.roleModelId, 
+      'KnowledgeGraphAgent', 
+      `役割「${input.roleName}」の知識グラフ生成を開始します。`, 
+      'thinking'
+    );
+    
+    // グラフ生成プロセスの詳細なステップを共有
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KnowledgeGraphAgent',
+      `グラフ生成プロセスの詳細:\n` +
+      `1. 構造化データの階層分析中...\n` +
+      `2. ルートノードと主要カテゴリノード作成中...\n` +
+      `3. サブカテゴリとスキルノードの配置計算中...\n` +
+      `4. ノード間の関連性に基づくエッジ設定中...\n` +
+      `5. グラフの視覚的バランス最適化中...`,
+      'thinking'
+    );
+    
+    // 階層構造に関する詳細分析情報
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KnowledgeGraphAgent',
+      `階層構造の分析: ${input.structuringData.categories.length}カテゴリの階層関係を視覚化します。中心から放射状にカテゴリを配置し、関連度に基づいて接続します。`,
+      'thinking'
+    );
     
     // ノードとエッジのリストを初期化
     const nodes: KnowledgeNode[] = [];
