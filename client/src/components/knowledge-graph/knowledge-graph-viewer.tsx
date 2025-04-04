@@ -98,6 +98,12 @@ export default function KnowledgeGraphViewer({
     position: { x: number, y: number }
   } | null>(null);
   
+  // 新しいノードのアニメーションのためのステート
+  const [visibleNodes, setVisibleNodes] = useState<GraphNode[]>([]);
+  const [visibleLinks, setVisibleLinks] = useState<GraphLink[]>([]);
+  const [animationInProgress, setAnimationInProgress] = useState(false);
+  const [animationQueue, setAnimationQueue] = useState<{nodes: GraphNode[], links: GraphLink[]}>({ nodes: [], links: [] });
+  
   const graphRef = useRef<any>();
 
   // グラフデータの取得
@@ -140,15 +146,35 @@ export default function KnowledgeGraphViewer({
         // Add explicit edge links
         ...knowledgeEdges.map(edge => ({
           id: edge.id,
-          source: edge.source || edge.sourceId || "", // サーバー側の応答フィールド名の違いに対応
-          target: edge.target || edge.targetId || "", // サーバー側の応答フィールド名の違いに対応
+          source: edge.sourceId || "", // サーバー側の応答フィールド名に合わせる
+          target: edge.targetId || "", // サーバー側の応答フィールド名に合わせる
           label: edge.label || "RELATED_TO",
           strength: edge.strength || undefined // nullの場合はundefinedに変換
         }))
       ];
       
-      setNodes(graphNodes);
-      setLinks(graphLinks);
+      // ノードのストリーミング表示のための準備
+      if (graphNodes.length > 0) {
+        // ルートノードを最初に表示
+        const rootNode = graphNodes.find(n => n.level === 0);
+        
+        // アニメーションで表示するノードとリンクを設定
+        setAnimationQueue({
+          nodes: graphNodes,
+          links: graphLinks
+        });
+        
+        // 初期表示用（ルートノードのみ、または空の配列）
+        setVisibleNodes(rootNode ? [rootNode] : []);
+        setVisibleLinks([]);
+        
+        // アニメーション開始
+        setAnimationInProgress(true);
+      } else {
+        // ノードがない場合は直接設定
+        setNodes(graphNodes);
+        setLinks(graphLinks);
+      }
     } catch (e) {
       console.error("Error fetching knowledge graph data:", e);
       setError("知識グラフデータの取得に失敗しました。後でもう一度お試しください。");
@@ -166,6 +192,70 @@ export default function KnowledgeGraphViewer({
   useEffect(() => {
     fetchGraphData();
   }, [fetchGraphData]);
+  
+  // ノードアニメーションの管理
+  useEffect(() => {
+    if (!animationInProgress) return;
+    
+    // 描画間隔（ミリ秒）
+    const ANIMATION_INTERVAL = 150;
+    
+    // キューからノードとエッジを少しずつ取り出して表示
+    const animationTimer = setInterval(() => {
+      setVisibleNodes(prevNodes => {
+        // すでに表示されているノードのIDリスト
+        const existingNodeIds = new Set(prevNodes.map(n => n.id));
+        
+        // まだ表示されていないノードから次に表示するノードを選択
+        // 最初にルートノード、次にレベル1のノード、その後にレベル2...という順番で表示
+        const remainingNodes = animationQueue.nodes.filter(n => !existingNodeIds.has(n.id));
+        
+        if (remainingNodes.length === 0) {
+          // すべてのノードが表示された
+          setAnimationInProgress(false);
+          setNodes(animationQueue.nodes);
+          setLinks(animationQueue.links);
+          return prevNodes;
+        }
+        
+        // 表示するノードの数（一度に少しずつ表示）
+        const nodesToAdd = remainingNodes.slice(0, 2);
+        return [...prevNodes, ...nodesToAdd];
+      });
+      
+      setVisibleLinks(prevLinks => {
+        // 表示されているノードに関連するリンクのみを表示
+        const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+        
+        // まだ表示されていないリンクのうち、両端のノードが表示されているものを選ぶ
+        const newLinks = animationQueue.links.filter(link => {
+          // リンクがまだ表示されていないか確認
+          if (prevLinks.some(l => l.id === link.id)) return false;
+          
+          // sourceとtargetを安全に文字列として扱う
+          let source = link.source;
+          let target = link.target;
+          
+          if (typeof source === 'object' && source !== null) {
+            source = source.id || '';
+          }
+          
+          if (typeof target === 'object' && target !== null) {
+            target = target.id || '';
+          }
+          
+          // 両方のノードが表示されているか確認
+          return source && target && 
+                 visibleNodeIds.has(source.toString()) && 
+                 visibleNodeIds.has(target.toString());
+        });
+        
+        return [...prevLinks, ...newLinks.slice(0, 3)]; // 一度に複数のリンクを追加
+      });
+    }, ANIMATION_INTERVAL);
+    
+    return () => clearInterval(animationTimer);
+  }, [animationInProgress, animationQueue, visibleNodes]);
   
   // Mapifyスタイルの階層構造レイアウト（分離して明確に）
   useEffect(() => {
@@ -570,7 +660,10 @@ export default function KnowledgeGraphViewer({
           
           <ForceGraph
             ref={graphRef}
-            graphData={{ nodes, links }}
+            graphData={{ 
+              nodes: animationInProgress ? visibleNodes : nodes, 
+              links: animationInProgress ? visibleLinks : links 
+            }}
             nodeId="id"
             nodeVal="val"
             nodeLabel="name"
