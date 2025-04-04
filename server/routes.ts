@@ -46,6 +46,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const roleModels = await storage.getRoleModels(userId);
+      
+      // 各ロールモデルの業界とキーワード情報を取得
+      for (const model of roleModels) {
+        model.industries = await storage.getRoleModelIndustries(model.id);
+        model.keywords = await storage.getRoleModelKeywords(model.id);
+      }
+      
       res.json(roleModels);
     } catch (error) {
       console.error("Error fetching role models:", error);
@@ -64,6 +71,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const sharedRoleModels = await storage.getSharedRoleModels(companyId);
+      
+      // 各ロールモデルの業界とキーワード情報を取得
+      for (const model of sharedRoleModels) {
+        model.industries = await storage.getRoleModelIndustries(model.id);
+        model.keywords = await storage.getRoleModelKeywords(model.id);
+      }
+      
       res.json(sharedRoleModels);
     } catch (error) {
       console.error("Error fetching shared role models:", error);

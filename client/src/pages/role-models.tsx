@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { RoleModel } from "@shared/schema";
+import { RoleModel, IndustrySubcategoryWithCategory, Keyword, RoleModelWithIndustriesAndKeywords } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useRoute, useLocation, Link } from "wouter";
 
@@ -64,7 +64,7 @@ export default function RoleModelsPage() {
     isLoading: isLoadingModels,
     error: roleModelsError,
     refetch: refetchModels,
-  } = useQuery<RoleModel[]>({
+  } = useQuery<RoleModelWithIndustriesAndKeywords[]>({
     queryKey: ["/api/role-models"],
     enabled: !!user,
   });
@@ -75,7 +75,7 @@ export default function RoleModelsPage() {
     isLoading: isLoadingShared,
     error: sharedModelsError,
     refetch: refetchShared,
-  } = useQuery<RoleModel[]>({
+  } = useQuery<RoleModelWithIndustriesAndKeywords[]>({
     queryKey: ["/api/role-models/shared"],
     enabled: !!user && !!user.companyId,
   });
@@ -207,6 +207,8 @@ export default function RoleModelsPage() {
                 <TableRow>
                   <TableHead>ロールモデル名</TableHead>
                   <TableHead>説明</TableHead>
+                  <TableHead>業界カテゴリ</TableHead>
+                  <TableHead>キーワード</TableHead>
                   <TableHead className="w-24">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -228,6 +230,38 @@ export default function RoleModelsPage() {
                       {model.description && model.description.length > 100
                         ? `${model.description.substring(0, 100)}...`
                         : model.description || ""}
+                    </TableCell>
+                    <TableCell>
+                      {model.industries && model.industries.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {model.industries.slice(0, 3).map((industry) => (
+                            <span key={industry.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                              {industry.name}
+                            </span>
+                          ))}
+                          {model.industries.length > 3 && (
+                            <span className="text-xs text-gray-500">+{model.industries.length - 3}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">未設定</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {model.keywords && model.keywords.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {model.keywords.slice(0, 3).map((keyword) => (
+                            <span key={keyword.id} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                              {keyword.name}
+                            </span>
+                          ))}
+                          {model.keywords.length > 3 && (
+                            <span className="text-xs text-gray-500">+{model.keywords.length - 3}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">未設定</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
@@ -283,6 +317,38 @@ export default function RoleModelsPage() {
                         {model.description && model.description.length > 100
                           ? `${model.description.substring(0, 100)}...`
                           : model.description || ""}
+                      </TableCell>
+                      <TableCell>
+                        {model.industries && model.industries.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {model.industries.slice(0, 3).map((industry) => (
+                              <span key={industry.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                {industry.name}
+                              </span>
+                            ))}
+                            {model.industries.length > 3 && (
+                              <span className="text-xs text-gray-500">+{model.industries.length - 3}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">未設定</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {model.keywords && model.keywords.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {model.keywords.slice(0, 3).map((keyword) => (
+                              <span key={keyword.id} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                                {keyword.name}
+                              </span>
+                            ))}
+                            {model.keywords.length > 3 && (
+                              <span className="text-xs text-gray-500">+{model.keywords.length - 3}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">未設定</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">

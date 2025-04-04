@@ -61,7 +61,7 @@ export default function IndustrySelectionContainer({
         <SelectedIndustries
           selectedIndustryIds={selectedIndustries}
           onRemoveIndustry={handleRemoveIndustry}
-          maxHeight="200px"
+          maxHeight="100px"
         />
       </div>
     </div>
