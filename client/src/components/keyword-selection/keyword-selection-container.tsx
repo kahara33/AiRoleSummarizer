@@ -50,20 +50,20 @@ export default function KeywordSelectionContainer({
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="md:col-span-3">
+      <div className="flex flex-col gap-6">
+        <div className="w-full">
           <KeywordSearch
             selectedKeywords={selectedKeywords}
             onSelectKeyword={handleSelectKeyword}
-            maxHeight="450px"
+            maxHeight="300px"
             title={`キーワード検索・選択 (最大${maxSelections}件)`}
           />
         </div>
-        <div className="md:col-span-2">
+        <div className="w-full">
           <SelectedKeywords
             selectedKeywordIds={selectedKeywords}
             onRemoveKeyword={handleRemoveKeyword}
-            maxHeight="450px"
+            maxHeight="300px"
           />
         </div>
       </div>
