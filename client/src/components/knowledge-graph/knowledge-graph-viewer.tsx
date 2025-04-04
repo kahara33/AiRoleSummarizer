@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { KnowledgeNode, KnowledgeEdge, InsertKnowledgeNode } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Plus, Edit, Trash, MessageSquarePlus, ZoomIn, ZoomOut, ArrowRight, CornerDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -81,6 +82,26 @@ export default function KnowledgeGraphViewer({
   width = 800,
   height = 600
 }: KnowledgeGraphViewerProps) {
+  // 親コンポーネントから渡されたパラメータからknoweledgeNodesとedgesを取得するようにする
+  // データ取得のロジックをページコンポーネントに移動
+  const { data: knowledgeNodes = [] } = useQuery({
+    queryKey: [`/api/role-models/${roleModelId}/knowledge-nodes`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-nodes`);
+      return await res.json() as KnowledgeNode[];
+    },
+    enabled: !!roleModelId
+  });
+  
+  const { data: knowledgeEdges = [] } = useQuery({
+    queryKey: [`/api/role-models/${roleModelId}/knowledge-edges`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-edges`);
+      return await res.json() as KnowledgeEdge[];
+    },
+    enabled: !!roleModelId
+  });
+  
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [links, setLinks] = useState<GraphLink[]>([]);
   const [loading, setLoading] = useState(true);

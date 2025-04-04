@@ -73,6 +73,16 @@ export default function KnowledgeGraphPage() {
     },
     enabled: !!roleModelId
   });
+  
+  // Fetch knowledge edges
+  const { data: edges = [], isLoading: isLoadingEdges } = useQuery({
+    queryKey: [`/api/role-models/${roleModelId}/knowledge-edges`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-edges`);
+      return await res.json() as KnowledgeEdge[];
+    },
+    enabled: !!roleModelId
+  });
 
   const handleNodeClick = (node: KnowledgeNode) => {
     setSelectedNode(node);
