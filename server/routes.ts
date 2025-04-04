@@ -33,7 +33,7 @@ import {
 } from "./agents/index";
 
 // WebSocketサーバーのインポート
-import { initWebSocketServer } from "./websocket";
+import { setupWebSocketServer } from "./websocket";
 
 // Middleware to ensure user is authenticated
 const isAuthenticated = (req: any, res: any, next: any) => {
@@ -54,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // WebSocketサーバーの初期化
-  initWebSocketServer(httpServer);
+  setupWebSocketServer(httpServer);
 
   // Role Model routes
   app.get("/api/role-models", isAuthenticated, async (req, res) => {
