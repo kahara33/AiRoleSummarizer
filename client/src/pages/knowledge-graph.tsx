@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation, useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { KnowledgeNode, RoleModel, KnowledgeEdge } from "@shared/schema";
@@ -42,6 +42,8 @@ export default function KnowledgeGraphPage() {
   const [showAIGenerateDialog, setShowAIGenerateDialog] = useState(false);
   const [showNodeExpandDialog, setShowNodeExpandDialog] = useState(false);
   const [expandingNode, setExpandingNode] = useState<KnowledgeNode | undefined>();
+  const [generationSteps, setGenerationSteps] = useState<{step: string, status: 'pending' | 'completed' | 'error'}[]>([]);
+  const [showGenerationProgress, setShowGenerationProgress] = useState(false);
 
   // Fetch role model
   const { data: roleModel, isLoading: isLoadingRoleModel } = useQuery({
@@ -87,13 +89,60 @@ export default function KnowledgeGraphPage() {
     setLocation("/role-models");
   };
   
+  // AIエージェントプロセスのステップを初期化
+  const initializeGenerationSteps = useCallback(() => {
+    setGenerationSteps([
+      { step: "1. 業界分析", status: 'pending' },
+      { step: "2. キーワード拡張", status: 'pending' },
+      { step: "3. 構造化", status: 'pending' },
+      { step: "4. 知識グラフ生成", status: 'pending' },
+      { step: "5. データベース保存", status: 'pending' }
+    ]);
+  }, []);
+
   // AI グラフ自動生成Mutation
   const generateGraphMutation = useMutation({
     mutationFn: async () => {
+      // ステップ進行状況の初期化
+      initializeGenerationSteps();
+      setShowGenerationProgress(true);
+      
+      // ステップ1: 業界分析
+      setGenerationSteps(prev => 
+        prev.map((step, i) => i === 0 ? { ...step, status: 'completed' } : step)
+      );
+      
+      // ステップ2: キーワード拡張 (500ms後に完了とする)
+      setTimeout(() => {
+        setGenerationSteps(prev => 
+          prev.map((step, i) => i === 1 ? { ...step, status: 'completed' } : step)
+        );
+      }, 500);
+      
+      // ステップ3: 構造化 (1000ms後に完了とする)
+      setTimeout(() => {
+        setGenerationSteps(prev => 
+          prev.map((step, i) => i === 2 ? { ...step, status: 'completed' } : step)
+        );
+      }, 1000);
+      
+      // ステップ4: 知識グラフ生成 (1500ms後に完了とする)
+      setTimeout(() => {
+        setGenerationSteps(prev => 
+          prev.map((step, i) => i === 3 ? { ...step, status: 'completed' } : step)
+        );
+      }, 1500);
+      
       const res = await apiRequest(
         "POST", 
         `/api/role-models/${roleModelId}/generate-knowledge-graph`
       );
+      
+      // ステップ5: データベース保存 (APIレスポンス後に完了)
+      setGenerationSteps(prev => 
+        prev.map((step, i) => i === 4 ? { ...step, status: 'completed' } : step)
+      );
+      
       return await res.json() as { 
         nodes: KnowledgeNode[], 
         edges: KnowledgeEdge[] 
@@ -110,9 +159,20 @@ export default function KnowledgeGraphPage() {
         title: "知識グラフが自動生成されました",
         description: "AIによって役割モデルの知識構造が生成されました。",
       });
-      setShowAIGenerateDialog(false);
+      // 少し待ってからダイアログを閉じる (進行状況を確認できるように)
+      setTimeout(() => {
+        setShowAIGenerateDialog(false);
+        setShowGenerationProgress(false);
+      }, 1000);
     },
     onError: (error: any) => {
+      // エラーが発生した場合、エラーのステップをマーク
+      setGenerationSteps(prev => 
+        prev.map(step => 
+          step.status === 'pending' ? { ...step, status: 'error' } : step
+        )
+      );
+      
       toast({
         title: "エラー",
         description: error.message || "知識グラフの自動生成に失敗しました。",
@@ -215,16 +275,14 @@ export default function KnowledgeGraphPage() {
           </div>
           <div className="flex space-x-2">
             {/* AIによる知識グラフ自動生成ボタン */}
-            {hasNoNodes && (
-              <Button 
-                onClick={handleGenerateGraph} 
-                variant="secondary"
-                className="bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600"
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                AIで自動生成
-              </Button>
-            )}
+            <Button 
+              onClick={handleGenerateGraph} 
+              variant="secondary"
+              className="bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {hasNoNodes ? "AIで自動生成" : "AIで再生成"}
+            </Button>
             <Button onClick={() => handleAddNode()} disabled={hasNoNodes}>
               <Plus className="h-4 w-4 mr-2" />
               新規ノード
@@ -394,9 +452,49 @@ export default function KnowledgeGraphPage() {
               役割名: <span className="font-medium text-foreground">{roleModel.name}</span>
             </p>
             {roleModel.description && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-4">
                 役割の説明: <span className="font-medium text-foreground">{roleModel.description}</span>
               </p>
+            )}
+            
+            {/* AIエージェント生成プロセス表示 */}
+            {showGenerationProgress && (
+              <div className="border rounded-lg p-4 mt-4 space-y-3">
+                <h3 className="text-sm font-medium">AIエージェント連携処理の進行状況</h3>
+                <div className="space-y-2">
+                  {generationSteps.map((step, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      {step.status === 'pending' && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                      {step.status === 'completed' && (
+                        <div className="h-4 w-4 rounded-full bg-green-500 flex items-center justify-center text-white">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        </div>
+                      )}
+                      {step.status === 'error' && (
+                        <div className="h-4 w-4 rounded-full bg-red-500 flex items-center justify-center text-white">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </div>
+                      )}
+                      <span className={`text-sm ${
+                        step.status === 'pending' 
+                          ? 'text-muted-foreground' 
+                          : step.status === 'completed'
+                            ? 'text-foreground'
+                            : 'text-red-500'
+                      }`}>
+                        {step.step}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
           <DialogFooter>
