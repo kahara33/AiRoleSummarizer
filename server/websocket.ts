@@ -88,6 +88,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     ws.on('message', (data: any) => {
       try {
         const message = JSON.parse(data.toString());
+        console.log(`WebSocket message received from client ${clientId}: ${JSON.stringify(message)}`);
         handleClientMessage(clientId, message);
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -163,7 +164,15 @@ function handleClientMessage(clientId: string, message: WebSocketMessage): void 
  */
 function sendMessage(ws: WebSocket, message: WebSocketMessage): void {
   if (ws.readyState === WebSocketState.OPEN) {
-    ws.send(JSON.stringify(message));
+    try {
+      const messageString = JSON.stringify(message);
+      console.log(`Sending WebSocket message: ${messageString}`);
+      ws.send(messageString);
+    } catch (error) {
+      console.error('Error sending WebSocket message:', error);
+    }
+  } else {
+    console.warn(`Cannot send message, WebSocket not OPEN: readyState=${ws.readyState}`);
   }
 }
 
