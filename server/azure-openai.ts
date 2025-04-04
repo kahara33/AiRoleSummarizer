@@ -27,7 +27,7 @@ const getDeploymentName = (): string => {
 };
 
 // Azure OpenAI API request function
-async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTokens = 1500): Promise<any> {
+export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTokens = 1500): Promise<string> {
   const apiKey = getAPIKey();
   const endpoint = getEndpoint();
   const deploymentName = getDeploymentName();
@@ -59,7 +59,13 @@ async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTokens = 1
     }
     
     const data = await response.json();
-    return data;
+    
+    // エージェントモジュール用に応答データから直接コンテンツを抽出して返す
+    if (data && data.choices && data.choices.length > 0) {
+      return data.choices[0].message.content;
+    } else {
+      throw new Error('Invalid response structure from Azure OpenAI API');
+    }
   } catch (error) {
     console.error('Error calling Azure OpenAI:', error);
     throw error;
@@ -300,15 +306,10 @@ export async function generateKnowledgeGraph(
         }
       ];
       
-      const response = await callAzureOpenAI(messages, 0.7, 2000);
+      const responseContent = await callAzureOpenAI(messages, 0.7, 2000);
+      graphData = JSON.parse(responseContent);
+      console.log("Successfully generated knowledge graph using Azure OpenAI");
       
-      if (response && response.choices && response.choices.length > 0) {
-        const content = response.choices[0].message.content;
-        graphData = JSON.parse(content);
-        console.log("Successfully generated knowledge graph using Azure OpenAI");
-      } else {
-        throw new Error("Invalid response from Azure OpenAI");
-      }
     } catch (apiError) {
       console.error("Error calling Azure OpenAI:", apiError);
       console.warn("Falling back to predefined graph templates");
@@ -484,14 +485,8 @@ export async function updateKnowledgeGraphByChat(
       }
     ];
     
-    const response = await callAzureOpenAI(messages, 0.7, 2000);
-    
-    if (!response || !response.choices || response.choices.length === 0) {
-      throw new Error("Azure OpenAIからの応答が無効です");
-    }
-    
-    const content = response.choices[0].message.content;
-    const updates = JSON.parse(content);
+    const responseContent = await callAzureOpenAI(messages, 0.7, 2000);
+    const updates = JSON.parse(responseContent);
     
     // Process node additions
     if (updates.addNodes && Array.isArray(updates.addNodes)) {
@@ -655,11 +650,10 @@ export async function generateKnowledgeGraphForNode(
         }
       ];
       
-      const response = await callAzureOpenAI(messages, 0.7, 1000);
+      const responseContent = await callAzureOpenAI(messages, 0.7, 1000);
       
-      if (response && response.choices && response.choices.length > 0) {
-        const content = response.choices[0].message.content;
-        const generatedNodes = JSON.parse(content);
+      try {
+        const generatedNodes = JSON.parse(responseContent);
         
         // Convert to the right format
         generatedNodes.forEach((node: any) => {
@@ -671,8 +665,8 @@ export async function generateKnowledgeGraphForNode(
         });
         
         console.log(`Successfully generated ${subNodes.length} sub-nodes with Azure OpenAI`);
-      } else {
-        throw new Error("Invalid response from Azure OpenAI");
+      } catch (err) {
+        throw new Error("Invalid response from Azure OpenAI: " + err.message);
       }
     } catch (apiError) {
       console.error("Error calling Azure OpenAI for node expansion:", apiError);
