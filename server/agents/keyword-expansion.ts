@@ -37,6 +37,12 @@ export async function expandKeywords(
       
       【ターゲット対象】
       ${industryData.targetAudience.map((audience, i) => `${i+1}. ${audience}`).join('\n')}
+      
+      【ビジネスモデル】
+      ${industryData.businessModels.map((model, i) => `${i+1}. ${model}`).join('\n')}
+      
+      【課題と機会】
+      ${industryData.challengesOpportunities.map((item, i) => `${i+1}. ${item}`).join('\n')}
       ` : '';
     
     // プロンプトを生成
@@ -44,7 +50,10 @@ export async function expandKeywords(
       {
         role: "system",
         content: `あなたはキーワード拡張のエキスパートです。提供された役割、業界、初期キーワードに基づいて、関連するキーワードを拡張してください。
-        結果はJSON形式で返してください。`
+        結果はJSON形式で返してください。
+        
+        このシステムは「情報収集サービス」です。ユーザーが日々の情報収集を効率的に行うために必要なキーワードを提供することが目的です。
+        情報収集の観点から具体的で検索可能なキーワードが必要です。例えば、「Azure OpenAI Service」「Microsoft Power Platform」「React」のような具体的な製品名や技術名が望ましいです。`
       },
       {
         role: "user",
@@ -58,6 +67,7 @@ export async function expandKeywords(
         ${industryContext}
         
         この役割に重要と思われるキーワードを追加してください。本人の日々の情報収集や自己成長に役立つものを優先してください。
+        入力キーワードは最重要キーワードとして必ず含めてください。
         以下の形式でJSON出力してください：
         {
           "expandedKeywords": ["キーワード1", "キーワード2", ...],  // オリジナルのキーワードを含め、合計15-20個程度
@@ -69,7 +79,8 @@ export async function expandKeywords(
         }
         
         回答は日本語で提供し、キーワードは短く具体的に記述してください（各5-15文字程度）。
-        技術用語、ツール名、概念名など、具体的で検索可能なキーワードを含めてください。`
+        技術用語、ツール名、概念名など、具体的で検索可能なキーワードを含めてください。
+        最先端のトレンドやツールを含めることが重要です。`
       }
     ];
     

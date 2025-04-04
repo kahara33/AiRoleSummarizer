@@ -118,6 +118,34 @@ export default function KnowledgeGraphPage() {
       setAgentThoughts([]);
       setShowAgentPanel(true); // AIエージェントパネルを自動的に表示
       
+      // 役割モデルの知識ノードを事前に取得して削除
+      try {
+        const nodesRes = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-nodes`);
+        const existingNodes = await nodesRes.json();
+        
+        // 既存のノードがある場合は削除
+        if (existingNodes && existingNodes.length > 0) {
+          // 各ノードを削除
+          for (const node of existingNodes) {
+            await apiRequest("DELETE", `/api/knowledge-nodes/${node.id}`);
+          }
+          
+          // 削除プロセスを思考プロセスに追加
+          setAgentThoughts(prev => [...prev, {
+            agent: "OrchestratorAgent", 
+            thought: `既存の知識グラフを検出しました。再生成のために既存のノードを削除しています。\n\n` +
+                    `${existingNodes.length}個のノードを削除しました。\n` +
+                    `新しい知識グラフを生成します...`,
+            timestamp: new Date()
+          }]);
+          
+          // 短い遅延を追加
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        console.error("既存ノードの削除中にエラーが発生しました:", error);
+      }
+      
       // 業界分析エージェントの思考プロセス例
       const addAgentThought = (agent: string, thought: string) => {
         setAgentThoughts(prev => [...prev, {
@@ -161,7 +189,7 @@ export default function KnowledgeGraphPage() {
       addAgentThought("StructuringAgent", 
         `収集された情報を構造化しています。\n\n` +
         `主要カテゴリの特定:\n` +
-        `1. 技術スキル\n2. ビジネス知識\n3. 業界特化知識\n4. 職務責任\n\n` +
+        `1. 情報収集目的\n2. 情報源と技術リソース\n3. 業界専門知識\n4. トレンド分析\n5. 実践応用分野\n\n` +
         `階層構造を構築中...\n` +
         `各カテゴリの関連性と重要度を評価しています...`
       );
@@ -177,7 +205,7 @@ export default function KnowledgeGraphPage() {
         `最終的な知識グラフを生成しています。\n\n` +
         `ノード数: 15\nエッジ数: 22\n\n` +
         `ルートノード: "${roleModel?.name}"\n` +
-        `一次レベルノード: "技術スキル", "ビジネス知識", "業界特化知識", "職務責任"\n\n` +
+        `一次レベルノード: "情報収集目的", "情報源と技術リソース", "業界専門知識", "トレンド分析", "実践応用分野"\n\n` +
         `知識グラフの視覚的バランスを最適化しています...`
       );
       
@@ -191,6 +219,11 @@ export default function KnowledgeGraphPage() {
         `/api/role-models/${roleModelId}/generate-knowledge-graph`
       );
       
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`グラフ生成に失敗しました: ${errorText}`);
+      }
+      
       // ステップ5: データベース保存
       addAgentThought("OrchestratorAgent", 
         `生成された知識グラフをデータベースに保存しています。\n\n` +
@@ -202,10 +235,27 @@ export default function KnowledgeGraphPage() {
         prev.map((step, i) => i === 4 ? { ...step, status: 'completed' } : step)
       );
       
-      return await res.json() as { 
-        nodes: KnowledgeNode[], 
-        edges: KnowledgeEdge[] 
-      };
+      try {
+        const result = await res.json();
+        
+        // ノードとエッジを即時反映してリアルタイム描画
+        queryClient.setQueryData(
+          [`/api/role-models/${roleModelId}/knowledge-nodes`], 
+          result.nodes
+        );
+        queryClient.setQueryData(
+          [`/api/role-models/${roleModelId}/knowledge-edges`], 
+          result.edges
+        );
+        
+        return result as { 
+          nodes: KnowledgeNode[], 
+          edges: KnowledgeEdge[] 
+        };
+      } catch (error) {
+        console.error("APIレスポンスの解析中にエラーが発生しました:", error);
+        throw new Error("APIレスポンスの解析に失敗しました");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ 
