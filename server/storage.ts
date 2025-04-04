@@ -1221,6 +1221,13 @@ export class PostgresStorage implements IStorage {
     return result.length > 0;
   }
   
+  async deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean> {
+    const result = await db.delete(roleModelIndustries)
+      .where(eq(roleModelIndustries.roleModelId, roleModelId))
+      .returning();
+    return result.length > 0;
+  }
+  
   // Role model keyword mapping methods
   async getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]> {
     return await db.select()
@@ -1248,6 +1255,13 @@ export class PostgresStorage implements IStorage {
 
   async deleteRoleModelKeyword(id: string): Promise<boolean> {
     const result = await db.delete(roleModelKeywords).where(eq(roleModelKeywords.id, id)).returning();
+    return result.length > 0;
+  }
+  
+  async deleteRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<boolean> {
+    const result = await db.delete(roleModelKeywords)
+      .where(eq(roleModelKeywords.roleModelId, roleModelId))
+      .returning();
     return result.length > 0;
   }
   

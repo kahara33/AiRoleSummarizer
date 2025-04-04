@@ -1304,6 +1304,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ロールモデルの業界カテゴリ関連付けを削除するエンドポイント
+  app.delete("/api/role-model-industries/:roleModelId", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.roleModelId;
+      
+      // Check role model ownership
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to modify this role model" });
+      }
+      
+      await storage.deleteRoleModelIndustriesByRoleModelId(roleModelId);
+      res.status(200).json({ message: "All industry mappings deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting role model industries:", error);
+      res.status(500).json({ message: "Error deleting role model industries" });
+    }
+  });
+  
+  // ロールモデルのキーワード関連付けを削除するエンドポイント
+  app.delete("/api/role-model-keywords/:roleModelId", isAuthenticated, async (req, res) => {
+    try {
+      const roleModelId = req.params.roleModelId;
+      
+      // Check role model ownership
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to modify this role model" });
+      }
+      
+      await storage.deleteRoleModelKeywordsByRoleModelId(roleModelId);
+      res.status(200).json({ message: "All keyword mappings deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting role model keywords:", error);
+      res.status(500).json({ message: "Error deleting role model keywords" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
