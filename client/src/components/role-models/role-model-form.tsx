@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -56,8 +56,24 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
     (roleModel?.keywords && roleModel.keywords.length > 0) ? 
       roleModel.keywords.map(k => k.id) : []
   );
+  // フォームの初期値を定義
+  const formDefaultValues = {
+    name: roleModel?.name || "",
+    description: roleModel?.description || "",
+    userId: user?.id || "",
+    companyId: user?.companyId || null,
+    isShared: roleModel?.isShared || 0,
+  };
+  
+  // Form setup
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: formDefaultValues,
+  });
+  
+  // 基本フォームデータの状態
   const [basicFormData, setBasicFormData] = useState<z.infer<typeof formSchema> | null>(
-    isEditMode ? { ...form.getValues() } : null
+    isEditMode ? formDefaultValues : null
   );
   
   // 初期選択状態をコンソールに出力（デバッグ用）
@@ -68,18 +84,6 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
       console.log("編集モード - ロールモデル:", roleModel);
     }
   }, []);
-  
-  // Form setup
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: roleModel?.name || "",
-      description: roleModel?.description || "",
-      userId: user?.id || "",
-      companyId: user?.companyId || null,
-      isShared: roleModel?.isShared || 0,
-    },
-  });
 
   // 基本情報のフォーム送信処理
   const onBasicFormSubmit = (values: z.infer<typeof formSchema>) => {
