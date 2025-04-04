@@ -412,10 +412,10 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
       
       <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="px-6">
-          <TabsList className="mb-2">
-            <TabsTrigger value="all">すべて</TabsTrigger>
+          <TabsList className="mb-2 w-full overflow-x-auto flex flex-wrap space-x-1 pb-1">
+            <TabsTrigger value="all" className="flex-shrink-0">すべて</TabsTrigger>
             {uniqueAgentNames.map(agent => (
-              <TabsTrigger key={agent} value={agent}>
+              <TabsTrigger key={agent} value={agent} className="flex-shrink-0">
                 {agent}
               </TabsTrigger>
             ))}
@@ -424,7 +424,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
         
         <CardContent className="flex-1 p-0">
           <TabsContent value={activeTab} className="m-0 h-full">
-            <ScrollArea className="h-[calc(100%-2rem)] px-6 pb-4">
+            <ScrollArea className="h-[calc(100vh-300px)] px-6 pb-4">
               {filteredThoughts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40">
                   <p className="text-gray-500">思考データがありません</p>

@@ -132,6 +132,8 @@ export default function KnowledgeGraphViewer({
         val: node.level === 0 ? 20 : (3 - Math.min(node.level, 3)) * 5 // 重要度によってサイズを変更
       }));
       
+      console.log("Loaded knowledge nodes:", graphNodes.length);
+      
       const graphLinks: GraphLink[] = [
         // Add parent-child links
         ...graphNodes
@@ -155,6 +157,8 @@ export default function KnowledgeGraphViewer({
       
       // ノードのストリーミング表示のための準備
       if (graphNodes.length > 0) {
+        console.log("Setting up animation with nodes:", graphNodes.length, "links:", graphLinks.length);
+        
         // ルートノードを最初に表示
         const rootNode = graphNodes.find(n => n.level === 0);
         
@@ -171,6 +175,7 @@ export default function KnowledgeGraphViewer({
         // アニメーション開始
         setAnimationInProgress(true);
       } else {
+        console.log("No nodes to display, setting empty graph");
         // ノードがない場合は直接設定
         setNodes(graphNodes);
         setLinks(graphLinks);
@@ -664,6 +669,8 @@ export default function KnowledgeGraphViewer({
               nodes: animationInProgress ? visibleNodes : nodes, 
               links: animationInProgress ? visibleLinks : links 
             }}
+            width={width}
+            height={height}
             nodeId="id"
             nodeVal="val"
             nodeLabel="name"
@@ -802,9 +809,8 @@ export default function KnowledgeGraphViewer({
             linkWidth={(link) => (link.label === "CONTAINS") ? 2 : 1}
             linkColor={(link) => (link.label === "CONTAINS") ? '#77AADD' : '#BBBBBB'}
             linkCurvature={(link) => (link.label === "CONTAINS") ? 0 : 0.25}
-            width={width}
-            height={height}
-            cooldownTicks={50}
+            cooldownTicks={100}
+            backgroundColor="#ffffff"
           />
           
           {/* インラインノード追加UI */}
