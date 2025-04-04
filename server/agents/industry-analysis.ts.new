@@ -3,7 +3,6 @@
 
 import { AgentResult, RoleModelInput } from './types';
 import { callAzureOpenAI } from '../azure-openai';
-import { sendAgentThoughts, sendProgressUpdate } from '../websocket';
 
 export interface IndustryAnalysisData {
   industryInsights: string[];  // 業界全般の洞察
@@ -24,36 +23,8 @@ export async function analyzeIndustries(
     console.log(`Analyzing industries for role: ${input.roleName}`);
     console.log(`Target industries: ${input.industries.join(', ')}`);
     
-    // WebSocketで進捗状況を送信（開始）
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        '業界分析',
-        10,
-        { stage: '初期化', industries: input.industries }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        '業界分析エージェント',
-        `業界分析を開始します...\n分析対象: ${input.roleName}\n業界: ${input.industries.join(', ') || '指定なし'}`
-      );
-    }
-    
     if (input.industries.length === 0) {
       console.log('No industries specified, generating generic analysis');
-      
-      // 進捗状況更新
-      if (input.userId && input.roleModelId) {
-        sendAgentThoughts(
-          input.userId,
-          input.roleModelId,
-          '業界分析エージェント',
-          '業界が指定されていないため、一般的な分析を行います。キーワードやロール説明から業界を推定します。'
-        );
-      }
     }
     
     // 改善されたプロンプト：より明示的にロール情報を活用
@@ -91,44 +62,8 @@ export async function analyzeIndustries(
       }
     ];
     
-    // 進捗状況更新
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        '業界分析',
-        30,
-        { stage: 'AI分析中' }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        '業界分析エージェント',
-        'Azure OpenAIに業界分析を依頼しています...\nこの処理には数秒かかることがあります。'
-      );
-    }
-    
     // Azure OpenAIを呼び出し
     const responseContent = await callAzureOpenAI(prompt, 0.7, 1500);
-    
-    // 進捗状況更新
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        '業界分析',
-        70,
-        { stage: 'データ解析中' }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        '業界分析エージェント',
-        'AIからの回答を受信しました。結果を解析しています...'
-      );
-    }
     
     // 結果をパース
     try {
@@ -157,28 +92,6 @@ export async function analyzeIndustries(
       }
       if (!analysisData.challengesOpportunities || !Array.isArray(analysisData.challengesOpportunities)) {
         analysisData.challengesOpportunities = [];
-      }
-      
-      // 進捗状況更新（完了）
-      if (input.userId && input.roleModelId) {
-        sendProgressUpdate(
-          input.userId,
-          input.roleModelId,
-          '業界分析',
-          100,
-          { stage: '完了', itemCount: {
-            insights: analysisData.industryInsights.length,
-            audiences: analysisData.targetAudience.length,
-            trends: analysisData.keyTrends.length
-          }}
-        );
-        
-        sendAgentThoughts(
-          input.userId,
-          input.roleModelId,
-          '業界分析エージェント',
-          `業界分析が完了しました。\n\n主な洞察: ${analysisData.industryInsights.slice(0, 2).join('、')}\n\n主なトレンド: ${analysisData.keyTrends.slice(0, 2).join('、')}\n\n次のステップ: キーワード拡張エージェントに分析結果を渡します。`
-        );
       }
       
       return {

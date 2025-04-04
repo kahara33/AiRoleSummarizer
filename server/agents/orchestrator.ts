@@ -7,6 +7,9 @@ import { generateKnowledgeGraph } from './knowledge-graph';
 import { callAzureOpenAI } from '../azure-openai';
 import { storage } from '../storage';
 import { v4 as uuidv4 } from 'uuid';
+import { db } from '../db';
+import { roleModelKeywords } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * オーケストレーターエージェント
@@ -21,6 +24,7 @@ export async function orchestrator(
     console.log(`Keywords: ${input.keywords.join(', ')}`);
     
     // 1. 業界分析エージェントを実行
+    console.log('Starting industry analysis...');
     const industryAnalysisResult = await analyzeIndustries(input);
     if (!industryAnalysisResult.success) {
       return {
@@ -31,68 +35,14 @@ export async function orchestrator(
     
     console.log('Industry analysis completed successfully');
     
-    // 業界データをRoleModelとして保存
+    // 業界データをRoleModelとして保存 - 実装
     if (input.roleModelId) {
-      try {
-        // 既存の業界関連付けがあれば削除
-        try {
-          await storage.deleteRoleModelIndustriesByRoleModelId(input.roleModelId);
-          console.log(`Deleted existing industry associations for role model ${input.roleModelId}`);
-        } catch (deleteError) {
-          console.error('Error deleting existing industry associations:', deleteError);
-          // 削除エラーでも続行
-        }
-        
-        // 業界データから業界名を抽出
-        const targetAudiences = industryAnalysisResult.data.targetAudience || [];
-        const keyTrends = industryAnalysisResult.data.keyTrends || [];
-        const businessModels = industryAnalysisResult.data.businessModels || [];
-        const industries = [...targetAudiences, ...keyTrends, ...businessModels];
-        
-        // 先に業界サブカテゴリを検索
-        const allIndustrySubcategories = await storage.getIndustrySubcategories();
-        
-        // 各業界名に近いサブカテゴリを見つけて関連付け
-        for (const industryName of industries) {
-          // 完全一致または部分一致するサブカテゴリを検索
-          const matchingSubcategory = allIndustrySubcategories.find(sub => 
-            sub.name === industryName || 
-            industryName.includes(sub.name) || 
-            sub.name.includes(industryName)
-          );
-          
-          if (matchingSubcategory) {
-            try {
-              // 業界とロールモデルを関連付け
-              await storage.createRoleModelIndustry({
-                id: uuidv4(),
-                roleModelId: input.roleModelId,
-                industrySubcategoryId: matchingSubcategory.id
-              });
-              console.log(`業界 "${matchingSubcategory.name}" をロールモデルに関連付けました`);
-            } catch (error) {
-              console.error(`業界関連付けエラー (${matchingSubcategory.name}):`, error);
-              // エラーが発生しても続行
-            }
-          }
-        }
-      } catch (error) {
-        console.error('業界データの保存中にエラーが発生しました:', error);
-        // エラーが発生しても処理を続行
-      }
+      await saveIndustryData(input.roleModelId, industryAnalysisResult.data);
     }
     
     // 2. キーワード拡張エージェントを実行
-    const keywordExpansionResult = await expandKeywords(
-      input,
-      industryAnalysisResult.data || {
-        industryInsights: [],
-        targetAudience: [],
-        keyTrends: [],
-        businessModels: [],
-        challengesOpportunities: []
-      }
-    );
+    console.log('Starting keyword expansion...');
+    const keywordExpansionResult = await expandKeywords(input, industryAnalysisResult.data);
     if (!keywordExpansionResult.success) {
       return {
         success: false,
@@ -102,79 +52,19 @@ export async function orchestrator(
     
     console.log('Keyword expansion completed successfully');
     
-    // キーワードデータをRoleModelとして保存
+    // キーワードデータをDBに保存 - 実装
     if (input.roleModelId) {
-      try {
-        // 既存のキーワード関連付けがあれば削除
-        try {
-          await storage.deleteRoleModelKeywordsByRoleModelId(input.roleModelId);
-          console.log(`Deleted existing keyword associations for role model ${input.roleModelId}`);
-        } catch (deleteError) {
-          console.error('Error deleting existing keyword associations:', deleteError);
-          // 削除エラーでも続行
-        }
-        
-        // 拡張キーワードを取得
-        const expandedKeywords = keywordExpansionResult.data.expandedKeywords || [];
-        
-        // 先にキーワードマスタを検索
-        const allKeywords = await storage.getKeywords();
-        
-        // 各キーワードをマスタに追加し、ロールモデルと関連付け
-        for (const keywordName of expandedKeywords) {
-          // キーワードマスタに存在するか確認
-          let existingKeyword = allKeywords.find(k => k.name === keywordName);
-          
-          // 存在しない場合は作成
-          if (!existingKeyword) {
-            try {
-              existingKeyword = await storage.createKeyword({
-                id: uuidv4(),
-                name: keywordName,
-                description: null,
-                createdById: input.userId || null
-              });
-              console.log(`キーワード "${keywordName}" を作成しました`);
-            } catch (keywordError) {
-              console.error(`キーワード作成エラー (${keywordName}):`, keywordError);
-              continue; // このキーワードはスキップして次へ
-            }
-          }
-          
-          try {
-            // キーワードとロールモデルを関連付け
-            await storage.createRoleModelKeyword({
-              id: uuidv4(),
-              roleModelId: input.roleModelId,
-              keywordId: existingKeyword.id
-            });
-            console.log(`キーワード "${keywordName}" をロールモデルに関連付けました`);
-          } catch (mappingError) {
-            console.error(`キーワード関連付けエラー (${keywordName}):`, mappingError);
-            // エラーが発生しても続行
-          }
-        }
-      } catch (error) {
-        console.error('キーワードデータの保存中にエラーが発生しました:', error);
-        // エラーが発生しても処理を続行
-      }
+      await saveKeywordData(input.roleModelId, keywordExpansionResult.data);
     }
     
     // 3. 知識構造化エージェントを実行
+    console.log('Starting knowledge structuring...');
     const structuringResult = await structureKnowledge(
       input,
-      industryAnalysisResult.data || {
-        industryInsights: [],
-        targetAudience: [],
-        keyTrends: [],
-        businessModels: [],
-        challengesOpportunities: []
-      },
-      keywordExpansionResult.data || {
-        expandedKeywords: [],
-        relevance: {}
-      }
+      industryAnalysisResult.data,
+      keywordExpansionResult.data
     );
+    
     if (!structuringResult.success) {
       return {
         success: false,
@@ -185,23 +75,20 @@ export async function orchestrator(
     console.log('Knowledge structuring completed successfully');
     
     // 4. 知識グラフ生成エージェントを実行
+    console.log('Starting knowledge graph generation...');
     const graphResult = await generateKnowledgeGraph(
       input,
-      structuringResult.data || {
-        hierarchicalCategories: []
-      }
+      structuringResult.data
     );
     
     if (!graphResult.success) {
-      return {
-        success: false,
-        error: `Knowledge graph generation failed: ${graphResult.error}`
-      };
+      console.log('Knowledge graph generation failed, using fallback generator');
+      // フォールバックの知識グラフ生成を実装
+      return await fallbackGraphGeneration(input);
     }
     
     console.log('Knowledge graph generation completed successfully');
     
-    // 5. 最終結果を返す
     return {
       success: true,
       data: graphResult.data
@@ -216,92 +103,236 @@ export async function orchestrator(
 }
 
 /**
- * フォールバック: Azure OpenAIを直接使用して単純な知識グラフを生成
+ * 業界データをデータベースに保存
+ */
+async function saveIndustryData(roleModelId: string, data: any) {
+  try {
+    console.log('Saving industry data to database...');
+    
+    // 既存の業界関連付けがあれば削除
+    try {
+      await storage.deleteRoleModelIndustriesByRoleModelId(roleModelId);
+      console.log(`Deleted existing industry associations for role model ${roleModelId}`);
+    } catch (deleteError) {
+      console.error('Error deleting existing industry associations:', deleteError);
+      // 削除エラーでも続行
+    }
+    
+    // 業界データから業界名を抽出
+    const targetAudiences = data.targetAudience || [];
+    const keyTrends = data.keyTrends || [];
+    const businessModels = data.businessModels || [];
+    const industries = [...targetAudiences, ...keyTrends, ...businessModels];
+    
+    // 先に業界サブカテゴリを検索
+    const allIndustrySubcategories = await storage.getIndustrySubcategories();
+    
+    // 各業界名に近いサブカテゴリを見つけて関連付け
+    for (const industryName of industries) {
+      // 完全一致または部分一致するサブカテゴリを検索
+      const matchingSubcategory = allIndustrySubcategories.find(sub => 
+        sub.name === industryName || 
+        industryName.includes(sub.name) || 
+        sub.name.includes(industryName)
+      );
+      
+      if (matchingSubcategory) {
+        try {
+          // 業界とロールモデルを関連付け
+          await storage.createRoleModelIndustry({
+            id: uuidv4(),
+            roleModelId: roleModelId,
+            industrySubcategoryId: matchingSubcategory.id
+          });
+          console.log(`業界 "${matchingSubcategory.name}" をロールモデルに関連付けました`);
+        } catch (error) {
+          console.error(`業界関連付けエラー (${matchingSubcategory.name}):`, error);
+          // エラーが発生しても続行
+        }
+      }
+    }
+    
+    console.log('Industry data saved successfully');
+  } catch (error) {
+    console.error('業界データの保存中にエラーが発生しました:', error);
+    // エラーが発生しても処理を続行
+  }
+}
+
+/**
+ * キーワードデータをデータベースに保存
+ */
+async function saveKeywordData(roleModelId: string, data: any) {
+  try {
+    console.log('Saving keyword data to database...');
+    
+    // 既存のキーワード関連付けがあれば削除
+    try {
+      await storage.deleteRoleModelKeywordsByRoleModelId(roleModelId);
+      console.log(`Deleted existing keyword associations for role model ${roleModelId}`);
+    } catch (deleteError) {
+      console.error('Error deleting existing keyword associations:', deleteError);
+      // 削除エラーでも続行
+    }
+    
+    // 拡張されたキーワードリスト
+    const expandedKeywords = data.expandedKeywords || [];
+    const relevance = data.relevance || {};
+    
+    for (const keywordName of expandedKeywords) {
+      try {
+        // 既存のキーワードを検索
+        const existingKeywords = await storage.getKeywords(keywordName);
+        let keywordId = '';
+        
+        // 既存のキーワードがあればそれを使う、なければ新規作成
+        if (existingKeywords.length > 0) {
+          // 名前が完全一致するものを優先
+          const exactMatch = existingKeywords.find(k => k.name === keywordName);
+          keywordId = exactMatch ? exactMatch.id : existingKeywords[0].id;
+        } else {
+          // 新しいキーワードを作成
+          const newKeyword = await storage.createKeyword({
+            name: keywordName,
+            description: `${keywordName}に関する情報`,
+          });
+          keywordId = newKeyword.id;
+        }
+        
+        // キーワードとロールモデルを関連付け
+        await storage.createRoleModelKeyword({
+          id: uuidv4(),
+          roleModelId: roleModelId,
+          keywordId: keywordId,
+          relevance: relevance[keywordName] || 0.5 // 関連度が指定されていなければデフォルト値を使用
+        });
+        
+        console.log(`キーワード "${keywordName}" をロールモデルに関連付けました`);
+      } catch (error) {
+        console.error(`キーワード関連付けエラー (${keywordName}):`, error);
+        // エラーが発生しても続行
+      }
+    }
+    
+    console.log('Keyword data saved successfully');
+  } catch (error) {
+    console.error('キーワードデータの保存中にエラーが発生しました:', error);
+    // エラーが発生しても処理を続行
+  }
+}
+
+/**
+ * フォールバックの知識グラフ生成
+ * メインの知識グラフ生成が失敗した場合に使用する単純なグラフを生成
  */
 export async function fallbackGraphGeneration(
   input: RoleModelInput
 ): Promise<AgentResult<KnowledgeGraphData>> {
   try {
-    // プロンプトを生成
-    const prompt = [
+    console.log('Using fallback graph generation for', input.roleName);
+    
+    // 単純な知識グラフ構造を生成
+    const nodes = [
       {
-        role: "system",
-        content: `You are an AI expert in knowledge graphs and business domain expertise. 
-                  Create a knowledge graph structure for the specific role and industries provided.
-                  The response should be a valid JSON object with nodes and edges arrays.`
+        id: 'root',
+        name: input.roleName,
+        level: 0,
+        type: 'central',
+        color: '#F9A826'
       },
       {
-        role: "user",
-        content: `Create a knowledge graph for a role model with the following details:
-                  - Role name: ${input.roleName}
-                  - Description: ${input.description}
-                  - Industries: ${input.industries.join(', ')}
-                  - Keywords: ${input.keywords.join(', ')}
-                  
-                  Return a JSON object with the following structure:
-                  {
-                    "nodes": [
-                      {
-                        "id": "unique-id-string", 
-                        "name": "Node name",
-                        "level": 0, // 0 for root, 1 for first level, etc.
-                        "type": "default", // or any other type
-                        "parentId": "parent-id-or-null-for-root",
-                        "description": "Node description",
-                        "color": "#hex-color-code"
-                      },
-                      ...
-                    ],
-                    "edges": [
-                      {
-                        "source": "source-node-id",
-                        "target": "target-node-id",
-                        "label": "optional label",
-                        "strength": 1 // 1-5 scale for edge weight
-                      },
-                      ...
-                    ]
-                  }
-                  
-                  Rules:
-                  - Create at least 5-10 nodes with meaningful hierarchy
-                  - The root node should have level 0 and parentId null
-                  - Make connections between nodes that have logical relationships
-                  - Node names should be short but descriptive (max 30 chars)`
+        id: 'purpose',
+        name: '情報収集目的',
+        level: 1,
+        parentId: 'root',
+        type: 'category',
+        color: '#4CAF50'
+      },
+      {
+        id: 'sources',
+        name: '情報源と技術リソース',
+        level: 1,
+        parentId: 'root',
+        type: 'category',
+        color: '#2196F3'
+      },
+      {
+        id: 'domain',
+        name: '業界専門知識',
+        level: 1,
+        parentId: 'root',
+        type: 'category',
+        color: '#9C27B0'
+      },
+      {
+        id: 'trends',
+        name: 'トレンド分析',
+        level: 1,
+        parentId: 'root',
+        type: 'category',
+        color: '#FF5722'
+      },
+      {
+        id: 'application',
+        name: '実践応用分野',
+        level: 1,
+        parentId: 'root',
+        type: 'category',
+        color: '#607D8B'
       }
     ];
     
-    // Azure OpenAIを呼び出し
-    const jsonString = await callAzureOpenAI(prompt, 0.7, 2000);
-    
-    // JSONをパース
-    let graphData: KnowledgeGraphData;
-    try {
-      const startIndex = jsonString.indexOf('{');
-      const endIndex = jsonString.lastIndexOf('}') + 1;
-      const jsonSubstring = jsonString.substring(startIndex, endIndex);
-      graphData = JSON.parse(jsonSubstring);
-      
-      if (!graphData.nodes || !graphData.edges) {
-        throw new Error('Invalid graph data structure');
-      }
-    } catch (parseError) {
-      console.error('Error parsing graph data:', parseError);
-      return {
-        success: false,
-        error: 'Failed to parse graph data from AI response'
-      };
+    // 各カテゴリに業界とキーワードからサブカテゴリをいくつか追加
+    if (input.industries.length > 0) {
+      input.industries.slice(0, 3).forEach((industry, i) => {
+        nodes.push({
+          id: `industry_${i}`,
+          name: industry,
+          level: 2,
+          parentId: 'domain',
+          type: 'subcategory',
+          color: '#CE93D8'
+        });
+      });
     }
+    
+    if (input.keywords.length > 0) {
+      input.keywords.forEach((keyword, i) => {
+        const parentCategories = ['purpose', 'sources', 'trends', 'application'];
+        const parentId = parentCategories[i % parentCategories.length];
+        
+        nodes.push({
+          id: `keyword_${i}`,
+          name: keyword,
+          level: 2,
+          parentId: parentId,
+          type: 'subcategory',
+          color: '#90CAF9'
+        });
+      });
+    }
+    
+    // エッジを生成（親子関係のみ）
+    const edges = nodes
+      .filter(node => node.parentId)
+      .map(node => ({
+        source: node.parentId!,
+        target: node.id,
+        label: '関連'
+      }));
     
     return {
       success: true,
-      data: graphData
+      data: {
+        nodes,
+        edges
+      }
     };
   } catch (error) {
     console.error('Error in fallback graph generation:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error in fallback graph generation'
+      error: 'Failed to generate fallback graph'
     };
   }
 }

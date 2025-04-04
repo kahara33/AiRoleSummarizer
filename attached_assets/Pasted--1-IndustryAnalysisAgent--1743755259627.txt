@@ -1,0 +1,264 @@
+コード実装の問題点と改善提案
+現在のコード実装を分析した結果、問題点と具体的な改善策を以下にまとめます。
+1. データ連携の問題
+IndustryAnalysisAgentのロール情報取得問題
+問題点:
+
+analyzeIndustries関数内のプロンプト設計が不十分
+入力パラメータ(RoleModelInput)のロール情報が適切に活用されていない
+
+改善策:
+typescriptコピー// industry-analysis.tsの修正
+export async function analyzeIndustries(input: RoleModelInput): Promise<AgentResult<IndustryAnalysisData>> {
+  // 明示的にロール情報を使用したプロンプト構築
+  const prompt = [
+    {
+      role: "system",
+      content: "あなたは業界分析の専門家です。与えられたロールと業界について詳細な分析を行ってください。"
+    },
+    {
+      role: "user",
+      content: `以下のロール、業界、キーワードについて分析してください：
+      
+      ロール名: ${input.roleName}
+      ロール詳細: ${input.description}
+      業界: ${input.industries.join(', ')}
+      関連キーワード: ${input.keywords.join(', ')}
+      
+      分析結果には以下の項目を含めてください：
+      1. 業界全般の洞察
+      2. ターゲット対象
+      3. 主要トレンド
+      4. ビジネスモデル
+      5. 課題と機会`
+    }
+  ];
+  
+  // 以下処理は同様...
+}
+2. KeywordExpansionAgentの問題
+問題点:
+
+ベースキーワードが適切に取得・活用されていない
+業界データとキーワードの関連付けが弱い
+
+改善策:
+typescriptコピー// keyword-expansion.tsの修正
+export async function expandKeywords(
+  input: RoleModelInput,
+  industryData: IndustryAnalysisData
+): Promise<AgentResult<KeywordExpansionData>> {
+  // 明示的に元のキーワードを使用
+  const baseKeywords = input.keywords;
+  
+  const prompt = [
+    {
+      role: "system",
+      content: "あなたは情報収集のためのキーワード拡張スペシャリストです。"
+    },
+    {
+      role: "user",
+      content: `以下のロール、業界情報、ベースキーワードをもとに、情報収集に役立つキーワードを拡張してください：
+      
+      ロール名: ${input.roleName}
+      ロール詳細: ${input.description}
+      業界: ${input.industries.join(', ')}
+      
+      ベースキーワード: ${baseKeywords.join(', ')}
+      
+      業界分析情報:
+      - 主要トレンド: ${industryData.keyTrends.join(', ')}
+      - ターゲット対象: ${industryData.targetAudience.join(', ')}
+      - ビジネスモデル: ${industryData.businessModels.join(', ')}
+      
+      各キーワードには関連度スコア(1-10)を付けてください。`
+    }
+  ];
+  
+  // 以下処理は同様...
+}
+3. リアルタイム表示の問題
+問題点:
+
+WebSocketやServer-Sent Eventsなどのリアルタイム通信機能が実装されていない
+進捗状況の通知機能がない
+
+改善策:
+typescriptコピー// server/websocket.ts (新規ファイル)
+import { WebSocket, WebSocketServer } from 'ws';
+
+let wss: WebSocketServer;
+const clients = new Map<string, WebSocket[]>();
+
+export function initWebSocketServer(server: any) {
+  wss = new WebSocketServer({ server });
+  
+  wss.on('connection', (ws, req) => {
+    const userId = getUserIdFromRequest(req);
+    if (!clients.has(userId)) {
+      clients.set(userId, []);
+    }
+    clients.get(userId)?.push(ws);
+    
+    ws.on('close', () => {
+      const userClients = clients.get(userId) || [];
+      clients.set(userId, userClients.filter(client => client !== ws));
+    });
+  });
+}
+
+export function sendProgressUpdate(userId: string, roleModelId: string, stage: string, progress: number) {
+  const userClients = clients.get(userId) || [];
+  const message = JSON.stringify({
+    type: 'progress_update',
+    roleModelId,
+    stage,
+    progress
+  });
+  
+  userClients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+typescriptコピー// orchestrator.tsの修正
+export async function orchestrator(input: RoleModelInput): Promise<AgentResult<KnowledgeGraphData>> {
+  try {
+    // 進捗更新を送信
+    sendProgressUpdate(input.userId, input.roleModelId, 'industry_analysis', 0);
+    
+    // 1. 業界分析エージェントを実行
+    const industryAnalysisResult = await analyzeIndustries(input);
+    
+    // 進捗更新
+    sendProgressUpdate(input.userId, input.roleModelId, 'keyword_expansion', 25);
+    
+    // 以下同様に各ステップで進捗更新を送信
+    // ...
+  }
+}
+tsxコピー// client/src/components/knowledge-graph/knowledge-graph-viewer.tsxの修正
+useEffect(() => {
+  const ws = new WebSocket(`ws://${window.location.host}/ws`);
+  
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'progress_update' && data.roleModelId === roleModelId) {
+      setProgress(data.progress);
+      if (data.progress === 100) {
+        fetchGraphData(); // 完了時にデータを再取得
+      }
+    }
+  };
+  
+  return () => ws.close();
+}, [roleModelId, fetchGraphData]);
+4. 一次レベルノードの問題
+問題点:
+
+情報収集に特化した固定カテゴリが実装されていない
+構造化エージェントのプロンプトが適切に設計されていない
+
+改善策:
+typescriptコピー// structuring.tsの修正
+export async function structureKnowledge(
+  input: RoleModelInput,
+  industryData: IndustryAnalysisData,
+  keywordData: KeywordExpansionData
+): Promise<AgentResult<StructuredKnowledgeData>> {
+  const prompt = [
+    {
+      role: "system",
+      content: "あなたは情報構造化の専門家です。情報収集のための最適な階層構造を設計してください。"
+    },
+    {
+      role: "user",
+      content: `以下のロール、業界データ、キーワードを情報収集に最適化された階層構造に整理してください。
+
+      必ず以下の5つの情報収集カテゴリを第一階層のノードとして使用してください:
+      1. 情報収集目的（なぜ情報を集めるのか）
+      2. 情報源と技術リソース（どこから情報を得るか）
+      3. 業界専門知識（関連する業界知識）
+      4. トレンド分析（最新動向の把握方法）
+      5. 実践応用分野（収集した情報の活用法）
+      
+      ロール名: ${input.roleName}
+      ロール詳細: ${input.description}
+      業界: ${input.industries.join(', ')}
+      
+      業界分析データ:
+      ${JSON.stringify(industryData, null, 2)}
+      
+      キーワードデータ:
+      ${JSON.stringify(keywordData, null, 2)}
+      
+      第一階層の5カテゴリの下に、上記のデータに基づいた具体的なサブカテゴリを配置してください。
+      サブカテゴリはロールと業界に特化した具体的な内容にしてください。`
+    }
+  ];
+  
+  // 以下処理は同様...
+}
+5. データ保存の問題
+問題点:
+
+オーケストレーター内でコメントされている「業界データをDBに保存」「キーワードデータをDBに保存」が実装されていない可能性がある
+
+改善策:
+typescriptコピー// orchestrator.tsの修正
+export async function orchestrator(
+  input: RoleModelInput
+): Promise<AgentResult<KnowledgeGraphData>> {
+  try {
+    // 1. 業界分析エージェントを実行
+    const industryAnalysisResult = await analyzeIndustries(input);
+    
+    // 業界データをDBに保存 - 実装部分
+    await saveIndustryData(input.roleModelId, industryAnalysisResult.data);
+    
+    // 2. キーワード拡張エージェントを実行
+    const keywordExpansionResult = await expandKeywords(input, industryAnalysisResult.data);
+    
+    // キーワードデータをDBに保存 - 実装部分
+    await saveKeywordData(input.roleModelId, keywordExpansionResult.data);
+    
+    // 以下同様...
+  }
+}
+
+// 保存機能の実装
+async function saveIndustryData(roleModelId: string, data: IndustryAnalysisData) {
+  // 業界データの保存ロジック
+  for (const insight of data.industryInsights) {
+    await db.insert(industryInsightsTable).values({
+      roleModelId,
+      content: insight,
+      type: 'insight'
+    });
+  }
+  
+  // 他の情報も同様に保存
+  // ...
+}
+
+async function saveKeywordData(roleModelId: string, data: KeywordExpansionData) {
+  // キーワードの保存ロジック
+  for (const keyword of data.expandedKeywords) {
+    await db.insert(keywordsTable).values({
+      roleModelId,
+      name: keyword,
+      relevance: data.relevance[keyword] || 5
+    });
+  }
+}
+まとめ
+現在の実装において修正すべき主要な問題点は:
+
+各エージェントのプロンプト設計: ロール情報、業界データ、キーワードを明示的に活用
+リアルタイム通信機能の実装: WebSocketによる進捗更新通知
+固定カテゴリの実装: 情報収集特化型の5つのカテゴリを一次レベルノードとして固定
+データ保存ロジックの実装: コメントされている機能を実際のコードとして実装
+データ連携の強化: 各エージェント間での情報の受け渡しを明確化
+
+これらの改善により、前回指摘された課題が解決され、情報収集に特化した知識グラフが適切に生成されるようになるでしょう。

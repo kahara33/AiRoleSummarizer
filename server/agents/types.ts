@@ -11,6 +11,7 @@ export interface RoleModelInput {
   keywords: string[];      // 関連キーワード
   organizationId?: string; // 組織ID（オプション）
   userId: string;          // ユーザーID
+  roleModelId?: string;    // 役割モデルのID（DBアクセス用、idと同じ値）
 }
 
 /**

@@ -13,6 +13,9 @@ declare global {
   }
 }
 
+// セッション用の署名済みCookieの解析と検証
+import * as cookieParser from 'cookie-parser';
+
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string) {
@@ -182,4 +185,39 @@ export const requireRole = (role: string | string[]) => {
 
     next();
   };
+}
+
+/**
+ * WebSocket接続用にセッションIDからユーザーIDを取得
+ * @param sessionId セッションID
+ * @returns ユーザーID、または認証に失敗した場合はnull
+ */
+export async function verifySession(sessionId: string): Promise<string | null> {
+  try {
+    if (!sessionId) return null;
+    
+    // セッションストアからセッションを取得
+    const sessionStore = storage.sessionStore;
+    
+    return new Promise((resolve) => {
+      sessionStore.get(sessionId, (err, session) => {
+        if (err) {
+          console.error("セッション検証エラー:", err);
+          resolve(null);
+          return;
+        }
+        
+        if (!session || !session.passport || !session.passport.user) {
+          resolve(null);
+          return;
+        }
+        
+        // パスポートからユーザーIDを取得
+        resolve(session.passport.user);
+      });
+    });
+  } catch (error) {
+    console.error("セッション検証中にエラーが発生:", error);
+    return null;
+  }
 }

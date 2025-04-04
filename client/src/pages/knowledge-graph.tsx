@@ -507,7 +507,7 @@ export default function KnowledgeGraphPage() {
             
             {/* AIエージェント思考プロセスパネル */}
             <AgentThoughtsPanel
-              thoughts={agentThoughts}
+              roleModelId={roleModelId}
               isVisible={showAgentPanel}
               onClose={() => setShowAgentPanel(false)}
             />

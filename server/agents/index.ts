@@ -21,6 +21,11 @@ export async function generateKnowledgeGraphForRoleModel(
     console.log(`Starting knowledge graph generation for ${input.roleName}`);
     console.log(`Industries: ${input.industries.join(', ')}`);
     console.log(`Keywords: ${input.keywords.join(', ')}`);
+    
+    // roleModelIdがない場合は、idを使用
+    if (!input.roleModelId) {
+      input.roleModelId = input.id;
+    }
 
     // AIオーケストレーターを実行
     const result = await orchestrator(input);

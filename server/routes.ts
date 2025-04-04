@@ -32,6 +32,9 @@ import {
   generateKnowledgeGraphForRoleModel
 } from "./agents/index";
 
+// WebSocketサーバーのインポート
+import { initWebSocketServer } from "./websocket";
+
 // Middleware to ensure user is authenticated
 const isAuthenticated = (req: any, res: any, next: any) => {
   if (req.isAuthenticated()) {
@@ -1516,5 +1519,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // WebSocketサーバーを初期化
+  const wss = initWebSocketServer(httpServer);
+  console.log("WebSocketサーバーが初期化されました（パス: /ws）");
+  
   return httpServer;
 }
