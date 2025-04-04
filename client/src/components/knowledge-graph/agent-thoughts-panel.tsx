@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -45,6 +45,8 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
   // WebSocketインスタンスをrefに保存して、コンポーネントのライフサイクル全体で管理
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
+  // マージされた思考を保存するために新しいrefを追加
+  const mergedThoughtsRef = useRef<AgentMessage[]>([]);
   
   // マウント時にrefを初期化
   useEffect(() => {
@@ -55,6 +57,29 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
       isComponentMountedRef.current = false;
     };
   }, []);
+  
+  // フィルタリングロジックを関数として抽出 - useEffectの外部で定義
+  const updateFilteredThoughts = useCallback((localThoughts: AgentMessage[], externalThoughts: AgentMessage[], activeTab: string) => {
+    // ローカルのコピーを作成して、状態更新の無限ループを防ぐ
+    const mergedThoughts = [...(externalThoughts || []), ...localThoughts];
+    
+    // タイムスタンプでソート
+    mergedThoughts.sort((a, b) => a.timestamp - b.timestamp);
+    mergedThoughtsRef.current = mergedThoughts;
+    
+    // 現在のタブに応じてフィルタリング
+    const filtered = activeTab === 'all' 
+      ? mergedThoughts 
+      : mergedThoughts.filter(thought => thought.agentName === activeTab);
+    
+    // 1回の更新で済ませる
+    setFilteredThoughts(filtered);
+  }, []);
+  
+  // activeTab, localThoughts, thoughtsが変更されたときにフィルタリングを更新
+  useEffect(() => {
+    updateFilteredThoughts(localThoughts, thoughts || [], activeTab);
+  }, [activeTab, updateFilteredThoughts, localThoughts, thoughts]);
   
   // WebSocket接続の管理
   useEffect(() => {
@@ -103,7 +128,10 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
           };
           
           // この関数形式によりステート更新は常に最新の状態に基づいて行われる
-          setLocalThoughts(prev => [...prev, newThought]);
+          setLocalThoughts(prev => {
+            const newThoughts = [...prev, newThought];
+            return newThoughts;
+          });
         } else if (data.type === 'progress_update') {
           console.log('Progress update received:', data.payload);
         }
@@ -136,24 +164,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
         console.error('Error during WebSocket cleanup:', e);
       }
     };
-  }, [roleModelId, isVisible]); // 依存配列にはプロパティのみを含める
-  
-  // mergedThoughtsとフィルタリングロジックを単一のuseEffectに統合
-  useEffect(() => {
-    // ローカルのコピーを作成して、状態更新の無限ループを防ぐ
-    const mergedThoughts = [...(thoughts || []), ...localThoughts];
-    
-    // タイムスタンプでソート
-    mergedThoughts.sort((a, b) => a.timestamp - b.timestamp);
-    
-    // 現在のタブに応じてフィルタリング
-    const filtered = activeTab === 'all' 
-      ? mergedThoughts 
-      : mergedThoughts.filter(thought => thought.agentName === activeTab);
-    
-    // 1回の更新で済ませる
-    setFilteredThoughts(filtered);
-  }, [thoughts, localThoughts, activeTab]);
+  }, [roleModelId, isVisible, thoughts, activeTab, updateFilteredThoughts]); // 依存配列を修正
   
   // このアプローチは重要: 通常の変数としてレンダリング時に直接計算する
   // useStateやuseEffectに依存しないため、更新深度の問題を回避

@@ -893,7 +893,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const result = await generateKnowledgeGraphForRoleModel(agentInput);
         
         if (!result.success) {
-          throw new Error(`Failed to generate knowledge graph data: ${result.error || 'Unknown error'}`);
+          // 失敗した場合はエラーを返すが、ナレッジグラフは生成しない
+          return res.status(400).json({
+            success: false,
+            error: `Failed to generate knowledge graph data: ${result.error || 'Unknown error'}`
+          });
         }
         
         console.log("Knowledge graph generated successfully");
@@ -918,24 +922,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // フォールバック: 従来の方法でナレッジグラフを生成
-      const success = await generateKnowledgeGraph(
-        roleModelId,
-        roleModel.name,
-        roleModel.description || ""
-      );
-      
-      if (success) {
-        // Return the newly created nodes and edges
-        const nodes = await storage.getKnowledgeNodes(roleModelId);
-        const edges = await storage.getKnowledgeEdges(roleModelId);
+      try {
+        const success = await generateKnowledgeGraph(
+          roleModelId,
+          roleModel.name,
+          roleModel.description || ""
+        );
         
-        res.status(201).json({
-          message: "Knowledge graph generated successfully",
-          nodes,
-          edges
+        if (success) {
+          // Return the newly created nodes and edges
+          const nodes = await storage.getKnowledgeNodes(roleModelId);
+          const edges = await storage.getKnowledgeEdges(roleModelId);
+          
+          res.status(201).json({
+            message: "Knowledge graph generated successfully",
+            nodes,
+            edges
+          });
+        } else {
+          res.status(500).json({ 
+            success: false,
+            message: "Failed to generate knowledge graph"
+          });
+        }
+      } catch (fallbackError) {
+        console.error("Error in fallback knowledge graph generation:", fallbackError);
+        res.status(500).json({ 
+          success: false,
+          message: "Failed to generate knowledge graph with fallback method"
         });
-      } else {
-        res.status(500).json({ message: "Failed to generate knowledge graph" });
       }
     } catch (error) {
       console.error("Error generating knowledge graph:", error);
