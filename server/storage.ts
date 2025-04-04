@@ -35,8 +35,7 @@ import {
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import crypto from "crypto";
-import { eq, and, isNull, or } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { sql, eq, ilike, desc, and, isNull, count, not, or, inArray, asc } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
 
@@ -1194,20 +1193,34 @@ export class PostgresStorage implements IStorage {
   }
 
   async getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]> {
+    // まず役割モデルに関連する業界サブカテゴリのIDを取得
+    const roleModelIndustriesData = await db
+      .select()
+      .from(roleModelIndustries)
+      .where(eq(roleModelIndustries.roleModelId, roleModelId));
+    
+    console.log(`ロールモデル業界マッピング: ${JSON.stringify(roleModelIndustriesData)}`);
+    
+    if (roleModelIndustriesData.length === 0) {
+      return [];
+    }
+    
+    // 業界サブカテゴリのIDリストを作成
+    const subcategoryIds = roleModelIndustriesData.map(item => item.industrySubcategoryId);
+    
+    // サブカテゴリとカテゴリの情報を取得
     const result = await db
       .select({
-        mapping: roleModelIndustries,
         subcategory: industrySubcategories,
         category: industryCategories
       })
-      .from(roleModelIndustries)
-      .leftJoin(industrySubcategories, eq(roleModelIndustries.industrySubcategoryId, industrySubcategories.id))
+      .from(industrySubcategories)
       .leftJoin(industryCategories, eq(industrySubcategories.categoryId, industryCategories.id))
-      .where(eq(roleModelIndustries.roleModelId, roleModelId));
-
+      .where(inArray(industrySubcategories.id, subcategoryIds));
+    
     // デバッグログを追加
-    console.log(`getRoleModelIndustriesWithData - roleModelId: ${roleModelId}, results:`, result);
-
+    console.log(`業界カテゴリデータ取得結果: ${JSON.stringify(result)}`);
+    
     // nullチェックを追加して、有効なデータのみをマップ
     return result
       .filter(row => row.subcategory !== null && row.category !== null)
@@ -1252,22 +1265,31 @@ export class PostgresStorage implements IStorage {
   }
 
   async getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]> {
-    const result = await db
-      .select({
-        mapping: roleModelKeywords,
-        keyword: keywords
-      })
+    // まず役割モデルに関連するキーワードのIDを取得
+    const roleModelKeywordsData = await db
+      .select()
       .from(roleModelKeywords)
-      .leftJoin(keywords, eq(roleModelKeywords.keywordId, keywords.id))
       .where(eq(roleModelKeywords.roleModelId, roleModelId));
-
+    
+    console.log(`ロールモデルキーワードマッピング: ${JSON.stringify(roleModelKeywordsData)}`);
+    
+    if (roleModelKeywordsData.length === 0) {
+      return [];
+    }
+    
+    // キーワードIDリストを作成
+    const keywordIds = roleModelKeywordsData.map(item => item.keywordId);
+    
+    // キーワードの詳細情報を取得
+    const keywordResults = await db
+      .select()
+      .from(keywords)
+      .where(inArray(keywords.id, keywordIds));
+    
     // デバッグログを追加
-    console.log(`getRoleModelKeywordsWithData - roleModelId: ${roleModelId}, results:`, result);
-
-    // nullチェックを追加して、有効なデータのみをマップ
-    return result
-      .filter(row => row.keyword !== null)
-      .map(({ keyword }) => keyword);
+    console.log(`キーワードデータ取得結果: ${JSON.stringify(keywordResults)}`);
+    
+    return keywordResults;
   }
 
   async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
