@@ -163,7 +163,7 @@ export default function RoleModelsPage() {
               新規作成
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-w-5xl">
             <DialogHeader>
               <DialogTitle>新規ロールモデル作成</DialogTitle>
             </DialogHeader>
@@ -225,9 +225,9 @@ export default function RoleModelsPage() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      {model.description.length > 100
+                      {model.description && model.description.length > 100
                         ? `${model.description.substring(0, 100)}...`
-                        : model.description}
+                        : model.description || ""}
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
@@ -280,9 +280,9 @@ export default function RoleModelsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        {model.description.length > 100
+                        {model.description && model.description.length > 100
                           ? `${model.description.substring(0, 100)}...`
-                          : model.description}
+                          : model.description || ""}
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
@@ -314,7 +314,7 @@ export default function RoleModelsPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>ロールモデルを編集</DialogTitle>
           </DialogHeader>

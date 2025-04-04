@@ -50,18 +50,18 @@ export default function IndustrySelectionContainer({
 
   return (
     <div className="w-full">
-      <div className="space-y-4">
+      <div className="space-y-6">
         <IndustrySelector
           selectedIndustries={selectedIndustries}
           onSelectIndustry={handleSelectIndustry}
-          maxHeight="350px"
+          maxHeight="400px"
           title={`業界カテゴリー選択 (最大${maxSelections}件)`}
         />
         
         <SelectedIndustries
           selectedIndustryIds={selectedIndustries}
           onRemoveIndustry={handleRemoveIndustry}
-          maxHeight="150px"
+          maxHeight="200px"
         />
       </div>
     </div>

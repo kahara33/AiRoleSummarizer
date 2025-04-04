@@ -35,7 +35,7 @@ interface RoleModelFormProps {
   roleModel?: {
     id: string;
     name: string;
-    description: string;
+    description: string | null;
     isShared?: number;
   };
 }
@@ -171,169 +171,165 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
   });
 
   return (
-    <Card className="w-[1000px] max-w-full">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-center text-xl">{isEditMode ? "ロールモデルを編集" : "新しいロールモデルを作成"}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full mb-4">
-            <TabsTrigger value="basic">基本情報</TabsTrigger>
-            <TabsTrigger value="industries" disabled={!basicFormData && !isEditMode}>業界カテゴリ</TabsTrigger>
-            <TabsTrigger value="keywords" disabled={!basicFormData || activeTab === "basic"}>キーワード</TabsTrigger>
-          </TabsList>
-          
-          {/* 基本情報タブ */}
-          <TabsContent value="basic">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onBasicFormSubmit)} className="space-y-4">
+    <div className="w-full">
+      <h3 className="text-center text-xl mb-4">{isEditMode ? "ロールモデルを編集" : "新しいロールモデルを作成"}</h3>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-3 w-full mb-4">
+          <TabsTrigger value="basic">基本情報</TabsTrigger>
+          <TabsTrigger value="industries" disabled={!basicFormData && !isEditMode}>業界カテゴリ</TabsTrigger>
+          <TabsTrigger value="keywords" disabled={!basicFormData || activeTab === "basic"}>キーワード</TabsTrigger>
+        </TabsList>
+        
+        {/* 基本情報タブ */}
+        <TabsContent value="basic">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onBasicFormSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ロールモデル名</FormLabel>
+                    <FormControl>
+                      <Input placeholder="例: ビジネスアナリスト" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>説明</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="このロールモデルの目的や特徴を説明してください" 
+                        rows={4}
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {/* 会社に所属しているユーザーのみ共有設定を表示 */}
+              {user?.companyId && (
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="isShared"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ロールモデル名</FormLabel>
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                       <FormControl>
-                        <Input placeholder="例: ビジネスアナリスト" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>説明</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="このロールモデルの目的や特徴を説明してください" 
-                          rows={4}
-                          {...field} 
+                        <Checkbox
+                          checked={field.value === 1}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked ? 1 : 0);
+                          }}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>組織内で共有する</FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          このロールモデルを同じ組織のメンバーと共有します
+                        </p>
+                      </div>
                     </FormItem>
                   )}
                 />
-                
-                {/* 会社に所属しているユーザーのみ共有設定を表示 */}
-                {user?.companyId && (
-                  <FormField
-                    control={form.control}
-                    name="isShared"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value === 1}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked ? 1 : 0);
-                            }}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>組織内で共有する</FormLabel>
-                          <p className="text-sm text-muted-foreground">
-                            このロールモデルを同じ組織のメンバーと共有します
-                          </p>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                )}
-                
-                <div className="flex justify-end mt-6">
-                  <Button 
-                    type="submit" 
-                    disabled={isEditMode ? updateRoleModelMutation.isPending : form.formState.isSubmitting}
-                  >
-                    {(form.formState.isSubmitting) && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    次へ: 業界カテゴリ選択
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </TabsContent>
-          
-          {/* 業界カテゴリ選択タブ */}
-          <TabsContent value="industries">
-            <div className="flex flex-col h-full">
-              <p className="text-sm text-muted-foreground mb-4">
-                このロールモデルに関連する業界カテゴリを選択してください。
-                選択した業界カテゴリに基づいて情報を収集します。
-              </p>
+              )}
               
-              <div className="flex-grow mb-4">
-                <IndustrySelectionContainer
-                  initialSelectedIndustries={selectedIndustries}
-                  onIndustriesChange={setSelectedIndustries}
-                  maxSelections={10}
-                />
-              </div>
-              
-              <div className="border-t pt-4 flex justify-between items-center">
+              <div className="flex justify-end mt-6">
                 <Button 
-                  variant="outline" 
-                  onClick={() => setActiveTab("basic")}
+                  type="submit" 
+                  disabled={isEditMode ? updateRoleModelMutation.isPending : form.formState.isSubmitting}
                 >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  戻る
-                </Button>
-                <Button 
-                  onClick={handleIndustriesSubmit}
-                  disabled={selectedIndustries.length === 0}
-                >
-                  次へ: キーワード選択
+                  {(form.formState.isSubmitting) && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  次へ: 業界カテゴリ選択
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
+            </form>
+          </Form>
+        </TabsContent>
+        
+        {/* 業界カテゴリ選択タブ */}
+        <TabsContent value="industries">
+          <div className="flex flex-col h-full">
+            <p className="text-sm text-muted-foreground mb-4">
+              このロールモデルに関連する業界カテゴリを選択してください。
+              選択した業界カテゴリに基づいて情報を収集します。
+            </p>
+            
+            <div className="flex-grow mb-4">
+              <IndustrySelectionContainer
+                initialSelectedIndustries={selectedIndustries}
+                onIndustriesChange={setSelectedIndustries}
+                maxSelections={10}
+              />
             </div>
-          </TabsContent>
-          
-          {/* キーワード選択タブ */}
-          <TabsContent value="keywords">
-            <div className="flex flex-col h-full">
-              <p className="text-sm text-muted-foreground mb-4">
-                このロールモデルに関連するキーワードを入力または選択してください。
-                入力したキーワードに基づいて情報を収集します。
-              </p>
-              
-              <div className="flex-grow mb-4">
-                <KeywordSelectionContainer
-                  initialSelectedKeywords={selectedKeywords}
-                  onKeywordsChange={setSelectedKeywords}
-                  maxSelections={20}
-                />
-              </div>
-              
-              <div className="border-t pt-4 flex justify-between items-center">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setActiveTab("industries")}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  戻る
-                </Button>
-                <Button 
-                  onClick={handleSaveEverything}
-                  disabled={selectedKeywords.length === 0 || createRoleModelMutation.isPending}
-                >
-                  {createRoleModelMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  完了
-                </Button>
-              </div>
+            
+            <div className="border-t pt-4 flex justify-between items-center">
+              <Button 
+                variant="outline" 
+                onClick={() => setActiveTab("basic")}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                戻る
+              </Button>
+              <Button 
+                onClick={handleIndustriesSubmit}
+                disabled={selectedIndustries.length === 0}
+              >
+                次へ: キーワード選択
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
             </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+          </div>
+        </TabsContent>
+        
+        {/* キーワード選択タブ */}
+        <TabsContent value="keywords">
+          <div className="flex flex-col h-full">
+            <p className="text-sm text-muted-foreground mb-4">
+              このロールモデルに関連するキーワードを入力または選択してください。
+              入力したキーワードに基づいて情報を収集します。
+            </p>
+            
+            <div className="flex-grow mb-4">
+              <KeywordSelectionContainer
+                initialSelectedKeywords={selectedKeywords}
+                onKeywordsChange={setSelectedKeywords}
+                maxSelections={20}
+              />
+            </div>
+            
+            <div className="border-t pt-4 flex justify-between items-center">
+              <Button 
+                variant="outline" 
+                onClick={() => setActiveTab("industries")}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                戻る
+              </Button>
+              <Button 
+                onClick={handleSaveEverything}
+                disabled={selectedKeywords.length === 0 || createRoleModelMutation.isPending}
+              >
+                {createRoleModelMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                完了
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
