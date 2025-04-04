@@ -108,7 +108,19 @@ export async function expandKeywords(
     
     try {
       // レスポンスをJSONとしてパース
-      const expansionData = JSON.parse(response);
+      // 不完全なJSONやエスケープ問題に対処するため、JSONの部分だけを抽出
+      let jsonStr = response;
+      
+      // JSON部分を探す（{から始まる部分を探す）
+      const jsonStartIdx = response.indexOf('{');
+      if (jsonStartIdx !== 0 && jsonStartIdx > 0) {
+        jsonStr = response.substring(jsonStartIdx);
+      }
+      
+      console.log("Processing JSON response for keyword expansion");
+      
+      // JSONパースを試みる
+      const expansionData = JSON.parse(jsonStr);
       
       // キーワード情報を検証
       if (!expansionData.keywords || !Array.isArray(expansionData.keywords)) {
