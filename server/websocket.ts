@@ -1,243 +1,229 @@
 /**
- * WebSocketサーバー
- * リアルタイムな処理状況の共有と通信を担当
+ * WebSocket サービス
+ * リアルタイムの進捗状況や思考出力を提供するためのWebSocket実装
  */
 
-import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { parse } from 'cookie';
-import cookie from 'cookie-parser';
+import { Server } from 'http';
+import cookieParser from 'cookie-parser';
 import { verifySession } from './auth';
-import { ProgressUpdate, AgentThought } from './agents/types';
+import { AgentProgress, AgentOutputMessage } from './agents/types';
 
-// WebSocketコネクション管理
-const userConnections = new Map<string, WebSocket[]>();
-const roleModelConnections = new Map<string, WebSocket[]>();
+interface ClientConnection {
+  ws: WebSocket;
+  userId: string;
+  activeModels: Set<string>;
+}
 
-// WebSocketサーバーの初期化と設定
-export function initWebSocketServer(httpServer: HttpServer): WebSocketServer {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  console.log('WebSocket server initialized');
-  
-  // 接続イベントのハンドリング
-  wss.on('connection', async (ws, req) => {
+// クライアント接続を追跡するためのマップ
+const clientConnections: Map<string, ClientConnection> = new Map();
+
+/**
+ * WebSocketサーバーをHTTPサーバーに接続する
+ * @param server HTTPサーバー
+ */
+export function setupWebSocketServer(server: Server): void {
+  // WebSocketサーバーの初期化（パスを/wsに設定）
+  const wss = new WebSocketServer({ 
+    server,
+    path: '/ws'
+  });
+
+  wss.on('connection', async (ws, request) => {
     try {
-      // クッキーからセッションIDを取得
-      const cookieHeader = req.headers.cookie;
-      if (!cookieHeader) {
-        console.error('No cookie found in WebSocket connection request');
-        ws.close(1008, 'Authentication required');
-        return;
-      }
+      console.log('New WebSocket connection established');
       
-      const cookies = parse(cookieHeader);
-      const sessionId = cookies['connect.sid'];
+      // クエリパラメータからsessionIdを取得
+      const url = new URL(request.url || '', `http://${request.headers.host}`);
+      const sessionId = url.searchParams.get('sessionId');
       
+      // セッションIDがない場合は接続を閉じる
       if (!sessionId) {
-        console.error('No session ID found in cookies');
-        ws.close(1008, 'Authentication required');
+        console.log('No sessionId provided, closing connection');
+        ws.close(1008, 'No sessionId provided');
         return;
       }
       
-      // セッションからユーザーIDを検証
+      // セッションIDを検証してユーザーIDを取得
       const userId = await verifySession(sessionId);
       
+      // 認証に失敗した場合は接続を閉じる
       if (!userId) {
-        console.error('Invalid session');
+        console.log('Invalid sessionId, closing connection');
         ws.close(1008, 'Invalid session');
         return;
       }
       
-      console.log(`WebSocket connection established for user: ${userId}`);
+      // クライアント情報を設定
+      const clientId = `${userId}_${Date.now()}`;
+      const client: ClientConnection = {
+        ws,
+        userId,
+        activeModels: new Set()
+      };
       
-      // クエリパラメータから役割モデルIDを取得
-      const url = new URL(req.url || '', `http://${req.headers.host}`);
-      const roleModelId = url.searchParams.get('roleModelId');
+      // クライアント管理マップに追加
+      clientConnections.set(clientId, client);
       
-      // ユーザー接続を保存
-      if (!userConnections.has(userId)) {
-        userConnections.set(userId, []);
-      }
-      userConnections.get(userId)?.push(ws);
-      
-      // 役割モデル接続を保存（指定がある場合）
-      if (roleModelId) {
-        if (!roleModelConnections.has(roleModelId)) {
-          roleModelConnections.set(roleModelId, []);
-        }
-        roleModelConnections.get(roleModelId)?.push(ws);
-        
-        console.log(`Associated with role model: ${roleModelId}`);
-      }
-      
-      // WebSocketにユーザーIDと役割モデルIDを関連付け
+      // クライアントごとのカスタムプロパティとしてユーザーIDを設定
       (ws as any).userId = userId;
-      (ws as any).roleModelId = roleModelId;
+      (ws as any).clientId = clientId;
       
-      // 接続確認メッセージを送信
+      // ウェルカムメッセージを送信
       ws.send(JSON.stringify({
-        type: 'connection',
-        data: {
-          userId,
-          roleModelId,
-          timestamp: Date.now(),
-          message: 'WebSocket connection established'
-        }
+        type: 'connection_established',
+        message: 'WebSocket connection established',
+        timestamp: Date.now()
       }));
       
-      // 接続切断時の処理
+      // クライアント切断時の処理
       ws.on('close', () => {
-        console.log(`WebSocket connection closed for user: ${userId}`);
-        
-        // ユーザー接続から削除
-        const userWsList = userConnections.get(userId);
-        if (userWsList) {
-          const index = userWsList.indexOf(ws);
-          if (index !== -1) {
-            userWsList.splice(index, 1);
-          }
-          
-          if (userWsList.length === 0) {
-            userConnections.delete(userId);
-          }
-        }
-        
-        // 役割モデル接続から削除
-        if (roleModelId) {
-          const roleModelWsList = roleModelConnections.get(roleModelId);
-          if (roleModelWsList) {
-            const index = roleModelWsList.indexOf(ws);
-            if (index !== -1) {
-              roleModelWsList.splice(index, 1);
-            }
-            
-            if (roleModelWsList.length === 0) {
-              roleModelConnections.delete(roleModelId);
-            }
-          }
-        }
+        console.log(`WebSocket connection closed for client ${clientId}`);
+        clientConnections.delete(clientId);
       });
       
-      // エラーハンドリング
+      // エラー処理
       ws.on('error', (error) => {
-        console.error(`WebSocket error for user ${userId}:`, error);
+        console.error(`WebSocket error for client ${clientId}:`, error);
       });
       
-      // メッセージ受信ハンドリング（将来の拡張用）
+      // クライアントからのメッセージ処理
       ws.on('message', (message) => {
         try {
           const data = JSON.parse(message.toString());
-          console.log(`Received message from user ${userId}:`, data);
           
-          // メッセージタイプに応じた処理をここに実装
+          // クライアントからのモデル購読リクエスト
+          if (data.type === 'subscribe_model' && data.modelId) {
+            client.activeModels.add(data.modelId);
+            ws.send(JSON.stringify({
+              type: 'subscribe_success',
+              modelId: data.modelId,
+              timestamp: Date.now()
+            }));
+          }
+          
+          // クライアントからのモデル購読解除リクエスト
+          if (data.type === 'unsubscribe_model' && data.modelId) {
+            client.activeModels.delete(data.modelId);
+            ws.send(JSON.stringify({
+              type: 'unsubscribe_success',
+              modelId: data.modelId,
+              timestamp: Date.now()
+            }));
+          }
+          
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('Error processing WebSocket message:', error);
         }
       });
       
     } catch (error) {
-      console.error('Error in WebSocket connection:', error);
-      ws.close(1011, 'Server error');
+      console.error('Error handling WebSocket connection:', error);
+      ws.close(1011, 'Internal server error');
     }
   });
-  
-  return wss;
+
+  console.log('WebSocket server is set up and ready');
 }
 
 /**
- * 指定されたユーザーに処理進捗状況を送信
+ * 指定されたユーザーと役割モデルに関する進捗状況を送信する
+ * @param userId ユーザーID
+ * @param modelId 役割モデルID
+ * @param stage 現在のステージ
+ * @param progress 進捗率（0-100）
+ * @param details 詳細情報（オプション）
  */
 export function sendProgressUpdate(
   userId: string,
-  roleModelId: string,
+  modelId: string,
   stage: string,
   progress: number,
-  data?: any
+  details?: any
 ): void {
-  const update: ProgressUpdate = {
-    userId,
-    roleModelId,
+  const progressData: AgentProgress = {
     stage,
-    progress,
-    data
+    progress: Math.max(0, Math.min(100, progress)),
+    message: details?.message || `${stage}: ${progress}%`,
+    details
   };
   
-  // ユーザー宛の接続に送信
-  const userWsList = userConnections.get(userId);
-  if (userWsList && userWsList.length > 0) {
-    const message = JSON.stringify({
-      type: 'progress',
-      data: update
-    });
-    
-    userWsList.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(message);
-      }
-    });
-  }
+  const message = JSON.stringify({
+    type: 'progress_update',
+    modelId,
+    timestamp: Date.now(),
+    data: progressData
+  });
   
-  // 役割モデル宛の接続に送信
-  const roleModelWsList = roleModelConnections.get(roleModelId);
-  if (roleModelWsList && roleModelWsList.length > 0) {
-    const message = JSON.stringify({
-      type: 'progress',
-      data: update
-    });
-    
-    roleModelWsList.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(message);
-      }
-    });
-  }
+  // 該当するユーザーとモデルに関連するすべてのクライアントに送信
+  sendToMatchingClients(userId, modelId, message);
 }
 
 /**
- * 指定されたユーザーにエージェントの思考を送信
+ * エージェント思考出力を送信する
+ * @param userId ユーザーID
+ * @param modelId 役割モデルID
+ * @param agentName エージェント名
+ * @param message メッセージ内容
+ * @param type メッセージタイプ（デフォルト: thinking）
  */
 export function sendAgentThoughts(
   userId: string,
-  roleModelId: string,
+  modelId: string,
   agentName: string,
-  thought: string
+  message: string,
+  type: 'info' | 'error' | 'success' | 'thinking' = 'thinking'
 ): void {
-  const agentThought: AgentThought = {
-    userId,
-    roleModelId,
+  const thoughtData: AgentOutputMessage = {
+    timestamp: Date.now(),
     agentName,
-    thought,
-    timestamp: Date.now()
+    message,
+    type
   };
   
-  // ユーザー宛の接続に送信
-  const userWsList = userConnections.get(userId);
-  if (userWsList && userWsList.length > 0) {
-    const message = JSON.stringify({
-      type: 'agent_thought',
-      data: agentThought
-    });
-    
-    userWsList.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(message);
+  const wsMessage = JSON.stringify({
+    type: 'agent_thoughts',
+    modelId,
+    timestamp: Date.now(),
+    data: thoughtData
+  });
+  
+  // 該当するユーザーとモデルに関連するすべてのクライアントに送信
+  sendToMatchingClients(userId, modelId, wsMessage);
+}
+
+/**
+ * 条件に一致するクライアントにメッセージを送信する内部ヘルパー関数
+ * @param userId ユーザーID
+ * @param modelId モデルID
+ * @param message 送信するメッセージ
+ */
+function sendToMatchingClients(userId: string, modelId: string, message: string): void {
+  let matchingClients = 0;
+  
+  for (const client of clientConnections.values()) {
+    // ユーザーIDが一致し、購読中のモデルかグローバル購読していれば送信
+    if (client.userId === userId && 
+        (client.activeModels.has(modelId) || client.activeModels.has('*'))) {
+      
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(message);
+        matchingClients++;
       }
-    });
+    }
   }
   
-  // 役割モデル宛の接続に送信
-  const roleModelWsList = roleModelConnections.get(roleModelId);
-  if (roleModelWsList && roleModelWsList.length > 0) {
-    const message = JSON.stringify({
-      type: 'agent_thought',
-      data: agentThought
-    });
+  // デバッグ用：送信状況をログに出力
+  console.log(`Sent message to ${matchingClients} clients for user ${userId} and model ${modelId}`);
+  
+  // 接続されているクライアントがない場合は、コンソールにメッセージを表示
+  if (matchingClients === 0) {
+    const data = JSON.parse(message);
     
-    roleModelWsList.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(message);
-      }
-    });
+    if (data.type === 'agent_thoughts') {
+      console.log(`Agent thought (no clients): ${data.data.agentName} - ${data.data.message}`);
+    } else if (data.type === 'progress_update') {
+      console.log(`Progress update (no clients): ${data.data.stage} - ${data.data.message}`);
+    }
   }
 }

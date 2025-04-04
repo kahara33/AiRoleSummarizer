@@ -1,33 +1,89 @@
 /**
  * 知識グラフ生成エージェント
- * 構造化データから知識グラフを生成するAIエージェント
+ * 階層的な知識構造から視覚化可能な知識グラフを生成するAIエージェント
  */
 
-import { AgentResult, KnowledgeGraphData, KnowledgeNode, KnowledgeEdge } from './types';
-import { sendAgentThoughts } from '../websocket';
-import { callAzureOpenAI } from '../azure-openai';
+import { v4 as uuidv4 } from 'uuid';
+import { AgentResult } from './types';
 import { IndustryAnalysisData } from './industry-analysis';
 import { KeywordExpansionData } from './keyword-expansion';
-import { StructuringData, Category } from './structuring';
-import { v4 as uuidv4 } from 'uuid';
+import { StructuringData, Category, Subcategory, Skill } from './structuring';
+import { sendAgentThoughts } from '../websocket';
 
 /**
- * 知識グラフ生成入力データ
+ * 知識グラフ入力データ
  */
 export interface KnowledgeGraphInput {
-  roleName: string;             // 役割名
-  description: string;          // 役割の説明
-  structuringData: StructuringData;  // 構造化データ
-  industryAnalysisData: IndustryAnalysisData;  // 業界分析データ
-  keywordExpansionData: KeywordExpansionData;  // キーワード拡張データ
-  userId: string;               // ユーザーID
-  roleModelId: string;          // 役割モデルID
+  roleName: string;               // 役割名
+  description: string;            // 役割の説明
+  industries: string[];           // 選択された業界
+  keywords: string[];             // 初期キーワード
+  industryAnalysisData: IndustryAnalysisData; // 業界分析データ
+  keywordExpansionData: KeywordExpansionData; // キーワード拡張データ
+  structuringData: StructuringData; // 構造化データ
+  userId: string;                 // ユーザーID
+  roleModelId: string;            // 役割モデルID
 }
 
 /**
- * 構造化データから知識グラフを生成する
- * @param input 知識グラフ生成入力データ
- * @returns 知識グラフ生成結果
+ * 知識ノード
+ */
+export interface KnowledgeNode {
+  id: string;                     // ノードID
+  name: string;                   // ノード名
+  description: string;            // 説明
+  level: number;                  // 階層レベル（0がルート）
+  type?: string;                  // ノードタイプ
+  color?: string;                 // 表示色
+  parentId?: string;              // 親ノードID
+}
+
+/**
+ * 知識エッジ
+ */
+export interface KnowledgeEdge {
+  source: string;                 // 始点ノードID
+  target: string;                 // 終点ノードID
+  label?: string;                 // ラベル
+  strength?: number;              // 関連強度
+}
+
+/**
+ * 知識グラフデータ
+ */
+export interface KnowledgeGraphData {
+  nodes: KnowledgeNode[];         // ノードリスト
+  edges: KnowledgeEdge[];         // エッジリスト
+}
+
+/**
+ * ノードタイプに基づいて色を割り当てる
+ */
+function getNodeColor(type: string): string {
+  switch (type) {
+    case 'root':
+      return '#FF5733'; // オレンジ（ルート）
+    case 'category':
+      return '#33A8FF'; // 青（カテゴリ）
+    case 'subcategory':
+      return '#33FF57'; // 緑（サブカテゴリ）
+    case 'skill':
+      return '#A833FF'; // 紫（スキル）
+    case 'industry':
+      return '#FF33A8'; // ピンク（業界）
+    case 'trend':
+      return '#FFD700'; // 金（トレンド）
+    case 'keyword':
+      return '#00CED1'; // ターコイズ（キーワード）
+    default:
+      return '#808080'; // グレー（その他）
+  }
+}
+
+/**
+ * 構造化データと業界分析に基づいて知識グラフを生成する
+ * @param input 知識グラフ入力データ
+ * @returns 知識グラフデータ
  */
 export async function generateKnowledgeGraph(
   input: KnowledgeGraphInput
@@ -35,259 +91,360 @@ export async function generateKnowledgeGraph(
   try {
     console.log(`知識グラフ生成エージェント起動: ${input.roleName}`);
     sendAgentThoughts(input.userId, input.roleModelId, 'KnowledgeGraphAgent', `役割「${input.roleName}」の知識グラフ生成を開始します。`);
-
-    // 構造化データの検証
-    if (!input.structuringData.categories || input.structuringData.categories.length === 0) {
-      throw new Error('カテゴリデータが不足しています');
-    }
-
-    // ノードとエッジの配列を初期化
+    
+    // ノードとエッジのリストを初期化
     const nodes: KnowledgeNode[] = [];
     const edges: KnowledgeEdge[] = [];
-
-    // カテゴリをノードに変換
+    
+    // ルートノードを作成
+    const rootId = uuidv4();
+    nodes.push({
+      id: rootId,
+      name: input.roleName,
+      description: input.description || `${input.roleName}の役割モデル`,
+      level: 0,
+      type: 'root',
+      color: getNodeColor('root')
+    });
+    
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KnowledgeGraphAgent',
+      `ルートノード「${input.roleName}」を作成しました。カテゴリ、サブカテゴリ、スキルの階層構造をグラフに変換しています。`
+    );
+    
+    // 構造化データからカテゴリノードを追加
     input.structuringData.categories.forEach(category => {
+      const categoryId = category.id;
+      
       // カテゴリノードを追加
       nodes.push({
-        id: category.id,
+        id: categoryId,
         name: category.name,
         description: category.description,
-        level: category.level,
+        level: 1,
         type: 'category',
-        color: getCategoryColor(category.level),
-        parentId: category.parentId || null
+        color: getNodeColor('category'),
+        parentId: rootId
       });
-
-      // 親カテゴリへのエッジを追加（存在する場合）
-      if (category.parentId) {
+      
+      // ルートとカテゴリを接続
+      edges.push({
+        source: rootId,
+        target: categoryId,
+        label: 'has_category',
+        strength: 1.0
+      });
+      
+      // サブカテゴリを処理
+      category.subcategories.forEach(subcategory => {
+        const subcategoryId = subcategory.id;
+        
+        // サブカテゴリノードを追加
+        nodes.push({
+          id: subcategoryId,
+          name: subcategory.name,
+          description: subcategory.description,
+          level: 2,
+          type: 'subcategory',
+          color: getNodeColor('subcategory'),
+          parentId: categoryId
+        });
+        
+        // カテゴリとサブカテゴリを接続
         edges.push({
-          id: uuidv4(),
-          source: category.parentId,
-          target: category.id,
-          label: '包含',
-          strength: 8
+          source: categoryId,
+          target: subcategoryId,
+          label: 'has_subcategory',
+          strength: 0.8
+        });
+        
+        // スキルを処理
+        subcategory.skills.forEach(skill => {
+          const skillId = skill.id;
+          
+          // スキルノードを追加
+          nodes.push({
+            id: skillId,
+            name: skill.name,
+            description: skill.description,
+            level: 3,
+            type: 'skill',
+            color: getNodeColor('skill'),
+            parentId: subcategoryId
+          });
+          
+          // サブカテゴリとスキルを接続
+          edges.push({
+            source: subcategoryId,
+            target: skillId,
+            label: 'requires_skill',
+            strength: 0.6
+          });
+          
+          // キーワードとスキルの関連付け
+          const matchingKeywords = input.keywordExpansionData.keywords.filter(keyword => 
+            keyword.name.toLowerCase() === skill.name.toLowerCase() ||
+            skill.name.toLowerCase().includes(keyword.name.toLowerCase()) ||
+            keyword.name.toLowerCase().includes(skill.name.toLowerCase())
+          );
+          
+          matchingKeywords.forEach(keyword => {
+            // キーワードIDを探す（既に存在する場合は再利用）
+            let keywordNode = nodes.find(node => 
+              node.type === 'keyword' && node.name.toLowerCase() === keyword.name.toLowerCase()
+            );
+            
+            let keywordId;
+            
+            if (!keywordNode) {
+              keywordId = uuidv4();
+              
+              // キーワードノードを追加
+              nodes.push({
+                id: keywordId,
+                name: keyword.name,
+                description: keyword.description,
+                level: 4,
+                type: 'keyword',
+                color: getNodeColor('keyword')
+              });
+            } else {
+              keywordId = keywordNode.id;
+            }
+            
+            // スキルとキーワードを接続
+            edges.push({
+              source: skillId,
+              target: keywordId,
+              label: 'related_to',
+              strength: 0.4
+            });
+          });
+        });
+      });
+    });
+    
+    // 業界を追加
+    input.industryAnalysisData.industries.forEach(industry => {
+      const industryId = uuidv4();
+      
+      // 業界ノードを追加
+      nodes.push({
+        id: industryId,
+        name: industry.name,
+        description: industry.description,
+        level: 1,
+        type: 'industry',
+        color: getNodeColor('industry')
+      });
+      
+      // ルートと業界を接続
+      edges.push({
+        source: rootId,
+        target: industryId,
+        label: 'in_industry',
+        strength: 0.9
+      });
+      
+      // トレンドを追加
+      const industryTrends = input.industryAnalysisData.trends.slice(0, 5);
+      
+      industryTrends.forEach(trend => {
+        const trendId = uuidv4();
+        
+        // トレンドノードを追加
+        nodes.push({
+          id: trendId,
+          name: trend,
+          description: `${industry.name}業界のトレンド: ${trend}`,
+          level: 2,
+          type: 'trend',
+          color: getNodeColor('trend'),
+          parentId: industryId
+        });
+        
+        // 業界とトレンドを接続
+        edges.push({
+          source: industryId,
+          target: trendId,
+          label: 'has_trend',
+          strength: 0.5
+        });
+      });
+    });
+    
+    // 重要キーワードをルートに直接接続
+    const topKeywords = input.keywordExpansionData.keywords
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .slice(0, 10);
+    
+    topKeywords.forEach(keyword => {
+      // 既に追加されたキーワードか確認
+      let keywordNode = nodes.find(node => 
+        node.type === 'keyword' && node.name.toLowerCase() === keyword.name.toLowerCase()
+      );
+      
+      let keywordId;
+      
+      if (!keywordNode) {
+        keywordId = uuidv4();
+        
+        // キーワードノードを追加
+        nodes.push({
+          id: keywordId,
+          name: keyword.name,
+          description: keyword.description,
+          level: 1,
+          type: 'keyword',
+          color: getNodeColor('keyword')
+        });
+      } else {
+        keywordId = keywordNode.id;
+      }
+      
+      // まだ接続されていない場合のみ、ルートとキーワードを接続
+      const existingEdge = edges.find(edge => 
+        edge.source === rootId && edge.target === keywordId
+      );
+      
+      if (!existingEdge) {
+        edges.push({
+          source: rootId,
+          target: keywordId,
+          label: 'key_concept',
+          strength: 0.7
         });
       }
     });
-
-    // カテゴリ間の関連をエッジに変換
-    input.structuringData.connections.forEach(connection => {
-      edges.push({
-        id: uuidv4(),
-        source: connection.sourceCategoryId,
-        target: connection.targetCategoryId,
-        label: connection.connectionType,
-        strength: connection.strength
-      });
-    });
-
-    // 業界情報をノードとして追加
-    input.industryAnalysisData.industries.forEach(industry => {
-      // 業界ノードを追加
-      const industryNodeId = `industry_${industry.id}`;
-      nodes.push({
-        id: industryNodeId,
-        name: industry.name,
-        description: industry.description,
-        level: 2, // 業界は第2階層に配置
-        type: 'industry',
-        color: '#3b82f6' // 青色
-      });
-
-      // 関連するカテゴリとの接続を検討
-      const relatedCategories = findRelatedCategories(industry.name, input.structuringData.categories);
-      relatedCategories.forEach(categoryId => {
-        edges.push({
-          id: uuidv4(),
-          source: categoryId,
-          target: industryNodeId,
-          label: '関連',
-          strength: 6
+    
+    // グラフの複雑さを制限（ノード数が多すぎる場合はスキルレベルのノードを減らす）
+    if (nodes.length > 150) {
+      console.log(`グラフが複雑すぎるため、一部のノードを削減します。元のノード数: ${nodes.length}`);
+      
+      // スキルノードを重要度でフィルタリング
+      const skillNodes = nodes.filter(node => node.type === 'skill');
+      const subcategoryNodes = nodes.filter(node => node.type === 'subcategory');
+      
+      if (skillNodes.length > 50) {
+        // 各サブカテゴリから最大3つのスキルのみを保持
+        const nodesToKeep = new Set<string>();
+        
+        // 必須ノードをリストに追加
+        nodes.filter(node => node.type !== 'skill').forEach(node => {
+          nodesToKeep.add(node.id);
         });
-      });
-    });
-
-    // キーワードをノードとして追加
-    input.keywordExpansionData.keywords.forEach(keyword => {
-      // キーワードノードを追加
-      const keywordNodeId = `keyword_${keyword.id}`;
-      nodes.push({
-        id: keywordNodeId,
-        name: keyword.name,
-        description: keyword.description,
-        level: 3, // キーワードは第3階層に配置
-        type: 'keyword',
-        color: '#10b981' // 緑色
-      });
-
-      // 関連するカテゴリとの接続
-      const relatedCategories = findRelatedCategories(keyword.name, input.structuringData.categories);
-      relatedCategories.forEach(categoryId => {
-        edges.push({
-          id: uuidv4(),
-          source: categoryId,
-          target: keywordNodeId,
-          label: '関連',
-          strength: 5
+        
+        // 各サブカテゴリから最大3つのスキルを選択
+        subcategoryNodes.forEach(subcategory => {
+          const skills = skillNodes.filter(skill => skill.parentId === subcategory.id);
+          skills.slice(0, 3).forEach(skill => {
+            nodesToKeep.add(skill.id);
+          });
         });
-      });
-    });
-
-    // 概念をノードとして追加
-    input.keywordExpansionData.concepts.forEach(concept => {
-      // 概念ノードを追加
-      const conceptNodeId = `concept_${concept.id}`;
-      nodes.push({
-        id: conceptNodeId,
-        name: concept.name,
-        description: concept.description,
-        level: 2, // 概念は第2階層に配置
-        type: 'concept',
-        color: '#8b5cf6' // 紫色
-      });
-
-      // 関連するキーワードとの接続
-      concept.keywordIds.forEach(keywordId => {
-        edges.push({
-          id: uuidv4(),
-          source: conceptNodeId,
-          target: `keyword_${keywordId}`,
-          label: '含む',
-          strength: 7
-        });
-      });
-    });
-
-    // 思考過程をユーザーに共有
-    sendAgentThoughts(input.userId, input.roleModelId, 'KnowledgeGraphAgent', `知識グラフを構築しました。${nodes.length}個のノードと${edges.length}個のエッジを生成しました。`);
-
-    // 結果をログ出力
-    console.log(`知識グラフ生成結果: ${nodes.length}個のノード、${edges.length}個のエッジを生成`);
-
+        
+        // ノードを絞り込む
+        const filteredNodes = nodes.filter(node => nodesToKeep.has(node.id));
+        
+        // エッジも対応するノードのみに制限
+        const filteredEdges = edges.filter(edge => 
+          nodesToKeep.has(edge.source) && nodesToKeep.has(edge.target)
+        );
+        
+        console.log(`ノード削減後: ${filteredNodes.length}ノード, ${filteredEdges.length}エッジ`);
+        
+        nodes.length = 0;
+        nodes.push(...filteredNodes);
+        
+        edges.length = 0;
+        edges.push(...filteredEdges);
+      }
+    }
+    
+    sendAgentThoughts(
+      input.userId,
+      input.roleModelId,
+      'KnowledgeGraphAgent',
+      `知識グラフ生成完了: ${nodes.length}ノード、${edges.length}エッジを生成しました。`
+    );
+    
     return {
       success: true,
-      data: { nodes, edges }
+      data: {
+        nodes,
+        edges
+      }
     };
-
+    
   } catch (error: any) {
     console.error('Error in knowledge graph generation:', error);
     sendAgentThoughts(input.userId, input.roleModelId, 'KnowledgeGraphAgent', `エラー: 知識グラフ生成の実行中にエラーが発生しました。`);
-
+    
+    // エラー時の最小限のデータを作成
+    const rootId = uuidv4();
+    const nodes: KnowledgeNode[] = [
+      {
+        id: rootId,
+        name: input.roleName,
+        description: input.description || `${input.roleName}の役割モデル`,
+        level: 0,
+        type: 'root',
+        color: getNodeColor('root')
+      }
+    ];
+    
+    const edges: KnowledgeEdge[] = [];
+    
+    // 初期キーワードをルートに接続
+    input.keywords.forEach(keyword => {
+      const keywordId = uuidv4();
+      
+      nodes.push({
+        id: keywordId,
+        name: keyword,
+        description: `キーワード: ${keyword}`,
+        level: 1,
+        type: 'keyword',
+        color: getNodeColor('keyword')
+      });
+      
+      edges.push({
+        source: rootId,
+        target: keywordId,
+        label: 'has_keyword',
+        strength: 0.5
+      });
+    });
+    
+    // 業界をルートに接続
+    input.industries.forEach(industry => {
+      const industryId = uuidv4();
+      
+      nodes.push({
+        id: industryId,
+        name: industry,
+        description: `業界: ${industry}`,
+        level: 1,
+        type: 'industry',
+        color: getNodeColor('industry')
+      });
+      
+      edges.push({
+        source: rootId,
+        target: industryId,
+        label: 'in_industry',
+        strength: 0.7
+      });
+    });
+    
     return {
       success: false,
       error: `知識グラフ生成の実行中にエラーが発生しました: ${error.message}`,
-      data: { nodes: [], edges: [] }
+      data: {
+        nodes,
+        edges
+      }
     };
   }
-}
-
-/**
- * カテゴリレベルに応じた色を取得する
- * @param level カテゴリレベル
- * @returns 色コード
- */
-function getCategoryColor(level: number): string {
-  switch (level) {
-    case 1: return '#f97316'; // オレンジ（最上位）
-    case 2: return '#ec4899'; // ピンク（第2階層）
-    case 3: return '#eab308'; // 黄色（第3階層）
-    default: return '#6b7280'; // グレー（その他）
-  }
-}
-
-/**
- * 名前に基づいて関連するカテゴリを見つける
- * @param name 検索する名前
- * @param categories カテゴリ配列
- * @returns 関連するカテゴリIDの配列
- */
-function findRelatedCategories(name: string, categories: Category[]): string[] {
-  const relatedCategories: string[] = [];
-  const keywords = name.toLowerCase().split(/\s+/);
-
-  categories.forEach(category => {
-    const categoryName = category.name.toLowerCase();
-    const categoryDesc = category.description.toLowerCase();
-
-    // 名前または説明に一致するキーワードがあるか確認
-    for (const keyword of keywords) {
-      if (keyword.length > 3 && (categoryName.includes(keyword) || categoryDesc.includes(keyword))) {
-        relatedCategories.push(category.id);
-        break;
-      }
-    }
-  });
-
-  // 関連カテゴリが見つからない場合、レベル1のカテゴリをランダムに選択
-  if (relatedCategories.length === 0) {
-    const topLevelCategories = categories.filter(c => c.level === 1);
-    if (topLevelCategories.length > 0) {
-      const randomIndex = Math.floor(Math.random() * topLevelCategories.length);
-      relatedCategories.push(topLevelCategories[randomIndex].id);
-    }
-  }
-
-  return relatedCategories;
-}
-
-/**
- * 指定されたノードを中心とした部分グラフを生成する
- * @param centerId 中心ノードのID
- * @param fullGraph 完全な知識グラフ
- * @param maxDepth 最大深度（デフォルト: 2）
- * @returns 部分知識グラフ
- */
-export function generateSubgraph(
-  centerId: string,
-  fullGraph: KnowledgeGraphData,
-  maxDepth: number = 2
-): KnowledgeGraphData {
-  const { nodes, edges } = fullGraph;
-  const subgraphNodes: KnowledgeNode[] = [];
-  const subgraphEdges: KnowledgeEdge[] = [];
-  const visitedNodeIds = new Set<string>();
-
-  // 中心ノードが存在するか確認
-  const centerNode = nodes.find(node => node.id === centerId);
-  if (!centerNode) {
-    console.error(`中心ノード ${centerId} が見つかりません`);
-    return { nodes: [], edges: [] };
-  }
-
-  // BFSで指定された深度までのノードとエッジを収集
-  const queue: Array<{ node: KnowledgeNode, depth: number }> = [{ node: centerNode, depth: 0 }];
-  visitedNodeIds.add(centerId);
-  subgraphNodes.push(centerNode);
-
-  while (queue.length > 0) {
-    const { node, depth } = queue.shift()!;
-
-    if (depth >= maxDepth) continue;
-
-    // このノードから出るエッジを探す
-    const outgoingEdges = edges.filter(edge => edge.source === node.id);
-    for (const edge of outgoingEdges) {
-      subgraphEdges.push(edge);
-      const targetNode = nodes.find(n => n.id === edge.target);
-      if (targetNode && !visitedNodeIds.has(targetNode.id)) {
-        visitedNodeIds.add(targetNode.id);
-        subgraphNodes.push(targetNode);
-        queue.push({ node: targetNode, depth: depth + 1 });
-      }
-    }
-
-    // このノードに入るエッジを探す
-    const incomingEdges = edges.filter(edge => edge.target === node.id);
-    for (const edge of incomingEdges) {
-      subgraphEdges.push(edge);
-      const sourceNode = nodes.find(n => n.id === edge.source);
-      if (sourceNode && !visitedNodeIds.has(sourceNode.id)) {
-        visitedNodeIds.add(sourceNode.id);
-        subgraphNodes.push(sourceNode);
-        queue.push({ node: sourceNode, depth: depth + 1 });
-      }
-    }
-  }
-
-  return { nodes: subgraphNodes, edges: subgraphEdges };
 }
