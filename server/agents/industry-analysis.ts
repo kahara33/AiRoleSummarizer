@@ -1,73 +1,111 @@
 // 業界分析エージェント
-// 選択された業界に関する洞察を生成するエージェント
+// 特定の業界に関する洞察と情報を生成
 
 import { AgentResult, RoleModelInput } from './types';
 import { callAzureOpenAI } from '../azure-openai';
 
-interface IndustryAnalysisOutput {
-  keyInsights: string[];
-  industryTrends: string[];
-  majorPlayers: string[];
-  challengesAndOpportunities: string[];
+export interface IndustryAnalysisData {
+  industryInsights: string[];  // 業界全般の洞察
+  targetAudience: string[];    // ターゲットとなる対象者・組織
+  keyTrends: string[];         // 主要なトレンド
+  businessModels: string[];    // ビジネスモデル
+  challengesOpportunities: string[]; // 課題と機会
 }
 
 /**
  * 業界分析エージェント
- * 選択された業界に関する重要な洞察を生成します
+ * 指定された業界に関する詳細な情報と洞察を提供
  */
-export const industryAnalysisAgent = async (
+export async function analyzeIndustries(
   input: RoleModelInput
-): Promise<AgentResult> => {
+): Promise<AgentResult<IndustryAnalysisData>> {
   try {
-    console.log('Running industry analysis for:', input.industries.join(', '));
+    console.log(`Analyzing industries for role: ${input.roleName}`);
+    console.log(`Target industries: ${input.industries.join(', ')}`);
     
-    const industriesStr = input.industries.join(', ');
-    const promptMessages = [
+    if (input.industries.length === 0) {
+      console.log('No industries specified, generating generic analysis');
+    }
+    
+    // プロンプトを生成
+    const prompt = [
       {
         role: "system",
-        content: `あなたは業界分析の専門家です。選択された業界に関する重要な洞察を生成してください。分析は説得力があり、専門的で、詳細である必要があります。
-        
-        出力は以下のJSON形式で返してください：
-        {
-          "keyInsights": ["洞察1", "洞察2", ...],
-          "industryTrends": ["トレンド1", "トレンド2", ...],
-          "majorPlayers": ["主要プレイヤー1", "主要プレイヤー2", ...],
-          "challengesAndOpportunities": ["課題/機会1", "課題/機会2", ...]
-        }
-        
-        各セクションには、最低でも3つ、最大で5つの要素を含めてください。
-        日本語で回答してください。`
+        content: `あなたは業界分析のエキスパートです。特定の役割に関連する業界の分析と洞察を提供してください。
+        結果はJSON形式で返してください。`
       },
       {
         role: "user",
-        content: `次の業界について分析してください: ${industriesStr}
+        content: `次の役割と業界について分析してください：
         
-        この分析は「${input.roleName}」というロールの定義に使用されます。このロールの説明: ${input.description || 'なし'}`
+        役割名: ${input.roleName}
+        説明: ${input.description || '特に指定なし'}
+        業界: ${input.industries.length > 0 ? input.industries.join(', ') : '特に指定なし'}
+        キーワード: ${input.keywords.length > 0 ? input.keywords.join(', ') : '特に指定なし'}
+        
+        以下の形式でJSON出力してください：
+        {
+          "industryInsights": ["洞察1", "洞察2", ...],  // 業界全般の重要な洞察（5-7項目）
+          "targetAudience": ["対象者1", "対象者2", ...], // この役割が対象とする顧客や組織（3-5項目）
+          "keyTrends": ["トレンド1", "トレンド2", ...],  // 業界の主要なトレンド（4-6項目）
+          "businessModels": ["モデル1", "モデル2", ...], // 関連するビジネスモデルや収益源（3-5項目）
+          "challengesOpportunities": ["項目1", "項目2", ...] // 主な課題と機会（4-6項目）
+        }
+        
+        回答は日本語で提供し、短く具体的に記述してください。各項目は40-60文字程度に抑えてください。`
       }
     ];
     
-    // Azure OpenAIを呼び出して業界分析を生成
-    const responseText = await callAzureOpenAI(promptMessages, 0.7, 2000);
+    // Azure OpenAIを呼び出し
+    const responseContent = await callAzureOpenAI(prompt, 0.7, 1500);
     
-    // 応答をJSONとしてパース
-    let analysisResult: IndustryAnalysisOutput;
+    // 結果をパース
     try {
-      analysisResult = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Error parsing industry analysis JSON response:', e);
-      throw new Error('Invalid response format from industry analysis');
-    }
-    
-    return {
-      result: analysisResult,
-      metadata: {
-        industries: input.industries,
-        promptTokens: promptMessages.reduce((acc, msg) => acc + msg.content.length, 0),
-        responseTokens: responseText.length
+      let analysisData: IndustryAnalysisData;
+      
+      // JSON形式の部分を抽出
+      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysisData = JSON.parse(jsonMatch[0]);
+      } else {
+        analysisData = JSON.parse(responseContent);
       }
-    };
+      
+      // データの検証
+      if (!analysisData.industryInsights || !Array.isArray(analysisData.industryInsights)) {
+        analysisData.industryInsights = [];
+      }
+      if (!analysisData.targetAudience || !Array.isArray(analysisData.targetAudience)) {
+        analysisData.targetAudience = [];
+      }
+      if (!analysisData.keyTrends || !Array.isArray(analysisData.keyTrends)) {
+        analysisData.keyTrends = [];
+      }
+      if (!analysisData.businessModels || !Array.isArray(analysisData.businessModels)) {
+        analysisData.businessModels = [];
+      }
+      if (!analysisData.challengesOpportunities || !Array.isArray(analysisData.challengesOpportunities)) {
+        analysisData.challengesOpportunities = [];
+      }
+      
+      console.log(`Industry analysis completed with ${analysisData.industryInsights.length} insights, ${analysisData.keyTrends.length} trends`);
+      
+      return {
+        success: true,
+        data: analysisData
+      };
+    } catch (parseError: any) {
+      console.error('Error parsing industry analysis response:', parseError);
+      return {
+        success: false,
+        error: `Failed to parse industry analysis data: ${parseError.message}`
+      };
+    }
   } catch (error: any) {
     console.error('Error in industry analysis agent:', error);
-    throw new Error(`Industry analysis failed: ${error.message}`);
+    return {
+      success: false,
+      error: `Industry analysis failed: ${error.message}`
+    };
   }
-};
+}

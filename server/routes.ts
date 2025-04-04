@@ -27,6 +27,11 @@ import {
   updateKnowledgeGraphByChat
 } from "./azure-openai";
 
+// マルチAIエージェントアーキテクチャのインポート
+import {
+  generateKnowledgeGraphForRoleModel
+} from "./agents/index";
+
 // Middleware to ensure user is authenticated
 const isAuthenticated = (req: any, res: any, next: any) => {
   if (req.isAuthenticated()) {
@@ -851,7 +856,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Generate the knowledge graph
+      console.log(`Generating knowledge graph using multi-agent architecture for role model: ${roleModel.name}`);
+      
+      // 業界とキーワード情報を取得
+      const industries = await storage.getRoleModelIndustriesWithData(roleModelId);
+      const keywords = await storage.getRoleModelKeywordsWithData(roleModelId);
+      
+      // マルチAIエージェントアーキテクチャを使用してナレッジグラフを生成
+      try {
+        // RoleModelInputを構築
+        const agentInput = {
+          roleModelId,
+          roleName: roleModel.name,
+          description: roleModel.description || "",
+          industries: industries.map(i => i.name),
+          keywords: keywords.map(k => k.name)
+        };
+        
+        console.log("Agent input prepared:", JSON.stringify(agentInput, null, 2));
+        
+        // オーケストレーターを呼び出し
+        const result = await generateKnowledgeGraphForRoleModel(agentInput);
+        
+        if (!result.success || !result.data) {
+          throw new Error(`Failed to generate knowledge graph data: ${result.error || 'Unknown error'}`);
+        }
+        
+        console.log("Generated graph data:", JSON.stringify(result.data, null, 2));
+        
+        // 生成されたグラフデータは既にデータベースに保存されている
+        
+        // Return the newly created nodes and edges
+        const nodes = await storage.getKnowledgeNodes(roleModelId);
+        const edges = await storage.getKnowledgeEdges(roleModelId);
+        
+        res.status(201).json({
+          message: "Knowledge graph generated successfully using multi-agent architecture",
+          nodes,
+          edges
+        });
+        return;
+      } catch (aiError) {
+        console.error("Error in Multi-AI agent process:", aiError);
+        
+        // AIエージェント処理に失敗した場合は、従来の方法を試す
+        console.log("Falling back to traditional knowledge graph generation method");
+      }
+      
+      // フォールバック: 従来の方法でナレッジグラフを生成
       const success = await generateKnowledgeGraph(
         roleModelId,
         roleModel.name,

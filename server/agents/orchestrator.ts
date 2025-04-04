@@ -1,161 +1,196 @@
 // オーケストレーターエージェント
-// このエージェントはタスクの実行と調整を担当します
-
-import { AgentResult, AgentTask, RoleModelInput } from './types';
-// import { Crew } from 'crewai-js';
-// エージェントをインポート（実際のファイルを作成して利用できるようになるまでコメントアウト）
-// import { industryAnalysisAgent } from './industry-analysis';
-// import { keywordExpansionAgent } from './keyword-expansion';
-// import { structuringAgent } from './structuring';
-// import { knowledgeGraphGenerator } from './knowledge-graph';
-
-// モックエージェント関数（開発のためのプレースホルダー）
-const industryAnalysisAgent = async (input: RoleModelInput): Promise<AgentResult> => {
-  return {
-    result: {
-      keyInsights: ["業界の洞察1", "業界の洞察2"],
-      industryTrends: ["トレンド1", "トレンド2"],
-      majorPlayers: ["主要プレイヤー1", "主要プレイヤー2"],
-      challengesAndOpportunities: ["課題/機会1", "課題/機会2"]
-    },
-    metadata: { industries: input.industries }
-  };
-};
-
-const keywordExpansionAgent = async (input: any): Promise<AgentResult> => {
-  return {
-    result: {
-      expandedKeywords: ["キーワード1", "キーワード2", ...input.keywords],
-      keywordCategories: { "カテゴリ1": ["キーワード1"], "カテゴリ2": ["キーワード2"] },
-      relevanceScores: { "キーワード1": 0.9, "キーワード2": 0.8 }
-    },
-    metadata: { originalKeywords: input.keywords }
-  };
-};
-
-const structuringAgent = async (input: any): Promise<AgentResult> => {
-  return {
-    result: {
-      hierarchicalStructure: {
-        rootNode: {
-          id: "root",
-          name: input.roleName,
-          level: 0,
-          description: input.description || "ロールの説明"
-        },
-        childNodes: [
-          {
-            id: "node1",
-            name: "コンセプト1",
-            level: 1,
-            parentId: "root",
-            description: "コンセプト1の説明"
-          },
-          {
-            id: "node2",
-            name: "コンセプト2",
-            level: 1,
-            parentId: "root",
-            description: "コンセプト2の説明"
-          }
-        ]
-      }
-    },
-    metadata: { nodeCount: 3 }
-  };
-};
-
-const knowledgeGraphGenerator = async (input: any): Promise<AgentResult> => {
-  const { rootNode, childNodes } = input.structure.hierarchicalStructure;
-  return {
-    result: {
-      nodes: [
-        {
-          id: rootNode.id,
-          name: rootNode.name,
-          level: rootNode.level,
-          description: rootNode.description,
-          color: "#4C51BF"
-        },
-        ...childNodes.map((node: any) => ({
-          id: node.id,
-          name: node.name, 
-          level: node.level,
-          parentId: node.parentId,
-          description: node.description,
-          color: "#2C5282"
-        }))
-      ],
-      edges: childNodes.map((node: any) => ({
-        source: node.parentId,
-        target: node.id,
-        strength: 1.0
-      }))
-    },
-    metadata: { nodeCount: 1 + childNodes.length }
-  };
-};
+import { AgentResult, RoleModelInput, KnowledgeGraphData } from './types';
+import { analyzeIndustries } from './industry-analysis';
+import { expandKeywords } from './keyword-expansion';
+import { structureKnowledge } from './structuring';
+import { generateKnowledgeGraph } from './knowledge-graph';
+import { callAzureOpenAI } from '../azure-openai';
 
 /**
  * オーケストレーターエージェント
- * 他のすべてのエージェントを調整し、ロールモデル定義プロセスを管理します
+ * 各AIエージェントの連携とプロセスの調整を担当
  */
-export const orchestrateRoleModeling = async (
+export async function orchestrator(
   input: RoleModelInput
-): Promise<AgentResult> => {
+): Promise<AgentResult<KnowledgeGraphData>> {
   try {
-    console.log('Orchestrating role modeling process for:', input.roleName);
+    console.log(`Orchestrator started for role model: ${input.roleName}`);
+    console.log(`Industries: ${input.industries.join(', ')}`);
+    console.log(`Keywords: ${input.keywords.join(', ')}`);
     
-    // 1. 業界分析エージェントを起動
-    const industryAnalysisResult = await industryAnalysisAgent(input);
-    console.log('Industry analysis completed');
+    // 1. 業界分析エージェントを実行
+    const industryAnalysisResult = await analyzeIndustries(input);
+    if (!industryAnalysisResult.success) {
+      return {
+        success: false,
+        error: `Industry analysis failed: ${industryAnalysisResult.error}`
+      };
+    }
     
-    // 2. キーワード拡張エージェントを起動
-    const keywordExpansionResult = await keywordExpansionAgent({
-      ...input,
-      industryInsights: industryAnalysisResult.result
-    });
-    console.log('Keyword expansion completed');
+    console.log('Industry analysis completed successfully');
     
-    // 3. 構造化エージェントを起動（概念のグループ化と階層化）
-    const structuringResult = await structuringAgent({
-      ...input,
-      expandedKeywords: keywordExpansionResult.result
-    });
-    console.log('Structuring completed');
+    // 2. キーワード拡張エージェントを実行
+    const keywordExpansionResult = await expandKeywords(
+      input,
+      industryAnalysisResult.data || {
+        industryInsights: [],
+        targetAudience: [],
+        keyTrends: [],
+        businessModels: [],
+        challengesOpportunities: []
+      }
+    );
+    if (!keywordExpansionResult.success) {
+      return {
+        success: false,
+        error: `Keyword expansion failed: ${keywordExpansionResult.error}`
+      };
+    }
     
-    // 4. ナレッジグラフ生成エージェントを起動
-    const knowledgeGraphResult = await knowledgeGraphGenerator({
-      ...input,
-      structure: structuringResult.result
-    });
-    console.log('Knowledge graph generation completed');
+    console.log('Keyword expansion completed successfully');
+    
+    // 3. 知識構造化エージェントを実行
+    const structuringResult = await structureKnowledge(
+      input,
+      industryAnalysisResult.data || {
+        industryInsights: [],
+        targetAudience: [],
+        keyTrends: [],
+        businessModels: [],
+        challengesOpportunities: []
+      },
+      keywordExpansionResult.data || {
+        expandedKeywords: [],
+        relevance: {}
+      }
+    );
+    if (!structuringResult.success) {
+      return {
+        success: false,
+        error: `Knowledge structuring failed: ${structuringResult.error}`
+      };
+    }
+    
+    console.log('Knowledge structuring completed successfully');
+    
+    // 4. 知識グラフ生成エージェントを実行
+    const graphResult = await generateKnowledgeGraph(
+      input,
+      structuringResult.data || {
+        hierarchicalCategories: []
+      }
+    );
+    
+    if (!graphResult.success) {
+      return {
+        success: false,
+        error: `Knowledge graph generation failed: ${graphResult.error}`
+      };
+    }
+    
+    console.log('Knowledge graph generation completed successfully');
+    
+    // 5. 最終結果を返す
+    return {
+      success: true,
+      data: graphResult.data
+    };
+  } catch (error) {
+    console.error('Error in orchestrator:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error in orchestrator'
+    };
+  }
+}
+
+/**
+ * フォールバック: Azure OpenAIを直接使用して単純な知識グラフを生成
+ */
+export async function fallbackGraphGeneration(
+  input: RoleModelInput
+): Promise<AgentResult<KnowledgeGraphData>> {
+  try {
+    // プロンプトを生成
+    const prompt = [
+      {
+        role: "system",
+        content: `You are an AI expert in knowledge graphs and business domain expertise. 
+                  Create a knowledge graph structure for the specific role and industries provided.
+                  The response should be a valid JSON object with nodes and edges arrays.`
+      },
+      {
+        role: "user",
+        content: `Create a knowledge graph for a role model with the following details:
+                  - Role name: ${input.roleName}
+                  - Description: ${input.description}
+                  - Industries: ${input.industries.join(', ')}
+                  - Keywords: ${input.keywords.join(', ')}
+                  
+                  Return a JSON object with the following structure:
+                  {
+                    "nodes": [
+                      {
+                        "id": "unique-id-string", 
+                        "name": "Node name",
+                        "level": 0, // 0 for root, 1 for first level, etc.
+                        "type": "default", // or any other type
+                        "parentId": "parent-id-or-null-for-root",
+                        "description": "Node description",
+                        "color": "#hex-color-code"
+                      },
+                      ...
+                    ],
+                    "edges": [
+                      {
+                        "source": "source-node-id",
+                        "target": "target-node-id",
+                        "label": "optional label",
+                        "strength": 1 // 1-5 scale for edge weight
+                      },
+                      ...
+                    ]
+                  }
+                  
+                  Rules:
+                  - Create at least 5-10 nodes with meaningful hierarchy
+                  - The root node should have level 0 and parentId null
+                  - Make connections between nodes that have logical relationships
+                  - Node names should be short but descriptive (max 30 chars)`
+      }
+    ];
+    
+    // Azure OpenAIを呼び出し
+    const jsonString = await callAzureOpenAI(prompt, 0.7, 2000);
+    
+    // JSONをパース
+    let graphData: KnowledgeGraphData;
+    try {
+      const startIndex = jsonString.indexOf('{');
+      const endIndex = jsonString.lastIndexOf('}') + 1;
+      const jsonSubstring = jsonString.substring(startIndex, endIndex);
+      graphData = JSON.parse(jsonSubstring);
+      
+      if (!graphData.nodes || !graphData.edges) {
+        throw new Error('Invalid graph data structure');
+      }
+    } catch (parseError) {
+      console.error('Error parsing graph data:', parseError);
+      return {
+        success: false,
+        error: 'Failed to parse graph data from AI response'
+      };
+    }
     
     return {
-      result: knowledgeGraphResult.result,
-      metadata: {
-        industryAnalysis: industryAnalysisResult.metadata,
-        keywordExpansion: keywordExpansionResult.metadata,
-        structuring: structuringResult.metadata,
-      }
+      success: true,
+      data: graphData
     };
-  } catch (error: any) {
-    console.error('Error in orchestrating role modeling:', error);
-    throw new Error(`Role modeling orchestration failed: ${error.message}`);
+  } catch (error) {
+    console.error('Error in fallback graph generation:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error in fallback graph generation'
+    };
   }
-};
-
-// CrewAIを使用したオーケストレーション実装（今後拡張予定）
-export const orchestrateWithCrew = async (
-  input: RoleModelInput
-): Promise<AgentResult> => {
-  try {
-    // CrewAIを使用したオーケストレーションの実装はプロジェクトの次の段階で行います
-    // 現在は直接的なエージェント呼び出しで代用します
-    
-    return await orchestrateRoleModeling(input);
-  } catch (error: any) {
-    console.error('Error in crew orchestration:', error);
-    throw new Error(`Crew orchestration failed: ${error.message}`);
-  }
-};
+}

@@ -1,162 +1,102 @@
-// エージェントモジュールのエントリーポイント
-// 外部からアクセスするためのインターフェースを提供します
+// AIエージェントのエントリポイント
+// 知識グラフ生成のための複数エージェントを連携させる
 
 import { RoleModelInput, KnowledgeGraphData, AgentResult } from './types';
-import { orchestrateRoleModeling, orchestrateWithCrew } from './orchestrator';
-// 個別エージェントのインポート（現在は直接orchestrator.tsで定義されているのでコメントアウト）
-// import { industryAnalysisAgent } from './industry-analysis';
-// import { keywordExpansionAgent } from './keyword-expansion';
-// import { structuringAgent } from './structuring';
-// import { knowledgeGraphGenerator, updateKnowledgeGraphByChat } from './knowledge-graph';
+import { callAzureOpenAI } from '../azure-openai';
+import { orchestrator, fallbackGraphGeneration } from './orchestrator';
 import { db } from '../db';
-import { knowledgeNodes, knowledgeEdges, roleModels, type InsertKnowledgeNode, type InsertKnowledgeEdge } from '@shared/schema';
-import { eq, sql } from 'drizzle-orm';
-
-// knowledgeGraphGenerator と updateKnowledgeGraphByChat の関数を再エクスポートするためのプレースホルダー
-// 実際の実装が完了したら、これらを削除して実際のインポートに置き換える
-const dummyKnowledgeGraphGenerator = async (input: any): Promise<AgentResult> => {
-  return { result: { nodes: [], edges: [] }, metadata: {} };
-};
-
-const dummyUpdateKnowledgeGraphByChat = async (existingGraph: KnowledgeGraphData, chatPrompt: string): Promise<AgentResult> => {
-  return { result: existingGraph, metadata: {} };
-};
+import { knowledgeNodes, knowledgeEdges } from '@shared/schema';
+import { v4 as uuidv4 } from 'uuid';
+import { eq } from 'drizzle-orm';
 
 /**
- * ロールモデル定義プロセスを実行し、ナレッジグラフを生成します
- * 
- * @param input ロールモデル入力データ
- * @returns 生成されたナレッジグラフデータ
+ * 知識グラフ生成のメインプロセスを実行
+ * 複数のAIエージェントを呼び出して知識グラフを構築する
  */
-export const generateRoleModelKnowledgeGraph = async (
+export async function generateKnowledgeGraphForRoleModel(
   input: RoleModelInput
-): Promise<KnowledgeGraphData> => {
+): Promise<AgentResult<KnowledgeGraphData>> {
   try {
-    // オーケストレーターを呼び出してエージェントを連携させる
-    const result = await orchestrateRoleModeling(input);
-    return result.result as KnowledgeGraphData;
+    // 処理開始ログ
+    console.log(`Starting knowledge graph generation for ${input.roleName}`);
+    console.log(`Industries: ${input.industries.join(', ')}`);
+    console.log(`Keywords: ${input.keywords.join(', ')}`);
+
+    // AIオーケストレーターを実行
+    const result = await orchestrator(input);
+    
+    if (result.success && result.data) {
+      // 成功した場合、グラフデータをDBに保存
+      await saveGeneratedGraph(input.id, result.data);
+      return result;
+    } else {
+      // エラーが発生した場合、フォールバック処理を実行
+      console.log(`Orchestration failed: ${result.error}. Using fallback generation.`);
+      
+      const fallbackResult = await fallbackGraphGeneration(input);
+      
+      if (fallbackResult.success && fallbackResult.data) {
+        // フォールバックが成功した場合、グラフデータをDBに保存
+        await saveGeneratedGraph(input.id, fallbackResult.data);
+      }
+      
+      return fallbackResult;
+    }
   } catch (error: any) {
-    console.error('Error generating role model knowledge graph:', error);
-    throw new Error(`Role model knowledge graph generation failed: ${error.message}`);
+    console.error('Error in knowledge graph generation:', error);
+    return {
+      success: false,
+      error: `Knowledge graph generation failed: ${error.message}`
+    };
   }
-};
+}
 
 /**
- * 生成されたナレッジグラフをデータベースに保存します
- * 
- * @param graphData ナレッジグラフデータ
- * @param roleModelId 関連するロールモデルのID
- * @returns 保存操作の結果
+ * 生成された知識グラフデータをデータベースに保存
  */
-export const saveKnowledgeGraphToDatabase = async (
-  graphData: KnowledgeGraphData,
-  roleModelId: number
-): Promise<{ success: boolean; message: string }> => {
+async function saveGeneratedGraph(roleModelId: string, graphData: KnowledgeGraphData): Promise<void> {
   try {
-    // トランザクションを使用して、すべてのノードとエッジを一括で保存
-    // 注意: これはドライズルでの実装例です。実際の使用方法に合わせて調整してください。
+    console.log(`Saving knowledge graph for role model ${roleModelId}`);
+    console.log(`Nodes: ${graphData.nodes.length}, Edges: ${graphData.edges.length}`);
     
-    // 既存のノードとエッジを削除（ロールモデルに関連するもの）
-    await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, String(roleModelId)));
-    await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, String(roleModelId)));
+    // 既存のノードとエッジを削除（再生成の場合）
+    console.log('Removing existing nodes and edges...');
+    await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+    await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
     
-    // 新しいノードを挿入
+    // ノードをデータベースに保存
     for (const node of graphData.nodes) {
-      const nodeData: InsertKnowledgeNode = {
-        // IDは自動生成されるため、idフィールドは不要
+      const nodeData = {
+        roleModelId,
         name: node.name,
-        level: node.level,
-        parentId: node.parentId || null,
         description: node.description || null,
-        color: node.color || null,
-        roleModelId: String(roleModelId)
+        parentId: node.parentId || null,
+        level: node.level || 0,
+        type: node.type || 'default',
+        color: node.color || '#4C51BF'
       };
+      
+      // IDの設定はスキーマで自動生成されるので省略
       
       await db.insert(knowledgeNodes).values(nodeData);
     }
     
-    // 新しいエッジを挿入
+    // エッジをデータベースに保存
     for (const edge of graphData.edges) {
-      const edgeData: InsertKnowledgeEdge = {
+      const edgeData = {
+        roleModelId,
         sourceId: edge.source,
         targetId: edge.target,
         label: edge.label || null,
-        strength: edge.strength || 1.0,
-        roleModelId: String(roleModelId)
+        strength: edge.strength || 1.0
       };
       
       await db.insert(knowledgeEdges).values(edgeData);
     }
     
-    // ロールモデルのステータスを更新（ナレッジグラフが生成済みであることを示す）
-    // 注：roleModelsテーブルにhasKnowledgeGraphフィールドが存在する場合にコメントを解除
-    // await db
-    //   .update(roleModels)
-    //   .set({ hasKnowledgeGraph: true })
-    //   .where(eq(roleModels.id, String(roleModelId)));
-    
-    return {
-      success: true,
-      message: `Knowledge graph saved successfully with ${graphData.nodes.length} nodes and ${graphData.edges.length} edges`
-    };
+    console.log('Knowledge graph saved successfully');
   } catch (error: any) {
-    console.error('Error saving knowledge graph to database:', error);
+    console.error('Error saving knowledge graph:', error);
     throw new Error(`Failed to save knowledge graph: ${error.message}`);
   }
-};
-
-/**
- * ロールモデルのナレッジグラフをデータベースから取得します
- * 
- * @param roleModelId ロールモデルのID
- * @returns ナレッジグラフデータ
- */
-export const getKnowledgeGraphForRoleModel = async (
-  roleModelId: number
-): Promise<KnowledgeGraphData> => {
-  try {
-    // ノードを取得
-    const nodes = await db
-      .select()
-      .from(knowledgeNodes)
-      .where(eq(knowledgeNodes.roleModelId, String(roleModelId)));
-    
-    // エッジを取得
-    const edges = await db
-      .select()
-      .from(knowledgeEdges)
-      .where(eq(knowledgeEdges.roleModelId, String(roleModelId)));
-    
-    // KnowledgeGraphData形式に変換
-    const graphData: KnowledgeGraphData = {
-      nodes: nodes.map(node => ({
-        id: node.id, // idは常に存在する
-        name: node.name,
-        level: node.level,
-        parentId: node.parentId,
-        description: node.description,
-        color: node.color
-      })),
-      edges: edges.map(edge => ({
-        source: edge.sourceId,
-        target: edge.targetId,
-        label: edge.label,
-        strength: edge.strength === null ? undefined : edge.strength
-      }))
-    };
-    
-    return graphData;
-  } catch (error: any) {
-    console.error('Error fetching knowledge graph from database:', error);
-    throw new Error(`Failed to fetch knowledge graph: ${error.message}`);
-  }
-};
-
-// このモジュールで公開する関数
-export {
-  orchestrateRoleModeling,
-  orchestrateWithCrew,
-  // 個別エージェント（現在はorchestrator.tsで定義）
-  dummyKnowledgeGraphGenerator as knowledgeGraphGenerator,
-  dummyUpdateKnowledgeGraphByChat as updateKnowledgeGraphByChat
-};
+}

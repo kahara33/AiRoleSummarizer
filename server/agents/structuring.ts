@@ -1,140 +1,180 @@
 // 構造化エージェント
-// キーワードを階層構造に整理するエージェント
+// 拡張キーワードやデータを階層的構造に整理
 
 import { AgentResult, RoleModelInput } from './types';
+import { IndustryAnalysisData } from './industry-analysis';
+import { KeywordExpansionData } from './keyword-expansion';
 import { callAzureOpenAI } from '../azure-openai';
 
-interface StructuringInput extends RoleModelInput {
-  expandedKeywords?: any;
+export interface HierarchicalCategory {
+  id: string;            // カテゴリのID
+  name: string;          // カテゴリの名前
+  level: number;         // 階層レベル（0: ルート、1: 一次、2: 二次、...）
+  parentId?: string;     // 親カテゴリID（ルートの場合はnull）
+  keywords: string[];    // このカテゴリに属するキーワード
+  description?: string;  // カテゴリの説明
 }
 
-interface KeywordNode {
-  id: string;
-  name: string;
-  level: number;
-  parentId?: string | null;
-  description?: string | null;
-}
-
-interface StructureOutput {
-  hierarchicalStructure: {
-    rootNode: KeywordNode;
-    childNodes: KeywordNode[];
-  }
+export interface StructuringData {
+  hierarchicalCategories: HierarchicalCategory[];
 }
 
 /**
  * 構造化エージェント
- * 拡張されたキーワードを階層構造に整理します
+ * キーワードを意味のある階層構造に整理
  */
-export const structuringAgent = async (
-  input: StructuringInput
-): Promise<AgentResult> => {
+export async function structureKnowledge(
+  input: RoleModelInput,
+  industryData?: IndustryAnalysisData,
+  keywordData?: KeywordExpansionData
+): Promise<AgentResult<StructuringData>> {
   try {
-    console.log('Structuring keywords for role:', input.roleName);
+    console.log(`Structuring knowledge for role: ${input.roleName}`);
     
-    // 拡張キーワードが利用可能か確認
-    if (!input.expandedKeywords) {
-      throw new Error('Expanded keywords are required for structuring');
+    // キーワードデータが存在する場合は、それを使用
+    const keywords = keywordData?.expandedKeywords || input.keywords;
+    
+    if (keywords.length === 0) {
+      console.log('No keywords available for structuring');
+      return {
+        success: false,
+        error: 'No keywords available for structuring'
+      };
     }
     
-    const keywordsStr = Array.isArray(input.expandedKeywords.expandedKeywords) 
-      ? input.expandedKeywords.expandedKeywords.join(', ')
-      : input.keywords.join(', ');
+    console.log(`Structuring ${keywords.length} keywords`);
     
-    // キーワードカテゴリが利用可能な場合は、それを使用します
-    const categoriesStr = input.expandedKeywords.keywordCategories 
-      ? JSON.stringify(input.expandedKeywords.keywordCategories, null, 2)
-      : '';
+    // 業界分析データがある場合は、それを活用
+    const industryContext = industryData ? 
+      `
+      【業界洞察】
+      ${industryData.industryInsights.map((insight, i) => `${i+1}. ${insight}`).join('\n')}
+      
+      【主要トレンド】
+      ${industryData.keyTrends.map((trend, i) => `${i+1}. ${trend}`).join('\n')}
+      ` : '';
     
-    const promptMessages = [
+    // 関連度情報の追加
+    const relevanceInfo = keywordData?.relevance ? 
+      Object.entries(keywordData.relevance)
+        .sort((a, b) => b[1] - a[1])
+        .map(([keyword, relevance]) => `「${keyword}」(関連度: ${relevance.toFixed(2)})`)
+        .join(', ') : '';
+    
+    // プロンプトを生成
+    const prompt = [
       {
         role: "system",
-        content: `あなたはナレッジグラフ構造化の専門家です。キーワードを階層構造に整理し、マインドマップの形式で表現できるようにしてください。
-        
-        出力は以下のJSON形式で返してください：
-        {
-          "hierarchicalStructure": {
-            "rootNode": {
-              "id": "root",
-              "name": "ロール名",
-              "level": 0,
-              "description": "ロールの説明"
-            },
-            "childNodes": [
-              {
-                "id": "node1",
-                "name": "コンセプト1",
-                "level": 1,
-                "parentId": "root",
-                "description": "このコンセプトの説明"
-              },
-              {
-                "id": "node2",
-                "name": "コンセプト2",
-                "level": 1,
-                "parentId": "root",
-                "description": "このコンセプトの説明"
-              },
-              {
-                "id": "node1-1",
-                "name": "サブコンセプト1",
-                "level": 2,
-                "parentId": "node1",
-                "description": "このサブコンセプトの説明"
-              },
-              ...
-            ]
-          }
-        }
-        
-        階層構造の作成にあたって、以下のガイドラインに従ってください：
-        1. rootノード（level 0）は1つだけで、提供されたロール名を使用します
-        2. 第1階層（level 1）は4〜6個の主要概念で構成します
-        3. 第2階層（level 2）は各第1階層ノードに2〜4個のサブ概念を持たせます
-        4. 第3階層（level 3）も必要に応じて含めることができますが、必須ではありません
-        5. ノードIDは重複しないようにしてください（例：node1, node2, node1-1, node1-2など）
-        6. 各ノードには簡潔な説明を付けてください（30〜50文字程度）
-        7. 日本語で回答してください`
+        content: `あなたは知識構造化の専門家です。与えられたキーワードセットを階層的な形式に整理し、意味のあるカテゴリに分類してください。
+        結果はJSON形式で返してください。`
       },
       {
         role: "user",
-        content: `次のキーワードを階層構造に整理してください: ${keywordsStr}
+        content: `次の役割とキーワードに基づいて、階層的な知識構造を作成してください：
         
-        ロール名: ${input.roleName}
-        ロールの説明: ${input.description || 'なし'}
-        関連業界: ${input.industries.join(', ')}
+        役割名: ${input.roleName}
+        説明: ${input.description || '特に指定なし'}
+        業界: ${input.industries.join(', ')}
         
-        ${categoriesStr ? `キーワードカテゴリ:\n${categoriesStr}` : ''}`
+        ${industryContext}
+        
+        以下のキーワードを意味のある階層構造に整理してください：
+        ${keywords.join(', ')}
+        
+        ${relevanceInfo ? `\n【キーワードの関連度情報】\n${relevanceInfo}` : ''}
+        
+        階層構造は、中心となる概念（役割自体）をルートとし、主要カテゴリとサブカテゴリに分類してください。
+        
+        以下の形式でJSON出力してください：
+        {
+          "hierarchicalCategories": [
+            {
+              "id": "root",  // ルートノードのIDは常に"root"
+              "name": "${input.roleName}",  // ルートノードの名前は役割名
+              "level": 0,  // ルートノードのレベルは常に0
+              "keywords": [],  // ルートノードに直接紐づくキーワードはない場合が多い
+              "description": "ルート概念の説明"
+            },
+            {
+              "id": "category1",  // 一意のID（category1, category2, などでOK）
+              "name": "主要カテゴリ1",  // カテゴリ名
+              "level": 1,  // 主要カテゴリはレベル1
+              "parentId": "root",  // 親カテゴリID
+              "keywords": ["関連キーワード1", "関連キーワード2"],  // このカテゴリに分類されるキーワード
+              "description": "このカテゴリの説明"
+            },
+            {
+              "id": "subcategory1",
+              "name": "サブカテゴリ1",
+              "level": 2,  // サブカテゴリはレベル2
+              "parentId": "category1",  // 親カテゴリID
+              "keywords": ["関連キーワード3", "関連キーワード4"],
+              "description": "このサブカテゴリの説明"
+            },
+            ...
+          ]
+        }
+        
+        注意事項：
+        - 主要カテゴリ（レベル1）は4〜6個程度作成してください
+        - 各主要カテゴリには適切なサブカテゴリを2〜4個作成してください
+        - 全てのキーワードがいずれかのカテゴリに含まれるようにしてください
+        - カテゴリ名は簡潔に（5-15文字程度）
+        - カテゴリの説明は30-50文字程度で作成してください
+        - カテゴリ間は論理的に関連性があり、重複がないようにしてください
+        - 日本語で回答してください`
       }
     ];
     
-    // Azure OpenAIを呼び出して構造化を生成
-    const responseText = await callAzureOpenAI(promptMessages, 0.7, 2500);
+    // Azure OpenAIを呼び出し
+    const responseContent = await callAzureOpenAI(prompt, 0.7, 2000);
     
-    // 応答をJSONとしてパース
-    let structureResult: StructureOutput;
+    // 結果をパース
     try {
-      structureResult = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Error parsing structuring JSON response:', e);
-      throw new Error('Invalid response format from structuring');
-    }
-    
-    // ノード数をカウント
-    const nodeCount = 1 + structureResult.hierarchicalStructure.childNodes.length;
-    
-    return {
-      result: structureResult,
-      metadata: {
-        nodeCount,
-        maxLevel: Math.max(...structureResult.hierarchicalStructure.childNodes.map(node => node.level)),
-        promptTokens: promptMessages.reduce((acc, msg) => acc + msg.content.length, 0),
-        responseTokens: responseText.length
+      let structuringData: StructuringData;
+      
+      // JSON形式の部分を抽出
+      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        structuringData = JSON.parse(jsonMatch[0]);
+      } else {
+        structuringData = JSON.parse(responseContent);
       }
-    };
+      
+      // データの検証
+      if (!structuringData.hierarchicalCategories || !Array.isArray(structuringData.hierarchicalCategories)) {
+        structuringData = { hierarchicalCategories: [] };
+      }
+      
+      // ルートノードがない場合は追加
+      if (!structuringData.hierarchicalCategories.some(cat => cat.id === 'root')) {
+        structuringData.hierarchicalCategories.unshift({
+          id: 'root',
+          name: input.roleName,
+          level: 0,
+          keywords: [],
+          description: input.description || `${input.roleName}の情報構造`
+        });
+      }
+      
+      console.log(`Structuring completed with ${structuringData.hierarchicalCategories.length} categories`);
+      
+      return {
+        success: true,
+        data: structuringData
+      };
+    } catch (parseError: any) {
+      console.error('Error parsing structuring response:', parseError);
+      return {
+        success: false,
+        error: `Failed to parse structuring data: ${parseError.message}`
+      };
+    }
   } catch (error: any) {
     console.error('Error in structuring agent:', error);
-    throw new Error(`Structuring failed: ${error.message}`);
+    return {
+      success: false,
+      error: `Structuring failed: ${error.message}`
+    };
   }
-};
+}
