@@ -133,12 +133,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const industries = await storage.getRoleModelIndustriesWithData(roleModel.id);
       const keywords = await storage.getRoleModelKeywordsWithData(roleModel.id);
       
+      // デバッグログを追加
+      console.log("Role model industries:", industries);
+      console.log("Role model keywords:", keywords);
+      
       const roleModelWithData = {
         ...roleModel,
         tags,
         industries,
         keywords
       };
+      
+      // レスポンスデータを詳細にログ出力
+      console.log("Complete role model response:", JSON.stringify(roleModelWithData, null, 2));
+      
+      // キャッシュを無効化するヘッダーを設定
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       
       res.json(roleModelWithData);
     } catch (error) {

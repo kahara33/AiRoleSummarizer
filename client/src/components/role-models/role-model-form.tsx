@@ -208,7 +208,17 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
         title: "ロールモデルを更新しました",
         description: "基本情報、業界カテゴリ、キーワードが更新されました"
       });
+      
+      // 全体のロールモデルリストをクリアする
       queryClient.invalidateQueries({ queryKey: ["/api/role-models"] });
+      
+      // 特定のロールモデルの詳細もクリアする
+      if (roleModel) {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/role-models/${roleModel.id}/with-tags`]
+        });
+      }
+      
       if (onSuccess) onSuccess();
     },
     onError: (error) => {

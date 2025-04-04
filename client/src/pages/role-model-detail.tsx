@@ -97,7 +97,9 @@ export default function RoleModelDetailPage() {
     queryFn: async () => {
       console.log("APIリクエスト開始:", `/api/role-models/${roleModelId}/with-tags`);
       try {
-        const res = await apiRequest("GET", `/api/role-models/${roleModelId}/with-tags`);
+        // タイムスタンプをクエリパラメータに追加してキャッシュを回避
+        const timestamp = new Date().getTime();
+        const res = await apiRequest("GET", `/api/role-models/${roleModelId}/with-tags?t=${timestamp}`);
         const data = await res.json() as RoleModel & { 
           tags: Tag[], 
           industries: IndustrySubcategoryWithCategory[],
@@ -115,7 +117,10 @@ export default function RoleModelDetailPage() {
         throw err;
       }
     },
-    enabled: !!roleModelId
+    enabled: !!roleModelId,
+    staleTime: 0, // 常に最新データを取得
+    refetchOnMount: true, // コンポーネントマウント時に常に再取得
+    gcTime: 0 // キャッシュしない（v5ではcacheTimeからgcTimeに変更された）
   });
   
   // 編集完了後のコールバック
