@@ -85,7 +85,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     });
     
     // メッセージ受信時の処理
-    ws.on('message', (data: WebSocket.Data) => {
+    ws.on('message', (data: any) => {
       try {
         const message = JSON.parse(data.toString());
         handleClientMessage(clientId, message);

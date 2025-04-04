@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -42,52 +42,69 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
   const [filteredThoughts, setFilteredThoughts] = useState<AgentMessage[]>([]);
   const [localThoughts, setLocalThoughts] = useState<AgentMessage[]>([]);
   
-  // WebSocketの設定
+  // WebSocketインスタンスをrefに保存して、コンポーネントのライフサイクル全体で管理
+  const socketRef = useRef<WebSocket | null>(null);
+  const isComponentMountedRef = useRef<boolean>(true);
+  
+  // マウント時にrefを初期化
+  useEffect(() => {
+    isComponentMountedRef.current = true;
+    
+    return () => {
+      // アンマウント時にフラグをfalseに設定
+      isComponentMountedRef.current = false;
+    };
+  }, []);
+  
+  // WebSocket接続の管理
   useEffect(() => {
     // パネルが非表示またはroleModelIdが無効な場合は何もしない
     if (!isVisible || !roleModelId) return;
     
-    // ローカルthoughtsをリセット
+    // 新しい表示状態になったらローカルthoughtsをリセット
     setLocalThoughts([]);
     
-    // WebSocket接続
-    let isComponentMounted = true;
+    // WebSocket接続を開始
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const socket = new WebSocket(wsUrl);
     
-    socket.onopen = () => {
+    const newSocket = new WebSocket(wsUrl);
+    socketRef.current = newSocket;
+    
+    // WebSocketイベントハンドラを設定
+    newSocket.onopen = () => {
       console.log('WebSocket connected for agent thoughts');
-      // コンポーネントがまだマウントされている場合のみ実行
-      if (isComponentMounted) {
-        // 役割モデルID購読
-        socket.send(JSON.stringify({
-          type: 'subscribe_role_model',
-          payload: { roleModelId }
-        }));
+      
+      // コンポーネントがマウントされている場合のみ実行
+      if (isComponentMountedRef.current && newSocket.readyState === 1) {
+        try {
+          newSocket.send(JSON.stringify({
+            type: 'subscribe_role_model',
+            payload: { roleModelId }
+          }));
+        } catch (err) {
+          console.error('Error sending subscription message:', err);
+        }
       }
     };
     
-    socket.onmessage = (event) => {
+    newSocket.onmessage = (event) => {
+      if (!isComponentMountedRef.current) return;
+      
       try {
-        // コンポーネントがまだマウントされている場合のみ処理
-        if (!isComponentMounted) return;
-        
         const data = JSON.parse(event.data);
         
         if (data.type === 'agent_thoughts') {
-          // 新しい思考を追加（メモリリークを防ぐため関数形式で更新）
           const newThought: AgentMessage = {
-            timestamp: data.payload.timestamp,
-            agentName: data.payload.agentName,
-            message: data.payload.message,
+            timestamp: data.payload.timestamp || Date.now(),
+            agentName: data.payload.agentName || 'Unknown',
+            message: data.payload.message || '',
             type: data.payload.type || 'info'
           };
           
-          // 関数形式で前の状態を参照（クロージャの問題を回避）
-          setLocalThoughts(prevThoughts => [...prevThoughts, newThought]);
+          // この関数形式によりステート更新は常に最新の状態に基づいて行われる
+          setLocalThoughts(prev => [...prev, newThought]);
         } else if (data.type === 'progress_update') {
-          // 進捗状況更新は現在この実装では扱っていない
           console.log('Progress update received:', data.payload);
         }
       } catch (error) {
@@ -95,68 +112,61 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
       }
     };
     
-    socket.onerror = (error) => {
+    newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
     
-    socket.onclose = () => {
+    newSocket.onclose = () => {
       console.log('WebSocket disconnected for agent thoughts');
     };
     
     // クリーンアップ関数
     return () => {
-      console.log('Cleaning up WebSocket connection');
-      isComponentMounted = false;
-      
       try {
-        if (socket && socket.readyState === 1) { // WebSocket.OPEN = 1
+        const socket = socketRef.current;
+        if (socket && socket.readyState === 1) {
           socket.send(JSON.stringify({
             type: 'unsubscribe_role_model',
             payload: { roleModelId }
           }));
           socket.close();
         }
+        socketRef.current = null;
       } catch (e) {
         console.error('Error during WebSocket cleanup:', e);
       }
     };
-  }, [roleModelId, isVisible]);
+  }, [roleModelId, isVisible]); // 依存配列にはプロパティのみを含める
   
-  // 思考メッセージの処理（WebSocketとpropsから受け取ったデータを1ステップで結合・ソートする）
+  // mergedThoughtsとフィルタリングロジックを単一のuseEffectに統合
   useEffect(() => {
-    // 安全に扱うためnullチェック
-    const safeThoughts = thoughts || [];
-    
-    // 全思考データを結合
-    const mergedThoughts = [...safeThoughts, ...localThoughts];
+    // ローカルのコピーを作成して、状態更新の無限ループを防ぐ
+    const mergedThoughts = [...(thoughts || []), ...localThoughts];
     
     // タイムスタンプでソート
     mergedThoughts.sort((a, b) => a.timestamp - b.timestamp);
     
-    // フィルタリング適用（依存配列からallThoughtsを削除して最大更新深度エラーを防ぐ）
-    if (activeTab === 'all') {
-      setFilteredThoughts(mergedThoughts);
-    } else {
-      setFilteredThoughts(mergedThoughts.filter(thought => thought.agentName === activeTab));
-    }
-  }, [thoughts, localThoughts, activeTab]); // allThoughtsへの依存を削除
+    // 現在のタブに応じてフィルタリング
+    const filtered = activeTab === 'all' 
+      ? mergedThoughts 
+      : mergedThoughts.filter(thought => thought.agentName === activeTab);
+    
+    // 1回の更新で済ませる
+    setFilteredThoughts(filtered);
+  }, [thoughts, localThoughts, activeTab]);
   
-  // エージェント名のユニークリストを作成
-  const getUniqueAgentNames = () => {
+  // このアプローチは重要: 通常の変数としてレンダリング時に直接計算する
+  // useStateやuseEffectに依存しないため、更新深度の問題を回避
+  const uniqueAgentNames = (() => {
     const agentNameSet = new Set<string>();
-    // thoughts（親コンポーネントから渡されたデータ）からエージェント名を取得
-    (thoughts || []).forEach(t => {
+    
+    // 両方のソースからエージェント名を収集
+    [...(thoughts || []), ...localThoughts].forEach(t => {
       if (t.agentName) agentNameSet.add(t.agentName);
     });
-    // localThoughts（WebSocketから取得したデータ）からエージェント名を取得
-    localThoughts.forEach(t => {
-      if (t.agentName) agentNameSet.add(t.agentName);
-    });
+    
     return Array.from(agentNameSet);
-  };
-  
-  // コンポーネントがレンダリングされるたびに再計算（メモ化せず）
-  const agentNames = getUniqueAgentNames();
+  })();
   
   // メッセージタイプに応じたアイコンを取得
   const getIconForType = (type: string) => {
@@ -244,7 +254,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
         <div className="px-6">
           <TabsList className="mb-2">
             <TabsTrigger value="all">すべて</TabsTrigger>
-            {agentNames.map(agent => (
+            {uniqueAgentNames.map(agent => (
               <TabsTrigger key={agent} value={agent}>
                 {agent}
               </TabsTrigger>
