@@ -120,40 +120,47 @@ export default function KnowledgeGraphViewer({
       const edgesRes = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-edges`);
       const knowledgeEdges: KnowledgeEdge[] = await edgesRes.json();
       
+      console.log("API response - nodes:", knowledgeNodes.length, "edges:", knowledgeEdges.length);
+      
       // Transform to graph format
       const graphNodes: GraphNode[] = knowledgeNodes.map(node => ({
         id: node.id,
         name: node.name,
-        type: node.type,
-        level: node.level,
-        color: node.color || getNodeColor(node.type),
+        type: node.type || "concept", // デフォルト値を設定
+        level: node.level || 0, // レベルがない場合はデフォルト値
+        color: node.color || getNodeColor(node.type || "concept"),
         parentId: node.parentId || null,
-        description: node.description,
-        val: node.level === 0 ? 20 : (3 - Math.min(node.level, 3)) * 5 // 重要度によってサイズを変更
+        description: node.description || "",
+        val: node.level === 0 ? 20 : (3 - Math.min(node.level || 0, 3)) * 5 // 重要度によってサイズを変更
       }));
       
-      console.log("Loaded knowledge nodes:", graphNodes.length);
+      console.log("Transformed graph nodes:", graphNodes.length);
       
-      const graphLinks: GraphLink[] = [
-        // Add parent-child links
-        ...graphNodes
-          .filter(node => node.parentId)
-          .map(node => ({
-            id: `parent-${node.id}`,
-            source: node.parentId!,
-            target: node.id,
-            label: "CONTAINS"
-          })),
-        
-        // Add explicit edge links
-        ...knowledgeEdges.map(edge => ({
-          id: edge.id,
-          source: edge.sourceId || "", // サーバー側の応答フィールド名に合わせる
-          target: edge.targetId || "", // サーバー側の応答フィールド名に合わせる
-          label: edge.label || "RELATED_TO",
-          strength: edge.strength || undefined // nullの場合はundefinedに変換
-        }))
-      ];
+      // リンクの作成部分も改善
+      let graphLinks: GraphLink[] = [];
+      
+      // 親子関係のリンクを追加
+      const parentChildLinks = graphNodes
+        .filter(node => node.parentId)
+        .map(node => ({
+          id: `parent-${node.id}`,
+          source: node.parentId!,
+          target: node.id,
+          label: "CONTAINS"
+        }));
+      console.log("Parent-child links:", parentChildLinks.length);
+      graphLinks = [...graphLinks, ...parentChildLinks];
+      
+      // 明示的なエッジリンクを追加
+      const explicitLinks = knowledgeEdges.map(edge => ({
+        id: edge.id,
+        source: edge.sourceId || "", 
+        target: edge.targetId || "",
+        label: edge.label || "RELATED_TO",
+        strength: edge.strength || undefined
+      }));
+      console.log("Explicit edge links:", explicitLinks.length);
+      graphLinks = [...graphLinks, ...explicitLinks];
       
       // ノードのストリーミング表示のための準備
       if (graphNodes.length > 0) {
