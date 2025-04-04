@@ -516,6 +516,13 @@ export default function KnowledgeGraphPage() {
               roleModelId={roleModelId}
               isVisible={showAgentPanel}
               onClose={() => setShowAgentPanel(false)}
+              isProcessing={generateGraphMutation.isPending || expandNodeMutation.isPending}
+              thoughts={agentThoughts.map(thought => ({
+                timestamp: thought.timestamp.getTime(),
+                agentName: thought.agent,
+                message: thought.thought,
+                type: 'thinking'
+              }))}
             />
           </TabsContent>
           

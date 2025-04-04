@@ -51,10 +51,10 @@ interface GraphNode {
 
 interface GraphLink {
   id: string;
-  source: any;
-  target: any;
+  source: string | any; // サーバー側の応答に柔軟に対応
+  target: string | any; // サーバー側の応答に柔軟に対応
   label?: string;
-  strength?: number;
+  strength?: number | undefined; // null値に対応
 }
 
 // ノードタイプに基づく色の取得
@@ -140,10 +140,10 @@ export default function KnowledgeGraphViewer({
         // Add explicit edge links
         ...knowledgeEdges.map(edge => ({
           id: edge.id,
-          source: edge.source || edge.sourceId, // サーバー側の応答フィールド名の違いに対応
-          target: edge.target || edge.targetId, // サーバー側の応答フィールド名の違いに対応
+          source: edge.source || edge.sourceId || "", // サーバー側の応答フィールド名の違いに対応
+          target: edge.target || edge.targetId || "", // サーバー側の応答フィールド名の違いに対応
           label: edge.label || "RELATED_TO",
-          strength: edge.strength
+          strength: edge.strength || undefined // nullの場合はundefinedに変換
         }))
       ];
       
