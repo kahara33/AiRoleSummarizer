@@ -866,6 +866,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // RoleModelInputを構築
         const agentInput = {
+          id: roleModelId, // RoleModelInputインターフェースに必要なidフィールド
+          userId: req.user?.id || "", // RoleModelInputインターフェースに必要なuserIdフィールド（必須フィールド）
           roleModelId,
           roleName: roleModel.name,
           description: roleModel.description || "",
