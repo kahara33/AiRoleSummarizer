@@ -58,7 +58,13 @@ export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTok
       throw new Error(`Azure OpenAI API error: ${response.status} ${errorText}`);
     }
     
-    const data = await response.json();
+    const data = await response.json() as {
+      choices?: {
+        message: {
+          content: string;
+        };
+      }[];
+    };
     
     // エージェントモジュール用に応答データから直接コンテンツを抽出して返す
     if (data && data.choices && data.choices.length > 0) {
@@ -665,8 +671,12 @@ export async function generateKnowledgeGraphForNode(
         });
         
         console.log(`Successfully generated ${subNodes.length} sub-nodes with Azure OpenAI`);
-      } catch (err) {
-        throw new Error("Invalid response from Azure OpenAI: " + err.message);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          throw new Error("Invalid response from Azure OpenAI: " + err.message);
+        } else {
+          throw new Error("Invalid response from Azure OpenAI: Unknown error");
+        }
       }
     } catch (apiError) {
       console.error("Error calling Azure OpenAI for node expansion:", apiError);

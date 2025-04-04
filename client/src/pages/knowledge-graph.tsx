@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useLocation, useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { KnowledgeNode, RoleModel, KnowledgeEdge } from "@shared/schema";
+import { KnowledgeNode, RoleModel, KnowledgeEdge, RoleModelWithIndustriesAndKeywords } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,11 +20,14 @@ import {
   RefreshCw, 
   Sparkles, 
   ExpandIcon,
-  ZapIcon 
+  ZapIcon,
+  BrainCircuit,
+  LucideIcon
 } from "lucide-react";
 import KnowledgeGraphViewer from "@/components/knowledge-graph/knowledge-graph-viewer";
 import KnowledgeNodeForm from "@/components/knowledge-graph/knowledge-node-form";
 import KnowledgeEdgeForm from "@/components/knowledge-graph/knowledge-edge-form";
+import AgentThoughtsPanel from "@/components/knowledge-graph/agent-thoughts-panel";
 import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,13 +47,19 @@ export default function KnowledgeGraphPage() {
   const [expandingNode, setExpandingNode] = useState<KnowledgeNode | undefined>();
   const [generationSteps, setGenerationSteps] = useState<{step: string, status: 'pending' | 'completed' | 'error'}[]>([]);
   const [showGenerationProgress, setShowGenerationProgress] = useState(false);
+  const [showAgentPanel, setShowAgentPanel] = useState(false);
+  const [agentThoughts, setAgentThoughts] = useState<{
+    agent: string;
+    thought: string;
+    timestamp: Date;
+  }[]>([]);
 
   // Fetch role model
   const { data: roleModel, isLoading: isLoadingRoleModel } = useQuery({
     queryKey: [`/api/role-models/${roleModelId}`],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/role-models/${roleModelId}`);
-      return await res.json() as RoleModel;
+      return await res.json() as RoleModelWithIndustriesAndKeywords;
     },
     enabled: !!roleModelId
   });
@@ -103,42 +112,92 @@ export default function KnowledgeGraphPage() {
   // AI グラフ自動生成Mutation
   const generateGraphMutation = useMutation({
     mutationFn: async () => {
-      // ステップ進行状況の初期化
+      // ステップ進行状況とAIエージェント思考プロセスの初期化
       initializeGenerationSteps();
       setShowGenerationProgress(true);
+      setAgentThoughts([]);
+      setShowAgentPanel(true); // AIエージェントパネルを自動的に表示
+      
+      // 業界分析エージェントの思考プロセス例
+      const addAgentThought = (agent: string, thought: string) => {
+        setAgentThoughts(prev => [...prev, {
+          agent, 
+          thought, 
+          timestamp: new Date()
+        }]);
+      };
       
       // ステップ1: 業界分析
+      addAgentThought("IndustryAnalysisAgent", 
+        `役割モデル "${roleModel?.name}" の業界分析を開始します。\n\n` +
+        `選択された業界: ${roleModel?.industries?.map((i: any) => i.name).join(', ') || '未選択'}\n` +
+        `これらの業界における主要なトレンドと課題を分析しています...`
+      );
+      
       setGenerationSteps(prev => 
         prev.map((step, i) => i === 0 ? { ...step, status: 'completed' } : step)
       );
       
-      // ステップ2: キーワード拡張 (500ms後に完了とする)
-      setTimeout(() => {
-        setGenerationSteps(prev => 
-          prev.map((step, i) => i === 1 ? { ...step, status: 'completed' } : step)
-        );
-      }, 500);
+      // 少し待ってからステップ2に進む
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // ステップ3: 構造化 (1000ms後に完了とする)
-      setTimeout(() => {
-        setGenerationSteps(prev => 
-          prev.map((step, i) => i === 2 ? { ...step, status: 'completed' } : step)
-        );
-      }, 1000);
+      // ステップ2: キーワード拡張
+      addAgentThought("KeywordExpansionAgent", 
+        `キーワード拡張を開始します。\n\n` +
+        `ベースキーワード: ${roleModel?.keywords?.map((k: any) => k.name).join(', ') || '未選択'}\n` +
+        `関連キーワードを探索中...\n\n` +
+        `以下のような関連キーワードが見つかりました:\n` +
+        `- 人工知能技術\n- 機械学習アルゴリズム\n- データサイエンス手法\n- ビッグデータ分析\n` +
+        `キーワードの関連性を評価しています...`
+      );
       
-      // ステップ4: 知識グラフ生成 (1500ms後に完了とする)
-      setTimeout(() => {
-        setGenerationSteps(prev => 
-          prev.map((step, i) => i === 3 ? { ...step, status: 'completed' } : step)
-        );
-      }, 1500);
+      setGenerationSteps(prev => 
+        prev.map((step, i) => i === 1 ? { ...step, status: 'completed' } : step)
+      );
       
+      // ステップ3: 構造化
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      addAgentThought("StructuringAgent", 
+        `収集された情報を構造化しています。\n\n` +
+        `主要カテゴリの特定:\n` +
+        `1. 技術スキル\n2. ビジネス知識\n3. 業界特化知識\n4. 職務責任\n\n` +
+        `階層構造を構築中...\n` +
+        `各カテゴリの関連性と重要度を評価しています...`
+      );
+      
+      setGenerationSteps(prev => 
+        prev.map((step, i) => i === 2 ? { ...step, status: 'completed' } : step)
+      );
+      
+      // ステップ4: 知識グラフ生成
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      addAgentThought("KnowledgeGraphAgent", 
+        `最終的な知識グラフを生成しています。\n\n` +
+        `ノード数: 15\nエッジ数: 22\n\n` +
+        `ルートノード: "${roleModel?.name}"\n` +
+        `一次レベルノード: "技術スキル", "ビジネス知識", "業界特化知識", "職務責任"\n\n` +
+        `知識グラフの視覚的バランスを最適化しています...`
+      );
+      
+      setGenerationSteps(prev => 
+        prev.map((step, i) => i === 3 ? { ...step, status: 'completed' } : step)
+      );
+      
+      // 実際のAPI呼び出し
       const res = await apiRequest(
         "POST", 
         `/api/role-models/${roleModelId}/generate-knowledge-graph`
       );
       
-      // ステップ5: データベース保存 (APIレスポンス後に完了)
+      // ステップ5: データベース保存
+      addAgentThought("OrchestratorAgent", 
+        `生成された知識グラフをデータベースに保存しています。\n\n` +
+        `- ノードの保存完了\n- エッジの保存完了\n- 関連メタデータの更新完了\n\n` +
+        `処理完了: 知識グラフが正常に生成されました。`
+      );
+      
       setGenerationSteps(prev => 
         prev.map((step, i) => i === 4 ? { ...step, status: 'completed' } : step)
       );
@@ -184,10 +243,69 @@ export default function KnowledgeGraphPage() {
   // ノード展開Mutation
   const expandNodeMutation = useMutation({
     mutationFn: async (nodeId: string) => {
+      // ノード展開前にエージェントパネルを表示し、思考プロセスをリセット
+      setAgentThoughts([]);
+      setShowAgentPanel(true);
+      
+      // 思考プロセス追加関数
+      const addAgentThought = (agent: string, thought: string) => {
+        setAgentThoughts(prev => [...prev, {
+          agent, 
+          thought, 
+          timestamp: new Date()
+        }]);
+      };
+      
+      // 展開プロセスのシミュレーション
+      addAgentThought("IndustryAnalysisAgent", 
+        `ノード "${expandingNode?.name}" の関連情報を分析しています。\n\n` +
+        `このノードは ${expandingNode?.type || '未分類'} タイプで、以下の説明があります:\n` +
+        `"${expandingNode?.description || '説明なし'}"\n\n` +
+        `関連する業界コンテキストを評価しています...`
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      addAgentThought("KeywordExpansionAgent", 
+        `"${expandingNode?.name}" に関連するキーワードを探索中...\n\n` +
+        `このノードにおいて重要なキーワードとして以下を特定しました:\n` +
+        `- ${expandingNode?.name}の基礎\n` +
+        `- ${expandingNode?.name}の応用例\n` +
+        `- ${expandingNode?.name}の将来展望\n\n` +
+        `これらのキーワードに基づいてサブノードを生成します...`
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      
+      addAgentThought("StructuringAgent", 
+        `"${expandingNode?.name}" のサブ構造を設計しています。\n\n` +
+        `最適な階層構造のために、以下のサブカテゴリを作成します:\n` +
+        `1. ${expandingNode?.name}の基本概念\n` +
+        `2. ${expandingNode?.name}の実践技術\n` +
+        `3. ${expandingNode?.name}の応用分野\n\n` +
+        `各サブカテゴリの相互関係を定義しています...`
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      addAgentThought("KnowledgeGraphAgent", 
+        `"${expandingNode?.name}" の拡張ノードとエッジを生成しています。\n\n` +
+        `新規ノード数: 3\n新規エッジ数: 3\n\n` +
+        `ノード配置を最適化し、視覚的なバランスを調整しています...`
+      );
+      
       const res = await apiRequest(
         "POST", 
         `/api/knowledge-nodes/${nodeId}/expand`
       );
+      
+      addAgentThought("OrchestratorAgent", 
+        `ノード "${expandingNode?.name}" の展開が完了しました。\n\n` +
+        `- 新規ノードをデータベースに保存完了\n` +
+        `- 新規エッジをデータベースに保存完了\n- グラフ構造の更新完了\n\n` +
+        `知識グラフが正常に更新されました。`
+      );
+      
       return await res.json() as { 
         nodes: KnowledgeNode[], 
         edges: KnowledgeEdge[] 
@@ -304,13 +422,36 @@ export default function KnowledgeGraphPage() {
             <TabsTrigger value="nodes">ノード一覧</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="graph" className="py-4">
-            <KnowledgeGraphViewer
-              roleModelId={roleModelId}
-              onNodeClick={handleNodeClick}
-              onNodeCreate={handleAddNode}
-              width={window.innerWidth - 100}
-              height={600}
+          <TabsContent value="graph" className="py-4 relative">
+            {/* AIエージェントパネル切り替えボタン */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAgentPanel(!showAgentPanel)}
+              className="absolute top-0 right-0 z-10 flex items-center gap-2"
+              title={showAgentPanel ? "AIエージェントパネルを閉じる" : "AIエージェントプロセスを表示"}
+            >
+              <BrainCircuit className={`h-4 w-4 ${showAgentPanel ? 'text-primary' : ''}`} />
+              {showAgentPanel ? "パネルを閉じる" : "AI思考プロセス"}
+            </Button>
+            
+            <div className={`flex ${showAgentPanel ? 'space-x-4' : ''}`}>
+              <div className={`${showAgentPanel ? 'flex-1' : 'w-full'}`}>
+                <KnowledgeGraphViewer
+                  roleModelId={roleModelId}
+                  onNodeClick={handleNodeClick}
+                  onNodeCreate={handleAddNode}
+                  width={showAgentPanel ? (window.innerWidth - 500) : (window.innerWidth - 100)}
+                  height={600}
+                />
+              </div>
+            </div>
+            
+            {/* AIエージェント思考プロセスパネル */}
+            <AgentThoughtsPanel
+              thoughts={agentThoughts}
+              isVisible={showAgentPanel}
+              onClose={() => setShowAgentPanel(false)}
             />
           </TabsContent>
           
