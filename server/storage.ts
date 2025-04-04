@@ -1205,10 +1205,16 @@ export class PostgresStorage implements IStorage {
       .leftJoin(industryCategories, eq(industrySubcategories.categoryId, industryCategories.id))
       .where(eq(roleModelIndustries.roleModelId, roleModelId));
 
-    return result.map(({ subcategory, category }) => ({
-      ...subcategory,
-      category
-    }));
+    // デバッグログを追加
+    console.log(`getRoleModelIndustriesWithData - roleModelId: ${roleModelId}, results:`, result);
+
+    // nullチェックを追加して、有効なデータのみをマップ
+    return result
+      .filter(row => row.subcategory !== null && row.category !== null)
+      .map(({ subcategory, category }) => ({
+        ...subcategory,
+        category
+      }));
   }
 
   async createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
@@ -1245,7 +1251,13 @@ export class PostgresStorage implements IStorage {
       .leftJoin(keywords, eq(roleModelKeywords.keywordId, keywords.id))
       .where(eq(roleModelKeywords.roleModelId, roleModelId));
 
-    return result.map(({ keyword }) => keyword);
+    // デバッグログを追加
+    console.log(`getRoleModelKeywordsWithData - roleModelId: ${roleModelId}, results:`, result);
+
+    // nullチェックを追加して、有効なデータのみをマップ
+    return result
+      .filter(row => row.keyword !== null)
+      .map(({ keyword }) => keyword);
   }
 
   async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
