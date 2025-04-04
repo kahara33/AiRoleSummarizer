@@ -59,7 +59,10 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
   }, []);
   
   // フィルタリングロジックを関数として抽出 - useEffectの外部で定義
+  // useCallbackの依存配列を空のままにして、コンポーネントの再レンダリングで再作成されないようにする
   const updateFilteredThoughts = useCallback((localThoughts: AgentMessage[], externalThoughts: AgentMessage[], activeTab: string) => {
+    // console.log('updateFilteredThoughts called', { localThoughts, externalThoughts, activeTab });
+    
     // ローカルのコピーを作成して、状態更新の無限ループを防ぐ
     const mergedThoughts = [...(externalThoughts || []), ...localThoughts];
     
@@ -76,10 +79,11 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
     setFilteredThoughts(filtered);
   }, []);
   
-  // activeTab, localThoughts, thoughtsが変更されたときにフィルタリングを更新
+  // activeTab, localThoughts, thoughtsが変更されたときに1回だけフィルタリングを更新
+  // 依存配列から updateFilteredThoughts を削除して無限ループを防止
   useEffect(() => {
     updateFilteredThoughts(localThoughts, thoughts || [], activeTab);
-  }, [activeTab, updateFilteredThoughts, localThoughts, thoughts]);
+  }, [activeTab, localThoughts, thoughts]);
   
   // WebSocket接続の管理
   useEffect(() => {
@@ -163,6 +167,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
         if (!isComponentMountedRef.current) return;
         
         try {
+          console.log('Raw WebSocket message received:', event.data);
           const data = JSON.parse(event.data);
           console.log('WebSocket message received:', data.type);
           
@@ -177,6 +182,19 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
             
             // この関数形式によりステート更新は常に最新の状態に基づいて行われる
             setLocalThoughts(prev => {
+              // 以前の思考と重複しないようにする
+              const isDuplicate = prev.some(thought => 
+                thought.timestamp === newThought.timestamp && 
+                thought.agentName === newThought.agentName && 
+                thought.message === newThought.message
+              );
+              
+              if (isDuplicate) {
+                console.log('Duplicate thought detected, skipping');
+                return prev;
+              }
+              
+              console.log('Adding new thought to state');
               const newThoughts = [...prev, newThought];
               return newThoughts;
             });
