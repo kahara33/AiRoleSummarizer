@@ -63,7 +63,7 @@ export default function KeywordSelectionContainer({
           <SelectedKeywords
             selectedKeywordIds={selectedKeywords}
             onRemoveKeyword={handleRemoveKeyword}
-            maxHeight="300px"
+            maxHeight="150px"
           />
         </div>
       </div>

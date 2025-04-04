@@ -17,7 +17,7 @@ interface SelectedKeywordsProps {
 export default function SelectedKeywords({
   selectedKeywordIds,
   onRemoveKeyword,
-  maxHeight = "200px",
+  maxHeight = "150px",
   title = "選択したキーワード"
 }: SelectedKeywordsProps) {
   // 全キーワードを取得
