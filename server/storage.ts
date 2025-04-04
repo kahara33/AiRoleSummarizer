@@ -656,6 +656,20 @@ export class MemStorage implements IStorage {
     return this.roleModelIndustries.delete(id);
   }
   
+  async deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean> {
+    // 特定のロールモデルに紐づく全ての業界マッピングを削除
+    const roleMappings = await this.getRoleModelIndustries(roleModelId);
+    let deletedCount = 0;
+    
+    for (const mapping of roleMappings) {
+      if (await this.deleteRoleModelIndustry(mapping.id)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
+  }
+  
   // Role model keyword mapping methods
   async getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]> {
     return Array.from(this.roleModelKeywords.values()).filter(

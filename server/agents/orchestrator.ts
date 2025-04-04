@@ -5,6 +5,8 @@ import { expandKeywords } from './keyword-expansion';
 import { structureKnowledge } from './structuring';
 import { generateKnowledgeGraph } from './knowledge-graph';
 import { callAzureOpenAI } from '../azure-openai';
+import { storage } from '../storage';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * オーケストレーターエージェント
@@ -29,6 +31,57 @@ export async function orchestrator(
     
     console.log('Industry analysis completed successfully');
     
+    // 業界データをRoleModelとして保存
+    if (input.roleModelId) {
+      try {
+        // 既存の業界関連付けがあれば削除
+        try {
+          await storage.deleteRoleModelIndustriesByRoleModelId(input.roleModelId);
+          console.log(`Deleted existing industry associations for role model ${input.roleModelId}`);
+        } catch (deleteError) {
+          console.error('Error deleting existing industry associations:', deleteError);
+          // 削除エラーでも続行
+        }
+        
+        // 業界データから業界名を抽出
+        const targetAudiences = industryAnalysisResult.data.targetAudience || [];
+        const keyTrends = industryAnalysisResult.data.keyTrends || [];
+        const businessModels = industryAnalysisResult.data.businessModels || [];
+        const industries = [...targetAudiences, ...keyTrends, ...businessModels];
+        
+        // 先に業界サブカテゴリを検索
+        const allIndustrySubcategories = await storage.getIndustrySubcategories();
+        
+        // 各業界名に近いサブカテゴリを見つけて関連付け
+        for (const industryName of industries) {
+          // 完全一致または部分一致するサブカテゴリを検索
+          const matchingSubcategory = allIndustrySubcategories.find(sub => 
+            sub.name === industryName || 
+            industryName.includes(sub.name) || 
+            sub.name.includes(industryName)
+          );
+          
+          if (matchingSubcategory) {
+            try {
+              // 業界とロールモデルを関連付け
+              await storage.createRoleModelIndustry({
+                id: uuidv4(),
+                roleModelId: input.roleModelId,
+                industrySubcategoryId: matchingSubcategory.id
+              });
+              console.log(`業界 "${matchingSubcategory.name}" をロールモデルに関連付けました`);
+            } catch (error) {
+              console.error(`業界関連付けエラー (${matchingSubcategory.name}):`, error);
+              // エラーが発生しても続行
+            }
+          }
+        }
+      } catch (error) {
+        console.error('業界データの保存中にエラーが発生しました:', error);
+        // エラーが発生しても処理を続行
+      }
+    }
+    
     // 2. キーワード拡張エージェントを実行
     const keywordExpansionResult = await expandKeywords(
       input,
@@ -48,6 +101,64 @@ export async function orchestrator(
     }
     
     console.log('Keyword expansion completed successfully');
+    
+    // キーワードデータをRoleModelとして保存
+    if (input.roleModelId) {
+      try {
+        // 既存のキーワード関連付けがあれば削除
+        try {
+          await storage.deleteRoleModelKeywordsByRoleModelId(input.roleModelId);
+          console.log(`Deleted existing keyword associations for role model ${input.roleModelId}`);
+        } catch (deleteError) {
+          console.error('Error deleting existing keyword associations:', deleteError);
+          // 削除エラーでも続行
+        }
+        
+        // 拡張キーワードを取得
+        const expandedKeywords = keywordExpansionResult.data.expandedKeywords || [];
+        
+        // 先にキーワードマスタを検索
+        const allKeywords = await storage.getKeywords();
+        
+        // 各キーワードをマスタに追加し、ロールモデルと関連付け
+        for (const keywordName of expandedKeywords) {
+          // キーワードマスタに存在するか確認
+          let existingKeyword = allKeywords.find(k => k.name === keywordName);
+          
+          // 存在しない場合は作成
+          if (!existingKeyword) {
+            try {
+              existingKeyword = await storage.createKeyword({
+                id: uuidv4(),
+                name: keywordName,
+                description: null,
+                createdById: input.userId || null
+              });
+              console.log(`キーワード "${keywordName}" を作成しました`);
+            } catch (keywordError) {
+              console.error(`キーワード作成エラー (${keywordName}):`, keywordError);
+              continue; // このキーワードはスキップして次へ
+            }
+          }
+          
+          try {
+            // キーワードとロールモデルを関連付け
+            await storage.createRoleModelKeyword({
+              id: uuidv4(),
+              roleModelId: input.roleModelId,
+              keywordId: existingKeyword.id
+            });
+            console.log(`キーワード "${keywordName}" をロールモデルに関連付けました`);
+          } catch (mappingError) {
+            console.error(`キーワード関連付けエラー (${keywordName}):`, mappingError);
+            // エラーが発生しても続行
+          }
+        }
+      } catch (error) {
+        console.error('キーワードデータの保存中にエラーが発生しました:', error);
+        // エラーが発生しても処理を続行
+      }
+    }
     
     // 3. 知識構造化エージェントを実行
     const structuringResult = await structureKnowledge(

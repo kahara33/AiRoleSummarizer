@@ -252,6 +252,29 @@ export async function generateKnowledgeGraph(
   try {
     console.log(`Generating knowledge graph for role model: ${roleName}`);
     
+    // 業界とキーワードデータを取得
+    let industries: string[] = [];
+    let keywords: string[] = [];
+    
+    try {
+      // 業界データを取得
+      const roleModelIndustries = await storage.getRoleModelIndustriesWithData(roleModelId);
+      if (roleModelIndustries && roleModelIndustries.length > 0) {
+        industries = roleModelIndustries.map(i => i.name);
+      }
+      
+      // キーワードデータを取得
+      const roleModelKeywords = await storage.getRoleModelKeywordsWithData(roleModelId);
+      if (roleModelKeywords && roleModelKeywords.length > 0) {
+        keywords = roleModelKeywords.map(k => k.name);
+      }
+      
+      console.log(`Retrieved ${industries.length} industries and ${keywords.length} keywords for role model`);
+    } catch (error) {
+      console.error("Error retrieving industries and keywords:", error);
+      // エラーが発生しても処理を続行 - 空の配列を使用
+    }
+    
     let graphData: KnowledgeGraphData;
     
     try {
@@ -259,7 +282,7 @@ export async function generateKnowledgeGraph(
       const messages = [
         {
           role: "system",
-          content: `あなたは知識グラフ生成の専門家です。専門的な役割のための階層的な知識グラフを作成してください。
+          content: `あなたは情報収集支援システムの知識グラフ生成の専門家です。ユーザーが指定した役割、業界、キーワードに基づいて、情報収集を効率的に行うための階層的な知識グラフを作成してください。
           
           出力は2つの配列（"nodes"と"edges"）を持つJSONオブジェクトである必要があります。
           
@@ -278,37 +301,45 @@ export async function generateKnowledgeGraph(
           - strength: 関係性の強さ（1-5の整数。5が最も強い）
           
           以下の点に注意してください：
-          1. 階層構造を明確にし、親子関係を適切に設定すること
-          2. ノード間の関係性を意味のある形で表現すること
+          1. レベル1のノードは、情報収集に特化した主要カテゴリである必要があります
+          2. 情報収集の目的、情報源、収集技術、業界専門知識、実践応用分野などの観点を含めること
           3. 中心ノード（level 0）から各カテゴリへの接続を確実に行うこと
-          4. 関連する概念間には直接的なエッジを追加すること
-          5. 色は階層レベルや概念のグループごとに一貫性を持たせること
-          6. 日本語での表現を優先すること`
+          4. 色は階層レベルや概念のグループごとに一貫性を持たせること
+          5. 日本語での表現を優先すること`
         },
         {
           role: "user",
-          content: `役割「${roleName}」の知識グラフを作成してください。
+          content: `役割「${roleName}」のための情報収集用知識グラフを作成してください。
           
-          この役割に関する追加情報: 「${roleDescription}」
+          役割の説明: ${roleDescription || '特に指定なし'}
+          業界: ${industries.length > 0 ? industries.join(', ') : '特に指定なし'}
+          キーワード: ${keywords.length > 0 ? keywords.join(', ') : '特に指定なし'}
+          
+          この知識グラフは「自律型情報収集サービス」のためのものです。ユーザーが日々効率的に情報収集するために必要な構造を提供します。
+          
+          レベル1のノードとして以下の5つのカテゴリを必ず含めてください：
+          1. 情報収集目的 - なぜ情報を集めるのか、その目的や意図
+          2. 情報源と技術リソース - どこから情報を得るか、使用するツールや技術
+          3. 業界専門知識 - 特定の業界やドメインに関連する知識
+          4. トレンド分析 - 最新動向の把握とその分析方法
+          5. 実践応用分野 - 収集した情報をどのように活用するか
+          
+          各カテゴリの下に、役割や業界、キーワードに合わせた適切なサブカテゴリと具体的な項目を追加してください。
           
           以下の形式の有効なJSONで出力してください:
           {
             "nodes": [
               {"name": "役割名", "level": 0, "type": "central", "color": "#hexcode", "description": "この役割の説明"},
-              {"name": "カテゴリ1", "level": 1, "type": "category", "color": "#hexcode", "description": "このカテゴリの説明"},
-              {"name": "サブカテゴリ1.1", "level": 2, "type": "subcategory", "parentId": "カテゴリ1", "color": "#hexcode", "description": "このサブカテゴリの説明"},
-              {"name": "具体的スキル1.1.1", "level": 3, "type": "skill", "parentId": "サブカテゴリ1.1", "color": "#hexcode", "description": "このスキルの説明"},
+              {"name": "情報収集目的", "level": 1, "type": "category", "color": "#hexcode", "description": "このカテゴリの説明"},
+              {"name": "サブカテゴリ1.1", "level": 2, "type": "subcategory", "parentId": "情報収集目的", "color": "#hexcode", "description": "このサブカテゴリの説明"},
               ...
             ],
             "edges": [
-              {"source": "役割名", "target": "カテゴリ1", "label": "含む", "strength": 5},
-              {"source": "カテゴリ1", "target": "サブカテゴリ1.1", "label": "含む", "strength": 4},
-              {"source": "サブカテゴリ1.1", "target": "サブカテゴリ1.2", "label": "関連する", "strength": 3},
+              {"source": "役割名", "target": "情報収集目的", "label": "含む", "strength": 5},
+              {"source": "情報収集目的", "target": "サブカテゴリ1.1", "label": "含む", "strength": 4},
               ...
             ]
-          }
-          
-          重要なスキルと知識領域を網羅し、意味のある関連性を持たせるようにしてください。最低でも4つの主要カテゴリ、各カテゴリに2-3のサブカテゴリ、各サブカテゴリに2-4の具体的スキルを含めるようにしてください。`
+          }`
         }
       ];
       
