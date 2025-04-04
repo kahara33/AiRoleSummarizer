@@ -1,393 +1,129 @@
 const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
 
-// DB接続設定
-const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL 
-});
+// データベース接続
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// 業界大カテゴリとサブカテゴリのデータ
-const INDUSTRY_CATEGORIES = [
-  {
-    name: "自動車・機械",
-    subcategories: [
-      "自動車(国内)", "自動車(海外)", "次世代自動車", "自動車部品", "2輪車", 
-      "トラック", "タイヤ", "MaaS・ライドシェア", "中古車", "航空機", 
-      "建設機械", "工作機械", "ロボット", "造船", "カー用品", 
-      "自転車", "地図・ナビ", "産業機械", "空調・冷却", "電池"
-    ]
-  },
-  {
-    name: "エレクトロニクス機器",
-    subcategories: [
-      "白物・家電製品", "テレビ", "パソコン・タブレット", "スマートフォン", "デジタルカメラ",
-      "エアコン", "複合機・プリンター", "医療機器・用品", "電子部品", "半導体",
-      "リチウムイオン・全固体電池", "半導体製造装置", "半導体材", "半導体材料", "パワー半導体"
-    ]
-  },
-  {
-    name: "情報通信・インターネット",
-    subcategories: [
-      "AI", "クラウド", "eコマース", "システム開発", "ソフトウェア(SaaS)",
-      "携帯電話事業者", "インターネット回線", "サイバーセキュリティー", "Webアプリ", "量子コンピューター",
-      "DX", "ユーチューバー(YouTuber)", "携帯電話販売代理店", "メタバース", "NFT",
-      "プログラミング", "医療テック", "Web3"
-    ]
-  },
-  {
-    name: "資源・エネルギー・素材",
-    subcategories: [
-      "電力・ガス", "石油・資源(海外)", "鉱・レアル", "鉄鋼", "石油(国内)",
-      "化学", "繊維", "ガラス", "セメント", "塗料",
-      "非鉄金属", "電線・ケーブル", "原炭素", "エネルギー地政学"
-    ]
-  },
-  {
-    name: "金融・法人サービス",
-    subcategories: [
-      "メガバンク", "地方銀行", "信用金庫・信用組合", "クレジットカード・決済", "グローバル金融",
-      "ネット銀行", "投資ファンド", "証券", "信用金融", "リース",
-      "生命保険", "損害保険", "コンサルティング", "弁護士事務所", "監査法人",
-      "人材サービス", "キャッシュレス", "仮想通貨・ブロックチェーン", "ベンチャーVC", "アクティビスト",
-      "M&A仲介・合併", "公益法人・NPO", "PR・IR", "ESG", "証券取引所",
-      "調査会社", "投資(株式・FX・不動産)", "スポットワーク"
-    ]
-  },
-  {
-    name: "食品・農業",
-    subcategories: [
-      "加工食品", "製粉", "飲料・食品", "酒類", "菓子",
-      "農業・水産", "食肉", "たばこ", "スマート農業", "肥料・農薬流通",
-      "代替食", "畜産"
-    ]
-  },
-  {
-    name: "生活用品・嗜好品・薬",
-    subcategories: [
-      "医薬品", "先端医療ベンチャー", "化粧品", "トイレタリー(日用品)", "文具品・事務用品",
-      "玩具", "時計・宝飾品", "ラグジュアリーブランド", "CRO・臨床検査・薬", "眼鏡",
-      "補聴器・コンタクトレンズ", "かばん"
-    ]
-  },
-  {
-    name: "娯楽・エンタメ・メディア",
-    subcategories: [
-      "レジャー・テーマパーク", "旅行", "ホテル", "映画・アニメ", "音楽プロダクション",
-      "プロスポーツ", "スポーツ・フィットネス", "音楽", "パチンコ・パチスロ", "ゲーム",
-      "動画配信", "放送局", "広告", "イベント", "グローバルメディア",
-      "万博・統合型リゾート(IR)", "興業関係", "eスポーツ", "映画", "ネットメディア",
-      "新聞社", "出版", "書店・電気"
-    ]
-  },
-  {
-    name: "建設・不動産",
-    subcategories: [
-      "プラント・エンジニアリング", "建設", "不動産", "戸建て住宅", "マンション",
-      "不動産仲介", "マンション管理", "リフォーム・リノベーション", "住宅設備", "シェアオフィス",
-      "設計", "木材", "専門工事", "水処理プラント"
-    ]
-  },
-  {
-    name: "運輸・物流",
-    subcategories: [
-      "鉄道車両", "空運", "海運", "陸運", "物流(3PL)",
-      "物流(佐川)", "倉庫・物流倉庫", "バス・タクシー", "リニア新幹線"
-    ]
-  },
-  {
-    name: "流通・外食",
-    subcategories: [
-      "コンビニエンスストア", "スーパー", "百貨店・ショッピングセンター", "家具・インテリア", "ホームセンター",
-      "ドラッグストア", "家電量販店", "アパレル", "総合商社", "専門商社",
-      "カタログ・テレビ通販", "カフェ", "外食(ファミレス、すし、居酒屋)", "テレビ局・再放", "外食(ファストフード、惣菜)",
-      "リユース(古着)", "アウトドア商品", "古着・宅配", "生活雑貨", "ディスカウント店・100円ショップ",
-      "配食"
-    ]
-  },
-  {
-    name: "生活・公共サービス",
-    subcategories: [
-      "市区町村", "幼児", "冠婚", "葬儀", "教育・学習塾",
-      "ウエディング", "介護", "病院グループ", "国内各省庁(省庁名)", "リスキリング",
-      "ペット", "育児・保育", "生活サービス", "理美容サロン", "英会話学習",
-      "大学", "シェアリングエコノミー"
-    ]
-  },
-  {
-    name: "地域",
-    subcategories: [
-      "東京(GAFAM・IT)", "東京(製造・運輸)", "東京(流通・消費)", "中国", "北海道・東北地方",
-      "関東地方", "中部地方", "近畿地方", "中国・四国地方", "九州・沖縄"
-    ]
-  }
+// キーワードデータ
+const keywordData = [
+  // AIエージェント・オーケストレーションツール (30キーワード)
+  { name: 'Dify', description: 'AIエージェント・オーケストレーションツール: Dify / ディファイ' },
+  { name: 'AutoGen', description: 'AIエージェント・オーケストレーションツール: AutoGen / オートジェン' },
+  { name: 'LangChain', description: 'AIエージェント・オーケストレーションツール: LangChain / ラングチェーン' },
+  { name: 'LlamaIndex', description: 'AIエージェント・オーケストレーションツール: LlamaIndex / ラマインデックス' },
+  { name: 'CrewAI', description: 'AIエージェント・オーケストレーションツール: CrewAI / クルーAI' },
+  { name: 'BabyAGI', description: 'AIエージェント・オーケストレーションツール: BabyAGI / ベイビーAGI' },
+  { name: 'AutoGPT', description: 'AIエージェント・オーケストレーションツール: AutoGPT / オートGPT' },
+  { name: 'AgentGPT', description: 'AIエージェント・オーケストレーションツール: AgentGPT / エージェントGPT' },
+  { name: 'Semantic Kernel', description: 'AIエージェント・オーケストレーションツール: Semantic Kernel / セマンティックカーネル' },
+  { name: 'Haystack', description: 'AIエージェント・オーケストレーションツール: Haystack / ヘイスタック' },
+  
+  // ベクトルデータベース
+  { name: 'Pinecone', description: 'ベクトルデータベース・埋め込み技術: Pinecone / パインコーン' },
+  { name: 'Weaviate', description: 'ベクトルデータベース・埋め込み技術: Weaviate / ウィービエイト' },
+  { name: 'Milvus', description: 'ベクトルデータベース・埋め込み技術: Milvus / ミルバス' },
+  { name: 'Chroma', description: 'ベクトルデータベース・埋め込み技術: Chroma / クロマ' },
+  { name: 'FAISS', description: 'ベクトルデータベース・埋め込み技術: FAISS / フェイス' },
+  
+  // AIアプリケーション開発プラットフォーム
+  { name: 'Streamlit', description: 'AIアプリケーション開発プラットフォーム: Streamlit / ストリームリット' },
+  { name: 'Gradio', description: 'AIアプリケーション開発プラットフォーム: Gradio / グラディオ' },
+  { name: 'Chainlit', description: 'AIアプリケーション開発プラットフォーム: Chainlit / チェーンリット' },
+  { name: 'Vercel AI Playground', description: 'AIアプリケーション開発プラットフォーム: Vercel AI Playground / バーセルAIプレイグラウンド' },
+  { name: 'Hugging Face Spaces', description: 'AIアプリケーション開発プラットフォーム: Hugging Face Spaces / ハギングフェイススペース' },
+  
+  // マルチモーダルAI・拡散モデル
+  { name: 'Stable Diffusion', description: 'マルチモーダルAI・拡散モデル: Stable Diffusion / ステーブルディフュージョン' },
+  { name: 'ComfyUI', description: 'マルチモーダルAI・拡散モデル: ComfyUI / コンフィUI' },
+  { name: 'ControlNet', description: 'マルチモーダルAI・拡散モデル: ControlNet / コントロールネット' },
+  { name: 'SDXL', description: 'マルチモーダルAI・拡散モデル: SDXL / エスディーエックスエル' },
+  { name: 'DALL-E', description: 'マルチモーダルAI・拡散モデル: DALL-E / ダリ' },
+  
+  // デプロイメント・MLOps
+  { name: 'BentoML', description: 'デプロイメント・MLOps: BentoML / ベントエムエル' },
+  { name: 'Ray', description: 'デプロイメント・MLOps: Ray / レイ' },
+  { name: 'Seldon Core', description: 'デプロイメント・MLOps: Seldon Core / セルドンコア' },
+  { name: 'Kubeflow', description: 'デプロイメント・MLOps: Kubeflow / クーブフロー' },
+  { name: 'KServe', description: 'デプロイメント・MLOps: KServe / ケーサーブ' },
+  
+  // 日本発のAI技術・企業
+  { name: 'Rinna', description: '日本発のAI技術・企業: Rinna / リンナ' },
+  { name: 'ABEJA', description: '日本発のAI技術・企業: ABEJA / アベジャ' },
+  { name: 'Preferred Networks', description: '日本発のAI技術・企業: Preferred Networks / プリファードネットワークス' },
+  { name: 'PFN', description: '日本発のAI技術・企業: PFN' },
+  { name: 'Matsuo Lab', description: '日本発のAI技術・企業: Matsuo Lab / 松尾研究室' },
+  
+  // 生成AI応用ツール
+  { name: 'Notion AI', description: '生成AI応用ツール: Notion AI / ノーションAI' },
+  { name: 'Otter.ai', description: '生成AI応用ツール: Otter.ai / オッターAI' },
+  { name: 'Jasper', description: '生成AI応用ツール: Jasper / ジャスパー' },
+  { name: 'Murf AI', description: '生成AI応用ツール: Murf AI / マーフAI' },
+  { name: 'Gamma', description: '生成AI応用ツール: Gamma / ガンマ' },
+  
+  // コード生成・自動化ツール
+  { name: 'GitHub Copilot', description: 'コード生成・自動化ツール: GitHub Copilot / ギットハブコパイロット' },
+  { name: 'Amazon CodeWhisperer', description: 'コード生成・自動化ツール: Amazon CodeWhisperer / アマゾンコードウィスパラー' },
+  { name: 'Tabnine', description: 'コード生成・自動化ツール: Tabnine / タブナイン' },
+  { name: 'Sourcegraph Cody', description: 'コード生成・自動化ツール: Sourcegraph Cody / ソースグラフコディ' },
+  { name: 'Replit Ghostwriter', description: 'コード生成・自動化ツール: Replit Ghostwriter / レプリットゴーストライター' }
 ];
 
-// 業界横断型統一キーワード辞書
-const INDUSTRY_KEYWORDS = [
-  // 自動車・機械 (40キーワード)
-  "電気自動車（EV）", "自動運転技術", "コネクテッドカー", "MaaS（Mobility as a Service）",
-  "CASE（Connected, Autonomous, Shared, Electric）", "水素燃料電池", "カーボンニュートラル", "車載ソフトウェア",
-  "OTA（Over-the-Air）アップデート", "軽量化技術", "スマートファクトリー", "工作機械", "産業用ロボット",
-  "CNC（コンピュータ数値制御）", "製造実行システム（MES）", "予知保全", "デジタルツイン（製造）", "工場IoT",
-  "エンジン効率化", "安全運転支援システム（ADAS）", "車載通信システム（V2X）", "バッテリーマネジメントシステム",
-  "航空宇宙産業", "精密機械", "建設機械", "農業機械", "造船業", "鉄道車両", "油圧システム", "空気圧縮機",
-  "ロボティクス", "マイクロモビリティ", "フライングカー", "シェアリングモビリティ", "サプライチェーン強靭化",
-  "カーテック", "船舶自動化", "EV充電インフラ", "モータースポーツテクノロジー", "モビリティプラットフォーム",
-
-  // エレクトロニクス機器 (35キーワード)
-  "半導体製造装置", "次世代半導体", "半導体不足", "マイクロチップ", "ディスプレイ技術", "有機EL（OLED）",
-  "マイクロLED", "IoTデバイス", "スマートホーム機器", "ウェアラブルデバイス", "センサー技術", "小型化技術",
-  "エッジコンピューティングデバイス", "電源管理IC", "冷却技術", "光学システム", "プリント基板（PCB）",
-  "3Dプリンティング（電子機器）", "電子部品サプライチェーン", "医療電子機器", "産業用センサー", "量子センシング",
-  "RFIDタグ", "ミリ波技術", "リチウムイオン電池技術", "固体電池", "ハプティクス技術", "フォトニクス",
-  "マイクロエレクトロメカニカルシステム（MEMS）", "ロボット工学部品", "電子デバイスリサイクル", "AR/VRハードウェア",
-  "音響電子機器", "家電IoT化", "環境センシング",
-
-  // 情報通信・インターネット (60キーワード)
-  "5G/6G通信", "クラウドコンピューティング", "エッジコンピューティング", "人工知能（AI）", "機械学習", 
-  "深層学習", "生成AI", "大規模言語モデル（LLM）", "ブロックチェーン技術", "NFT（非代替性トークン）", 
-  "Web3", "メタバース", "サイバーセキュリティ", "ゼロトラスト", "クラウドネイティブ", "マイクロサービス", 
-  "DevOps/GitOps", "APIエコノミー", "SaaS（Software as a Service）", "PaaS（Platform as a Service）", 
-  "IaaS（Infrastructure as a Service）", "サーバーレスコンピューティング", "コンテナ技術", "IoT（Internet of Things）", 
-  "ビッグデータ分析", "データレイク", "データメッシュ", "量子コンピューティング", "拡張現実（AR）", "仮想現実（VR）", 
-  "混合現実（MR）", "デジタルツイン", "プライバシー技術", "AIガバナンス", "マルチモーダルAI", "自然言語処理（NLP）", 
-  "コンピュータビジョン", "ロボティックプロセスオートメーション（RPA）", "ローコード/ノーコードプラットフォーム", "クラウドセキュリティ", 
-  "データセンター技術", "ネットワーク仮想化", "SD-WAN", "プログラマブルネットワーキング", "AIチップ", 
-  "ハイパースケールコンピューティング", "グリーンIT", "デジタルトランスフォーメーション（DX）", "テレワークソリューション", "生体認証", 
-  "オンラインプライバシー", "データ主権", "MLOps", "AIOps", "オープンソースソフトウェア", 
-  "デジタルツインネットワーク", "フェデレーテッド学習", "エンタープライズAI", "GRC（ガバナンス・リスク・コンプライアンス）ソフトウェア", 
-  "デジタルアイデンティティ",
-
-  // 資源・エネルギー・素材 (30キーワード)
-  "再生可能エネルギー", "太陽光発電", "風力発電", "水素エネルギー", "蓄電システム", "スマートグリッド", 
-  "炭素回収・貯留（CCS）", "バイオマスエネルギー", "地熱発電", "核融合", "原子力", "シェールガス・シェールオイル", 
-  "鉱物資源開発", "希少金属（レアメタル）", "循環型経済", "カーボンプライシング", "グリーン水素", "エネルギー効率化", 
-  "エネルギーハーベスティング", "フィルム型太陽電池", "バッテリー素材", "先端材料", "複合材料", "バイオ素材", 
-  "海洋エネルギー", "長期エネルギー貯蔵", "スマートリソースマネジメント", "資源採掘自動化", "エネルギーブロックチェーン", 
-  "持続可能な採掘",
-
-  // 金融・法人サービス (40キーワード)
-  "フィンテック", "デジタルバンキング", "オープンバンキング", "ブロックチェーン金融", "分散型金融（DeFi）", 
-  "中央銀行デジタル通貨（CBDC）", "ESG投資", "インパクト投資", "アルゴリズム取引", "ロボアドバイザー", 
-  "サイバーセキュリティ保険", "クラウド会計", "レグテック（規制技術）", "スーパーアプリ（金融）", "決済革新", 
-  "電子マネー", "QRコード決済", "生体認証決済", "PSD2（決済サービス指令2）", "マネーロンダリング対策", 
-  "KYC（顧客確認）", "AML（アンチマネーロンダリング）", "カーボンクレジット取引", "サプライチェーン金融", "消費者金融革新", 
-  "BaaS（Banking as a Service）", "法務テック", "保険テック（インシュアテック）", "バイナウペイレイター（BNPL）", "クロスボーダー送金", 
-  "ウェルスマネジメントテック", "企業評価技術", "仮想通貨規制", "税務管理システム", "財務管理ソフトウェア", 
-  "経費精算自動化", "リスク分析AI", "投資銀行デジタル化", "証券取引電子化", "NFT金融商品",
-
-  // 食品・農業 (30キーワード)
-  "スマート農業", "精密農業", "垂直農法", "アグリテック", "フードテック", "代替タンパク質", "植物性肉", 
-  "培養肉", "昆虫タンパク質", "食品トレーサビリティ", "食品サプライチェーン最適化", "保存技術革新", "食品廃棄物低減", 
-  "持続可能な農業", "水耕栽培", "農業用ドローン", "IoT灌漑システム", "気候スマート農業", "バイオ肥料", 
-  "農業ロボティクス", "遺伝子編集食品", "マイクロバイオーム農業", "有機農法", "再生農業", "デジタルフードマーケットプレイス", 
-  "スマートパッケージング", "農業データプラットフォーム", "食の安全検査技術", "都市型農業", "バイオフォーティフィケーション",
-
-  // 生活用品・嗜好品・薬 (30キーワード)
-  "オーダーメイド医薬品", "遺伝子治療", "バイオシミラー", "mRNAワクチン", "デジタルセラピューティクス", 
-  "ウェアラブル医療デバイス", "遠隔患者モニタリング", "パーソナライズドコスメティクス", "サステナブルパッケージング", "バイオベースマテリアル", 
-  "スマート家庭用品", "健康トラッキングデバイス", "医療機器IoT化", "臨床試験デジタル化", "AIドラッグディスカバリー", 
-  "医薬品サプライチェーン管理", "デジタルヘルスプラットフォーム", "処方箋デジタル化", "3Dプリンティング医療機器", "デジタル治療アプリ", 
-  "ニコチンフリー製品", "クラフトビール/スピリッツ", "プラントベース製品", "ビッグデータ医薬研究", "スマートパーソナルケア製品", 
-  "抗菌・抗ウイルス製品", "マイクロバイオーム化粧品", "環境配慮型洗剤", "睡眠テクノロジー製品", "機能性食品/サプリメント",
-
-  // 娯楽・エンタメ・メディア (35キーワード)
-  "ストリーミングサービス", "OTTプラットフォーム", "コンテンツパーソナライゼーション", "AIコンテンツ制作", "仮想コンサート", 
-  "eスポーツ", "クラウドゲーミング", "ソーシャルメディア革新", "インフルエンサーマーケティング", "ユーザー生成コンテンツ（UGC）", 
-  "没入型エンターテイメント", "VRゲーム", "ARアプリケーション", "NFTデジタルアート", "メタバースエンターテイメント", 
-  "サブスクリプションモデル", "ポッドキャストネットワーク", "ショートフォームビデオ", "デジタル出版", "ライブコマース", 
-  "対話型ストーリーテリング", "オーディオブック革新", "バーチャルインフルエンサー", "AIコンテンツモデレーション", "バーチャルプロダクションスタジオ", 
-  "動画編集AI", "スポーツテック", "拡張現実観戦体験", "バーチャルイベント", "バーチャルツーリズム", 
-  "デジタル著作権技術", "ファンエンゲージメントプラットフォーム", "ブロックチェーンロイヤルティ", "オンラインカジノ技術", "デジタルウェルネスエンターテイメント",
-
-  // 建設・不動産 (30キーワード)
-  "スマートビルディング", "グリーンビルディング", "BIM（ビルディング情報モデリング）", "モジュラー建設", "3D建築プリンティング", 
-  "ドローン測量", "AR/VR不動産ツアー", "建設ロボティクス", "省エネ建築", "スマートホーム", 
-  "不動産テック（プロップテック）", "IoT施設管理", "建設安全性モニタリング", "デジタルツイン（建築）", "サステナブル建材", 
-  "不動産トークン化", "スマートシティ開発", "遠隔建設監視", "建設廃棄物リサイクル", "耐震技術", 
-  "リモートワーク対応空間設計", "都市再生プロジェクト", "アフォーダブル住宅技術", "木造高層建築", "建設サプライチェーンデジタル化", 
-  "オフサイト建設", "ウェルネス建築", "スマートオフィス技術", "マイクログリッド対応建築", "不動産クラウドファンディング",
-
-  // 運輸・物流 (30キーワード)
-  "物流デジタル化", "自律配送ロボット", "ドローン配送", "ラストマイル配送最適化", "物流倉庫自動化", 
-  "サプライチェーン可視化", "コネクテッドフリート", "トラック隊列走行", "デジタルフレイトマッチング", "インテリジェント交通システム", 
-  "シームレスマルチモーダル輸送", "予測物流", "オンデマンド配送プラットフォーム", "コールドチェーンモニタリング", "自動運転配送車", 
-  "ブロックチェーンサプライチェーン", "高度交通管理システム", "RFID物流トラッキング", "物流as a Service", "グリーン物流", 
-  "都市物流最適化", "AIルート最適化", "デジタル貨物プラットフォーム", "オムニチャネル物流", "サステナブル輸送", 
-  "海運デジタル化", "港湾オートメーション", "貨物IoT", "物流ブロックチェーン", "国際物流技術",
-
-  // 流通・外食 (30キーワード)
-  "オムニチャネル小売", "無人店舗", "スマートPOS", "RFIDインベントリ管理", "AR/VR買い物体験", 
-  "ライブコマース", "ボイスショッピング", "パーソナライズド小売", "小売分析", "スマートシェルフ", 
-  "デジタルサイネージ", "クリックアンドコレクト", "サブスクリプション小売", "オンデマンドフード配達", "ゴーストキッチン", 
-  "デジタルメニュー", "キッチンオートメーション", "食品廃棄物管理", "サステナブル小売", "循環型小売", 
-  "高齢者対応小売", "顧客行動分析", "スマート自動販売機", "AIプライシング", "フードトレーサビリティ", 
-  "デジタル店舗オペレーション", "非接触決済", "スマートバスケット", "顧客ロイヤルティイノベーション", "店舗内位置情報サービス",
-
-  // 生活・公共サービス (30キーワード)
-  "スマートシティ", "電子政府サービス", "デジタル市民権", "遠隔医療", "デジタル教育プラットフォーム", 
-  "公共交通デジタル化", "スマート街灯", "都市IoT", "公共安全テクノロジー", "ウォーターマネジメント技術", 
-  "スマート水道メーター", "廃棄物管理最適化", "大気質モニタリング", "市民参加プラットフォーム", "GISマッピング", 
-  "公共WiFiイノベーション", "デジタルツイン（都市）", "緊急対応システム", "交通管理ソリューション", "エネルギー消費最適化", 
-  "住民サービスデジタル化", "社会保障デジタル化", "デジタル公共衛生", "高齢者ケアテクノロジー", "スマート図書館", 
-  "都市農業技術", "災害予測・管理システム", "公共データオープン化", "スマートパーキング", "社会インフラモニタリング",
-
-  // 地域 (30キーワード)
-  "スマート地域開発", "地方創生テック", "地域デジタルマーケットプレイス", "マイクロツーリズム", "地域医療ネットワーク", 
-  "地域通貨・地域トークン", "地域エネルギー自給", "コミュニティソーラー", "農村デジタル化", "地域物流ネットワーク", 
-  "地域ブランディングデジタル化", "地域文化デジタルアーカイブ", "過疎地デジタルインフラ", "地域間デジタル連携", "地方移住促進プラットフォーム", 
-  "地域防災技術", "ローカル5G", "地域シェアリングエコノミー", "地域観光デジタル化", "地域特産品eコマース", 
-  "地域雇用マッチングプラットフォーム", "地域コワーキングスペース", "地方大学DX", "農村型スマートシティ", "地域資源循環システム", 
-  "デジタル町内会", "地域ヘルスケアプラットフォーム", "地域データプラットフォーム", "地域課題クラウドソーシング", "バーチャル地域コミュニティ"
-];
-
-async function main() {
-  console.log('最新の業界データと専門キーワードのデータベース更新を開始します...');
+async function addKeywordsOneByOne() {
+  console.log('キーワードの追加を開始します...');
+  
+  let addedCount = 0;
+  let errorCount = 0;
+  let skippedCount = 0;
   
   try {
-    const client = await pool.connect();
+    // 現在のキーワードリストを取得
+    const result = await pool.query('SELECT name FROM keywords');
+    const existingKeywordNames = result.rows.map(row => row.name);
     
-    try {
-      // トランザクション開始
-      await client.query('BEGIN');
-
-      // 既存データは保持し、新しいデータを追加
-      console.log('既存データを保持し、新しいデータを追加します...');
-      
-      console.log('業界大分類を登録中...');
-      
-      // 業界大分類の挿入（バッチ処理）
-      const CATEGORY_BATCH_SIZE = 3; // 一度に処理するカテゴリ数
-      
-      for (let catBatch = 0; catBatch < INDUSTRY_CATEGORIES.length; catBatch += CATEGORY_BATCH_SIZE) {
-        const batchEnd = Math.min(catBatch + CATEGORY_BATCH_SIZE, INDUSTRY_CATEGORIES.length);
-        console.log(`カテゴリバッチ処理 ${catBatch+1}-${batchEnd}/${INDUSTRY_CATEGORIES.length}`);
-        
-        // 新しいトランザクション開始（カテゴリバッチごと）
-        await client.query('COMMIT');
-        await client.query('BEGIN');
-        
-        for (let i = catBatch; i < batchEnd; i++) {
-          const category = INDUSTRY_CATEGORIES[i];
-          const categoryResult = await client.query(
-            `INSERT INTO industry_categories (name, description, display_order) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (name) DO NOTHING
-             RETURNING id`,
-            [category.name, `${category.name}業界カテゴリ`, i + 1]
-          );
-          
-          // CategoryIdを取得（新規追加または既存から）
-          let categoryId;
-          if (categoryResult.rows.length === 0) {
-            // 既存のカテゴリIDを検索
-            const existingCategoryResult = await client.query(
-              `SELECT id FROM industry_categories WHERE name = $1`,
-              [category.name]
-            );
-            
-            if (existingCategoryResult.rows.length === 0) {
-              console.log(`  - ${category.name} (カテゴリが見つかりません、スキップします)`);
-              continue;
-            }
-            
-            categoryId = existingCategoryResult.rows[0].id;
-            console.log(`  - ${category.name} (既存のカテゴリID: ${categoryId})`);
-          } else {
-            categoryId = categoryResult.rows[0].id;
-            console.log(`  - ${category.name} (新規カテゴリID: ${categoryId})`);
-          }
-          
-          // 業界小分類の挿入
-          console.log(`  ${category.name}の小分類を登録中...`);
-          
-          // サブカテゴリもバッチ処理
-          const SUB_BATCH_SIZE = 20; // 一度に処理するサブカテゴリ数
-          for (let j = 0; j < category.subcategories.length; j += SUB_BATCH_SIZE) {
-            const subBatchEnd = Math.min(j + SUB_BATCH_SIZE, category.subcategories.length);
-            
-            for (let k = j; k < subBatchEnd; k++) {
-              const subcategory = category.subcategories[k];
-              
-              // サブカテゴリが既に存在するかチェック
-              const existingSubcategory = await client.query(
-                `SELECT id FROM industry_subcategories WHERE name = $1 AND category_id = $2`,
-                [subcategory, categoryId]
-              );
-              
-              if (existingSubcategory.rows.length === 0) {
-                await client.query(
-                  `INSERT INTO industry_subcategories (name, category_id, description, display_order) 
-                   VALUES ($1, $2, $3, $4)`,
-                  [subcategory, categoryId, `${category.name} > ${subcategory}`, k + 1]
-                );
-                console.log(`    - ${subcategory} (追加)`);
-              } else {
-                console.log(`    - ${subcategory} (既存のためスキップ)`);
-              }
-            }
-            
-            // 一定間隔でコミット
-            if (category.subcategories.length > SUB_BATCH_SIZE) {
-              console.log(`    サブカテゴリバッチ ${j+1}-${subBatchEnd}/${category.subcategories.length} 完了`);
-              await client.query('COMMIT');
-              await client.query('BEGIN');
-            }
-          }
-        }
-      }
-      
-      console.log('専門キーワードを登録中...');
-      
-      // 専門キーワードの挿入（ユニークかつバッチ処理）
-      const uniqueKeywords = [...new Set(INDUSTRY_KEYWORDS)];
-      console.log(`合計 ${uniqueKeywords.length} 個のキーワードを処理します`);
-      
-      // 50件ずつのバッチで処理
-      const BATCH_SIZE = 50;
-      for (let i = 0; i < uniqueKeywords.length; i += BATCH_SIZE) {
-        const batch = uniqueKeywords.slice(i, i + BATCH_SIZE);
-        
-        // トランザクションコミット（バッチごとに部分的にコミット）
-        await client.query('COMMIT');
-        // 新しいトランザクション開始
-        await client.query('BEGIN');
-        
-        for (const keyword of batch) {
-          await client.query(
-            `INSERT INTO keywords (name, description, is_common) 
-             VALUES ($1, $2, $3)
-             ON CONFLICT (name) DO NOTHING`,
-            [keyword, `専門キーワード: ${keyword}`, true]
-          );
+    console.log(`既存のキーワード: ${existingKeywordNames.length}件`);
+    
+    // 各キーワードを個別に追加
+    for (const keyword of keywordData) {
+      try {
+        // 既に同じ名前のキーワードが存在するか確認
+        if (existingKeywordNames.includes(keyword.name)) {
+          console.log(`- キーワード「${keyword.name}」は既に存在します。スキップします。`);
+          skippedCount++;
+          continue;
         }
         
-        const end = Math.min(i + BATCH_SIZE, uniqueKeywords.length);
-        console.log(`  - ${end}/${uniqueKeywords.length} キーワード登録完了`);
+        // 新しいキーワードを追加（個別トランザクション）
+        const id = uuidv4();
+        await pool.query(
+          'INSERT INTO keywords (id, name, description, is_common, status, parent_id, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [id, keyword.name, keyword.description, true, 'active', null, null, new Date(), new Date()]
+        );
+        
+        addedCount++;
+        console.log(`+ キーワード「${keyword.name}」を追加しました`);
+      } catch (error) {
+        console.error(`! キーワード「${keyword.name}」の追加に失敗しました:`, error.message);
+        errorCount++;
       }
-
-      // トランザクションコミット
-      await client.query('COMMIT');
-      console.log('業界データと専門キーワードの更新が完了しました！');
-      
-    } catch (e) {
-      // エラー発生時はロールバック
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      // クライアント解放
-      client.release();
     }
     
-  } catch (err) {
-    console.error('データベース更新に失敗しました:', err);
-    process.exit(1);
-  } finally {
-    // 接続プールを終了
-    await pool.end();
+  } catch (error) {
+    console.error('データベース操作中にエラーが発生しました:', error.message);
+    errorCount++;
   }
+  
+  console.log('\n=========================================');
+  console.log(`処理完了: ${addedCount}件追加, ${errorCount}件エラー, ${skippedCount}件スキップ`);
+  console.log('=========================================');
 }
 
-main().catch(err => {
-  console.error('予期せぬエラーが発生しました:', err);
-  process.exit(1);
-});
+// スクリプト実行
+addKeywordsOneByOne()
+  .then(() => {
+    console.log('キーワード追加処理が完了しました。');
+    pool.end();
+  })
+  .catch((error) => {
+    console.error('エラーが発生しました:', error.message);
+    pool.end();
+  });

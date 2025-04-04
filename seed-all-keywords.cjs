@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 // データベース接続
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// キーワードデータ - 添付リストから全てのキーワードを含む
 const keywordData = [
   // AIエージェント・オーケストレーションツール (30キーワード)
   { name: 'Dify', description: 'AIエージェント・オーケストレーションツール: Dify / ディファイ', category: 'AIエージェント' },
@@ -172,7 +173,7 @@ const keywordData = [
   { name: 'Fig AI', description: 'コード生成・自動化ツール: Fig AI / フィグAI', category: 'コード生成' }
 ];
 
-async function addKeywords() {
+async function addKeywordsOneByOne() {
   console.log('キーワードの追加を開始します...');
   
   let addedCount = 0;
@@ -186,47 +187,33 @@ async function addKeywords() {
     
     console.log(`既存のキーワード: ${existingKeywordNames.length}件`);
     
-    // トランザクション開始
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-
-      for (const keyword of keywordData) {
-        try {
-          // 既に同じ名前のキーワードが存在するか確認
-          if (existingKeywordNames.includes(keyword.name)) {
-            console.log(`- キーワード「${keyword.name}」は既に存在します。スキップします。`);
-            skippedCount++;
-            continue;
-          }
-          
-          // 新しいキーワードを追加
-          const id = uuidv4();
-          await client.query(
-            'INSERT INTO keywords (id, name, description, "isCommon", status, "parentId", "createdBy", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-            [id, keyword.name, keyword.description, true, 'active', null, null, new Date(), new Date()]
-          );
-          
-          addedCount++;
-          console.log(`+ キーワード「${keyword.name}」を追加しました (${keyword.category})`);
-        } catch (error) {
-          console.error(`! キーワード「${keyword.name}」の追加中にエラーが発生しました:`, error);
-          errorCount++;
+    // 各キーワードを個別に追加
+    for (const keyword of keywordData) {
+      try {
+        // 既に同じ名前のキーワードが存在するか確認
+        if (existingKeywordNames.includes(keyword.name)) {
+          console.log(`- キーワード「${keyword.name}」は既に存在します。スキップします。`);
+          skippedCount++;
+          continue;
         }
+        
+        // 新しいキーワードを追加（個別トランザクション）
+        const id = uuidv4();
+        await pool.query(
+          'INSERT INTO keywords (id, name, description, is_common, status, parent_id, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [id, keyword.name, keyword.description, true, 'active', null, null, new Date(), new Date()]
+        );
+        
+        addedCount++;
+        console.log(`+ キーワード「${keyword.name}」を追加しました (${keyword.category})`);
+      } catch (error) {
+        console.error(`! キーワード「${keyword.name}」の追加に失敗しました:`, error.message);
+        errorCount++;
       }
-
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('トランザクションエラー:', error);
-      throw error;
-    } finally {
-      client.release();
     }
     
   } catch (error) {
-    console.error('データベース操作中にエラーが発生しました:', error);
+    console.error('データベース操作中にエラーが発生しました:', error.message);
     errorCount++;
   }
   
@@ -236,12 +223,12 @@ async function addKeywords() {
 }
 
 // スクリプト実行
-addKeywords()
+addKeywordsOneByOne()
   .then(() => {
     console.log('キーワード追加処理が完了しました。');
-    process.exit(0);
+    pool.end();
   })
   .catch((error) => {
-    console.error('エラーが発生しました:', error);
-    process.exit(1);
+    console.error('エラーが発生しました:', error.message);
+    pool.end();
   });

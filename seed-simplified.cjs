@@ -1,118 +1,129 @@
 const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
 
-// DB接続設定
-const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL 
-});
+// データベース接続
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// 主要な業種データ（簡略化）
-const INDUSTRY_CATEGORIES = [
-  {
-    name: "製造業",
-    subcategories: ["食品", "電子機器", "自動車", "化学", "機械"]
-  },
-  {
-    name: "情報・通信業",
-    subcategories: ["ソフトウェア", "通信", "放送", "インターネットサービス", "データセンター"]
-  },
-  {
-    name: "金融業",
-    subcategories: ["銀行", "証券", "保険", "投資", "フィンテック"]
-  },
-  {
-    name: "小売業",
-    subcategories: ["総合小売", "専門店", "Eコマース", "コンビニエンスストア"]
-  },
-  {
-    name: "サービス業",
-    subcategories: ["ビジネス支援", "エンターテイメント", "教育", "医療", "人材"]
-  }
+// キーワードデータ
+const keywordData = [
+  // AIエージェント・オーケストレーションツール (30キーワード)
+  { name: 'Dify', description: 'AIエージェント・オーケストレーションツール: Dify / ディファイ' },
+  { name: 'AutoGen', description: 'AIエージェント・オーケストレーションツール: AutoGen / オートジェン' },
+  { name: 'LangChain', description: 'AIエージェント・オーケストレーションツール: LangChain / ラングチェーン' },
+  { name: 'LlamaIndex', description: 'AIエージェント・オーケストレーションツール: LlamaIndex / ラマインデックス' },
+  { name: 'CrewAI', description: 'AIエージェント・オーケストレーションツール: CrewAI / クルーAI' },
+  { name: 'BabyAGI', description: 'AIエージェント・オーケストレーションツール: BabyAGI / ベイビーAGI' },
+  { name: 'AutoGPT', description: 'AIエージェント・オーケストレーションツール: AutoGPT / オートGPT' },
+  { name: 'AgentGPT', description: 'AIエージェント・オーケストレーションツール: AgentGPT / エージェントGPT' },
+  { name: 'Semantic Kernel', description: 'AIエージェント・オーケストレーションツール: Semantic Kernel / セマンティックカーネル' },
+  { name: 'Haystack', description: 'AIエージェント・オーケストレーションツール: Haystack / ヘイスタック' },
+  
+  // ベクトルデータベース
+  { name: 'Pinecone', description: 'ベクトルデータベース・埋め込み技術: Pinecone / パインコーン' },
+  { name: 'Weaviate', description: 'ベクトルデータベース・埋め込み技術: Weaviate / ウィービエイト' },
+  { name: 'Milvus', description: 'ベクトルデータベース・埋め込み技術: Milvus / ミルバス' },
+  { name: 'Chroma', description: 'ベクトルデータベース・埋め込み技術: Chroma / クロマ' },
+  { name: 'FAISS', description: 'ベクトルデータベース・埋め込み技術: FAISS / フェイス' },
+  
+  // AIアプリケーション開発プラットフォーム
+  { name: 'Streamlit', description: 'AIアプリケーション開発プラットフォーム: Streamlit / ストリームリット' },
+  { name: 'Gradio', description: 'AIアプリケーション開発プラットフォーム: Gradio / グラディオ' },
+  { name: 'Chainlit', description: 'AIアプリケーション開発プラットフォーム: Chainlit / チェーンリット' },
+  { name: 'Vercel AI Playground', description: 'AIアプリケーション開発プラットフォーム: Vercel AI Playground / バーセルAIプレイグラウンド' },
+  { name: 'Hugging Face Spaces', description: 'AIアプリケーション開発プラットフォーム: Hugging Face Spaces / ハギングフェイススペース' },
+  
+  // マルチモーダルAI・拡散モデル
+  { name: 'Stable Diffusion', description: 'マルチモーダルAI・拡散モデル: Stable Diffusion / ステーブルディフュージョン' },
+  { name: 'ComfyUI', description: 'マルチモーダルAI・拡散モデル: ComfyUI / コンフィUI' },
+  { name: 'ControlNet', description: 'マルチモーダルAI・拡散モデル: ControlNet / コントロールネット' },
+  { name: 'SDXL', description: 'マルチモーダルAI・拡散モデル: SDXL / エスディーエックスエル' },
+  { name: 'DALL-E', description: 'マルチモーダルAI・拡散モデル: DALL-E / ダリ' },
+  
+  // デプロイメント・MLOps
+  { name: 'BentoML', description: 'デプロイメント・MLOps: BentoML / ベントエムエル' },
+  { name: 'Ray', description: 'デプロイメント・MLOps: Ray / レイ' },
+  { name: 'Seldon Core', description: 'デプロイメント・MLOps: Seldon Core / セルドンコア' },
+  { name: 'Kubeflow', description: 'デプロイメント・MLOps: Kubeflow / クーブフロー' },
+  { name: 'KServe', description: 'デプロイメント・MLOps: KServe / ケーサーブ' },
+  
+  // 日本発のAI技術・企業
+  { name: 'Rinna', description: '日本発のAI技術・企業: Rinna / リンナ' },
+  { name: 'ABEJA', description: '日本発のAI技術・企業: ABEJA / アベジャ' },
+  { name: 'Preferred Networks', description: '日本発のAI技術・企業: Preferred Networks / プリファードネットワークス' },
+  { name: 'PFN', description: '日本発のAI技術・企業: PFN' },
+  { name: 'Matsuo Lab', description: '日本発のAI技術・企業: Matsuo Lab / 松尾研究室' },
+  
+  // 生成AI応用ツール
+  { name: 'Notion AI', description: '生成AI応用ツール: Notion AI / ノーションAI' },
+  { name: 'Otter.ai', description: '生成AI応用ツール: Otter.ai / オッターAI' },
+  { name: 'Jasper', description: '生成AI応用ツール: Jasper / ジャスパー' },
+  { name: 'Murf AI', description: '生成AI応用ツール: Murf AI / マーフAI' },
+  { name: 'Gamma', description: '生成AI応用ツール: Gamma / ガンマ' },
+  
+  // コード生成・自動化ツール
+  { name: 'GitHub Copilot', description: 'コード生成・自動化ツール: GitHub Copilot / ギットハブコパイロット' },
+  { name: 'Amazon CodeWhisperer', description: 'コード生成・自動化ツール: Amazon CodeWhisperer / アマゾンコードウィスパラー' },
+  { name: 'Tabnine', description: 'コード生成・自動化ツール: Tabnine / タブナイン' },
+  { name: 'Sourcegraph Cody', description: 'コード生成・自動化ツール: Sourcegraph Cody / ソースグラフコディ' },
+  { name: 'Replit Ghostwriter', description: 'コード生成・自動化ツール: Replit Ghostwriter / レプリットゴーストライター' }
 ];
 
-// 共通キーワードデータ（簡略化）
-const COMMON_KEYWORDS = [
-  "AI", "DX", "IoT", "クラウド", "ビッグデータ", 
-  "SDGs", "サステナビリティ", "カーボンニュートラル",
-  "リモートワーク", "グローバル"
-];
-
-async function main() {
-  console.log('簡略化された業種・キーワードデータの挿入を開始します...');
+async function addKeywordsOneByOne() {
+  console.log('キーワードの追加を開始します...');
+  
+  let addedCount = 0;
+  let errorCount = 0;
+  let skippedCount = 0;
   
   try {
-    const client = await pool.connect();
+    // 現在のキーワードリストを取得
+    const result = await pool.query('SELECT name FROM keywords');
+    const existingKeywordNames = result.rows.map(row => row.name);
     
-    try {
-      // トランザクション開始
-      await client.query('BEGIN');
-
-      console.log('業種大分類を登録中...');
-      
-      // 業種大分類の挿入
-      for (let i = 0; i < INDUSTRY_CATEGORIES.length; i++) {
-        const category = INDUSTRY_CATEGORIES[i];
-        const categoryResult = await client.query(
-          `INSERT INTO industry_categories (name, description, display_order) 
-           VALUES ($1, $2, $3) 
-           RETURNING id`,
-          [category.name, `${category.name}業種カテゴリ`, i + 1]
-        );
-        
-        const categoryId = categoryResult.rows[0].id;
-        
-        console.log(`  - ${category.name} (${categoryId})`);
-        
-        // 業種小分類の挿入
-        console.log('  業種小分類を登録中...');
-        for (let j = 0; j < category.subcategories.length; j++) {
-          const subcategory = category.subcategories[j];
-          await client.query(
-            `INSERT INTO industry_subcategories (name, category_id, description, display_order) 
-             VALUES ($1, $2, $3, $4)`,
-            [subcategory, categoryId, `${category.name} > ${subcategory}`, j + 1]
-          );
-          
-          console.log(`    - ${subcategory}`);
+    console.log(`既存のキーワード: ${existingKeywordNames.length}件`);
+    
+    // 各キーワードを個別に追加
+    for (const keyword of keywordData) {
+      try {
+        // 既に同じ名前のキーワードが存在するか確認
+        if (existingKeywordNames.includes(keyword.name)) {
+          console.log(`- キーワード「${keyword.name}」は既に存在します。スキップします。`);
+          skippedCount++;
+          continue;
         }
-      }
-      
-      console.log('共通キーワードを登録中...');
-      
-      // 共通キーワードの挿入
-      for (let i = 0; i < COMMON_KEYWORDS.length; i++) {
-        const keyword = COMMON_KEYWORDS[i];
-        await client.query(
-          `INSERT INTO keywords (name, description, is_common) 
-           VALUES ($1, $2, $3)`,
-          [keyword, `共通キーワード: ${keyword}`, true]
+        
+        // 新しいキーワードを追加（個別トランザクション）
+        const id = uuidv4();
+        await pool.query(
+          'INSERT INTO keywords (id, name, description, "isCommon", status, "parentId", "createdBy", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [id, keyword.name, keyword.description, true, 'active', null, null, new Date(), new Date()]
         );
         
-        console.log(`  - ${keyword}`);
+        addedCount++;
+        console.log(`+ キーワード「${keyword.name}」を追加しました`);
+      } catch (error) {
+        console.error(`! キーワード「${keyword.name}」の追加に失敗しました:`, error.message);
+        errorCount++;
       }
-
-      // トランザクションコミット
-      await client.query('COMMIT');
-      console.log('業種・キーワードデータの挿入が完了しました！');
-      
-    } catch (e) {
-      // エラー発生時はロールバック
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      // クライアント解放
-      client.release();
     }
     
-  } catch (err) {
-    console.error('業種・キーワードデータの挿入に失敗しました:', err);
-    process.exit(1);
-  } finally {
-    // 接続プールを終了
-    await pool.end();
+  } catch (error) {
+    console.error('データベース操作中にエラーが発生しました:', error.message);
+    errorCount++;
   }
+  
+  console.log('\n=========================================');
+  console.log(`処理完了: ${addedCount}件追加, ${errorCount}件エラー, ${skippedCount}件スキップ`);
+  console.log('=========================================');
 }
 
-main().catch(err => {
-  console.error('予期せぬエラーが発生しました:', err);
-  process.exit(1);
-});
+// スクリプト実行
+addKeywordsOneByOne()
+  .then(() => {
+    console.log('キーワード追加処理が完了しました。');
+    pool.end();
+  })
+  .catch((error) => {
+    console.error('エラーが発生しました:', error.message);
+    pool.end();
+  });

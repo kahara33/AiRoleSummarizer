@@ -1,0 +1,167 @@
+# 業界横断型統一キーワード辞書 v2 - 追加版
+
+## AIエージェント・オーケストレーションツール (30キーワード)
+1. Dify / ディファイ
+2. AutoGen / オートジェン
+3. LangChain / ラングチェーン
+4. LlamaIndex / ラマインデックス
+5. CrewAI / クルーAI
+6. BabyAGI / ベイビーAGI
+7. AutoGPT / オートGPT
+8. AgentGPT / エージェントGPT
+9. Semantic Kernel / セマンティックカーネル
+10. Haystack / ヘイスタック
+11. Flowise / フロウワイズ
+12. LangFlow / ラングフロー
+13. E2B / イーツービー
+14. Griptape / グリップテープ
+15. Embedchain / エンベッドチェーン
+16. GPT-Engineer / GPTエンジニア
+17. DSPy / ディーエスパイ
+18. Guidance / ガイダンス
+19. PromptFlow / プロンプトフロー
+20. Transformers Agents / トランスフォーマーズエージェント
+21. Vercel AI SDK / バーセルAI SDK
+22. Instructor / インストラクター
+23. Outlines / アウトラインズ
+24. TaskWeaver / タスクウィーバー
+25. SuperAGI / スーパーAGI
+26. MetaGPT / メタGPT
+27. LMQL / エルエムキューエル
+28. OpenDevin / オープンデビン
+29. HuggingGPT / ハギングGPT
+30. LLM Compiler / LLMコンパイラー
+
+## ベクトルデータベース・埋め込み技術 (20キーワード)
+1. Pinecone / パインコーン
+2. Weaviate / ウィービエイト
+3. Milvus / ミルバス
+4. Chroma / クロマ
+5. FAISS / フェイス
+6. Qdrant / クドラント
+7. PGVector / ピージーベクター
+8. Vespa / ベスパ
+9. Vald / バルド
+10. Marqo / マーコ
+11. Supabase Vector / スーパーベースベクター
+12. MongoDB Atlas Vector Search / モンゴDBアトラスベクター
+13. Redis Vector Similarity / レディスベクター
+14. Neo4j Vector Index / ネオフォージェイベクター
+15. SingleStore Vector Search / シングルストアベクター
+16. Elasticsearch Vector Search / エラスティックサーチベクター
+17. OpenSearch Vector Engine / オープンサーチベクター
+18. pgEmbedding / ピージーエンベディング
+19. Vertex Matching Engine / バーテックスマッチングエンジン
+20. Vector Similarity Search / ベクター類似度検索
+
+## AIアプリケーション開発プラットフォーム (20キーワード)
+1. Streamlit / ストリームリット
+2. Gradio / グラディオ
+3. Chainlit / チェーンリット
+4. Vercel AI Playground / バーセルAIプレイグラウンド
+5. Hugging Face Spaces / ハギングフェイススペース
+6. LangSmith / ラングスミス
+7. Weights & Biases / ウェイツ&バイアセス
+8. Comet ML / コメットエムエル
+9. MLflow / エムエルフロー
+10. Databricks Lakehouse AI / データブリックスレイクハウスAI
+11. Modal / モーダル
+12. Replicate / レプリケート
+13. OpenAI Platform / オープンAIプラットフォーム
+14. Helicone / ヘリコーン
+15. Beam / ビーム
+16. Together AI / トゥギャザーAI
+17. Clarifai / クラリファイ
+18. Roboflow / ロボフロー
+19. Baseten / ベイステン
+20. Activeloop / アクティブループ
+
+## マルチモーダルAI・拡散モデル (15キーワード)
+1. Stable Diffusion / ステーブルディフュージョン
+2. ComfyUI / コンフィUI
+3. Stable Diffusion WebUI / ステーブルディフュージョンWebUI
+4. ControlNet / コントロールネット
+5. SDXL / エスディーエックスエル
+6. DALL-E / ダリ
+7. Imagen / イマジェン
+8. Firefly / ファイアフライ
+9. Midjourney / ミッドジャーニー
+10. Sora / ソラ
+11. Dream Studio / ドリームスタジオ
+12. Gen-2 / ジェン2
+13. CLIP / クリップ
+14. Kandinsky / カンディンスキー
+15. Leonardo AI / レオナルドAI
+
+## デプロイメント・MLOps (15キーワード)
+1. BentoML / ベントエムエル
+2. Ray / レイ
+3. Seldon Core / セルドンコア
+4. Kubeflow / クーブフロー
+5. KServe / ケーサーブ
+6. Triton Inference Server / トリトン推論サーバー
+7. TorchServe / トーチサーブ
+8. TF Serving / ティーエフサービング
+9. Cortex / コーテックス
+10. ClearML / クリアエムエル
+11. Valohai / バロハイ
+12. ZenML / ゼンエムエル
+13. Metaflow / メタフロー
+14. DVC / ディーブイシー
+15. OctoAI / オクトAI
+
+## 日本発のAI技術・企業 (10キーワード)
+1. Rinna / リンナ
+2. ABEJA / アベジャ
+3. Preferred Networks / プリファードネットワークス
+4. PFN
+5. Matsuo Lab / 松尾研究室
+6. Elyza / エリザ
+7. Sakana AI / サカナAI
+8. SOINN / ソイン
+9. Stockmark / ストックマーク
+10. Gehirn / ゲヒルン
+
+## 生成AI応用ツール (20キーワード)
+1. Notion AI / ノーションAI
+2. Otter.ai / オッターAI
+3. Jasper / ジャスパー
+4. Murf AI / マーフAI
+5. Gamma / ガンマ
+6. Tome / トーム
+7. Lumen5 / ルーメン5
+8. Beautiful.ai / ビューティフルAI
+9. Canva AI / キャンバAI
+10. Picsart AI / ピクサートAI
+11. Descript / ディスクリプト
+12. Runway / ランウェイ
+13. Kaiber / カイバー
+14. Synthesia / シンセシア
+15. Lensa / レンザ
+16. Grammarly / グラマリー
+17. LanguageTool / ランゲージツール
+18. DeepL / ディープエル
+19. Copy.ai / コピーAI
+20. Caktus AI / カクタスAI
+
+## コード生成・自動化ツール (20キーワード)
+1. GitHub Copilot / ギットハブコパイロット
+2. Amazon CodeWhisperer / アマゾンコードウィスパラー
+3. Tabnine / タブナイン
+4. Sourcegraph Cody / ソースグラフコディ
+5. Replit Ghostwriter / レプリットゴーストライター
+6. Cursor / カーソル
+7. Codeium / コーディウム
+8. Mintlify / ミントリファイ
+9. Cody AI / コディAI
+10. UseVerbose / ユーズバーボス
+11. Kodezi / コデジ
+12. DeepSeek Coder / ディープシークコーダー
+13. WhatTheDiff / ワットザディフ
+14. Adrenaline / アドレナリン
+15. Amazon Q / アマゾンQ
+16. Cline / クライン
+17. Continue / コンティニュー
+18. JetBrains AI Assistant / ジェットブレインズAIアシスタント
+19. Blackbox / ブラックボックス
+20. Fig AI / フィグAI
