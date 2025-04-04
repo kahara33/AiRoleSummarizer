@@ -1275,24 +1275,28 @@ export class PostgresStorage implements IStorage {
       // SQL JOINを使って一度のクエリで全てのデータを取得する
       console.log(`ロールモデルID: ${roleModelId} のキーワードデータを取得します`);
       
-      const result = await db
-        .select({
-          id: keywords.id,
-          name: keywords.name,
-          description: keywords.description,
-          type: keywords.type,
-          createdAt: keywords.createdAt,
-          isCommon: keywords.isCommon,
-          status: keywords.status
-        })
+      // まず役割モデルに関連するキーワードのIDを取得
+      const roleModelKeywordsData = await db
+        .select()
         .from(roleModelKeywords)
-        .innerJoin(
-          keywords, 
-          eq(roleModelKeywords.keywordId, keywords.id)
-        )
         .where(eq(roleModelKeywords.roleModelId, roleModelId));
+      
+      console.log(`キーワードマッピングを取得: ${JSON.stringify(roleModelKeywordsData)}`);
+      
+      if (roleModelKeywordsData.length === 0) {
+        return [];
+      }
+      
+      // キーワードIDリストを作成
+      const keywordIds = roleModelKeywordsData.map(item => item.keywordId);
+      
+      // キーワードの詳細情報を取得
+      const result = await db
+        .select()
+        .from(keywords)
+        .where(inArray(keywords.id, keywordIds));
         
-      console.log(`キーワードデータを取得（JOIN利用）: ${JSON.stringify(result)}`);
+      console.log(`キーワードデータを取得: ${JSON.stringify(result)}`);
       
       return result;
     } catch (error) {

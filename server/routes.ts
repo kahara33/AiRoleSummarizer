@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, requireRole } from "./auth";
 import { z } from "zod";
+import { v4 as uuidv4 } from "uuid";
 import { 
   insertRoleModelSchema, 
   insertTagSchema,
@@ -1344,6 +1345,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ロールモデルの業界カテゴリ関連付けを追加するエンドポイント
+  app.post("/api/role-model-industries", isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, industrySubcategoryId } = req.body;
+      
+      if (!roleModelId || !industrySubcategoryId) {
+        return res.status(400).json({ message: "Role model ID and industry subcategory ID are required" });
+      }
+      
+      // Check role model ownership
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to modify this role model" });
+      }
+      
+      // Insert new mapping with validation
+      const validatedData = {
+        id: uuidv4(),
+        roleModelId,
+        industrySubcategoryId
+      };
+      
+      console.log(`業界カテゴリを関連付け: ${JSON.stringify(validatedData)}`);
+      const mapping = await storage.createRoleModelIndustry(validatedData);
+      res.status(200).json(mapping);
+    } catch (error) {
+      console.error("Error creating role model industry mapping:", error);
+      res.status(500).json({ message: "Error creating role model industry mapping" });
+    }
+  });
+
   // ロールモデルのキーワード関連付けを削除するエンドポイント
   app.delete("/api/role-model-keywords/:roleModelId", isAuthenticated, async (req, res) => {
     try {
@@ -1369,6 +1406,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting role model keywords:", error);
       res.status(500).json({ message: "Error deleting role model keywords" });
+    }
+  });
+  
+  // ロールモデルのキーワード関連付けを追加するエンドポイント
+  app.post("/api/role-model-keywords", isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, keywordId } = req.body;
+      
+      if (!roleModelId || !keywordId) {
+        return res.status(400).json({ message: "Role model ID and keyword ID are required" });
+      }
+      
+      // Check role model ownership
+      const roleModel = await storage.getRoleModelWithTags(roleModelId);
+      
+      if (!roleModel) {
+        return res.status(404).json({ message: "Role model not found" });
+      }
+      
+      if (roleModel.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to modify this role model" });
+      }
+      
+      // Insert new mapping with validation
+      const validatedData = {
+        id: uuidv4(),
+        roleModelId,
+        keywordId
+      };
+      
+      console.log(`キーワードを関連付け: ${JSON.stringify(validatedData)}`);
+      const mapping = await storage.createRoleModelKeyword(validatedData);
+      res.status(200).json(mapping);
+    } catch (error) {
+      console.error("Error creating role model keyword mapping:", error);
+      res.status(500).json({ message: "Error creating role model keyword mapping" });
     }
   });
 
