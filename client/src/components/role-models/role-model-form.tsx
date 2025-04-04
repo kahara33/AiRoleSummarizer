@@ -49,12 +49,25 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
   const isEditMode = !!roleModel;
   const [activeTab, setActiveTab] = useState("basic");
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>(
-    roleModel?.industries?.map(i => i.id) || []
+    (roleModel?.industries && roleModel.industries.length > 0) ? 
+      roleModel.industries.map(i => i.id) : []
   );
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
-    roleModel?.keywords?.map(k => k.id) || []
+    (roleModel?.keywords && roleModel.keywords.length > 0) ? 
+      roleModel.keywords.map(k => k.id) : []
   );
-  const [basicFormData, setBasicFormData] = useState<z.infer<typeof formSchema> | null>(null);
+  const [basicFormData, setBasicFormData] = useState<z.infer<typeof formSchema> | null>(
+    isEditMode ? { ...form.getValues() } : null
+  );
+  
+  // 初期選択状態をコンソールに出力（デバッグ用）
+  useEffect(() => {
+    console.log("初期選択業界:", selectedIndustries);
+    console.log("初期選択キーワード:", selectedKeywords);
+    if (isEditMode) {
+      console.log("編集モード - ロールモデル:", roleModel);
+    }
+  }, []);
   
   // Form setup
   const form = useForm<z.infer<typeof formSchema>>({
