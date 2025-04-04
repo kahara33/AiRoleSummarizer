@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RoleModel, Tag } from "@shared/schema";
+import { RoleModel, Tag, IndustrySubcategoryWithCategory, Keyword } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,10 @@ import {
   Loader2, 
   Tag as TagIcon, 
   Trash, 
-  AlertTriangle 
+  AlertTriangle,
+  Pencil,
+  Building2,
+  KeyRound
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -25,6 +28,13 @@ import {
   AlertDialogHeader, 
   AlertDialogTitle 
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import RoleModelForm from "@/components/role-models/role-model-form";
 import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,6 +45,7 @@ export default function RoleModelDetailPage() {
   const [isRoleModelsRoute, roleModelsParams] = useRoute("/role-models/:id");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   
   // どちらかのルートからIDを取得
   const roleModelId = (isRoleModelRoute ? roleModelParams?.id : 
@@ -80,14 +91,18 @@ export default function RoleModelDetailPage() {
     }
   });
 
-  // Fetch role model with tags
-  const { data: roleModel, isLoading, error } = useQuery({
+  // Fetch role model with tags, industries and keywords
+  const { data: roleModel, isLoading, error, refetch } = useQuery({
     queryKey: [`/api/role-models/${roleModelId}/with-tags`],
     queryFn: async () => {
       console.log("APIリクエスト開始:", `/api/role-models/${roleModelId}/with-tags`);
       try {
         const res = await apiRequest("GET", `/api/role-models/${roleModelId}/with-tags`);
-        const data = await res.json() as RoleModel & { tags: Tag[] };
+        const data = await res.json() as RoleModel & { 
+          tags: Tag[], 
+          industries: IndustrySubcategoryWithCategory[],
+          keywords: Keyword[]
+        };
         console.log("APIレスポンス:", data);
         return data;
       } catch (err) {
@@ -102,6 +117,16 @@ export default function RoleModelDetailPage() {
     },
     enabled: !!roleModelId
   });
+  
+  // 編集完了後のコールバック
+  const handleEditSuccess = () => {
+    setShowEditDialog(false);
+    refetch();
+    toast({
+      title: "更新完了",
+      description: "ロールモデル情報を更新しました",
+    });
+  };
 
   if (isLoading) {
     return (
@@ -169,16 +194,30 @@ export default function RoleModelDetailPage() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>ロールモデル情報</CardTitle>
-            <CardDescription>
-              このロールモデルの基本情報と関連するタグ
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>ロールモデル情報</CardTitle>
+              <CardDescription>
+                このロールモデルの基本情報と関連データ
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-auto flex items-center gap-1"
+              onClick={() => setShowEditDialog(true)}
+            >
+              <Pencil className="h-4 w-4" />
+              編集
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-6">
+              {/* 基本情報 */}
               <div>
-                <h3 className="text-sm font-medium mb-2">基本情報</h3>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                  <span>基本情報</span>
+                </h3>
                 <div className="space-y-2">
                   <div>
                     <span className="text-xs text-muted-foreground">名前:</span>
@@ -186,7 +225,7 @@ export default function RoleModelDetailPage() {
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">説明:</span>
-                    <p>{roleModel.description}</p>
+                    <p>{roleModel.description || "説明はありません"}</p>
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">共有設定:</span>
@@ -194,13 +233,55 @@ export default function RoleModelDetailPage() {
                   </div>
                 </div>
               </div>
+              
+              {/* 業界カテゴリ */}
               <div>
-                <h3 className="text-sm font-medium mb-2">タグ</h3>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>業界カテゴリ</span>
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {roleModel.industries && roleModel.industries.length > 0 ? (
+                    roleModel.industries.map((industry) => (
+                      <Badge key={industry.id} variant="outline" className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800">
+                        {industry.category?.name} &gt; {industry.name}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">業界カテゴリは設定されていません</p>
+                  )}
+                </div>
+              </div>
+              
+              {/* キーワード */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  <span>キーワード</span>
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {roleModel.keywords && roleModel.keywords.length > 0 ? (
+                    roleModel.keywords.map((keyword) => (
+                      <Badge key={keyword.id} className="flex items-center gap-1 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200 border-blue-100 dark:border-blue-800">
+                        {keyword.name}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">キーワードは設定されていません</p>
+                  )}
+                </div>
+              </div>
+              
+              {/* タグ */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                  <TagIcon className="h-3.5 w-3.5" />
+                  <span>タグ</span>
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {roleModel.tags && roleModel.tags.length > 0 ? (
                     roleModel.tags.map((tag) => (
                       <Badge key={tag.id} variant="secondary" className="flex items-center gap-1">
-                        <TagIcon className="h-3 w-3" />
                         {tag.name}
                       </Badge>
                     ))
@@ -248,6 +329,19 @@ export default function RoleModelDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* 編集ダイアログ */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>ロールモデルを編集</DialogTitle>
+          </DialogHeader>
+          <RoleModelForm
+            roleModel={roleModel}
+            onSuccess={handleEditSuccess}
+          />
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

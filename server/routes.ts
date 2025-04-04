@@ -109,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get role model with tags
+  // Get role model with tags, industries and keywords
   app.get("/api/role-models/:id/with-tags", isAuthenticated, async (req, res) => {
     try {
       const roleModel = await storage.getRoleModelWithTags(req.params.id);
@@ -129,15 +129,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // タグを取得
       const tags = await storage.getTags(roleModel.id);
-      const roleModelWithTags = {
+      // 業界とキーワードを取得
+      const industries = await storage.getRoleModelIndustriesWithData(roleModel.id);
+      const keywords = await storage.getRoleModelKeywordsWithData(roleModel.id);
+      
+      const roleModelWithData = {
         ...roleModel,
-        tags
+        tags,
+        industries,
+        keywords
       };
       
-      res.json(roleModelWithTags);
+      res.json(roleModelWithData);
     } catch (error) {
-      console.error("Error fetching role model with tags:", error);
-      res.status(500).json({ message: "Error fetching role model with tags" });
+      console.error("Error fetching role model with data:", error);
+      res.status(500).json({ message: "Error fetching role model with data" });
     }
   });
 

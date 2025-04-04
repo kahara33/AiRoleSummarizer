@@ -37,6 +37,8 @@ interface RoleModelFormProps {
     name: string;
     description: string | null;
     isShared?: number;
+    industries?: { id: string }[];
+    keywords?: { id: string }[];
   };
 }
 
@@ -46,8 +48,12 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
   
   const isEditMode = !!roleModel;
   const [activeTab, setActiveTab] = useState("basic");
-  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>(
+    roleModel?.industries?.map(i => i.id) || []
+  );
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
+    roleModel?.keywords?.map(k => k.id) || []
+  );
   const [basicFormData, setBasicFormData] = useState<z.infer<typeof formSchema> | null>(null);
   
   // Form setup
@@ -83,19 +89,35 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
 
   // すべての情報を使ってロールモデルを保存
   const handleSaveEverything = () => {
-    if (!basicFormData || selectedIndustries.length === 0 || selectedKeywords.length === 0) {
+    if (selectedIndustries.length === 0 || selectedKeywords.length === 0) {
       toast({
-        title: "すべての必要情報を入力してください",
+        title: "業界カテゴリとキーワードを入力してください",
         variant: "destructive",
       });
       return;
     }
 
-    createRoleModelMutation.mutate({
-      formData: basicFormData,
-      industries: selectedIndustries,
-      keywords: selectedKeywords
-    });
+    // 編集モードかどうかで処理を分岐
+    if (isEditMode && roleModel) {
+      // 編集モード：既存のロールモデルを更新
+      updateRoleModelMutation.mutate({
+        formData: form.getValues(),
+        industries: selectedIndustries,
+        keywords: selectedKeywords
+      });
+    } else if (basicFormData) {
+      // 新規作成モード：新しいロールモデルを作成
+      createRoleModelMutation.mutate({
+        formData: basicFormData,
+        industries: selectedIndustries,
+        keywords: selectedKeywords
+      });
+    } else {
+      toast({
+        title: "基本情報を入力してください",
+        variant: "destructive",
+      });
+    }
   };
 
   // ロールモデル作成ミューテーション
@@ -148,15 +170,43 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
 
   // 編集モード用更新ミューテーション
   const updateRoleModelMutation = useMutation({
-    mutationFn: async (values: Partial<z.infer<typeof formSchema>>) => {
+    mutationFn: async (params: { 
+      formData: Partial<z.infer<typeof formSchema>>, 
+      industries: string[], 
+      keywords: string[] 
+    }) => {
       if (!roleModel) throw new Error("編集するロールモデルがありません");
       
-      const res = await apiRequest("PUT", `/api/role-models/${roleModel.id}`, values);
-      return await res.json();
+      // 1. ロールモデルの基本情報を更新
+      const res = await apiRequest("PUT", `/api/role-models/${roleModel.id}`, params.formData);
+      const updatedModel = await res.json();
+      
+      // 2. まず既存の関連付けを削除
+      await apiRequest("DELETE", `/api/role-model-industries/${roleModel.id}`);
+      await apiRequest("DELETE", `/api/role-model-keywords/${roleModel.id}`);
+      
+      // 3. 新しい業界カテゴリを関連付け
+      for (const industryId of params.industries) {
+        await apiRequest("POST", "/api/role-model-industries", {
+          roleModelId: roleModel.id,
+          industrySubcategoryId: industryId
+        });
+      }
+      
+      // 4. 新しいキーワードを関連付け
+      for (const keywordId of params.keywords) {
+        await apiRequest("POST", "/api/role-model-keywords", {
+          roleModelId: roleModel.id,
+          keywordId: keywordId
+        });
+      }
+      
+      return updatedModel;
     },
     onSuccess: () => {
       toast({
-        title: "ロールモデルを更新しました"
+        title: "ロールモデルを更新しました",
+        description: "基本情報、業界カテゴリ、キーワードが更新されました"
       });
       queryClient.invalidateQueries({ queryKey: ["/api/role-models"] });
       if (onSuccess) onSuccess();
@@ -319,12 +369,13 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
               </Button>
               <Button 
                 onClick={handleSaveEverything}
-                disabled={selectedKeywords.length === 0 || createRoleModelMutation.isPending}
+                disabled={selectedKeywords.length === 0 || 
+                  (isEditMode ? updateRoleModelMutation.isPending : createRoleModelMutation.isPending)}
               >
-                {createRoleModelMutation.isPending && (
+                {(isEditMode ? updateRoleModelMutation.isPending : createRoleModelMutation.isPending) && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                完了
+                {isEditMode ? "更新" : "完了"}
               </Button>
             </div>
           </div>
