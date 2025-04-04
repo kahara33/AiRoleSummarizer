@@ -1193,41 +1193,62 @@ export class PostgresStorage implements IStorage {
   }
 
   async getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]> {
-    // まず役割モデルに関連する業界サブカテゴリのIDを取得
-    const roleModelIndustriesData = await db
-      .select()
-      .from(roleModelIndustries)
-      .where(eq(roleModelIndustries.roleModelId, roleModelId));
-    
-    console.log(`ロールモデル業界マッピング: ${JSON.stringify(roleModelIndustriesData)}`);
-    
-    if (roleModelIndustriesData.length === 0) {
+    try {
+      // まず役割モデルに関連する業界サブカテゴリのIDを取得
+      const roleModelIndustriesData = await db
+        .select()
+        .from(roleModelIndustries)
+        .where(eq(roleModelIndustries.roleModelId, roleModelId));
+      
+      console.log(`ロールモデル業界マッピング: ${JSON.stringify(roleModelIndustriesData)}`);
+      
+      if (roleModelIndustriesData.length === 0) {
+        return [];
+      }
+      
+      // 業界サブカテゴリのIDリストを作成
+      const subcategoryIds = roleModelIndustriesData.map(item => item.industrySubcategoryId);
+      console.log(`検索対象のサブカテゴリID: ${JSON.stringify(subcategoryIds)}`);
+      
+      // サブカテゴリとカテゴリの情報を取得（個別のクエリで実行）
+      const subcategoriesData = await db
+        .select()
+        .from(industrySubcategories)
+        .where(inArray(industrySubcategories.id, subcategoryIds));
+      
+      console.log(`取得したサブカテゴリ: ${JSON.stringify(subcategoriesData)}`);
+      
+      if (subcategoriesData.length === 0) {
+        return [];
+      }
+      
+      // カテゴリIDを抽出
+      const categoryIds = subcategoriesData.map(subcat => subcat.categoryId);
+      
+      // カテゴリ情報を取得
+      const categoriesData = await db
+        .select()
+        .from(industryCategories)
+        .where(inArray(industryCategories.id, categoryIds));
+      
+      console.log(`取得したカテゴリ: ${JSON.stringify(categoriesData)}`);
+      
+      // サブカテゴリとカテゴリを結合
+      const result = subcategoriesData.map(subcategory => {
+        const category = categoriesData.find(cat => cat.id === subcategory.categoryId);
+        return {
+          ...subcategory,
+          category: category || null
+        };
+      }).filter(item => item.category !== null);
+      
+      console.log(`最終的な業界データ: ${JSON.stringify(result)}`);
+      
+      return result as IndustrySubcategoryWithCategory[];
+    } catch (error) {
+      console.error('getRoleModelIndustriesWithData エラー:', error);
       return [];
     }
-    
-    // 業界サブカテゴリのIDリストを作成
-    const subcategoryIds = roleModelIndustriesData.map(item => item.industrySubcategoryId);
-    
-    // サブカテゴリとカテゴリの情報を取得
-    const result = await db
-      .select({
-        subcategory: industrySubcategories,
-        category: industryCategories
-      })
-      .from(industrySubcategories)
-      .leftJoin(industryCategories, eq(industrySubcategories.categoryId, industryCategories.id))
-      .where(inArray(industrySubcategories.id, subcategoryIds));
-    
-    // デバッグログを追加
-    console.log(`業界カテゴリデータ取得結果: ${JSON.stringify(result)}`);
-    
-    // nullチェックを追加して、有効なデータのみをマップ
-    return result
-      .filter(row => row.subcategory !== null && row.category !== null)
-      .map(({ subcategory, category }) => ({
-        ...subcategory,
-        category
-      }));
   }
 
   async createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
@@ -1265,31 +1286,37 @@ export class PostgresStorage implements IStorage {
   }
 
   async getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]> {
-    // まず役割モデルに関連するキーワードのIDを取得
-    const roleModelKeywordsData = await db
-      .select()
-      .from(roleModelKeywords)
-      .where(eq(roleModelKeywords.roleModelId, roleModelId));
-    
-    console.log(`ロールモデルキーワードマッピング: ${JSON.stringify(roleModelKeywordsData)}`);
-    
-    if (roleModelKeywordsData.length === 0) {
+    try {
+      // まず役割モデルに関連するキーワードのIDを取得
+      const roleModelKeywordsData = await db
+        .select()
+        .from(roleModelKeywords)
+        .where(eq(roleModelKeywords.roleModelId, roleModelId));
+      
+      console.log(`ロールモデルキーワードマッピング: ${JSON.stringify(roleModelKeywordsData)}`);
+      
+      if (roleModelKeywordsData.length === 0) {
+        return [];
+      }
+      
+      // キーワードIDリストを作成
+      const keywordIds = roleModelKeywordsData.map(item => item.keywordId);
+      console.log(`検索対象のキーワードID: ${JSON.stringify(keywordIds)}`);
+      
+      // キーワードの詳細情報を取得
+      const keywordResults = await db
+        .select()
+        .from(keywords)
+        .where(inArray(keywords.id, keywordIds));
+      
+      // デバッグログを追加
+      console.log(`キーワードデータ取得結果: ${JSON.stringify(keywordResults)}`);
+      
+      return keywordResults;
+    } catch (error) {
+      console.error('getRoleModelKeywordsWithData エラー:', error);
       return [];
     }
-    
-    // キーワードIDリストを作成
-    const keywordIds = roleModelKeywordsData.map(item => item.keywordId);
-    
-    // キーワードの詳細情報を取得
-    const keywordResults = await db
-      .select()
-      .from(keywords)
-      .where(inArray(keywords.id, keywordIds));
-    
-    // デバッグログを追加
-    console.log(`キーワードデータ取得結果: ${JSON.stringify(keywordResults)}`);
-    
-    return keywordResults;
   }
 
   async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
@@ -1321,23 +1348,52 @@ export class PostgresStorage implements IStorage {
   
   // Extended role model operations
   async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
-    const roleModelResult = await db.select()
-      .from(roleModels)
-      .where(eq(roleModels.id, id));
+    try {
+      const roleModelResult = await db.select()
+        .from(roleModels)
+        .where(eq(roleModels.id, id));
+        
+      if (roleModelResult.length === 0) {
+        return undefined;
+      }
       
-    if (roleModelResult.length === 0) {
-      return undefined;
+      const roleModel = roleModelResult[0];
+      
+      // 並行して業界とキーワードを取得
+      const [industries, keywords] = await Promise.all([
+        this.getRoleModelIndustriesWithData(id),
+        this.getRoleModelKeywordsWithData(id)
+      ]);
+      
+      console.log(`Role model industries: ${JSON.stringify(industries)}`);
+      console.log(`Role model keywords: ${JSON.stringify(keywords)}`);
+      
+      const result = {
+        ...roleModel,
+        industries,
+        keywords
+      };
+      
+      console.log(`Complete role model response: ${JSON.stringify(result, null, 2)}`);
+      
+      return result;
+    } catch (error) {
+      console.error('getRoleModelWithIndustriesAndKeywords エラー:', error);
+      // エラーが発生しても、基本的なロールモデル情報だけでも返す
+      const roleModelResult = await db.select()
+        .from(roleModels)
+        .where(eq(roleModels.id, id));
+        
+      if (roleModelResult.length === 0) {
+        return undefined;
+      }
+      
+      return {
+        ...roleModelResult[0],
+        industries: [],
+        keywords: []
+      };
     }
-    
-    const roleModel = roleModelResult[0];
-    const industries = await this.getRoleModelIndustriesWithData(id);
-    const keywords = await this.getRoleModelKeywordsWithData(id);
-    
-    return {
-      ...roleModel,
-      industries,
-      keywords
-    };
   }
 }
 
