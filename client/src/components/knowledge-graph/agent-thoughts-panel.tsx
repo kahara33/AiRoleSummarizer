@@ -1,270 +1,149 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, X, Terminal, Cpu, Brain, Loader2 } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Brain, Bot, Lightbulb, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface AgentThought {
+  userId: string;
+  roleModelId: string;
   agentName: string;
-  thoughts: string;
-  timestamp: string;
-}
-
-interface ProgressUpdate {
-  stage: string;
-  progress: number;
-  details?: any;
-  timestamp: string;
+  thought: string;
+  timestamp: number;
 }
 
 interface AgentThoughtsPanelProps {
   roleModelId: string;
-  isVisible: boolean;
-  onClose: () => void;
+  thoughts: AgentThought[];
 }
 
-const AgentThoughtsPanel: React.FC<AgentThoughtsPanelProps> = ({ 
-  roleModelId, 
-  isVisible,
-  onClose 
-}) => {
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [connected, setConnected] = useState<boolean>(false);
-  const [thoughts, setThoughts] = useState<AgentThought[]>([]);
-  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [currentStage, setCurrentStage] = useState<string>('');
-  const [currentProgress, setCurrentProgress] = useState<number>(0);
-  const [autoScroll, setAutoScroll] = useState<boolean>(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
+export const AgentThoughtsPanel: React.FC<AgentThoughtsPanelProps> = ({ roleModelId, thoughts }) => {
+  const [filteredThoughts, setFilteredThoughts] = useState<AgentThought[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   
-  // アニメーションスタイル
-  const fadeIn = 'animate-in fade-in duration-300';
+  // エージェント一覧を取得
+  const agents = Array.from(new Set(thoughts.map(t => t.agentName)));
   
-  // WebSocketの接続を管理
-  useEffect(() => {
-    if (!isVisible) {
-      return; // パネルが非表示の場合は接続しない
-    }
-    
-    // WebSocket接続を初期化
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const newSocket = new WebSocket(wsUrl);
-    
-    newSocket.onopen = () => {
-      console.log('WebSocket connected');
-      setConnected(true);
-      
-      // 接続成功時にステータスメッセージを追加
-      setThoughts(prev => [
-        ...prev, 
-        { 
-          agentName: 'システム', 
-          thoughts: 'AI処理の進捗状況パネルに接続しました。ロールモデルの分析が開始されると、リアルタイムで思考プロセスが表示されます。',
-          timestamp: new Date().toISOString()
-        }
-      ]);
-    };
-    
-    newSocket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('Received WebSocket message:', data);
-        
-        // メッセージタイプに応じた処理
-        if (data.type === 'connection_established') {
-          console.log('Connection confirmed with ID:', data.userId);
-        } 
-        else if (data.type === 'agent_thoughts' && data.roleModelId === roleModelId) {
-          // エージェントの思考を追加
-          setThoughts(prev => [...prev, {
-            agentName: data.agentName,
-            thoughts: data.thoughts,
-            timestamp: data.timestamp
-          }]);
-        } 
-        else if (data.type === 'progress_update' && data.roleModelId === roleModelId) {
-          // 進捗更新を追加
-          setProgressUpdates(prev => [...prev, {
-            stage: data.stage,
-            progress: data.progress,
-            details: data.details,
-            timestamp: data.timestamp
-          }]);
-          
-          // 現在のステージと進捗を更新
-          setCurrentStage(data.stage);
-          setCurrentProgress(data.progress);
-        } 
-        else if (data.type === 'error' && data.roleModelId === roleModelId) {
-          // エラーメッセージを追加
-          setErrors(prev => [...prev, data.errorMessage]);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
-    
-    newSocket.onclose = () => {
-      console.log('WebSocket disconnected');
-      setConnected(false);
-    };
-    
-    newSocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setConnected(false);
-      setErrors(prev => [...prev, 'WebSocket接続エラーが発生しました。']);
-    };
-    
-    setSocket(newSocket);
-    
-    // クリーンアップ関数
-    return () => {
-      if (newSocket && newSocket.readyState === WebSocket.OPEN) {
-        newSocket.close();
-      }
-    };
-  }, [roleModelId, isVisible]);
-  
-  // 自動スクロール
-  useEffect(() => {
-    if (autoScroll && scrollRef.current && thoughts.length > 0) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [thoughts, autoScroll]);
-  
-  // エージェント名に対応するアイコンを取得
+  // エージェントのアイコンを取得
   const getAgentIcon = (agentName: string) => {
-    const agentNameLower = agentName.toLowerCase();
-    
-    if (agentNameLower.includes('industry') || agentNameLower.includes('業界')) {
-      return <Brain className="h-4 w-4 mr-1" />;
-    } 
-    else if (agentNameLower.includes('keyword') || agentNameLower.includes('キーワード')) {
-      return <Terminal className="h-4 w-4 mr-1" />;
-    } 
-    else if (agentNameLower.includes('structure') || agentNameLower.includes('構造')) {
-      return <Cpu className="h-4 w-4 mr-1" />;
-    } 
-    
-    return <Terminal className="h-4 w-4 mr-1" />;
+    if (agentName.includes('Industry')) return <Bot size={18} />;
+    if (agentName.includes('Keyword')) return <Brain size={18} />;
+    if (agentName.includes('Structure')) return <RefreshCw size={18} />;
+    if (agentName.includes('Knowledge') || agentName.includes('Graph')) return <Lightbulb size={18} />;
+    return <AlertCircle size={18} />;
   };
   
-  // 日付をフォーマット
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+  // エージェントのカラーを取得
+  const getAgentColor = (agentName: string) => {
+    if (agentName.includes('Industry')) return 'bg-blue-100 text-blue-800 hover:bg-blue-200';
+    if (agentName.includes('Keyword')) return 'bg-green-100 text-green-800 hover:bg-green-200';
+    if (agentName.includes('Structure')) return 'bg-purple-100 text-purple-800 hover:bg-purple-200';
+    if (agentName.includes('Knowledge') || agentName.includes('Graph')) return 'bg-amber-100 text-amber-800 hover:bg-amber-200';
+    return 'bg-gray-100 text-gray-800 hover:bg-gray-200';
   };
   
-  if (!isVisible) {
-    return null;
-  }
+  // 思考の時間をフォーマット
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+  
+  // エージェントフィルターが変更されたときに思考をフィルタリング
+  useEffect(() => {
+    setFilteredThoughts(
+      selectedAgent 
+        ? thoughts.filter(t => t.agentName === selectedAgent)
+        : thoughts
+    );
+  }, [selectedAgent, thoughts]);
   
   return (
-    <div className={`fixed right-0 top-0 h-full z-50 w-80 md:w-96 lg:w-1/3 bg-background border-l border-border shadow-lg ${fadeIn}`}>
-      <Card className="h-full flex flex-col rounded-none">
-        <CardHeader className="pb-2 pt-3 px-4 flex-shrink-0 border-b">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-medium flex items-center">
-              <Brain className="h-5 w-5 mr-2" />
-              AIエージェント処理状況
-              {!connected && <Loader2 className="h-4 w-4 ml-2 animate-spin text-muted-foreground" />}
-            </CardTitle>
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          {currentStage && (
-            <div className="mt-1">
-              <div className="flex items-center justify-between text-sm">
-                <span>{currentStage}</span>
-                <span>{currentProgress}%</span>
-              </div>
-              <div className="w-full bg-secondary h-1 mt-1 rounded-full overflow-hidden">
-                <div 
-                  className="bg-primary h-full transition-all duration-500" 
-                  style={{ width: `${currentProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-          
-          <div className="flex items-center justify-between mt-2">
-            <Toggle 
-              pressed={autoScroll} 
-              onPressedChange={setAutoScroll}
-              size="sm"
-              variant="outline"
-              aria-label="自動スクロール"
-              className="text-xs h-7"
-            >
-              自動スクロール
-            </Toggle>
-            
-            <Badge variant="outline" className={connected ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"}>
-              {connected ? "接続中" : "未接続"}
-            </Badge>
-          </div>
-        </CardHeader>
+    <Card className="shadow-md h-full">
+      <CardHeader className="bg-gray-50 pb-2">
+        <CardTitle className="text-xl flex items-center gap-2">
+          <Brain className="text-primary" />
+          AIエージェント思考パネル
+        </CardTitle>
+        <CardDescription>
+          AIエージェントの思考プロセスをリアルタイムで確認できます
+        </CardDescription>
         
-        <CardContent className="p-0 flex-grow overflow-hidden">
-          <ScrollArea ref={scrollRef} className="h-full">
-            <div className="p-4 space-y-3">
-              {errors.length > 0 && (
-                <div className="mb-4 space-y-2">
-                  {errors.map((error, i) => (
-                    <div key={i} className="p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-800 dark:text-red-400 flex items-start text-sm">
-                      <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                      <span>{error}</span>
+        {/* エージェントフィルター */}
+        <div className="flex flex-wrap gap-2 mt-2 mb-1">
+          <Badge 
+            variant={selectedAgent === null ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setSelectedAgent(null)}
+          >
+            すべて
+          </Badge>
+          
+          {agents.map(agent => (
+            <Badge
+              key={agent}
+              variant={selectedAgent === agent ? "default" : "outline"}
+              className={`cursor-pointer ${selectedAgent === agent ? '' : getAgentColor(agent)}`}
+              onClick={() => setSelectedAgent(agent)}
+            >
+              {getAgentIcon(agent)}
+              <span className="ml-1">
+                {agent.replace('Agent', '')}
+              </span>
+            </Badge>
+          ))}
+        </div>
+      </CardHeader>
+      
+      <CardContent className="px-3 py-2">
+        <ScrollArea className="h-[400px] pr-3">
+          {filteredThoughts.length > 0 ? (
+            <div className="space-y-4">
+              {filteredThoughts.map((thought, index) => (
+                <div key={index} className="flex gap-3 p-3 rounded-lg bg-gray-50">
+                  <Avatar className="mt-1">
+                    <AvatarImage src={`/icons/${thought.agentName.toLowerCase().includes('industry') ? 'industry' : 
+                                          thought.agentName.toLowerCase().includes('keyword') ? 'keyword' : 
+                                          thought.agentName.toLowerCase().includes('struct') ? 'structure' : 
+                                          'knowledge'}-agent.png`} 
+                                alt={thought.agentName} />
+                    <AvatarFallback className={thought.agentName.toLowerCase().includes('industry') ? 'bg-blue-100 text-blue-800' : 
+                                              thought.agentName.toLowerCase().includes('keyword') ? 'bg-green-100 text-green-800' : 
+                                              thought.agentName.toLowerCase().includes('struct') ? 'bg-purple-100 text-purple-800' : 
+                                              'bg-amber-100 text-amber-800'}>
+                      {thought.agentName.substring(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="font-medium">
+                        {thought.agentName.replace('Agent', '')}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {formatTime(thought.timestamp)}
+                      </div>
                     </div>
-                  ))}
-                  <Separator />
-                </div>
-              )}
-              
-              {thoughts.map((thought, i) => (
-                <div key={i} className="space-y-1 animate-in fade-in slide-in-from-right-3 duration-300">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="px-2 py-0 h-5 text-xs font-normal flex items-center">
-                      {getAgentIcon(thought.agentName)}
-                      {thought.agentName}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{formatDate(thought.timestamp)}</span>
-                  </div>
-                  <div className="p-3 bg-muted/50 rounded-md text-sm">
-                    {thought.thoughts.split('\n').map((line, j) => (
-                      <p key={j} className={line.trim() === '' ? 'h-2' : 'mb-1'}>{line}</p>
-                    ))}
+                    
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {thought.thought}
+                    </div>
                   </div>
                 </div>
               ))}
-              
-              {thoughts.length === 0 && !connected && (
-                <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-                  <Terminal className="h-10 w-10 mb-3 opacity-20" />
-                  <p>WebSocket接続中...</p>
-                  <p className="text-sm mt-1">AIエージェントの処理が開始されるのをお待ちください</p>
-                </div>
-              )}
-              
-              {thoughts.length === 0 && connected && (
-                <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-                  <Terminal className="h-10 w-10 mb-3 opacity-20" />
-                  <p>AIエージェントからのデータを待機中...</p>
-                  <p className="text-sm mt-1">ロールモデルの処理が開始されると、ここに思考プロセスが表示されます</p>
-                </div>
-              )}
             </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 p-6">
+              <Lightbulb className="mb-2 h-10 w-10 opacity-30" />
+              <p>エージェントの思考はまだありません</p>
+              <p className="text-sm">処理が開始されるとここに表示されます</p>
+            </div>
+          )}
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 };
-
-export default AgentThoughtsPanel;

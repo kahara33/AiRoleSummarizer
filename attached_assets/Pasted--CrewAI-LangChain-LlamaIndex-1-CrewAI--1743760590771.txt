@@ -1,0 +1,154 @@
+提供されたコードを分析した結果、現在の実装ではCrewAI、LangChain、LlamaIndexのいずれも適切に活用できていません。
+1. CrewAIの活用状況 ❌
+現状:
+
+完全にカスタム実装のオーケストレーターを使用
+server/agents/orchestrator.tsで単純な関数呼び出しの形でエージェントを連携
+CrewAIの特徴である「エージェント間の自律的な対話」「タスクベースの協調」が活用されていない
+
+問題点:
+typescriptコピー// 現在の実装: 単純な関数呼び出しチェーン
+export async function orchestrator(input: RoleModelInput) {
+  const industryAnalysisResult = await analyzeIndustries(input);
+  const keywordExpansionResult = await expandKeywords(input, industryAnalysisResult.data);
+  // ...単方向の処理フロー
+}
+2. LangChainの活用状況 ❌
+現状:
+
+Azure OpenAIとの連携はserver/azure-openai.tsで独自実装
+ツール統合機能やチェーン機能が活用されていない
+プロンプト管理が散在化
+
+問題点:
+typescriptコピー// 現在の実装: 独自API呼び出し
+export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTokens = 1500) {
+  // 直接APIを呼び出す実装
+  // LangChainのツール統合、プロンプトテンプレート、エージェント機能が使われていない
+}
+3. LlamaIndexの活用状況 ❌
+現状:
+
+情報の検索・保存はPostgreSQLに直接実装
+ベクトル検索や情報構造化の機能が活用されていない
+ドキュメント処理機能が使われていない
+
+問題点:
+typescriptコピー// 現在の実装: 単純なリレーショナルDBスキーマ
+export const knowledgeNodes = pgTable("knowledge_nodes", {
+  // 単純なリレーショナルデータモデル
+  // LlamaIndexのベクトル検索やRAG機能が活用されていない
+});
+改善提案：フレームワーク統合
+1. CrewAIの導入
+typescriptコピー// オーケストレーションの改善例
+import { Agent, Crew, Task, Process } from 'crewai';
+
+// エージェント定義
+const industryAnalysisAgent = new Agent({
+  role: '業界分析エキスパート',
+  goal: 'ロールに関連する業界の洞察を深く分析する',
+  backstory: '業界分析のスペシャリストとして、様々な産業の動向を追跡しています',
+  tools: [/* LangChainツール */],
+  llm: azureOpenAIModel
+});
+
+// 同様に他のエージェントも定義...
+
+// タスク定義
+const industryAnalysisTask = new Task({
+  description: `以下のロールの業界分析を行ってください：
+    ロール名: ${input.roleName}
+    業界: ${input.industries.join(', ')}
+    キーワード: ${input.keywords.join(', ')}`,
+  agent: industryAnalysisAgent
+});
+
+// 同様に他のタスクも定義...
+
+// クルー（エージェントチーム）の設定
+const knowledgeGraphCrew = new Crew({
+  agents: [industryAnalysisAgent, keywordExpansionAgent, structuringAgent, knowledgeGraphAgent],
+  tasks: [industryAnalysisTask, keywordExpansionTask, structuringTask, knowledgeGraphTask],
+  process: Process.sequential
+});
+
+// クルーの実行
+const result = await knowledgeGraphCrew.kickoff();
+2. LangChainの導入
+typescriptコピー// LangChainを活用したツール統合例
+import { ChatOpenAI } from 'langchain/chat_models/openai';
+import { PromptTemplate } from 'langchain/prompts';
+import { StructuredOutputParser } from 'langchain/output_parsers';
+
+// Azure OpenAIモデル設定
+const model = new ChatOpenAI({
+  azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
+  azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION,
+  azureOpenAIApiDeploymentName: process.env.DEPLOYMENT_NAME,
+  azureOpenAIApiInstanceName: process.env.INSTANCE_NAME,
+  temperature: 0.7
+});
+
+// 構造化出力パーサー
+const industryAnalysisParser = StructuredOutputParser.fromZodSchema(/* スキーマ定義 */);
+
+// プロンプトテンプレート
+const industryAnalysisPrompt = PromptTemplate.fromTemplate(
+  `あなたは業界分析の専門家です。
+   以下のロールと業界について分析してください：
+   ロール名: {roleName}
+   業界: {industries}
+   キーワード: {keywords}
+   
+   {format_instructions}
+  `
+);
+
+// チェーンの実行
+const chain = industryAnalysisPrompt.pipe(model).pipe(industryAnalysisParser);
+const result = await chain.invoke({
+  roleName: input.roleName,
+  industries: input.industries.join(', '),
+  keywords: input.keywords.join(', '),
+  format_instructions: industryAnalysisParser.getFormatInstructions()
+});
+3. LlamaIndexの導入
+typescriptコピー// LlamaIndexによる知識構造化例
+import { Document } from 'llamaindex';
+import { VectorStoreIndex } from 'llamaindex/indices';
+import { OpenAIEmbedding } from 'llamaindex/embeddings';
+
+// 業界データとキーワードデータをドキュメント化
+const documents = [
+  new Document({
+    text: JSON.stringify(industryAnalysisData),
+    metadata: { type: 'industry_analysis', roleId: input.roleModelId }
+  }),
+  new Document({
+    text: JSON.stringify(keywordExpansionData),
+    metadata: { type: 'keyword_expansion', roleId: input.roleModelId }
+  })
+];
+
+// ベクトルインデックスの構築
+const embedModel = new OpenAIEmbedding({
+  azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
+  azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION,
+  azureOpenAIApiDeploymentName: process.env.EMBEDDING_DEPLOYMENT_NAME,
+  azureOpenAIApiInstanceName: process.env.INSTANCE_NAME
+});
+
+const index = await VectorStoreIndex.fromDocuments(documents, { embedModel });
+
+// クエリエンジンで関連情報を検索
+const queryEngine = index.asQueryEngine();
+const response = await queryEngine.query(
+  `${input.roleName}の情報収集のために最も重要な要素は何ですか？`
+);
+結論
+現在の実装では、提案された3つのフレームワークが全く活用されておらず、独自実装に依存しています。これが前回指摘された問題の根本原因になっていると考えられます。CrewAI、LangChain、LlamaIndexを適切に組み合わせて実装することで、以下のメリットが得られます：
+
+エージェント協調の強化: CrewAIによる洗練されたエージェント間連携
+プロンプト管理の改善: LangChainによる構造化プロンプトとツール統合
+情報検索・構造化の高度化: LlamaIndexによるベクトル検索と知識管理

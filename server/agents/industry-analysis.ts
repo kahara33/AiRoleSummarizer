@@ -1,202 +1,166 @@
-// 業界分析エージェント
-// 特定の業界に関する洞察と情報を生成
+/**
+ * 業界分析エージェント
+ * 役割に関連する業界情報を収集・分析するAIエージェント
+ */
 
-import { AgentResult, RoleModelInput } from './types';
+import { v4 as uuidv4 } from 'uuid';
+import { AgentResult } from './types';
+import { sendAgentThoughts } from '../websocket';
 import { callAzureOpenAI } from '../azure-openai';
-import { sendAgentThoughts, sendProgressUpdate } from '../websocket';
 
-export interface IndustryAnalysisData {
-  industryInsights: string[];  // 業界全般の洞察
-  targetAudience: string[];    // ターゲットとなる対象者・組織
-  keyTrends: string[];         // 主要なトレンド
-  businessModels: string[];    // ビジネスモデル
-  challengesOpportunities: string[]; // 課題と機会
+/**
+ * 業界分析入力データ
+ */
+export interface IndustryAnalysisInput {
+  roleName: string;             // 役割名
+  description: string;          // 役割の説明
+  industries: string[];         // 選択された業界
+  userId: string;               // ユーザーID
+  roleModelId: string;          // 役割モデルID
 }
 
 /**
- * 業界分析エージェント
- * 指定された業界に関する詳細な情報と洞察を提供
+ * 業界情報
+ */
+export interface Industry {
+  id: string;                   // 業界ID
+  name: string;                 // 業界名
+  description: string;          // 説明
+}
+
+/**
+ * サブ業界情報
+ */
+export interface SubIndustry {
+  id: string;                   // サブ業界ID
+  parentId: string;             // 親業界ID
+  name: string;                 // サブ業界名
+  description: string;          // 説明
+}
+
+/**
+ * 業界分析データ
+ */
+export interface IndustryAnalysisData {
+  industries: Industry[];       // 業界リスト
+  subIndustries: SubIndustry[]; // サブ業界リスト
+}
+
+/**
+ * 役割に関連する業界情報を分析する
+ * @param input 業界分析入力データ
+ * @returns 業界分析結果
  */
 export async function analyzeIndustries(
-  input: RoleModelInput
+  input: IndustryAnalysisInput
 ): Promise<AgentResult<IndustryAnalysisData>> {
   try {
-    console.log(`Analyzing industries for role: ${input.roleName}`);
-    console.log(`Target industries: ${input.industries.join(', ')}`);
+    console.log(`業界分析エージェント起動: ${input.roleName}`);
+    sendAgentThoughts(input.userId, input.roleModelId, 'IndustryAnalysisAgent', `役割「${input.roleName}」の業界分析を開始します。選択された業界: ${input.industries.join(', ')}`);
     
-    // WebSocketで進捗状況を送信（開始）
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        '業界分析',
-        10,
-        { stage: '初期化', industries: input.industries }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        '業界分析エージェント',
-        `業界分析を開始します...\n分析対象: ${input.roleName}\n業界: ${input.industries.join(', ') || '指定なし'}`
-      );
-    }
-    
-    if (input.industries.length === 0) {
-      console.log('No industries specified, generating generic analysis');
-      
-      // 進捗状況更新
-      if (input.userId && input.roleModelId) {
-        sendAgentThoughts(
-          input.userId,
-          input.roleModelId,
-          '業界分析エージェント',
-          '業界が指定されていないため、一般的な分析を行います。キーワードやロール説明から業界を推定します。'
-        );
-      }
-    }
-    
-    // 改善されたプロンプト：より明示的にロール情報を活用
-    const prompt = [
+    // OpenAIモデルに送信するメッセージを構築
+    const messages = [
       {
-        role: "system",
-        content: `あなたは業界分析の専門家です。与えられたロールと業界について詳細な分析を行ってください。
-        結果はJSON形式で返してください。
-        
-        このシステムは「情報収集サービス」です。ユーザーが日々の情報収集を効率的に行うために必要な知識構造を構築することが目的です。
-        分析は具体的で実用的であるべきです。特に情報収集の観点から重要な項目を強調してください。`
+        role: 'system',
+        content: `あなたは業界分析の専門家です。提供された役割モデルの情報に基づいて、関連する業界と
+その下位のサブ業界について詳細に分析してください。以下の形式でJSON出力してください:
+{
+  "industries": [
+    {
+      "id": "業界のユニークID（例：industry_01）",
+      "name": "業界名",
+      "description": "業界の説明（100-150文字）"
+    }
+  ],
+  "subIndustries": [
+    {
+      "id": "サブ業界のユニークID（例：subindustry_01）",
+      "parentId": "親業界のID",
+      "name": "サブ業界名",
+      "description": "サブ業界の説明（80-120文字）"
+    }
+  ]
+}`
       },
       {
-        role: "user",
-        content: `以下のロール、業界、キーワードについて分析してください：
-        
-        ロール名: ${input.roleName}
-        ロール詳細: ${input.description || '特に指定なし'}
-        業界: ${input.industries.length > 0 ? input.industries.join(', ') : '特に指定なし'}
-        関連キーワード: ${input.keywords.length > 0 ? input.keywords.join(', ') : '特に指定なし'}
-        
-        分析結果には以下の項目を含めてください：
-        
-        以下の形式でJSON出力してください：
-        {
-          "industryInsights": ["洞察1", "洞察2", ...],  // 業界全般の重要な洞察（5-7項目）
-          "targetAudience": ["対象者1", "対象者2", ...], // この役割が対象とする顧客や組織（3-5項目）
-          "keyTrends": ["トレンド1", "トレンド2", ...],  // 業界の主要なトレンド（4-6項目）
-          "businessModels": ["モデル1", "モデル2", ...], // 関連するビジネスモデルや収益源（3-5項目）
-          "challengesOpportunities": ["項目1", "項目2", ...] // 主な課題と機会（4-6項目）
-        }
-        
-        回答は日本語で提供し、短く具体的に記述してください。各項目は40-60文字程度に抑えてください。
-        日々の情報収集に役立つ具体的な観点を含めるよう心がけてください。`
+        role: 'user',
+        content: `役割名: ${input.roleName}
+役割の説明: ${input.description}
+選択された業界: ${input.industries.join(', ')}
+
+この役割に関連する主要業界とサブ業界を特定し、それぞれについて簡潔な説明を提供してください。選択された業界を必ず含め、必要に応じて追加の関連業界を特定してください。各業界について最低2つのサブ業界を含めてください。`
       }
     ];
     
-    // 進捗状況更新
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        '業界分析',
-        30,
-        { stage: 'AI分析中' }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        '業界分析エージェント',
-        'Azure OpenAIに業界分析を依頼しています...\nこの処理には数秒かかることがあります。'
-      );
-    }
+    // 思考過程をユーザーに共有
+    sendAgentThoughts(input.userId, input.roleModelId, 'IndustryAnalysisAgent', `選択された業界（${input.industries.join(', ')}）に基づいて、関連する業界とサブ業界を特定しています。`);
     
-    // Azure OpenAIを呼び出し
-    const responseContent = await callAzureOpenAI(prompt, 0.7, 1500);
+    // APIを呼び出して業界分析を実行
+    const response = await callAzureOpenAI(messages);
     
-    // 進捗状況更新
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        '業界分析',
-        70,
-        { stage: 'データ解析中' }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        '業界分析エージェント',
-        'AIからの回答を受信しました。結果を解析しています...'
-      );
-    }
-    
-    // 結果をパース
     try {
-      let analysisData: IndustryAnalysisData;
-      
-      // JSON形式の部分を抽出
-      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysisData = JSON.parse(jsonMatch[0]);
-      } else {
-        analysisData = JSON.parse(responseContent);
-      }
+      // レスポンスをJSONとしてパース
+      const analysisData: IndustryAnalysisData = JSON.parse(response);
       
       // データの検証
-      if (!analysisData.industryInsights || !Array.isArray(analysisData.industryInsights)) {
-        analysisData.industryInsights = [];
-      }
-      if (!analysisData.targetAudience || !Array.isArray(analysisData.targetAudience)) {
-        analysisData.targetAudience = [];
-      }
-      if (!analysisData.keyTrends || !Array.isArray(analysisData.keyTrends)) {
-        analysisData.keyTrends = [];
-      }
-      if (!analysisData.businessModels || !Array.isArray(analysisData.businessModels)) {
-        analysisData.businessModels = [];
-      }
-      if (!analysisData.challengesOpportunities || !Array.isArray(analysisData.challengesOpportunities)) {
-        analysisData.challengesOpportunities = [];
+      if (!analysisData.industries || !Array.isArray(analysisData.industries)) {
+        throw new Error('Industries data is missing or invalid');
       }
       
-      // 進捗状況更新（完了）
-      if (input.userId && input.roleModelId) {
-        sendProgressUpdate(
-          input.userId,
-          input.roleModelId,
-          '業界分析',
-          100,
-          { stage: '完了', itemCount: {
-            insights: analysisData.industryInsights.length,
-            audiences: analysisData.targetAudience.length,
-            trends: analysisData.keyTrends.length
-          }}
-        );
-        
-        sendAgentThoughts(
-          input.userId,
-          input.roleModelId,
-          '業界分析エージェント',
-          `業界分析が完了しました。\n\n主な洞察: ${analysisData.industryInsights.slice(0, 2).join('、')}\n\n主なトレンド: ${analysisData.keyTrends.slice(0, 2).join('、')}\n\n次のステップ: キーワード拡張エージェントに分析結果を渡します。`
-        );
+      if (!analysisData.subIndustries || !Array.isArray(analysisData.subIndustries)) {
+        throw new Error('SubIndustries data is missing or invalid');
       }
+      
+      // 業界とサブ業界のIDを検証し、必要に応じて生成
+      analysisData.industries.forEach(industry => {
+        if (!industry.id) {
+          industry.id = uuidv4();
+        }
+      });
+      
+      analysisData.subIndustries.forEach(subIndustry => {
+        if (!subIndustry.id) {
+          subIndustry.id = uuidv4();
+        }
+        
+        // 親業界IDの検証
+        const parentExists = analysisData.industries.some(industry => industry.id === subIndustry.parentId);
+        if (!parentExists) {
+          // 親業界が見つからない場合は最初の業界を親として設定
+          subIndustry.parentId = analysisData.industries[0].id;
+        }
+      });
+      
+      // 結果をログ出力
+      console.log(`業界分析結果: ${analysisData.industries.length}個の業界と${analysisData.subIndustries.length}個のサブ業界を特定`);
+      
+      // 分析結果の思考をユーザーに共有
+      sendAgentThoughts(input.userId, input.roleModelId, 'IndustryAnalysisAgent', `分析完了: ${analysisData.industries.length}個の業界と${analysisData.subIndustries.length}個のサブ業界を特定しました。主要業界: ${analysisData.industries.map(i => i.name).join(', ')}`);
       
       return {
         success: true,
         data: analysisData
       };
-    } catch (error) {
-      console.error('Error parsing industry analysis result:', error);
+      
+    } catch (parseError: any) {
+      console.error('Error parsing industry analysis response:', parseError);
+      sendAgentThoughts(input.userId, input.roleModelId, 'IndustryAnalysisAgent', `エラー: APIレスポンスの解析に失敗しました。`);
+      
       return {
         success: false,
-        error: 'Failed to parse industry analysis result'
+        error: `APIレスポンスの解析に失敗しました: ${parseError.message}`,
+        data: { industries: [], subIndustries: [] }
       };
     }
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('Error in industry analysis:', error);
+    sendAgentThoughts(input.userId, input.roleModelId, 'IndustryAnalysisAgent', `エラー: 業界分析の実行中にエラーが発生しました。`);
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error in industry analysis'
+      error: `業界分析の実行中にエラーが発生しました: ${error.message}`,
+      data: { industries: [], subIndustries: [] }
     };
   }
 }

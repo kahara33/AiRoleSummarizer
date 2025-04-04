@@ -1,242 +1,185 @@
-// キーワード拡張エージェント
-// 入力キーワードを拡張し、関連する追加キーワードを生成
+/**
+ * キーワード拡張エージェント
+ * 役割モデルに関連するキーワードを拡張して関連概念を抽出するAIエージェント
+ */
 
-import { AgentResult, RoleModelInput } from './types';
-import { IndustryAnalysisData } from './industry-analysis';
+import { AgentResult } from './types';
+import { sendAgentThoughts } from '../websocket';
 import { callAzureOpenAI } from '../azure-openai';
-import { sendAgentThoughts, sendProgressUpdate } from '../websocket';
+import { IndustryAnalysisData } from './industry-analysis';
 
-export interface KeywordExpansionData {
-  expandedKeywords: string[];       // 拡張されたキーワードリスト
-  relevance: Record<string, number>; // キーワードと関連度のマッピング（0.0-1.0）
+/**
+ * キーワード拡張入力データ
+ */
+export interface KeywordExpansionInput {
+  roleName: string;             // 役割名
+  description: string;          // 役割の説明
+  industries: string[];         // 選択された業界
+  keywords: string[];           // 選択されたキーワード
+  industryAnalysisData: IndustryAnalysisData;  // 業界分析データ
+  userId: string;               // ユーザーID
+  roleModelId: string;          // 役割モデルID
 }
 
 /**
- * キーワード拡張エージェント
- * 初期キーワードに基づいて関連キーワードを推奨し、キーワードを拡張
+ * キーワード情報
+ */
+export interface Keyword {
+  id: string;                   // キーワードID
+  name: string;                 // キーワード名
+  description: string;          // 説明
+  importance: number;           // 重要度（1-10）
+  industryIds: string[];        // 関連業界ID
+}
+
+/**
+ * 概念情報
+ */
+export interface Concept {
+  id: string;                   // 概念ID
+  name: string;                 // 概念名
+  description: string;          // 説明
+  keywordIds: string[];         // 関連キーワードID
+  relevance: number;            // 関連度（1-10）
+}
+
+/**
+ * キーワード間関連
+ */
+export interface KeywordRelation {
+  sourceKeywordId: string;      // 始点キーワードID
+  targetKeywordId: string;      // 終点キーワードID
+  relationType: string;         // 関連タイプ
+  strength: number;             // 関連強度（1-10）
+  description: string;          // 関連の説明
+}
+
+/**
+ * キーワード拡張データ
+ */
+export interface KeywordExpansionData {
+  keywords: Keyword[];          // キーワード
+  concepts: Concept[];          // 概念
+  relations: KeywordRelation[]; // キーワード間関連
+}
+
+/**
+ * 役割モデルに関連するキーワードを拡張する
+ * @param input キーワード拡張入力データ
+ * @returns キーワード拡張結果
  */
 export async function expandKeywords(
-  input: RoleModelInput,
-  industryData: IndustryAnalysisData
+  input: KeywordExpansionInput
 ): Promise<AgentResult<KeywordExpansionData>> {
   try {
-    console.log(`Expanding keywords for role: ${input.roleName}`);
-    console.log(`Initial keywords: ${input.keywords.join(', ')}`);
+    console.log(`キーワード拡張エージェント起動: ${input.roleName}`);
+    sendAgentThoughts(input.userId, input.roleModelId, 'KeywordExpansionAgent', `役割「${input.roleName}」のキーワード拡張を開始します。選択されたキーワード: ${input.keywords.join(', ')}`);
     
-    // WebSocketで進捗状況を送信（開始）
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        'キーワード拡張',
-        10,
-        { stage: '初期化', initialCount: input.keywords.length }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        'キーワード拡張エージェント',
-        `キーワード拡張プロセスを開始します...\n役割: ${input.roleName}\n初期キーワード: ${input.keywords.join(', ') || 'なし'}\n\n業界分析データを活用して関連キーワードを抽出します。`
-      );
-    }
+    // 業界情報をまとめる
+    const industries = input.industryAnalysisData.industries.map(i => i.name).join(', ');
     
-    // 明示的に元のキーワードを使用
-    const baseKeywords = input.keywords;
-    
-    if (baseKeywords.length === 0) {
-      console.log('No initial keywords provided, will generate based on role and industry');
-      
-      // 進捗状況更新
-      if (input.userId && input.roleModelId) {
-        sendAgentThoughts(
-          input.userId,
-          input.roleModelId,
-          'キーワード拡張エージェント',
-          '初期キーワードが指定されていないため、役割の説明と業界分析から最適なキーワードを生成します。'
-        );
-      }
-    }
-    
-    // 業界分析データからの詳細な情報を活用
-    const industryContext = `
-      【業界洞察】
-      ${industryData.industryInsights.map((insight, i) => `${i+1}. ${insight}`).join('\n')}
-      
-      【主要トレンド】
-      ${industryData.keyTrends.map((trend, i) => `${i+1}. ${trend}`).join('\n')}
-      
-      【ターゲット対象】
-      ${industryData.targetAudience.map((audience, i) => `${i+1}. ${audience}`).join('\n')}
-      
-      【ビジネスモデル】
-      ${industryData.businessModels.map((model, i) => `${i+1}. ${model}`).join('\n')}
-      
-      【課題と機会】
-      ${industryData.challengesOpportunities.map((item, i) => `${i+1}. ${item}`).join('\n')}
-    `;
-    
-    // 改善されたプロンプト：業界データとキーワードの関連付けを強化
-    const prompt = [
+    // OpenAIモデルに送信するメッセージを構築
+    const messages = [
       {
-        role: "system",
-        content: `あなたは情報収集のためのキーワード拡張スペシャリストです。提供された役割、業界、初期キーワードに基づいて、関連するキーワードを拡張してください。
-        結果はJSON形式で返してください。
-        
-        このシステムは「情報収集サービス」です。ユーザーが日々の情報収集を効率的に行うために必要なキーワードを提供することが目的です。
-        情報収集の観点から具体的で検索可能なキーワードが必要です。例えば、「Azure OpenAI Service」「Microsoft Power Platform」「React」のような具体的な製品名や技術名が望ましいです。`
+        role: 'system',
+        content: `あなたはキーワード拡張の専門家です。役割モデルに関連するキーワードを拡張し、関連概念を抽出してください。以下の形式でJSON出力してください:
+{
+  "keywords": [
+    {
+      "id": "キーワードのユニークID（例：keyword_01）",
+      "name": "キーワード名",
+      "description": "キーワードの説明（80-120文字）",
+      "importance": 重要度（1-10の数値）,
+      "industryIds": ["関連業界ID1", "関連業界ID2"]
+    }
+  ],
+  "concepts": [
+    {
+      "id": "概念のユニークID（例：concept_01）",
+      "name": "概念名",
+      "description": "概念の説明（100-150文字）",
+      "keywordIds": ["関連キーワードID1", "関連キーワードID2"],
+      "relevance": 関連度（1-10の数値）
+    }
+  ],
+  "relations": [
+    {
+      "sourceKeywordId": "始点キーワードID",
+      "targetKeywordId": "終点キーワードID",
+      "relationType": "関連タイプ（例：包含、類似、対立など）",
+      "strength": 関連強度（1-10の数値）,
+      "description": "関連の説明（50-80文字）"
+    }
+  ]
+}`
       },
       {
-        role: "user",
-        content: `以下のロール、業界情報、ベースキーワードをもとに、情報収集に役立つキーワードを拡張してください：
-        
-        ロール名: ${input.roleName}
-        ロール詳細: ${input.description || '特に指定なし'}
-        業界: ${input.industries.length > 0 ? input.industries.join(', ') : '特に指定なし'}
-        
-        ベースキーワード: ${baseKeywords.join(', ')}
-        
-        業界分析情報:
-        ${industryContext}
-        
-        この役割に重要と思われるキーワードを追加してください。本人の日々の情報収集や自己成長に役立つものを優先してください。
-        入力キーワードは最重要キーワードとして含めてください。
-        
-        以下の形式でJSON出力してください：
-        {
-          "expandedKeywords": ["キーワード1", "キーワード2", ...],  // オリジナルのキーワードを含め、合計15-20個程度
-          "relevance": {
-            "キーワード1": 0.95,  // 関連度（0.0-1.0）
-            "キーワード2": 0.85,
-            ...
-          }
-        }
-        
-        各キーワードには関連度スコア(0.0-1.0)を付けてください。
-        回答は日本語で提供し、キーワードは短く具体的に記述してください（各5-15文字程度）。
-        技術用語、ツール名、概念名など、具体的で検索可能なキーワードを含めてください。
-        最先端のトレンドやツールを含めることが重要です。`
+        role: 'user',
+        content: `役割名: ${input.roleName}
+役割の説明: ${input.description || '特になし'}
+選択された業界: ${input.industries.join(', ')}
+選択されたキーワード: ${input.keywords.join(', ')}
+
+業界情報:
+- 主要業界: ${industries}
+
+この役割に関連するキーワードを拡張し、関連概念を抽出してください。元のキーワードを含め、追加で関連するキーワードを見つけ、それらの間の関連性を定義してください。また、キーワードから抽出される重要な概念も特定してください。`
       }
     ];
     
-    // 進捗状況更新
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        'キーワード拡張',
-        30,
-        { stage: 'AI分析中' }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        'キーワード拡張エージェント',
-        '業界分析データを基に、関連キーワードを生成しています...\nAzure OpenAIに処理を依頼中です。'
-      );
-    }
+    // 思考過程をユーザーに共有
+    sendAgentThoughts(input.userId, input.roleModelId, 'KeywordExpansionAgent', `選択されたキーワード（${input.keywords.join(', ')}）と業界情報に基づいて、関連キーワードと概念を抽出しています。`);
     
-    // Azure OpenAIを呼び出し
-    const responseContent = await callAzureOpenAI(prompt, 0.7, 1500);
+    // APIを呼び出してキーワード拡張を実行
+    const response = await callAzureOpenAI(messages, 0.7, 3000);
     
-    // 進捗状況更新
-    if (input.userId && input.roleModelId) {
-      sendProgressUpdate(
-        input.userId,
-        input.roleModelId,
-        'キーワード拡張',
-        70,
-        { stage: 'データ解析中' }
-      );
-      
-      sendAgentThoughts(
-        input.userId,
-        input.roleModelId,
-        'キーワード拡張エージェント',
-        'AIからの回答を受信しました。キーワードデータを解析しています...'
-      );
-    }
-    
-    // 結果をパース
     try {
-      let expansionData: KeywordExpansionData;
-      
-      // JSON形式の部分を抽出
-      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        expansionData = JSON.parse(jsonMatch[0]);
-      } else {
-        expansionData = JSON.parse(responseContent);
-      }
+      // レスポンスをJSONとしてパース
+      const expansionData: KeywordExpansionData = JSON.parse(response);
       
       // データの検証
-      if (!expansionData.expandedKeywords || !Array.isArray(expansionData.expandedKeywords)) {
-        expansionData.expandedKeywords = [...baseKeywords];
-      }
-      if (!expansionData.relevance || typeof expansionData.relevance !== 'object') {
-        expansionData.relevance = {};
-        expansionData.expandedKeywords.forEach(keyword => {
-          expansionData.relevance[keyword] = 1.0;
-        });
+      if (!expansionData.keywords || !Array.isArray(expansionData.keywords)) {
+        throw new Error('Keywords data is missing or invalid');
       }
       
-      // 元のキーワードが含まれていることを確認
-      baseKeywords.forEach(keyword => {
-        if (!expansionData.expandedKeywords.includes(keyword)) {
-          expansionData.expandedKeywords.unshift(keyword);
-          expansionData.relevance[keyword] = 1.0;
-        }
-      });
-      
-      // 進捗状況更新（完了）
-      if (input.userId && input.roleModelId) {
-        sendProgressUpdate(
-          input.userId,
-          input.roleModelId,
-          'キーワード拡張',
-          100,
-          { 
-            stage: '完了', 
-            initialCount: baseKeywords.length,
-            expandedCount: expansionData.expandedKeywords.length,
-            newKeywords: expansionData.expandedKeywords.length - baseKeywords.length
-          }
-        );
-        
-        // 新しく追加されたキーワードのサンプルを表示
-        const newKeywords = expansionData.expandedKeywords
-          .filter(kw => !baseKeywords.includes(kw))
-          .slice(0, 5);
-          
-        sendAgentThoughts(
-          input.userId,
-          input.roleModelId,
-          'キーワード拡張エージェント',
-          `キーワード拡張が完了しました。\n\n` +
-          `初期キーワード数: ${baseKeywords.length}\n` +
-          `拡張後キーワード数: ${expansionData.expandedKeywords.length}\n\n` +
-          `追加キーワード例: ${newKeywords.join('、')}\n\n` +
-          `次のステップ: 構造化エージェントに拡張キーワードを渡します。`
-        );
+      if (!expansionData.concepts || !Array.isArray(expansionData.concepts)) {
+        expansionData.concepts = []; // 空の配列を設定
       }
+      
+      if (!expansionData.relations || !Array.isArray(expansionData.relations)) {
+        expansionData.relations = []; // 空の配列を設定
+      }
+      
+      // 結果をログ出力
+      console.log(`キーワード拡張結果: ${expansionData.keywords.length}個のキーワード、${expansionData.concepts.length}個の概念、${expansionData.relations.length}個の関連を特定`);
+      
+      // 分析結果の思考をユーザーに共有
+      sendAgentThoughts(input.userId, input.roleModelId, 'KeywordExpansionAgent', `拡張完了: ${expansionData.keywords.length}個のキーワードと${expansionData.concepts.length}個の概念を特定しました。キーワード: ${expansionData.keywords.map(k => k.name).join(', ')}`);
       
       return {
         success: true,
         data: expansionData
       };
-    } catch (error) {
-      console.error('Error parsing keyword expansion result:', error);
+      
+    } catch (parseError: any) {
+      console.error('Error parsing keyword expansion response:', parseError);
+      sendAgentThoughts(input.userId, input.roleModelId, 'KeywordExpansionAgent', `エラー: APIレスポンスの解析に失敗しました。`);
+      
       return {
         success: false,
-        error: 'Failed to parse keyword expansion result'
+        error: `APIレスポンスの解析に失敗しました: ${parseError.message}`,
+        data: { keywords: [], concepts: [], relations: [] }
       };
     }
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('Error in keyword expansion:', error);
+    sendAgentThoughts(input.userId, input.roleModelId, 'KeywordExpansionAgent', `エラー: キーワード拡張の実行中にエラーが発生しました。`);
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error in keyword expansion'
+      error: `キーワード拡張の実行中にエラーが発生しました: ${error.message}`,
+      data: { keywords: [], concepts: [], relations: [] }
     };
   }
 }

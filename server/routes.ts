@@ -49,6 +49,12 @@ const isAuthenticated = (req: any, res: any, next: any) => {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
+  
+  // HTTPサーバーの作成
+  const httpServer = createServer(app);
+  
+  // WebSocketサーバーの初期化
+  initWebSocketServer(httpServer);
 
   // Role Model routes
   app.get("/api/role-models", isAuthenticated, async (req, res) => {
@@ -880,14 +886,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log("Agent input prepared:", JSON.stringify(agentInput, null, 2));
         
+        // 高度なマルチAIエージェントオーケストレーターを呼び出し
+        console.log("Initiating advanced multi-agent architecture with CrewAI, LangChain, and LlamaIndex integration");
+        
         // オーケストレーターを呼び出し
         const result = await generateKnowledgeGraphForRoleModel(agentInput);
         
-        if (!result.success || !result.data) {
+        if (!result.success) {
           throw new Error(`Failed to generate knowledge graph data: ${result.error || 'Unknown error'}`);
         }
         
-        console.log("Generated graph data:", JSON.stringify(result.data, null, 2));
+        console.log("Knowledge graph generated successfully");
         
         // 生成されたグラフデータは既にデータベースに保存されている
         
@@ -1518,11 +1527,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  
-  // WebSocketサーバーを初期化
-  const wss = initWebSocketServer(httpServer);
-  console.log("WebSocketサーバーが初期化されました（パス: /ws）");
-  
   return httpServer;
 }

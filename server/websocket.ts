@@ -1,182 +1,243 @@
-import { WebSocket, WebSocketServer } from 'ws';
-import { IncomingMessage } from 'http';
-import { parse } from 'url';
-import * as cookie from 'cookie';
-import { verifySession } from './auth';
-
-// クライアント管理用マップ: ユーザーIDごとの接続リスト
-const clients = new Map<string, WebSocket[]>();
-
-// ユーザーIDをリクエストから取得
-function getUserIdFromRequest(req: IncomingMessage): string {
-  try {
-    // URLからクエリパラメータを取得
-    const { query } = parse(req.url || '', true);
-    
-    // クエリパラメータからユーザーIDを取得
-    if (query.userId && typeof query.userId === 'string') {
-      return query.userId;
-    }
-    
-    // Cookieからセッション情報を取得
-    const cookies = cookie.parse(req.headers.cookie || '');
-    const sessionId = cookies['connect.sid'];
-    
-    if (sessionId) {
-      const userId = verifySession(sessionId);
-      if (userId) return userId;
-    }
-    
-    // 上記の方法でユーザーIDが取得できない場合、不明ユーザーとして扱う
-    return 'unknown';
-  } catch (error) {
-    console.error('Error getting user ID from request:', error);
-    return 'unknown';
-  }
-}
-
 /**
- * WebSocketサーバーを初期化
+ * WebSocketサーバー
+ * リアルタイムな処理状況の共有と通信を担当
  */
-export function initWebSocketServer(server: any) {
-  const wss = new WebSocketServer({ 
-    server,
-    path: '/ws'
-  });
+
+import { Server as HttpServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import { parse } from 'cookie';
+import cookie from 'cookie-parser';
+import { verifySession } from './auth';
+import { ProgressUpdate, AgentThought } from './agents/types';
+
+// WebSocketコネクション管理
+const userConnections = new Map<string, WebSocket[]>();
+const roleModelConnections = new Map<string, WebSocket[]>();
+
+// WebSocketサーバーの初期化と設定
+export function initWebSocketServer(httpServer: HttpServer): WebSocketServer {
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
   console.log('WebSocket server initialized');
   
-  wss.on('connection', (ws, req) => {
-    const userId = getUserIdFromRequest(req);
-    console.log(`New WebSocket connection for user: ${userId}`);
-    
-    // ユーザーのWebSocket接続リストを取得または作成
-    if (!clients.has(userId)) {
-      clients.set(userId, []);
-    }
-    clients.get(userId)?.push(ws);
-    
-    // 接続時に初期メッセージを送信
-    ws.send(JSON.stringify({
-      type: 'connection_established',
-      userId,
-      timestamp: new Date().toISOString()
-    }));
-    
-    // 接続が閉じられたときの処理
-    ws.on('close', () => {
-      console.log(`WebSocket connection closed for user: ${userId}`);
-      const userClients = clients.get(userId) || [];
-      clients.set(userId, userClients.filter(client => client !== ws));
-    });
-    
-    // エラー発生時の処理
-    ws.on('error', (error) => {
-      console.error(`WebSocket error for user ${userId}:`, error);
-    });
-    
-    // クライアントからのメッセージを受信した場合の処理（必要に応じて）
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        console.log(`Received message from user ${userId}:`, data);
-        
-        // 必要に応じてメッセージを処理
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
+  // 接続イベントのハンドリング
+  wss.on('connection', async (ws, req) => {
+    try {
+      // クッキーからセッションIDを取得
+      const cookieHeader = req.headers.cookie;
+      if (!cookieHeader) {
+        console.error('No cookie found in WebSocket connection request');
+        ws.close(1008, 'Authentication required');
+        return;
       }
-    });
+      
+      const cookies = parse(cookieHeader);
+      const sessionId = cookies['connect.sid'];
+      
+      if (!sessionId) {
+        console.error('No session ID found in cookies');
+        ws.close(1008, 'Authentication required');
+        return;
+      }
+      
+      // セッションからユーザーIDを検証
+      const userId = await verifySession(sessionId);
+      
+      if (!userId) {
+        console.error('Invalid session');
+        ws.close(1008, 'Invalid session');
+        return;
+      }
+      
+      console.log(`WebSocket connection established for user: ${userId}`);
+      
+      // クエリパラメータから役割モデルIDを取得
+      const url = new URL(req.url || '', `http://${req.headers.host}`);
+      const roleModelId = url.searchParams.get('roleModelId');
+      
+      // ユーザー接続を保存
+      if (!userConnections.has(userId)) {
+        userConnections.set(userId, []);
+      }
+      userConnections.get(userId)?.push(ws);
+      
+      // 役割モデル接続を保存（指定がある場合）
+      if (roleModelId) {
+        if (!roleModelConnections.has(roleModelId)) {
+          roleModelConnections.set(roleModelId, []);
+        }
+        roleModelConnections.get(roleModelId)?.push(ws);
+        
+        console.log(`Associated with role model: ${roleModelId}`);
+      }
+      
+      // WebSocketにユーザーIDと役割モデルIDを関連付け
+      (ws as any).userId = userId;
+      (ws as any).roleModelId = roleModelId;
+      
+      // 接続確認メッセージを送信
+      ws.send(JSON.stringify({
+        type: 'connection',
+        data: {
+          userId,
+          roleModelId,
+          timestamp: Date.now(),
+          message: 'WebSocket connection established'
+        }
+      }));
+      
+      // 接続切断時の処理
+      ws.on('close', () => {
+        console.log(`WebSocket connection closed for user: ${userId}`);
+        
+        // ユーザー接続から削除
+        const userWsList = userConnections.get(userId);
+        if (userWsList) {
+          const index = userWsList.indexOf(ws);
+          if (index !== -1) {
+            userWsList.splice(index, 1);
+          }
+          
+          if (userWsList.length === 0) {
+            userConnections.delete(userId);
+          }
+        }
+        
+        // 役割モデル接続から削除
+        if (roleModelId) {
+          const roleModelWsList = roleModelConnections.get(roleModelId);
+          if (roleModelWsList) {
+            const index = roleModelWsList.indexOf(ws);
+            if (index !== -1) {
+              roleModelWsList.splice(index, 1);
+            }
+            
+            if (roleModelWsList.length === 0) {
+              roleModelConnections.delete(roleModelId);
+            }
+          }
+        }
+      });
+      
+      // エラーハンドリング
+      ws.on('error', (error) => {
+        console.error(`WebSocket error for user ${userId}:`, error);
+      });
+      
+      // メッセージ受信ハンドリング（将来の拡張用）
+      ws.on('message', (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          console.log(`Received message from user ${userId}:`, data);
+          
+          // メッセージタイプに応じた処理をここに実装
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error in WebSocket connection:', error);
+      ws.close(1011, 'Server error');
+    }
   });
   
   return wss;
 }
 
 /**
- * 進捗状況更新をユーザーに送信
+ * 指定されたユーザーに処理進捗状況を送信
  */
 export function sendProgressUpdate(
-  userId: string, 
-  roleModelId: string, 
-  stage: string, 
-  progress: number, 
-  details?: any
-) {
-  const userClients = clients.get(userId) || [];
-  if (userClients.length === 0) {
-    console.log(`No WebSocket connections for user: ${userId}`);
-    return;
-  }
-  
-  const message = JSON.stringify({
-    type: 'progress_update',
+  userId: string,
+  roleModelId: string,
+  stage: string,
+  progress: number,
+  data?: any
+): void {
+  const update: ProgressUpdate = {
+    userId,
     roleModelId,
     stage,
     progress,
-    details,
-    timestamp: new Date().toISOString()
-  });
+    data
+  };
   
-  let sentCount = 0;
-  userClients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-      sentCount++;
-    }
-  });
+  // ユーザー宛の接続に送信
+  const userWsList = userConnections.get(userId);
+  if (userWsList && userWsList.length > 0) {
+    const message = JSON.stringify({
+      type: 'progress',
+      data: update
+    });
+    
+    userWsList.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    });
+  }
   
-  console.log(`Sent progress update (${stage}: ${progress}%) to ${sentCount} clients for user ${userId}`);
+  // 役割モデル宛の接続に送信
+  const roleModelWsList = roleModelConnections.get(roleModelId);
+  if (roleModelWsList && roleModelWsList.length > 0) {
+    const message = JSON.stringify({
+      type: 'progress',
+      data: update
+    });
+    
+    roleModelWsList.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    });
+  }
 }
 
 /**
- * エージェントの思考過程を送信
+ * 指定されたユーザーにエージェントの思考を送信
  */
 export function sendAgentThoughts(
   userId: string,
   roleModelId: string,
   agentName: string,
-  thoughts: string
-) {
-  const userClients = clients.get(userId) || [];
-  if (userClients.length === 0) return;
-  
-  const message = JSON.stringify({
-    type: 'agent_thoughts',
+  thought: string
+): void {
+  const agentThought: AgentThought = {
+    userId,
     roleModelId,
     agentName,
-    thoughts,
-    timestamp: new Date().toISOString()
-  });
+    thought,
+    timestamp: Date.now()
+  };
   
-  userClients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-}
-
-/**
- * エラーメッセージを送信
- */
-export function sendErrorMessage(
-  userId: string,
-  roleModelId: string,
-  errorMessage: string,
-  errorDetails?: any
-) {
-  const userClients = clients.get(userId) || [];
-  if (userClients.length === 0) return;
+  // ユーザー宛の接続に送信
+  const userWsList = userConnections.get(userId);
+  if (userWsList && userWsList.length > 0) {
+    const message = JSON.stringify({
+      type: 'agent_thought',
+      data: agentThought
+    });
+    
+    userWsList.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    });
+  }
   
-  const message = JSON.stringify({
-    type: 'error',
-    roleModelId,
-    errorMessage,
-    errorDetails,
-    timestamp: new Date().toISOString()
-  });
-  
-  userClients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
+  // 役割モデル宛の接続に送信
+  const roleModelWsList = roleModelConnections.get(roleModelId);
+  if (roleModelWsList && roleModelWsList.length > 0) {
+    const message = JSON.stringify({
+      type: 'agent_thought',
+      data: agentThought
+    });
+    
+    roleModelWsList.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    });
+  }
 }

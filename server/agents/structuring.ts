@@ -1,214 +1,164 @@
-// 構造化エージェント
-// 拡張キーワードやデータを階層的構造に整理
+/**
+ * 構造化エージェント
+ * 収集した業界情報とキーワードを階層的カテゴリに構造化するAIエージェント
+ */
 
-import { AgentResult, RoleModelInput } from './types';
+import { AgentResult } from './types';
+import { sendAgentThoughts } from '../websocket';
+import { callAzureOpenAI } from '../azure-openai';
 import { IndustryAnalysisData } from './industry-analysis';
 import { KeywordExpansionData } from './keyword-expansion';
-import { callAzureOpenAI } from '../azure-openai';
 
-export interface HierarchicalCategory {
-  id: string;            // カテゴリのID
-  name: string;          // カテゴリの名前
-  level: number;         // 階層レベル（0: ルート、1: 一次、2: 二次、...）
-  parentId?: string;     // 親カテゴリID（ルートの場合はnull）
-  keywords: string[];    // このカテゴリに属するキーワード
-  description?: string;  // カテゴリの説明
-}
-
-export interface StructuringData {
-  hierarchicalCategories: HierarchicalCategory[];
+/**
+ * 構造化処理入力データ
+ */
+export interface StructuringInput {
+  roleName: string;             // 役割名
+  description: string;          // 役割の説明
+  industries: string[];         // 選択された業界
+  keywords: string[];           // 選択されたキーワード
+  industryAnalysisData: IndustryAnalysisData;  // 業界分析データ
+  keywordExpansionData: KeywordExpansionData;  // キーワード拡張データ
+  userId: string;               // ユーザーID
+  roleModelId: string;          // 役割モデルID
 }
 
 /**
- * 構造化エージェント
- * キーワードを意味のある階層構造に整理
+ * カテゴリ情報
  */
-export async function structureKnowledge(
-  input: RoleModelInput,
-  industryData: IndustryAnalysisData,
-  keywordData: KeywordExpansionData
+export interface Category {
+  id: string;                   // カテゴリID
+  name: string;                 // カテゴリ名
+  description: string;          // 説明
+  level: number;                // 階層レベル（1: 最上位）
+  parentId?: string | null;     // 親カテゴリID
+}
+
+/**
+ * カテゴリ間関連
+ */
+export interface CategoryConnection {
+  sourceCategoryId: string;     // 始点カテゴリID
+  targetCategoryId: string;     // 終点カテゴリID
+  connectionType: string;       // 関連タイプ
+  strength: number;             // 関連強度（1-10）
+  description: string;          // 関連の説明
+}
+
+/**
+ * 構造化データ
+ */
+export interface StructuringData {
+  categories: Category[];                // カテゴリ
+  connections: CategoryConnection[];     // カテゴリ間関連
+}
+
+/**
+ * 収集した情報を階層的カテゴリに構造化する
+ * @param input 構造化処理入力データ
+ * @returns 構造化結果
+ */
+export async function structureContent(
+  input: StructuringInput
 ): Promise<AgentResult<StructuringData>> {
   try {
-    console.log(`Structuring knowledge for role: ${input.roleName}`);
+    console.log(`構造化エージェント起動: ${input.roleName}`);
+    sendAgentThoughts(input.userId, input.roleModelId, 'StructuringAgent', `役割「${input.roleName}」の情報構造化を開始します。`);
     
-    // キーワードデータが存在する場合は、それを使用
-    const keywords = keywordData?.expandedKeywords || input.keywords;
+    // 業界情報とキーワードをまとめる
+    const industries = input.industryAnalysisData.industries.map(i => i.name).join(', ');
+    const subIndustries = input.industryAnalysisData.subIndustries.map(s => s.name).join(', ');
     
-    if (keywords.length === 0) {
-      console.log('No keywords available for structuring');
-      return {
-        success: false,
-        error: 'No keywords available for structuring'
-      };
-    }
-    
-    console.log(`Structuring ${keywords.length} keywords`);
-    
-    // 業界分析データのコンテキスト
-    const industryContext = `
-      【業界洞察】
-      ${industryData.industryInsights.map((insight, i) => `${i+1}. ${insight}`).join('\n')}
-      
-      【主要トレンド】
-      ${industryData.keyTrends.map((trend, i) => `${i+1}. ${trend}`).join('\n')}
-      
-      【ターゲット対象】
-      ${industryData.targetAudience.map((audience, i) => `${i+1}. ${audience}`).join('\n')}
-      
-      【ビジネスモデル】
-      ${industryData.businessModels.map((model, i) => `${i+1}. ${model}`).join('\n')}
-      
-      【課題と機会】
-      ${industryData.challengesOpportunities.map((item, i) => `${i+1}. ${item}`).join('\n')}
-    `;
-    
-    // 関連度情報の追加
-    const relevanceInfo = keywordData?.relevance ? 
-      Object.entries(keywordData.relevance)
-        .sort((a, b) => b[1] - a[1])
-        .map(([keyword, score]) => `${keyword}: ${score.toFixed(2)}`)
-        .join('\n') : '';
-    
-    // 改善されたプロンプト：情報収集特化の固定カテゴリーを実装
-    const prompt = [
+    // OpenAIモデルに送信するメッセージを構築
+    const messages = [
       {
-        role: "system",
-        content: `あなたは情報構造化の専門家です。情報収集のための最適な階層構造を設計してください。`
+        role: 'system',
+        content: `あなたは情報構造化の専門家です。業界情報とキーワードを階層的カテゴリに整理してください。以下の形式でJSON出力してください:
+{
+  "categories": [
+    {
+      "id": "カテゴリのユニークID（例：category_01）",
+      "name": "カテゴリ名",
+      "description": "カテゴリの説明（80-120文字）",
+      "level": 階層レベル（1: 最上位、2: 第2階層、3: 第3階層）,
+      "parentId": "親カテゴリID（最上位カテゴリの場合はnull）"
+    }
+  ],
+  "connections": [
+    {
+      "sourceCategoryId": "始点カテゴリID",
+      "targetCategoryId": "終点カテゴリID",
+      "connectionType": "関連タイプ（例：包含、関連、対立など）",
+      "strength": 関連強度（1-10の数値）,
+      "description": "関連の説明（50-80文字）"
+    }
+  ]
+}`
       },
       {
-        role: "user",
-        content: `以下のロール、業界データ、キーワードを情報収集に最適化された階層構造に整理してください。
+        role: 'user',
+        content: `役割名: ${input.roleName}
+役割の説明: ${input.description || '特になし'}
+選択された業界: ${input.industries.join(', ')}
+選択されたキーワード: ${input.keywords.join(', ')}
 
-        必ず以下の5つの情報収集カテゴリを第一階層のノードとして使用してください:
-        1. 情報収集目的（なぜ情報を集めるのか）
-        2. 情報源と技術リソース（どこから情報を得るか）
-        3. 業界専門知識（関連する業界知識）
-        4. トレンド分析（最新動向の把握方法）
-        5. 実践応用分野（収集した情報の活用法）
-        
-        ロール名: ${input.roleName}
-        ロール詳細: ${input.description || '特に指定なし'}
-        業界: ${input.industries.length > 0 ? input.industries.join(', ') : '特に指定なし'}
-        
-        業界分析データ:
-        ${industryContext}
-        
-        キーワードデータ（関連度順）:
-        ${relevanceInfo}
-        
-        以下の形式でJSON出力してください：
-        {
-          "hierarchicalCategories": [
-            {
-              "id": "root",  // ルートID
-              "name": "${input.roleName}",  // ルート名はロール名
-              "level": 0,  // ルートレベルは常に0
-              "keywords": [],  // ルートノードに直接紐づくキーワードはない場合が多い
-              "description": "ルート概念の説明"
-            },
-            {
-              "id": "purpose",
-              "name": "情報収集目的",
-              "level": 1,
-              "parentId": "root",
-              "keywords": ["関連キーワード1", "関連キーワード2"],
-              "description": "情報収集の目的と意義"
-            },
-            {
-              "id": "sources",
-              "name": "情報源と技術リソース",
-              "level": 1,
-              "parentId": "root",
-              "keywords": ["関連キーワード3", "関連キーワード4"],
-              "description": "情報を取得するリソースと方法"
-            },
-            ... 他の第一階層カテゴリと第二階層以降のカテゴリ ...
-          ]
-        }
-        
-        注意事項：
-        - 5つの固定第一階層カテゴリを必ず使用してください
-        - 各第一階層カテゴリには適切なサブカテゴリを2〜4個作成してください
-        - 全てのキーワードがいずれかのカテゴリに含まれるようにしてください
-        - カテゴリ名は簡潔に（5-15文字程度）
-        - カテゴリの説明は30-50文字程度で作成してください
-        - カテゴリ間は論理的に関連性があり、重複がないようにしてください
-        - 各カテゴリにはロールと業界に固有のサブカテゴリを含めてください
-        - 日本語で回答してください`
+業界情報:
+- 主要業界: ${industries}
+- サブ業界: ${subIndustries}
+
+この役割に関連する情報を階層的カテゴリに構造化してください。最上位（レベル1）、第2階層（レベル2）、第3階層（レベル3）のカテゴリを作成し、それらの関連性を定義してください。`
       }
     ];
     
-    // Azure OpenAIを呼び出し
-    const responseContent = await callAzureOpenAI(prompt, 0.7, 2500);
+    // 思考過程をユーザーに共有
+    sendAgentThoughts(input.userId, input.roleModelId, 'StructuringAgent', `分析された業界情報とキーワードに基づいて、階層的カテゴリ構造を生成しています。最上位カテゴリから第3階層まで作成します。`);
     
-    // 結果をパース
+    // APIを呼び出して構造化を実行
+    const response = await callAzureOpenAI(messages, 0.5, 3000);
+    
     try {
-      let structuringData: StructuringData;
-      
-      // JSON形式の部分を抽出
-      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        structuringData = JSON.parse(jsonMatch[0]);
-      } else {
-        structuringData = JSON.parse(responseContent);
-      }
+      // レスポンスをJSONとしてパース
+      const structuringData: StructuringData = JSON.parse(response);
       
       // データの検証
-      if (!structuringData.hierarchicalCategories || !Array.isArray(structuringData.hierarchicalCategories)) {
-        structuringData.hierarchicalCategories = [];
+      if (!structuringData.categories || !Array.isArray(structuringData.categories)) {
+        throw new Error('Categories data is missing or invalid');
       }
       
-      // ルートカテゴリが存在することを確認
-      if (!structuringData.hierarchicalCategories.some(cat => cat.level === 0)) {
-        structuringData.hierarchicalCategories.unshift({
-          id: "root",
-          name: input.roleName,
-          level: 0,
-          keywords: [],
-          description: `${input.roleName}の知識構造`
-        });
+      if (!structuringData.connections || !Array.isArray(structuringData.connections)) {
+        structuringData.connections = []; // 空の配列を設定
       }
       
-      // 5つの固定カテゴリが存在することを確認
-      const requiredCategories = [
-        { id: "purpose", name: "情報収集目的", description: "情報収集の目的と意義" },
-        { id: "sources", name: "情報源と技術リソース", description: "情報を取得するリソースと方法" },
-        { id: "domain", name: "業界専門知識", description: "関連する業界知識" },
-        { id: "trends", name: "トレンド分析", description: "最新動向の把握方法" },
-        { id: "application", name: "実践応用分野", description: "収集した情報の活用法" }
-      ];
+      // 結果をログ出力
+      console.log(`構造化結果: ${structuringData.categories.length}個のカテゴリ、${structuringData.connections.length}個の関連を生成`);
       
-      // 不足カテゴリの追加
-      const rootId = structuringData.hierarchicalCategories.find(cat => cat.level === 0)?.id || "root";
-      requiredCategories.forEach(reqCat => {
-        if (!structuringData.hierarchicalCategories.some(cat => cat.id === reqCat.id || cat.name === reqCat.name)) {
-          structuringData.hierarchicalCategories.push({
-            id: reqCat.id,
-            name: reqCat.name,
-            level: 1,
-            parentId: rootId,
-            keywords: [],
-            description: reqCat.description
-          });
-        }
-      });
+      // 分析結果の思考をユーザーに共有
+      sendAgentThoughts(input.userId, input.roleModelId, 'StructuringAgent', `構造化完了: ${structuringData.categories.length}個のカテゴリを階層的に配置しました。最上位カテゴリ: ${structuringData.categories.filter(c => c.level === 1).map(c => c.name).join(', ')}`);
       
       return {
         success: true,
         data: structuringData
       };
-    } catch (error) {
-      console.error('Error parsing structuring result:', error);
+      
+    } catch (parseError: any) {
+      console.error('Error parsing structuring response:', parseError);
+      sendAgentThoughts(input.userId, input.roleModelId, 'StructuringAgent', `エラー: APIレスポンスの解析に失敗しました。`);
+      
       return {
         success: false,
-        error: 'Failed to parse structuring result'
+        error: `APIレスポンスの解析に失敗しました: ${parseError.message}`,
+        data: { categories: [], connections: [] }
       };
     }
-  } catch (error) {
-    console.error('Error in knowledge structuring:', error);
+    
+  } catch (error: any) {
+    console.error('Error in structuring content:', error);
+    sendAgentThoughts(input.userId, input.roleModelId, 'StructuringAgent', `エラー: 情報構造化の実行中にエラーが発生しました。`);
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error in knowledge structuring'
+      error: `情報構造化の実行中にエラーが発生しました: ${error.message}`,
+      data: { categories: [], connections: [] }
     };
   }
 }
