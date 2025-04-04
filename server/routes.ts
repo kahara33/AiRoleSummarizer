@@ -1332,7 +1332,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this role model" });
       }
       
-      await storage.deleteRoleModelIndustriesByRoleModelId(roleModelId);
+      // 詳細なデバッグログを追加
+      console.log(`削除開始 - ロールモデルID: ${roleModelId}の業界カテゴリを全て削除します`);
+      const result = await storage.deleteRoleModelIndustriesByRoleModelId(roleModelId);
+      console.log(`削除結果 - 業界カテゴリ削除: ${result}`);
+      
       res.status(200).json({ message: "All industry mappings deleted successfully" });
     } catch (error) {
       console.error("Error deleting role model industries:", error);
@@ -1356,7 +1360,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this role model" });
       }
       
-      await storage.deleteRoleModelKeywordsByRoleModelId(roleModelId);
+      // 詳細なデバッグログを追加
+      console.log(`削除開始 - ロールモデルID: ${roleModelId}のキーワードを全て削除します`);
+      const result = await storage.deleteRoleModelKeywordsByRoleModelId(roleModelId);
+      console.log(`削除結果 - キーワード削除: ${result}`);
+      
       res.status(200).json({ message: "All keyword mappings deleted successfully" });
     } catch (error) {
       console.error("Error deleting role model keywords:", error);

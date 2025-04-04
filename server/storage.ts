@@ -1228,9 +1228,19 @@ export class PostgresStorage implements IStorage {
   }
   
   async deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean> {
+    // 削除前に確認のためデータを取得
+    const existingData = await db.select()
+      .from(roleModelIndustries)
+      .where(eq(roleModelIndustries.roleModelId, roleModelId));
+    
+    console.log(`削除前のロールモデル業界データ: ${JSON.stringify(existingData)}`);
+    
     const result = await db.delete(roleModelIndustries)
       .where(eq(roleModelIndustries.roleModelId, roleModelId))
       .returning();
+    
+    console.log(`削除実行結果: ${JSON.stringify(result)}`);
+    
     return result.length > 0;
   }
   
@@ -1271,9 +1281,19 @@ export class PostgresStorage implements IStorage {
   }
   
   async deleteRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<boolean> {
+    // 削除前に確認のためデータを取得
+    const existingData = await db.select()
+      .from(roleModelKeywords)
+      .where(eq(roleModelKeywords.roleModelId, roleModelId));
+    
+    console.log(`削除前のロールモデルキーワードデータ: ${JSON.stringify(existingData)}`);
+    
     const result = await db.delete(roleModelKeywords)
       .where(eq(roleModelKeywords.roleModelId, roleModelId))
       .returning();
+    
+    console.log(`削除実行結果: ${JSON.stringify(result)}`);
+    
     return result.length > 0;
   }
   
