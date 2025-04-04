@@ -327,6 +327,13 @@ export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
 export type RoleModelWithTags = RoleModel & { tags: Tag[] };
 export type SummaryWithTags = Summary & { tags: Tag[] };
 
+// ロールモデルに関連する業界とキーワード情報を含むタイプ
+export type RoleModelWithIndustriesAndKeywords = RoleModel & { 
+  industries: IndustrySubcategoryWithCategory[];
+  keywords: Keyword[];
+  tags?: Tag[];
+};
+
 // 業界カテゴリとサブカテゴリの結合タイプ
 export type IndustrySubcategoryWithCategory = IndustrySubcategory & { 
   category: IndustryCategory 
@@ -366,8 +373,4 @@ export type KeywordWithRelations = Keyword & {
   fields?: KeywordField[];
 };
 
-// 業界・キーワード情報を含むロールモデル
-export type RoleModelWithIndustriesAndKeywords = RoleModel & {
-  industries: IndustrySubcategoryWithCategory[];
-  keywords: Keyword[];
-};
+// すでに上で定義されているので削除

@@ -49,12 +49,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roleModels = await storage.getRoleModels(userId);
       
       // 各ロールモデルの業界とキーワード情報を取得
-      for (const model of roleModels) {
-        model.industries = await storage.getRoleModelIndustries(model.id);
-        model.keywords = await storage.getRoleModelKeywords(model.id);
-      }
+      const detailedRoleModels = await Promise.all(
+        roleModels.map(async (model) => {
+          const industries = await storage.getRoleModelIndustriesWithData(model.id);
+          const keywords = await storage.getRoleModelKeywordsWithData(model.id);
+          
+          return {
+            ...model,
+            industries,
+            keywords
+          };
+        })
+      );
       
-      res.json(roleModels);
+      res.json(detailedRoleModels);
     } catch (error) {
       console.error("Error fetching role models:", error);
       res.status(500).json({ message: "Error fetching role models" });
@@ -74,12 +82,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sharedRoleModels = await storage.getSharedRoleModels(companyId);
       
       // 各ロールモデルの業界とキーワード情報を取得
-      for (const model of sharedRoleModels) {
-        model.industries = await storage.getRoleModelIndustries(model.id);
-        model.keywords = await storage.getRoleModelKeywords(model.id);
-      }
+      const detailedSharedRoleModels = await Promise.all(
+        sharedRoleModels.map(async (model) => {
+          const industries = await storage.getRoleModelIndustriesWithData(model.id);
+          const keywords = await storage.getRoleModelKeywordsWithData(model.id);
+          
+          return {
+            ...model,
+            industries,
+            keywords
+          };
+        })
+      );
       
-      res.json(sharedRoleModels);
+      res.json(detailedSharedRoleModels);
     } catch (error) {
       console.error("Error fetching shared role models:", error);
       res.status(500).json({ message: "Error fetching shared role models" });
