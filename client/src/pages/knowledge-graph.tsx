@@ -528,8 +528,8 @@ export default function KnowledgeGraphPage() {
             {/* デバッグ情報 */}
             {import.meta.env.DEV && (
               <div className="fixed bottom-4 left-4 bg-black/80 text-white p-2 rounded text-xs z-50">
-                <div>ノード数: {nodes.length}</div>
-                <div>エッジ数: {edges.length}</div>
+                <div>ノード数: {graphData?.nodes?.length || 0}</div>
+                <div>エッジ数: {graphData?.edges?.length || 0}</div>
                 <div>WebSocket: {showAgentPanel ? '接続中' : '未接続'}</div>
               </div>
             )}
