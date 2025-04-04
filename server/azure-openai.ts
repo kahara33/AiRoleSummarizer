@@ -78,8 +78,7 @@ export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTok
   }
 }
 
-// Mock function to simulate Azure OpenAI API call for development
-// In production, this would use the Azure OpenAI SDK
+// Function to generate a summary using Azure OpenAI
 export async function generateSummary(
   roleModelId: string, 
   tags: Tag[]
@@ -91,10 +90,6 @@ export async function generateSummary(
     if (!apiKey || !endpoint) {
       throw new Error('Azure OpenAI API key or endpoint not configured');
     }
-    
-    // In production, this would make a real API call to Azure OpenAI
-    // For now, we'll just simulate a response with placeholder values for development
-    // This is not deceptive but a necessary placeholder until real API integration
     
     // Construct tags string for the prompt
     const tagNames = tags.map(tag => tag.name).join(', ');
@@ -282,69 +277,86 @@ export async function generateKnowledgeGraph(
       const messages = [
         {
           role: "system",
-          content: `あなたは情報収集支援システムの知識グラフ生成の専門家です。ユーザーが指定した役割、業界、キーワードに基づいて、情報収集を効率的に行うための階層的な知識グラフを作成してください。
-          
-          出力は2つの配列（"nodes"と"edges"）を持つJSONオブジェクトである必要があります。
-          
-          各ノードは以下のプロパティを持ちます：
-          - name: ノードの名前（日本語、簡潔で明確な表現）
-          - level: 階層レベル（0: 中心、1: 主要カテゴリ、2: サブカテゴリ、3: 具体的なスキルや知識領域）
-          - type: タイプ（"central", "category", "subcategory", "skill", "knowledge"など。デフォルトは"keyword"）
-          - color: 色（オプション、ヘキサカラーコード）
-          - description: ノードの説明（オプション、そのスキルや知識がなぜ重要かを説明）
-          - parentId: 親ノードの名前（level 0, 1のノードには不要、level 2, 3のノードには必須）
-          
-          各エッジは以下のプロパティを持ちます：
-          - source: 始点ノードの名前
-          - target: 終点ノードの名前
-          - label: 関係性の説明（"必要とする", "含む", "関連する"など。オプション）
-          - strength: 関係性の強さ（1-5の整数。5が最も強い）
-          
-          以下の点に注意してください：
-          1. レベル1のノードは、情報収集に特化した主要カテゴリである必要があります
-          2. 情報収集の目的、情報源、収集技術、業界専門知識、実践応用分野などの観点を含めること
-          3. 中心ノード（level 0）から各カテゴリへの接続を確実に行うこと
-          4. 色は階層レベルや概念のグループごとに一貫性を持たせること
-          5. 日本語での表現を優先すること`
+          content: "あなたは情報収集支援システムの知識グラフ生成の専門家です。ユーザーが指定した役割、業界、キーワードに基づいて、情報収集を効率的に行うための階層的な知識グラフを作成してください。\n\n出力は2つの配列（\"nodes\"と\"edges\"）を持つJSONオブジェクトである必要があります。\n\n各ノードは以下のプロパティを持ちます：\n- name: ノードの名前（日本語、簡潔で明確な表現）\n- level: 階層レベル（0: 中心、1: 主要カテゴリ、2: サブカテゴリ、3: 具体的なスキルや知識領域）\n- type: タイプ（\"central\", \"category\", \"subcategory\", \"skill\", \"knowledge\"など。デフォルトは\"keyword\"）\n- color: 色（オプション、ヘキサカラーコード）\n- description: ノードの説明（オプション、そのスキルや知識がなぜ重要かを説明）\n- parentId: 親ノードの名前（level 0, 1のノードには不要、level 2, 3のノードには必須）\n\n各エッジは以下のプロパティを持ちます：\n- source: 始点ノードの名前\n- target: 終点ノードの名前\n- label: 関係性の説明（\"必要とする\", \"含む\", \"関連する\"など。オプション）\n- strength: 関係性の強さ（1-5の整数。5が最も強い）\n\n以下の点に注意してください：\n1. 必ず有効なJSONを出力すること。コードブロックや説明文は含めないこと\n2. レベル1のノードは、情報収集に特化した主要カテゴリである必要があります\n3. 情報収集の目的、情報源、収集技術、業界専門知識、実践応用分野などの観点を含めること\n4. 中心ノード（level 0）から各カテゴリへの接続を確実に行うこと\n5. 色は階層レベルや概念のグループごとに一貫性を持たせること\n6. 日本語での表現を優先すること"
         },
         {
           role: "user",
-          content: `役割「${roleName}」のための情報収集用知識グラフを作成してください。
-          
-          役割の説明: ${roleDescription || '特に指定なし'}
-          業界: ${industries.length > 0 ? industries.join(', ') : '特に指定なし'}
-          キーワード: ${keywords.length > 0 ? keywords.join(', ') : '特に指定なし'}
-          
-          この知識グラフは「自律型情報収集サービス」のためのものです。ユーザーが日々効率的に情報収集するために必要な構造を提供します。
-          
-          レベル1のノードとして以下の5つのカテゴリを必ず含めてください：
-          1. 情報収集目的 - なぜ情報を集めるのか、その目的や意図
-          2. 情報源と技術リソース - どこから情報を得るか、使用するツールや技術
-          3. 業界専門知識 - 特定の業界やドメインに関連する知識
-          4. トレンド分析 - 最新動向の把握とその分析方法
-          5. 実践応用分野 - 収集した情報をどのように活用するか
-          
-          各カテゴリの下に、役割や業界、キーワードに合わせた適切なサブカテゴリと具体的な項目を追加してください。
-          
-          以下の形式の有効なJSONで出力してください:
-          {
-            "nodes": [
-              {"name": "役割名", "level": 0, "type": "central", "color": "#hexcode", "description": "この役割の説明"},
-              {"name": "情報収集目的", "level": 1, "type": "category", "color": "#hexcode", "description": "このカテゴリの説明"},
-              {"name": "サブカテゴリ1.1", "level": 2, "type": "subcategory", "parentId": "情報収集目的", "color": "#hexcode", "description": "このサブカテゴリの説明"},
-              ...
-            ],
-            "edges": [
-              {"source": "役割名", "target": "情報収集目的", "label": "含む", "strength": 5},
-              {"source": "情報収集目的", "target": "サブカテゴリ1.1", "label": "含む", "strength": 4},
-              ...
-            ]
-          }`
+          content: `役割「${roleName}」のための情報収集用知識グラフを作成してください。\n\n役割の説明: ${roleDescription || '特に指定なし'}\n業界: ${industries.length > 0 ? industries.join(', ') : '特に指定なし'}\nキーワード: ${keywords.length > 0 ? keywords.join(', ') : '特に指定なし'}\n\nこの知識グラフは「自律型情報収集サービス」のためのものです。ユーザーが日々効率的に情報収集するために必要な構造を提供します。\n\nレベル1のノードとして以下の5つのカテゴリを必ず含めてください：\n1. 情報収集目的 - なぜ情報を集めるのか、その目的や意図\n2. 情報源と技術リソース - どこから情報を得るか、使用するツールや技術\n3. 業界専門知識 - 特定の業界やドメインに関連する知識\n4. トレンド分析 - 最新動向の把握とその分析方法\n5. 実践応用分野 - 収集した情報をどのように活用するか\n\n各カテゴリの下に、役割や業界、キーワードに合わせた適切なサブカテゴリと具体的な項目を追加してください。\n\n最終的な出力は、必ず以下の形式の有効なJSONのみにしてください。補足説明やマークダウンの区切り記号(\`\`\`)などは一切含めないでください。`
         }
       ];
       
       const responseContent = await callAzureOpenAI(messages, 0.7, 2000);
-      graphData = JSON.parse(responseContent);
+      console.log(`Received Azure OpenAI response: ${responseContent.length} characters`);
+      
+      // JSONデータの抽出と処理
+      let cleanedContent = responseContent.trim();
+      
+      // JSONデータから余分なテキスト部分を削除
+      if (!cleanedContent.startsWith('{')) {
+        const jsonStart = cleanedContent.indexOf('{');
+        if (jsonStart >= 0) {
+          cleanedContent = cleanedContent.substring(jsonStart);
+        }
+      }
+      
+      // JSONデータの末尾に余分なテキストがある場合に削除
+      if (!cleanedContent.endsWith('}')) {
+        const jsonEnd = cleanedContent.lastIndexOf('}');
+        if (jsonEnd >= 0) {
+          cleanedContent = cleanedContent.substring(0, jsonEnd + 1);
+        }
+      }
+      
+      // マークダウンのコードブロックを抽出する試み
+      const patternJsonBlock = /```json\s*([\s\S]*?)\s*```/;
+      const patternCodeBlock = /```\s*([\s\S]*?)\s*```/;
+      const patternJsonObject = /\{[\s\S]*"nodes"[\s\S]*"edges"[\s\S]*\}/;
+      
+      const jsonMatch = responseContent.match(patternJsonBlock) || 
+                        responseContent.match(patternCodeBlock) ||
+                        responseContent.match(patternJsonObject);
+      
+      if (jsonMatch) {
+        cleanedContent = jsonMatch[1] || jsonMatch[0];
+        cleanedContent = cleanedContent.trim();
+      }
+      
+      try {
+        graphData = JSON.parse(cleanedContent);
+        console.log("Successfully parsed knowledge graph JSON data");
+      } catch (parseError) {
+        console.error('Error parsing knowledge graph JSON:', parseError);
+        
+        // JSONの修復を試みる
+        try {
+          // 不正な制御文字を削除
+          const sanitized = cleanedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+            .replace(/\\n/g, ' ')
+            .replace(/\\"/g, '"')
+            .replace(/"\s+"/g, '","');
+          
+          graphData = JSON.parse(sanitized);
+          console.log('Recovered JSON after sanitization');
+        } catch (secondError) {
+          console.error('Could not recover JSON even after sanitization:', secondError);
+          throw new Error('Could not parse knowledge graph data from API response');
+        }
+      }
+      
+      // 有効な知識グラフ構造かどうかを検証
+      if (!graphData || !graphData.nodes || !Array.isArray(graphData.nodes) || graphData.nodes.length === 0 ||
+          !graphData.edges || !Array.isArray(graphData.edges)) {
+        console.error('Invalid knowledge graph structure:', JSON.stringify(graphData).substring(0, 200) + '...');
+        throw new Error('Invalid knowledge graph structure received from API');
+      }
+      
+      // 中心ノード（レベル0）の存在チェック
+      const hasCentralNode = graphData.nodes.some(node => node.level === 0);
+      if (!hasCentralNode) {
+        console.error('Central node (level 0) is missing in the knowledge graph');
+        throw new Error('Knowledge graph missing central node (level 0)');
+      }
+      
       console.log("Successfully generated knowledge graph using Azure OpenAI");
       
     } catch (apiError) {
@@ -398,7 +410,7 @@ export async function generateKnowledgeGraph(
         roleModelId: roleModelId,
         level: node.level,
         type: node.type || 'keyword',
-        parentId: parentId, // 親ノードのID（文字列ではなく）
+        parentId: parentId,
         description: node.description || null,
         color: node.color || null
       };
@@ -464,61 +476,11 @@ export async function updateKnowledgeGraphByChat(
     const messages = [
       {
         role: "system",
-        content: `あなたは知識グラフを更新する専門家です。ユーザーの指示に基づいて既存の知識グラフを拡張・修正します。
-
-        現在の知識グラフ構造は以下の通りです：
-        
-        【ノード一覧】
-        ${nodesInfo}
-        
-        【エッジ（関連性）一覧】
-        ${edgesInfo}
-        
-        ユーザーの指示に基づいて、追加・修正すべきノードとエッジを提案してください。出力は以下のJSON形式で行ってください：
-        
-        {
-          "addNodes": [
-            {
-              "name": "新しいノード名",
-              "level": 2,
-              "type": "subcategory",
-              "parentId": "親ノードのID",
-              "description": "ノードの説明",
-              "color": "#hexcode"
-            },
-            ...
-          ],
-          "addEdges": [
-            {
-              "sourceId": "始点ノードのID",
-              "targetId": "終点ノードのID",
-              "label": "関係性の説明",
-              "strength": 3
-            },
-            ...
-          ],
-          "updateNodes": [
-            {
-              "id": "更新するノードのID",
-              "name": "新しい名前",
-              "description": "新しい説明",
-              "color": "新しい色"
-            },
-            ...
-          ]
-        }
-        
-        注意点：
-        1. 新しいノードを追加する場合は、必ず既存のノード構造と整合性を保つこと
-        2. エッジを追加する場合は、実在するノードIDを使用すること
-        3. ノードを更新する場合は、必ず実在するノードIDを使用すること
-        4. ユーザーの指示に直接応答せず、JSONデータのみを出力すること`
+        content: "あなたは知識グラフを更新する専門家です。ユーザーの指示に基づいて既存の知識グラフを拡張・修正します。\n\n現在の知識グラフ構造は以下の通りです：\n\n【ノード一覧】\n" + nodesInfo + "\n\n【エッジ（関連性）一覧】\n" + edgesInfo + "\n\nユーザーの指示に基づいて、追加・修正すべきノードとエッジを提案してください。出力は以下のJSON形式で行ってください：\n\n{\n  \"addNodes\": [\n    {\n      \"name\": \"新しいノード名\",\n      \"level\": 2,\n      \"type\": \"subcategory\",\n      \"parentId\": \"親ノードのID\",\n      \"description\": \"ノードの説明\",\n      \"color\": \"#hexcode\"\n    },\n    ...\n  ],\n  \"addEdges\": [\n    {\n      \"sourceId\": \"始点ノードのID\",\n      \"targetId\": \"終点ノードのID\",\n      \"label\": \"関係性の説明\",\n      \"strength\": 3\n    },\n    ...\n  ],\n  \"updateNodes\": [\n    {\n      \"id\": \"更新するノードのID\",\n      \"name\": \"新しい名前\",\n      \"description\": \"新しい説明\",\n      \"color\": \"新しい色\"\n    },\n    ...\n  ]\n}\n\n注意点：\n1. 新しいノードを追加する場合は、必ず既存のノード構造と整合性を保つこと\n2. エッジを追加する場合は、実在するノードIDを使用すること\n3. ノードを更新する場合は、必ず実在するノードIDを使用すること\n4. ユーザーの指示に直接応答せず、JSONデータのみを出力すること"
       },
       {
         role: "user",
-        content: `以下のユーザー指示に基づいて知識グラフを更新してください：
-        
-        "${prompt}"`
+        content: `以下のユーザー指示に基づいて知識グラフを更新してください：\n\n"${prompt}"`
       }
     ];
     
@@ -650,40 +612,11 @@ export async function generateKnowledgeGraphForNode(
       const messages = [
         {
           role: "system",
-          content: `あなたは知識グラフ生成の専門家です。与えられた概念やスキルを詳細に分解し、適切なサブノードを作成してください。
-          
-          以下の点に注意してください：
-          1. 生成するサブノードは特定的、情報豊富、かつ親概念に直接関連するものにすること
-          2. それぞれのサブノードには名前(name)と説明(description)を含めること
-          3. サブノードはビジネス/技術領域で実際に使用される具体的な概念やスキルであること
-          4. 日本語で出力すること
-          5. 出力はJSON形式の配列であること`
+          content: "あなたは知識グラフ生成の専門家です。与えられた概念やスキルを詳細に分解し、適切なサブノードを作成してください。\n\n以下の点に注意してください：\n1. 生成するサブノードは特定的、情報豊富、かつ親概念に直接関連するものにすること\n2. それぞれのサブノードには名前(name)と説明(description)を含めること\n3. サブノードはビジネス/技術領域で実際に使用される具体的な概念やスキルであること\n4. 日本語で出力すること\n5. 出力はJSON形式の配列であること"
         },
         {
           role: "user",
-          content: `概念「${nodeName}」のサブノードを4-6個生成してください。
-          これらのサブノードは親概念の一部であるより具体的な概念やスキルを表します。
-          
-          現在のノードレベルは${parentNode.level}で、サブノードのレベルは${childLevel}になります。
-          レベル${childLevel}は${childLevel <= 2 ? 'まだ抽象的な概念' : 'より具体的なスキルや知識'}を表します。
-          
-          それぞれのサブノードには下記の情報を含めてください：
-          1. name: サブノードの名前（簡潔で明確な表現）
-          2. description: このサブノードが${nodeName}に関連する理由や重要性の説明
-          3. type: "${childLevel <= 2 ? 'subcategory' : 'skill'}"（すでに設定済み）
-          
-          以下の形式の有効なJSONで出力してください:
-          [
-            {
-              "name": "サブ概念1",
-              "description": "このサブ概念の説明と親概念との関連性"
-            },
-            {
-              "name": "サブ概念2",
-              "description": "このサブ概念の説明と親概念との関連性"
-            },
-            ...
-          ]`
+          content: `概念「${nodeName}」のサブノードを4-6個生成してください。\nこれらのサブノードは親概念の一部であるより具体的な概念やスキルを表します。\n\n現在のノードレベルは${parentNode.level}で、サブノードのレベルは${childLevel}になります。\nレベル${childLevel}は${childLevel <= 2 ? 'まだ抽象的な概念' : 'より具体的なスキルや知識'}を表します。\n\nそれぞれのサブノードには下記の情報を含めてください：\n1. name: サブノードの名前（簡潔で明確な表現）\n2. description: このサブノードが${nodeName}に関連する理由や重要性の説明\n3. type: "${childLevel <= 2 ? 'subcategory' : 'skill'}"（すでに設定済み）\n\n以下の形式の有効なJSONで出力してください:\n[\n  {\n    "name": "サブ概念1",\n    "description": "このサブ概念の説明と親概念との関連性"\n  },\n  {\n    "name": "サブ概念2",\n    "description": "このサブ概念の説明と親概念との関連性"\n  },\n  ...\n]`
         }
       ];
       
@@ -750,14 +683,14 @@ export async function generateKnowledgeGraphForNode(
       }
     }
     
-    // Create nodes and edges in the database
+    // Create all sub-nodes in the database
     for (const node of subNodes) {
       const nodeData: InsertKnowledgeNode = {
         name: node.name,
         roleModelId,
         level: node.level,
-        type: node.type || 'keyword',
-        parentId: node.parentId || null,
+        type: childLevel <= 2 ? 'subcategory' : 'skill',
+        parentId: node.parentId,
         description: node.description || null,
         color: node.color || null
       };
@@ -769,8 +702,8 @@ export async function generateKnowledgeGraphForNode(
         sourceId: nodeId,
         targetId: createdNode.id,
         roleModelId,
-        label: null,
-        strength: 1
+        label: "contains",
+        strength: 3
       };
       
       await storage.createKnowledgeEdge(edgeData);
@@ -778,273 +711,443 @@ export async function generateKnowledgeGraphForNode(
     
     console.log(`Successfully created ${subNodes.length} sub-nodes for ${nodeName}`);
     return true;
-    
   } catch (error) {
     console.error('Error generating knowledge graph for node:', error);
     return false;
   }
 }
 
-// Helper function to generate a business architect knowledge graph structure
+// Template function for business architect role
 function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
-  // Define central node
-  const centralNode = { 
-    name: 'ビジネスアーキテクト', 
-    level: 0,
-    type: 'central',
-    color: '#4F46E5' // Indigo-600
+  return {
+    nodes: [
+      {
+        name: "ビジネスアーキテクト",
+        level: 0,
+        type: "central",
+        color: "#4A90E2",
+        description: "ビジネス戦略と技術をつなぐ役割を担う専門家"
+      },
+      {
+        name: "情報収集目的",
+        level: 1,
+        type: "category",
+        color: "#50E3C2",
+        description: "ビジネスアーキテクトが情報を収集する目的"
+      },
+      {
+        name: "情報源と技術リソース",
+        level: 1,
+        type: "category",
+        color: "#B8E986",
+        description: "情報を取得するための信頼できるソースとツール"
+      },
+      {
+        name: "業界専門知識",
+        level: 1,
+        type: "category",
+        color: "#F5A623",
+        description: "特定の業界に関する専門的な知識と洞察"
+      },
+      {
+        name: "トレンド分析",
+        level: 1,
+        type: "category",
+        color: "#F8E71C",
+        description: "最新の技術とビジネストレンドの追跡と分析"
+      },
+      {
+        name: "実践応用分野",
+        level: 1,
+        type: "category",
+        color: "#BD10E0",
+        description: "収集した情報の具体的な応用分野"
+      },
+      // レベル2のノード - 情報収集目的
+      {
+        name: "ビジネス戦略策定",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "企業の長期的な方向性と成功のための計画立案"
+      },
+      {
+        name: "意思決定支援",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "データに基づいた効果的な経営判断のサポート"
+      },
+      {
+        name: "イノベーション促進",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "新しいビジネスモデルや製品・サービスの創出"
+      },
+      {
+        name: "リスク管理",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "潜在的なリスクの特定と対策の立案"
+      },
+      // レベル2のノード - 情報源と技術リソース
+      {
+        name: "業界レポート",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "専門機関による市場分析と業界動向"
+      },
+      {
+        name: "テクノロジーブログ",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "最新技術トレンドと実装事例の情報源"
+      },
+      {
+        name: "オンライン学習プラットフォーム",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "継続的なスキルアップのための教育リソース"
+      },
+      {
+        name: "ネットワーキングイベント",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "業界専門家との交流と知見共有の場"
+      },
+      // レベル2のノード - 業界専門知識
+      {
+        name: "デジタルトランスフォーメーション",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "ビジネスモデルのデジタル化と組織変革"
+      },
+      {
+        name: "クラウドコンピューティング",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "クラウドベースのインフラとサービス"
+      },
+      {
+        name: "データアナリティクス",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "ビジネスデータの分析と活用手法"
+      },
+      {
+        name: "エンタープライズアーキテクチャ",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "組織全体のIT構造と業務プロセスの設計"
+      }
+    ],
+    edges: []
   };
   
-  // Define main category nodes (level 1)
-  const mainCategories = [
-    { name: 'デジタル業務スキル', level: 1, color: '#10B981' }, // Emerald-500
-    { name: '起業家スキル', level: 1, color: '#8B5CF6' }, // Violet-500
-    { name: '根拠に基づく業務スキル', level: 1, color: '#EC4899' }, // Pink-500
-    { name: 'コミュニケーションスキル', level: 1, color: '#F59E0B' }, // Amber-500
-    { name: 'コラボレーションスキル', level: 1, color: '#06B6D4' }, // Cyan-500
-    { name: '適応スキル', level: 1, color: '#34D399' }  // Emerald-400
-  ];
-  
-  // Define subcategories (level 2)
-  const subCategories = [
-    // Digital Working Skills subcategories
-    { name: '基本的デジタル業務スキル', level: 2, parentId: 'デジタル業務スキル', color: '#A7F3D0' }, // Emerald-200
-    { name: '高度なデジタル業務スキル', level: 2, parentId: 'デジタル業務スキル', color: '#A7F3D0' },
-    
-    // Entrepreneurial Skills subcategories
-    { name: '基本的起業家スキル', level: 2, parentId: '起業家スキル', color: '#C4B5FD' }, // Violet-200
-    { name: '価値創造スキル', level: 2, parentId: '起業家スキル', color: '#C4B5FD' },
-    { name: '革新性への適応', level: 2, parentId: '起業家スキル', color: '#C4B5FD' },
-    
-    // Evidence Based Working Skills subcategories
-    { name: '基本的根拠ベーススキル', level: 2, parentId: '根拠に基づく業務スキル', color: '#FBCFE8' }, // Pink-200
-    { name: '情報処理スキル', level: 2, parentId: '根拠に基づく業務スキル', color: '#FBCFE8' },
-    { name: 'データ活用スキル', level: 2, parentId: '根拠に基づく業務スキル', color: '#FBCFE8' }
-  ];
-  
-  // Define specific skills (level 3)
-  const specificSkills = [
-    // Fundamental Digital Working Skills
-    { name: 'ハードウェア操作', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' }, // Emerald-50
-    { name: 'ソフトウェア操作', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
-    { name: 'SNSとインターネット活用', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
-    { name: '情報・データ共有', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
-    { name: '基本的デジタル問題解決', level: 3, parentId: '基本的デジタル業務スキル', color: '#ECFDF5' },
-    
-    // Advanced Digital Working Skills
-    { name: 'プログラミング', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
-    { name: 'デジタルコンテンツ作成', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
-    { name: '法律・著作権・ライセンス対応', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
-    { name: 'デジタルセキュリティ', level: 3, parentId: '高度なデジタル業務スキル', color: '#ECFDF5' },
-    
-    // Fundamental Entrepreneurial Skills
-    { name: '創造性とイノベーション', level: 3, parentId: '基本的起業家スキル', color: '#F5F3FF' }, // Violet-50
-    { name: '問題解決能力', level: 3, parentId: '基本的起業家スキル', color: '#F5F3FF' },
-    
-    // Openness to novelty
-    { name: '機会発見力', level: 3, parentId: '革新性への適応', color: '#F5F3FF' },
-    { name: '状況理解力', level: 3, parentId: '革新性への適応', color: '#F5F3FF' },
-    
-    // Value Creation Skills
-    { name: '主体性', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    { name: '戦略的計画立案', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    { name: '意思決定力', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    { name: '予測力', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    { name: 'リスクテイキング', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    { name: 'リスク管理', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    { name: 'リーダーシップ', level: 3, parentId: '価値創造スキル', color: '#F5F3FF' },
-    
-    // Fundamental Evidence Based Working Skills
-    { name: '研究課題設定', level: 3, parentId: '基本的根拠ベーススキル', color: '#FCE7F3' }, // Pink-50
-    { name: '批判的思考', level: 3, parentId: '基本的根拠ベーススキル', color: '#FCE7F3' },
-    
-    // Information Processing Skills
-    { name: '情報検索・選別', level: 3, parentId: '情報処理スキル', color: '#FCE7F3' },
-    { name: '情報解釈・評価', level: 3, parentId: '情報処理スキル', color: '#FCE7F3' },
-    { name: '情報管理', level: 3, parentId: '情報処理スキル', color: '#FCE7F3' },
-    
-    // Data Fluency Skills
-    { name: 'データ収集', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
-    { name: 'データ分析', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
-    { name: 'データ解釈', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
-    { name: 'データ可視化', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
-    { name: 'データ管理', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
-    { name: 'データ倫理・セキュリティ', level: 3, parentId: 'データ活用スキル', color: '#FCE7F3' },
-    
-    // Communication Skills
-    { name: '適切なコミュニケーション方法', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' }, // Amber-100
-    { name: 'ストーリーテリング', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' },
-    { name: 'ネットワーキング', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' },
-    { name: 'デジタルアイデンティティ管理', level: 3, parentId: 'コミュニケーションスキル', color: '#FEF3C7' },
-    
-    // Collaboration Skills
-    { name: '交渉力', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' }, // Cyan-100
-    { name: '多分野チームワーク', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
-    { name: '社会的知性', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
-    { name: '文化的感受性', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
-    { name: '人脈構築', level: 3, parentId: 'コラボレーションスキル', color: '#CFFAFE' },
-    
-    // Adaptation Skills
-    { name: '自己主導学習', level: 3, parentId: '適応スキル', color: '#D1FAE5' }, // Emerald-100
-    { name: '経験学習', level: 3, parentId: '適応スキル', color: '#D1FAE5' },
-    { name: '他者への指導', level: 3, parentId: '適応スキル', color: '#D1FAE5' },
-    { name: 'レジリエンス', level: 3, parentId: '適応スキル', color: '#D1FAE5' }
-  ];
-  
-  // Combine all nodes
-  const allNodes = [centralNode, ...mainCategories, ...subCategories, ...specificSkills];
-  
-  // Create edges
+  // エッジを自動的に生成
   const edges: KnowledgeEdgeData[] = [];
   
-  // Connect central node to main categories
-  mainCategories.forEach(category => {
+  // 中心ノードからレベル1のカテゴリへのエッジ
+  const centralNode = "ビジネスアーキテクト";
+  const level1Nodes = [
+    "情報収集目的",
+    "情報源と技術リソース",
+    "業界専門知識",
+    "トレンド分析",
+    "実践応用分野"
+  ];
+  
+  // 中心からレベル1へのエッジ
+  level1Nodes.forEach(targetNode => {
     edges.push({
-      source: centralNode.name,
-      target: category.name
+      source: centralNode,
+      target: targetNode,
+      label: "必要とする",
+      strength: 5
     });
   });
   
-  // Connect main categories to subcategories
-  subCategories.forEach(subCategory => {
-    if (subCategory.parentId) {
+  // レベル1からレベル2へのエッジ
+  const level2Mapping: {[key: string]: string[]} = {
+    "情報収集目的": [
+      "ビジネス戦略策定",
+      "意思決定支援",
+      "イノベーション促進",
+      "リスク管理"
+    ],
+    "情報源と技術リソース": [
+      "業界レポート",
+      "テクノロジーブログ",
+      "オンライン学習プラットフォーム",
+      "ネットワーキングイベント"
+    ],
+    "業界専門知識": [
+      "デジタルトランスフォーメーション",
+      "クラウドコンピューティング",
+      "データアナリティクス",
+      "エンタープライズアーキテクチャ"
+    ]
+  };
+  
+  // レベル1からレベル2へのエッジを追加
+  Object.entries(level2Mapping).forEach(([source, targets]) => {
+    targets.forEach(target => {
       edges.push({
-        source: subCategory.parentId,
-        target: subCategory.name
+        source,
+        target,
+        label: "含む",
+        strength: 4
       });
-    }
+    });
   });
   
-  // Connect subcategories to specific skills
-  specificSkills.forEach(skill => {
-    if (skill.parentId) {
-      edges.push({
-        source: skill.parentId,
-        target: skill.name
-      });
+  // 関連するノード間のエッジ
+  edges.push(
+    {
+      source: "ビジネス戦略策定",
+      target: "デジタルトランスフォーメーション",
+      label: "活用する",
+      strength: 3
+    },
+    {
+      source: "データアナリティクス",
+      target: "意思決定支援",
+      label: "促進する",
+      strength: 4
+    },
+    {
+      source: "クラウドコンピューティング",
+      target: "デジタルトランスフォーメーション",
+      label: "支援する",
+      strength: 3
     }
-  });
+  );
   
   return {
-    nodes: allNodes,
+    nodes: node => node,
     edges: edges
   };
 }
 
-// Helper function to generate a generic role knowledge graph structure
+// Template function for generic role
 function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGraphData {
-  // Define central node
-  const centralNode = { 
-    name: roleName, 
-    level: 0,
-    type: 'central',
-    color: '#4F46E5' // Indigo-600
+  return {
+    nodes: [
+      {
+        name: roleName,
+        level: 0,
+        type: "central",
+        color: "#4A90E2",
+        description: `${roleName}の役割に関する知識マップ`
+      },
+      {
+        name: "情報収集目的",
+        level: 1,
+        type: "category",
+        color: "#50E3C2",
+        description: "情報を収集する主な目的"
+      },
+      {
+        name: "情報源と技術リソース",
+        level: 1,
+        type: "category",
+        color: "#B8E986",
+        description: "情報を取得するための信頼できるソースとツール"
+      },
+      {
+        name: "業界専門知識",
+        level: 1,
+        type: "category",
+        color: "#F5A623",
+        description: "特定の業界に関する専門的な知識と洞察"
+      },
+      {
+        name: "トレンド分析",
+        level: 1,
+        type: "category",
+        color: "#F8E71C",
+        description: "最新の技術とビジネストレンドの追跡と分析"
+      },
+      {
+        name: "実践応用分野",
+        level: 1,
+        type: "category",
+        color: "#BD10E0",
+        description: "収集した情報の具体的な応用分野"
+      },
+      // レベル2のノード - 情報収集目的
+      {
+        name: "専門知識の向上",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "自己の専門性を高めるための継続的な学習"
+      },
+      {
+        name: "業界動向の把握",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "市場の変化や新しいトレンドの理解"
+      },
+      {
+        name: "問題解決能力の強化",
+        level: 2,
+        parentId: "情報収集目的",
+        type: "subcategory",
+        color: "#50E3C2",
+        description: "様々な課題に対応するための知識とスキルの蓄積"
+      },
+      // レベル2のノード - 情報源と技術リソース
+      {
+        name: "専門誌と書籍",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "体系的な知識を得るための信頼性の高い情報源"
+      },
+      {
+        name: "オンラインコミュニティ",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "専門家との知識共有と質問の場"
+      },
+      {
+        name: "データ分析ツール",
+        level: 2,
+        parentId: "情報源と技術リソース",
+        type: "subcategory",
+        color: "#B8E986",
+        description: "情報の整理と分析のための技術リソース"
+      },
+      // レベル2のノード - 業界専門知識
+      {
+        name: "基礎理論と概念",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "業界の基本的な考え方とフレームワーク"
+      },
+      {
+        name: "最新技術の動向",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "新しい技術の発展と応用可能性"
+      },
+      {
+        name: "業界の課題と機会",
+        level: 2,
+        parentId: "業界専門知識",
+        type: "subcategory",
+        color: "#F5A623",
+        description: "現在の問題点と将来的な成長機会"
+      }
+    ],
+    edges: []
   };
   
-  // Define main category nodes (level 1)
-  const mainCategories = [
-    { name: '専門技術スキル', level: 1, color: '#10B981' }, // Emerald-500
-    { name: 'ドメイン知識', level: 1, color: '#8B5CF6' }, // Violet-500
-    { name: 'ソフトスキル', level: 1, color: '#EC4899' }, // Pink-500
-    { name: 'ツール・技術', level: 1, color: '#F59E0B' } // Amber-500
-  ];
-  
-  // Define subcategories (level 2)
-  const subCategories = [
-    // Technical Skills subcategories
-    { name: '基本的技術能力', level: 2, parentId: '専門技術スキル', color: '#A7F3D0' }, // Emerald-200
-    { name: '高度な技術スキル', level: 2, parentId: '専門技術スキル', color: '#A7F3D0' },
-    
-    // Domain Knowledge subcategories
-    { name: '業界知識', level: 2, parentId: 'ドメイン知識', color: '#C4B5FD' }, // Violet-200
-    { name: 'プロセス専門知識', level: 2, parentId: 'ドメイン知識', color: '#C4B5FD' },
-    
-    // Soft Skills subcategories
-    { name: 'コミュニケーション', level: 2, parentId: 'ソフトスキル', color: '#FBCFE8' }, // Pink-200
-    { name: 'リーダーシップ', level: 2, parentId: 'ソフトスキル', color: '#FBCFE8' },
-    { name: 'チームワーク', level: 2, parentId: 'ソフトスキル', color: '#FBCFE8' },
-    
-    // Tools & Technologies subcategories
-    { name: 'ソフトウェアツール', level: 2, parentId: 'ツール・技術', color: '#FDE68A' }, // Amber-200
-    { name: 'プラットフォーム', level: 2, parentId: 'ツール・技術', color: '#FDE68A' }
-  ];
-  
-  // Define specific skills (level 3) - generic placeholders
-  const specificSkills = [
-    // Core Technical Competencies
-    { name: 'スキルA', level: 3, parentId: '基本的技術能力', color: '#ECFDF5' }, // Emerald-50
-    { name: 'スキルB', level: 3, parentId: '基本的技術能力', color: '#ECFDF5' },
-    { name: 'スキルC', level: 3, parentId: '基本的技術能力', color: '#ECFDF5' },
-    
-    // Advanced Technical Skills
-    { name: '高度なスキルA', level: 3, parentId: '高度な技術スキル', color: '#ECFDF5' },
-    { name: '高度なスキルB', level: 3, parentId: '高度な技術スキル', color: '#ECFDF5' },
-    
-    // Industry Knowledge
-    { name: '業界トレンドA', level: 3, parentId: '業界知識', color: '#F5F3FF' }, // Violet-50
-    { name: '業界トレンドB', level: 3, parentId: '業界知識', color: '#F5F3FF' },
-    
-    // Process Expertise
-    { name: 'プロセスA', level: 3, parentId: 'プロセス専門知識', color: '#F5F3FF' },
-    { name: 'プロセスB', level: 3, parentId: 'プロセス専門知識', color: '#F5F3FF' },
-    
-    // Communication
-    { name: '効果的なプレゼンテーション', level: 3, parentId: 'コミュニケーション', color: '#FCE7F3' }, // Pink-50
-    { name: '技術文書作成', level: 3, parentId: 'コミュニケーション', color: '#FCE7F3' },
-    
-    // Leadership
-    { name: 'チーム管理', level: 3, parentId: 'リーダーシップ', color: '#FCE7F3' },
-    { name: '戦略的ビジョン', level: 3, parentId: 'リーダーシップ', color: '#FCE7F3' },
-    
-    // Teamwork
-    { name: '協働作業', level: 3, parentId: 'チームワーク', color: '#FCE7F3' },
-    { name: '対立解決能力', level: 3, parentId: 'チームワーク', color: '#FCE7F3' },
-    
-    // Software Tools
-    { name: 'ツールA', level: 3, parentId: 'ソフトウェアツール', color: '#FFFBEB' }, // Amber-50
-    { name: 'ツールB', level: 3, parentId: 'ソフトウェアツール', color: '#FFFBEB' },
-    
-    // Platforms
-    { name: 'プラットフォームA', level: 3, parentId: 'プラットフォーム', color: '#FFFBEB' },
-    { name: 'プラットフォームB', level: 3, parentId: 'プラットフォーム', color: '#FFFBEB' }
-  ];
-  
-  // Combine all nodes
-  const allNodes = [centralNode, ...mainCategories, ...subCategories, ...specificSkills];
-  
-  // Create edges
+  // エッジを自動的に生成
   const edges: KnowledgeEdgeData[] = [];
   
-  // Connect central node to main categories
-  mainCategories.forEach(category => {
+  // 中心ノードからレベル1のカテゴリへのエッジ
+  const centralNode = roleName;
+  const level1Nodes = [
+    "情報収集目的",
+    "情報源と技術リソース",
+    "業界専門知識",
+    "トレンド分析",
+    "実践応用分野"
+  ];
+  
+  // 中心からレベル1へのエッジ
+  level1Nodes.forEach(targetNode => {
     edges.push({
-      source: centralNode.name,
-      target: category.name
+      source: centralNode,
+      target: targetNode,
+      label: "必要とする",
+      strength: 5
     });
   });
   
-  // Connect main categories to subcategories
-  subCategories.forEach(subCategory => {
-    if (subCategory.parentId) {
+  // レベル1からレベル2へのエッジ
+  const level2Mapping: {[key: string]: string[]} = {
+    "情報収集目的": [
+      "専門知識の向上",
+      "業界動向の把握",
+      "問題解決能力の強化"
+    ],
+    "情報源と技術リソース": [
+      "専門誌と書籍",
+      "オンラインコミュニティ",
+      "データ分析ツール"
+    ],
+    "業界専門知識": [
+      "基礎理論と概念",
+      "最新技術の動向",
+      "業界の課題と機会"
+    ]
+  };
+  
+  // レベル1からレベル2へのエッジを追加
+  Object.entries(level2Mapping).forEach(([source, targets]) => {
+    targets.forEach(target => {
       edges.push({
-        source: subCategory.parentId,
-        target: subCategory.name
+        source,
+        target,
+        label: "含む",
+        strength: 4
       });
-    }
+    });
   });
   
-  // Connect subcategories to specific skills
-  specificSkills.forEach(skill => {
-    if (skill.parentId) {
-      edges.push({
-        source: skill.parentId,
-        target: skill.name
-      });
+  // 関連するノード間のエッジ
+  edges.push(
+    {
+      source: "業界動向の把握",
+      target: "最新技術の動向",
+      label: "関連する",
+      strength: 3
+    },
+    {
+      source: "データ分析ツール",
+      target: "問題解決能力の強化",
+      label: "支援する",
+      strength: 3
     }
-  });
+  );
   
   return {
-    nodes: allNodes,
+    nodes: node => node,
     edges: edges
   };
 }

@@ -87,11 +87,56 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     // メッセージ受信時の処理
     ws.on('message', (data: any) => {
       try {
-        const message = JSON.parse(data.toString());
-        console.log(`WebSocket message received from client ${clientId}: ${JSON.stringify(message)}`);
+        // 文字列に変換し、不要な制御文字を削除
+        const cleanData = data.toString().replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+        
+        // JSONとして安全にパース
+        let message;
+        try {
+          message = JSON.parse(cleanData);
+        } catch (parseError) {
+          console.error(`Invalid JSON from client ${clientId}: ${cleanData.substring(0, 100)}...`, parseError);
+          sendMessage(ws, {
+            type: 'error',
+            payload: {
+              timestamp: Date.now(),
+              error: 'Invalid message format',
+              details: { reason: 'JSON parse error' }
+            }
+          });
+          return;
+        }
+        
+        // メッセージの形式を検証
+        if (!message || typeof message !== 'object' || !message.type) {
+          console.error(`Invalid message structure from client ${clientId}`);
+          sendMessage(ws, {
+            type: 'error',
+            payload: {
+              timestamp: Date.now(),
+              error: 'Invalid message structure',
+              details: { reason: 'Message must have a type field' }
+            }
+          });
+          return;
+        }
+        
+        console.log(`WebSocket message received from client ${clientId}: type=${message.type}`);
         handleClientMessage(clientId, message);
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+        console.error(`Error processing WebSocket message from client ${clientId}:`, error);
+        try {
+          sendMessage(ws, {
+            type: 'error',
+            payload: {
+              timestamp: Date.now(),
+              error: 'Server error processing message',
+              details: { reason: error instanceof Error ? error.message : 'Unknown error' }
+            }
+          });
+        } catch (sendError) {
+          console.error('Failed to send error message:', sendError);
+        }
       }
     });
     
@@ -165,8 +210,11 @@ function handleClientMessage(clientId: string, message: WebSocketMessage): void 
 function sendMessage(ws: WebSocket, message: WebSocketMessage): void {
   if (ws.readyState === WebSocketState.OPEN) {
     try {
-      const messageString = JSON.stringify(message);
-      console.log(`Sending WebSocket message: ${messageString}`);
+      // 特殊文字や制御文字を安全に処理するためのフィルタリング
+      const safeMessage = sanitizeMessage(message);
+      const messageString = JSON.stringify(safeMessage);
+      
+      console.log(`Sending WebSocket message: ${messageString.substring(0, 200)}${messageString.length > 200 ? '...[truncated]' : ''}`);
       ws.send(messageString);
     } catch (error) {
       console.error('Error sending WebSocket message:', error);
@@ -174,6 +222,49 @@ function sendMessage(ws: WebSocket, message: WebSocketMessage): void {
   } else {
     console.warn(`Cannot send message, WebSocket not OPEN: readyState=${ws.readyState}`);
   }
+}
+
+/**
+ * メッセージオブジェクトを安全な形式に変換（JSONとして問題ない形に）
+ * @param message 元のメッセージオブジェクト
+ * @returns 安全に処理されたメッセージオブジェクト
+ */
+function sanitizeMessage(message: WebSocketMessage): WebSocketMessage {
+  // 再帰的に処理するヘルパー関数
+  function sanitizeValue(value: any): any {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    
+    if (typeof value === 'string') {
+      // 制御文字を削除、長すぎる文字列を切り詰め
+      return value
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 制御文字の削除
+        .slice(0, 10000); // 極端に長い文字列を防止
+    }
+    
+    if (typeof value === 'object') {
+      if (Array.isArray(value)) {
+        return value.map(item => sanitizeValue(item));
+      }
+      
+      const result: Record<string, any> = {};
+      for (const key in value) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          result[key] = sanitizeValue(value[key]);
+        }
+      }
+      return result;
+    }
+    
+    // 数値、真偽値はそのまま
+    return value;
+  }
+  
+  return {
+    type: message.type,
+    payload: sanitizeValue(message.payload)
+  };
 }
 
 /**
@@ -191,7 +282,8 @@ export function sendAgentThoughts(
   message: string,
   type: 'info' | 'error' | 'success' | 'thinking' = 'info'
 ): void {
-  for (const client of clients.values()) {
+  // Array.fromで安全にイテレーション
+  Array.from(clients.values()).forEach(client => {
     if (
       client.userId === userId &&
       client.roleModelIds.includes(roleModelId) &&
@@ -207,7 +299,7 @@ export function sendAgentThoughts(
         }
       });
     }
-  }
+  });
 }
 
 /**
@@ -225,7 +317,8 @@ export function sendProgressUpdate(
   progress: number,
   details: any = {}
 ): void {
-  for (const client of clients.values()) {
+  // Array.fromで安全にイテレーション
+  Array.from(clients.values()).forEach(client => {
     if (
       client.userId === userId &&
       client.roleModelIds.includes(roleModelId) &&
@@ -241,7 +334,7 @@ export function sendProgressUpdate(
         }
       });
     }
-  }
+  });
 }
 
 /**
@@ -257,7 +350,8 @@ export function sendErrorMessage(
   error: string,
   details: any = {}
 ): void {
-  for (const client of clients.values()) {
+  // Array.fromで安全にイテレーション
+  Array.from(clients.values()).forEach(client => {
     if (
       client.userId === userId &&
       client.roleModelIds.includes(roleModelId) &&
@@ -272,5 +366,5 @@ export function sendErrorMessage(
         }
       });
     }
-  }
+  });
 }

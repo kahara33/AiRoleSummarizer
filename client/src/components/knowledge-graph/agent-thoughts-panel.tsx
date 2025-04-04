@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -45,8 +45,17 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
   // WebSocketインスタンスをrefに保存して、コンポーネントのライフサイクル全体で管理
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
-  // マージされた思考を保存するために新しいrefを追加
-  const mergedThoughtsRef = useRef<AgentMessage[]>([]);
+  
+  // 前回のpropsを保存するためのref
+  const prevPropsRef = useRef<{
+    thoughts: AgentMessage[];
+    activeTab: string;
+    localThoughts: AgentMessage[];
+  }>({
+    thoughts: [],
+    activeTab: 'all',
+    localThoughts: []
+  });
   
   // マウント時にrefを初期化
   useEffect(() => {
@@ -58,32 +67,34 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
     };
   }, []);
   
-  // フィルタリングロジックを関数として抽出 - useEffectの外部で定義
-  // useCallbackの依存配列を空のままにして、コンポーネントの再レンダリングで再作成されないようにする
-  const updateFilteredThoughts = useCallback((localThoughts: AgentMessage[], externalThoughts: AgentMessage[], activeTab: string) => {
-    // console.log('updateFilteredThoughts called', { localThoughts, externalThoughts, activeTab });
+  // フィルタリングロジックを関数として定義
+  // useMemoを使用して依存関係が変更された場合のみ再計算
+  const filteredThoughtsMemo = useMemo(() => {
+    console.log('Recalculating filtered thoughts');
     
-    // ローカルのコピーを作成して、状態更新の無限ループを防ぐ
-    const mergedThoughts = [...(externalThoughts || []), ...localThoughts];
+    // ローカルのコピーを作成
+    const mergedThoughts = [...(thoughts || []), ...localThoughts];
     
     // タイムスタンプでソート
     mergedThoughts.sort((a, b) => a.timestamp - b.timestamp);
-    mergedThoughtsRef.current = mergedThoughts;
     
     // 現在のタブに応じてフィルタリング
-    const filtered = activeTab === 'all' 
+    return activeTab === 'all' 
       ? mergedThoughts 
       : mergedThoughts.filter(thought => thought.agentName === activeTab);
-    
-    // 1回の更新で済ませる
-    setFilteredThoughts(filtered);
-  }, []);
-  
-  // activeTab, localThoughts, thoughtsが変更されたときに1回だけフィルタリングを更新
-  // 依存配列から updateFilteredThoughts を削除して無限ループを防止
-  useEffect(() => {
-    updateFilteredThoughts(localThoughts, thoughts || [], activeTab);
   }, [activeTab, localThoughts, thoughts]);
+  
+  // filteredThoughtsMemoの変更を検出し、stateを更新
+  useEffect(() => {
+    setFilteredThoughts(filteredThoughtsMemo);
+    
+    // 前回のpropsを更新
+    prevPropsRef.current = {
+      thoughts: thoughts || [],
+      activeTab,
+      localThoughts
+    };
+  }, [filteredThoughtsMemo]);
   
   // WebSocket接続の管理
   useEffect(() => {
@@ -167,48 +178,93 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
         if (!isComponentMountedRef.current) return;
         
         try {
-          console.log('Raw WebSocket message received:', event.data);
-          const data = JSON.parse(event.data);
+          console.log('Raw WebSocket message received:', event.data.substring(0, 100) + (event.data.length > 100 ? '...' : ''));
+          
+          // JSONパースを安全に行う
+          let data;
+          try {
+            data = JSON.parse(event.data);
+          } catch (parseError) {
+            console.error('Invalid JSON in WebSocket message:', parseError);
+            return;
+          }
+          
+          // 受信データの基本構造を検証
+          if (!data || typeof data !== 'object' || !data.type) {
+            console.error('Invalid message structure:', data);
+            return;
+          }
+          
           console.log('WebSocket message received:', data.type);
           
-          if (data.type === 'agent_thoughts') {
-            console.log('Agent thought received:', data.payload);
-            const newThought: AgentMessage = {
-              timestamp: data.payload.timestamp || Date.now(),
-              agentName: data.payload.agentName || 'Unknown',
-              message: data.payload.message || '',
-              type: data.payload.type || 'info'
-            };
-            
-            // この関数形式によりステート更新は常に最新の状態に基づいて行われる
-            setLocalThoughts(prev => {
-              // 以前の思考と重複しないようにする
-              const isDuplicate = prev.some(thought => 
-                thought.timestamp === newThought.timestamp && 
-                thought.agentName === newThought.agentName && 
-                thought.message === newThought.message
-              );
-              
-              if (isDuplicate) {
-                console.log('Duplicate thought detected, skipping');
-                return prev;
+          // メッセージタイプに応じた処理
+          switch (data.type) {
+            case 'agent_thoughts':
+              if (!data.payload) {
+                console.error('Missing payload in agent_thoughts message');
+                return;
               }
               
-              console.log('Adding new thought to state');
-              const newThoughts = [...prev, newThought];
-              return newThoughts;
-            });
-          } else if (data.type === 'progress_update') {
-            console.log('Progress update received:', data.payload);
-          } else if (data.type === 'pong') {
-            console.log('Pong received');
-          } else if (data.type === 'connected') {
-            console.log('Connection confirmed:', data.payload);
-          } else if (data.type === 'subscription_success') {
-            console.log('Subscription success:', data.payload);
+              console.log('Agent thought received:', 
+                data.payload.agentName || 'Unknown', 
+                data.payload.type || 'info'
+              );
+              
+              // 新しい思考オブジェクトを作成
+              const newThought: AgentMessage = {
+                timestamp: data.payload.timestamp || Date.now(),
+                agentName: data.payload.agentName || 'Unknown',
+                message: data.payload.message || '',
+                type: data.payload.type || 'info'
+              };
+              
+              // 重複チェックと状態更新のバッチ処理
+              setLocalThoughts(prev => {
+                // メモリ使用量を管理するための制限（最大100項目）
+                const limitedPrev = prev.length > 90 ? prev.slice(-90) : prev;
+                
+                // 重複チェック - 厳密な条件で検証
+                const isDuplicate = limitedPrev.some(thought => 
+                  thought.timestamp === newThought.timestamp && 
+                  thought.agentName === newThought.agentName && 
+                  thought.message === newThought.message
+                );
+                
+                if (isDuplicate) {
+                  console.log('Duplicate thought detected, skipping');
+                  return limitedPrev;
+                }
+                
+                console.log('Adding new thought to state');
+                return [...limitedPrev, newThought];
+              });
+              break;
+              
+            case 'progress_update':
+              console.log('Progress update received:', data.payload);
+              break;
+              
+            case 'pong':
+              console.log('Pong received');
+              break;
+              
+            case 'connected':
+              console.log('Connection confirmed:', data.payload);
+              break;
+              
+            case 'subscription_success':
+              console.log('Subscription success:', data.payload);
+              break;
+              
+            case 'error':
+              console.error('Error from server:', data.payload?.error || 'Unknown error');
+              break;
+              
+            default:
+              console.log('Unknown message type:', data.type);
           }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('Error processing WebSocket message:', error);
         }
       };
       
