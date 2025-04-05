@@ -14,6 +14,8 @@ export async function initNeo4j(): Promise<Driver | null> {
   // 環境変数が設定されていない場合は、Neo4jを使用しない
   if (!process.env.NEO4J_URI || !process.env.NEO4J_USER || !process.env.NEO4J_PASSWORD) {
     console.log('Neo4j環境変数が設定されていないため、Neo4jは使用しません');
+    console.log('必要な環境変数: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD');
+    console.log('PostgreSQLからデータを取得する代替処理に自動的に切り替えます');
     return null;
   }
 

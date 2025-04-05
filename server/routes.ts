@@ -872,10 +872,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'この知識グラフへのアクセス権限がありません' });
       }
       
-      // Neo4jから知識グラフデータを取得
-      const graphData = await getKnowledgeGraph(roleModelId);
+      // Neo4jからグラフデータ取得を試みる
+      try {
+        const graphData = await getKnowledgeGraph(roleModelId);
+        
+        // Neo4jからデータが取得できた場合はそれを返す
+        if (graphData.nodes.length > 0) {
+          console.log(`Neo4jからグラフデータを取得しました: ノード ${graphData.nodes.length}個, エッジ ${graphData.edges.length}個`);
+          return res.json(graphData);
+        } else {
+          console.log('Neo4jからグラフデータが取得できませんでした。PostgreSQLからデータを取得します。');
+        }
+      } catch (neo4jError) {
+        console.error('Neo4jグラフ取得エラー:', neo4jError);
+        console.log('PostgreSQLからグラフデータを取得します。');
+      }
       
-      res.json(graphData);
+      // Neo4jから取得できなかった場合、PostgreSQLからデータを取得
+      const nodes = await db.query.knowledgeNodes.findMany({
+        where: eq(knowledgeNodes.roleModelId, roleModelId),
+      });
+      
+      const edges = await db.query.knowledgeEdges.findMany({
+        where: eq(knowledgeEdges.roleModelId, roleModelId),
+      });
+      
+      console.log(`PostgreSQLからグラフデータを取得しました: ノード ${nodes.length}個, エッジ ${edges.length}個`);
+      res.json({ nodes, edges });
     } catch (error) {
       console.error('知識グラフ取得エラー:', error);
       res.status(500).json({ error: '知識グラフの取得に失敗しました' });
