@@ -186,6 +186,17 @@ export default function KnowledgeGraphViewer({
   }
 
   // 新しいReactFlowベースのビューを表示
+  const { data: nodes = [] } = useQuery({
+    queryKey: [`/api/role-models/${roleModelId}/knowledge-nodes`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-nodes`);
+      return await res.json() as KnowledgeNode[];
+    },
+    enabled: !!roleModelId
+  });
+
+  console.log('ノード数:', nodes.length);
+
   return (
     <>
       <div className="relative">
@@ -196,15 +207,26 @@ export default function KnowledgeGraphViewer({
           </Button>
         </div>
 
-        {/* ReactFlowインポート（ReactFlowProviderはコンポーネント内部で使用） */}
-        <ReactFlowKnowledgeGraph
-          roleModelId={roleModelId}
-          onNodeClick={onNodeClick}
-          onNodeCreate={onNodeCreate}
-          onNodeExpand={onNodeExpand}
-          width={width}
-          height={height}
-        />
+        {nodes.length === 0 ? (
+          <div className="flex items-center justify-center" style={{ width, height }}>
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+              <p>知識グラフデータを読み込み中...</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                データが表示されない場合は、「AI解析結果」タブで処理を実行してください
+              </p>
+            </div>
+          </div>
+        ) : (
+          <ReactFlowKnowledgeGraph
+            roleModelId={roleModelId}
+            onNodeClick={onNodeClick}
+            onNodeCreate={onNodeCreate}
+            onNodeExpand={onNodeExpand}
+            width={width}
+            height={height}
+          />
+        )}
       </div>
     
       {/* チャットプロンプトダイアログ */}
