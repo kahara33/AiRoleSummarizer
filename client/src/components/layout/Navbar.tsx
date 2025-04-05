@@ -38,34 +38,34 @@ const Navbar: React.FC<NavbarProps> = ({ username = '管理者', orgName = 'EVER
         <ul className="space-y-1">
           <li>
             <Link to="/">
-              <a className={`flex items-center px-4 py-2 rounded-lg ${isActive('/') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
+              <div className={`flex items-center px-4 py-2 rounded-lg ${isActive('/') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
                 <Home size={20} className="mr-3" />
                 <span>ホーム</span>
-              </a>
+              </div>
             </Link>
           </li>
           <li>
             <Link to="/knowledge-graph/default">
-              <a className={`flex items-center px-4 py-2 rounded-lg ${isActive('/knowledge-graph') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
+              <div className={`flex items-center px-4 py-2 rounded-lg ${isActive('/knowledge-graph') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
                 <Network size={20} className="mr-3" />
                 <span>知識グラフ</span>
-              </a>
+              </div>
             </Link>
           </li>
           <li>
             <Link to="/role-models">
-              <a className={`flex items-center px-4 py-2 rounded-lg ${isActive('/role-models') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
+              <div className={`flex items-center px-4 py-2 rounded-lg ${isActive('/role-models') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
                 <Users size={20} className="mr-3" />
                 <span>ロールモデル</span>
-              </a>
+              </div>
             </Link>
           </li>
           <li>
             <Link to="/agents">
-              <a className={`flex items-center px-4 py-2 rounded-lg ${isActive('/agents') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
+              <div className={`flex items-center px-4 py-2 rounded-lg ${isActive('/agents') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
                 <Brain size={20} className="mr-3" />
                 <span>AIエージェント</span>
-              </a>
+              </div>
             </Link>
           </li>
         </ul>
@@ -75,10 +75,10 @@ const Navbar: React.FC<NavbarProps> = ({ username = '管理者', orgName = 'EVER
         <ul className="space-y-1">
           <li>
             <Link to="/settings">
-              <a className={`flex items-center px-4 py-2 rounded-lg ${isActive('/settings') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
+              <div className={`flex items-center px-4 py-2 rounded-lg ${isActive('/settings') ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}>
                 <Settings size={20} className="mr-3" />
                 <span>設定</span>
-              </a>
+              </div>
             </Link>
           </li>
         </ul>

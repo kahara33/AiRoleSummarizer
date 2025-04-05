@@ -1,21 +1,30 @@
-import { ReactNode } from "react";
-import Navbar from "./navbar";
-import Footer from "./footer";
+import React from 'react';
+import Navbar from './Navbar';
+import { useAuth } from '@/hooks/use-auth';
 
 interface AppLayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
-export default function AppLayout({ children }: AppLayoutProps) {
+const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
+  const { user } = useAuth();
+  
+  // ユーザー情報がまだロードされていない場合はnullを返す
+  if (!user) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {children}
-        </div>
-      </main>
-      <Footer />
+    <div className="flex h-screen bg-gray-50">
+      {/* Navbar */}
+      <Navbar username={user.name} orgName={'EVERYS'} />
+      
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto">
+        {children}
+      </div>
     </div>
   );
-}
+};
+
+export default AppLayout;
