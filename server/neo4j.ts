@@ -189,6 +189,12 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   nodes: any[];
   edges: any[];
 }> {
+  // UUIDの検証
+  if (!roleModelId || roleModelId === 'default') {
+    console.error(`無効なUUID形式: ${roleModelId}`);
+    return { nodes: [], edges: [] };
+  }
+  
   const session = await getSession();
   
   if (!session) {

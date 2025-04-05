@@ -650,6 +650,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/knowledge-graph/generate/:roleModelId', isAuthenticated, async (req, res) => {
     try {
       const { roleModelId } = req.params;
+      
+      // UUID形式でない場合はエラー
+      if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
+        console.error(`無効なUUID形式: ${roleModelId}`);
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
       const user = req.user;
 
       // 権限チェック
@@ -1537,6 +1544,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 async function createNodeInNeo4j(node: any) {
   const { id, name, type, level, parentId, roleModelId, description, color } = node;
   
+  // UUID形式でない場合はスキップ
+  if (!roleModelId || roleModelId === 'default' || !isValidUUID(roleModelId.toString())) {
+    console.error(`無効なUUID形式のためNeo4jへのノード作成をスキップします: ${roleModelId}`);
+    return;
+  }
+  
   try {
     import('./neo4j').then(async (neo4j) => {
       // Neo4jにノード作成
@@ -1565,6 +1578,12 @@ async function createNodeInNeo4j(node: any) {
 // Neo4jにエッジを作成する補助関数
 async function createEdgeInNeo4j(edge: any) {
   const { sourceId, targetId, label, strength, roleModelId } = edge;
+  
+  // UUID形式でない場合はスキップ
+  if (!roleModelId || roleModelId === 'default' || !isValidUUID(roleModelId.toString())) {
+    console.error(`無効なUUID形式のためNeo4jへのエッジ作成をスキップします: ${roleModelId}`);
+    return;
+  }
   
   try {
     import('./neo4j').then(async (neo4j) => {
