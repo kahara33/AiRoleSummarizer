@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -52,16 +52,28 @@ const ProfileSettings: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // 初期値の設定
+  const defaultValues = useMemo(() => ({
+    name: user?.name || '',
+    email: user?.email || '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  }), [user]);
+
+  // フォームの初期化
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(ProfileFormSchema),
-    defaultValues: {
-      name: user?.name || '',
-      email: user?.email || '',
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
+    defaultValues,
   });
+
+  // ユーザーデータが変更されたときにフォームの値を更新
+  useEffect(() => {
+    if (user) {
+      form.setValue('name', user.name || '');
+      form.setValue('email', user.email || '');
+    }
+  }, [user, form.setValue]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormValues) => {

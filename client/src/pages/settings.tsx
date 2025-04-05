@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import AppLayout from '@/components/layout/app-layout';
-import OrganizationSettings from '@/components/settings/organization-settings';
-import UserSettings from '@/components/settings/user-settings';
-import ProfileSettings from '@/components/settings/profile-settings';
+import { Loader2 } from 'lucide-react';
+
+// 設定コンポーネントを動的インポートして遅延ロードする
+const ProfileSettings = React.lazy(() => import('@/components/settings/profile-settings'));
+const UserSettings = React.lazy(() => import('@/components/settings/user-settings'));
+const OrganizationSettings = React.lazy(() => import('@/components/settings/organization-settings'));
 import { Building2, User, UserCog } from 'lucide-react';
 import { USER_ROLES } from '@shared/schema';
 
@@ -52,7 +55,9 @@ const SettingsPage: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ProfileSettings />
+                <Suspense fallback={<div className="flex justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+                  <ProfileSettings />
+                </Suspense>
               </CardContent>
             </Card>
           </TabsContent>
@@ -67,7 +72,9 @@ const SettingsPage: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <UserSettings />
+                  <Suspense fallback={<div className="flex justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+                    <UserSettings />
+                  </Suspense>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -83,7 +90,9 @@ const SettingsPage: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <OrganizationSettings />
+                  <Suspense fallback={<div className="flex justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+                    <OrganizationSettings />
+                  </Suspense>
                 </CardContent>
               </Card>
             </TabsContent>
