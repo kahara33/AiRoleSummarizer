@@ -35,7 +35,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import RoleModelForm from "@/components/role-models/role-model-form";
-import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
 
 // カスタムインターフェース
@@ -153,29 +152,25 @@ export default function RoleModelDetailPage({ id }: RoleModelDetailPageProps) {
 
   if (isLoading) {
     return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AppLayout>
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
   if (error || !roleModel) {
     return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center h-full gap-4">
-          <p>ロールモデルが見つかりませんでした。</p>
-          <Link href="/role-models">
-            <Button>ロールモデル一覧に戻る</Button>
-          </Link>
-        </div>
-      </AppLayout>
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <p>ロールモデルが見つかりませんでした。</p>
+        <Link href="/role-models">
+          <Button>ロールモデル一覧に戻る</Button>
+        </Link>
+      </div>
     );
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="container mx-auto py-6 space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">
@@ -370,6 +365,6 @@ export default function RoleModelDetailPage({ id }: RoleModelDetailPageProps) {
           />
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </>
   );
 }
