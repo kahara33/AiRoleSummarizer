@@ -524,8 +524,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user;
       
+      // 会社IDがない場合は空の配列を返す
       if (!user.companyId) {
-        return res.status(400).json({ error: '所属組織がないため、共有ロールモデルを取得できません' });
+        return res.json([]);
       }
       
       const sharedRoleModels = await db.query.roleModels.findMany({
