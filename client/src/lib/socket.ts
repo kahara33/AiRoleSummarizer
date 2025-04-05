@@ -114,6 +114,20 @@ export function sendSocketMessage(type: string, payload: any): void {
     return;
   }
   
+  // サブスクリプションの場合、roleModelIdのUUID形式を検証
+  if (type === 'subscribe' && payload?.roleModelId) {
+    const roleModelId = payload.roleModelId;
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    // defaultまたは無効なUUID形式の場合は送信しない
+    if (roleModelId === 'default' || !uuidPattern.test(roleModelId)) {
+      console.error(`無効なUUID形式のためメッセージを送信しません: ${roleModelId}`);
+      console.trace('以下がスタックトレースです:');
+      return;
+    }
+  }
+  
+  console.log(`WebSocketメッセージを送信: ${type}`, payload);
   socket.send(JSON.stringify({ type, payload }));
 }
 
