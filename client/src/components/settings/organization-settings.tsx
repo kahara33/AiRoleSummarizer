@@ -1,48 +1,65 @@
-import React from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import { queryClient, apiRequest } from '@/lib/queryClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Building2 } from 'lucide-react';
+import { Loader2, PlusCircle, Pencil } from 'lucide-react';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
 
-// 組織設定フォームのスキーマ
+// 組織フォームのスキーマ定義
 const organizationFormSchema = z.object({
-  name: z.string().min(2, '組織名は2文字以上で入力してください'),
+  name: z.string().min(2, { message: '組織名は2文字以上で入力してください' }),
   description: z.string().optional(),
 });
 
 type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
 
+type Company = {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  users?: { id: string; name: string; email: string; role: string }[];
+};
+
 const OrganizationSettings: React.FC = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // 組織情報を取得
-  const { data: organization, isLoading } = useQuery({
-    queryKey: ['/api/organization'],
-    queryFn: async () => {
-      const response = await fetch('/api/organization');
-      if (!response.ok) {
-        throw new Error('組織情報の取得に失敗しました');
-      }
-      return response.json();
-    },
-  });
-
-  // 組織設定フォーム
+  // フォーム定義
   const form = useForm<OrganizationFormValues>({
     resolver: zodResolver(organizationFormSchema),
     defaultValues: {
@@ -51,149 +68,189 @@ const OrganizationSettings: React.FC = () => {
     },
   });
 
-  // 組織データを取得したらフォームに設定
-  React.useEffect(() => {
-    if (organization) {
-      form.reset({
-        name: organization.name || '',
-        description: organization.description || '',
-      });
-    }
-  }, [organization, form]);
-
-  // 組織情報更新ミューテーション
-  const updateOrgMutation = useMutation({
-    mutationFn: async (data: OrganizationFormValues) => {
-      const response = await apiRequest('PATCH', '/api/organization', data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '組織情報の更新に失敗しました');
+  // 組織一覧取得クエリ
+  const { data: companies, isLoading } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/companies');
+      if (!res.ok) {
+        throw new Error('組織情報の取得に失敗しました');
       }
-      return response.json();
+      return res.json();
+    },
+  });
+
+  // 組織作成/更新ミューテーション
+  const organizationMutation = useMutation({
+    mutationFn: async (data: OrganizationFormValues) => {
+      let res;
+      
+      if (editingCompany) {
+        // 更新
+        res = await apiRequest('PUT', `/api/companies/${editingCompany.id}`, data);
+      } else {
+        // 新規作成
+        res = await apiRequest('POST', '/api/companies', data);
+      }
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || '組織の保存に失敗しました');
+      }
+      
+      return await res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organization'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      setIsDialogOpen(false);
+      setEditingCompany(null);
+      form.reset();
+      
       toast({
-        title: '更新完了',
-        description: '組織情報が正常に更新されました',
+        title: '保存完了',
+        description: `組織情報を${editingCompany ? '更新' : '作成'}しました`,
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
-        title: '更新エラー',
-        description: error instanceof Error ? error.message : '不明なエラーが発生しました',
+        title: '保存エラー',
+        description: error.message,
         variant: 'destructive',
       });
     },
   });
 
-  // 組織新規作成ミューテーション
-  const createOrgMutation = useMutation({
-    mutationFn: async (data: OrganizationFormValues) => {
-      const response = await apiRequest('POST', '/api/organization', data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '組織の作成に失敗しました');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organization'] });
-      toast({
-        title: '作成完了',
-        description: '組織が正常に作成されました',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: '作成エラー',
-        description: error instanceof Error ? error.message : '不明なエラーが発生しました',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const onSubmit = (data: OrganizationFormValues) => {
-    if (organization) {
-      updateOrgMutation.mutate(data);
-    } else {
-      createOrgMutation.mutate(data);
-    }
+  // 編集ダイアログを開く
+  const openEditDialog = (company: Company) => {
+    setEditingCompany(company);
+    form.reset({
+      name: company.name,
+      description: company.description || '',
+    });
+    setIsDialogOpen(true);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // 新規作成ダイアログを開く
+  const openCreateDialog = () => {
+    setEditingCompany(null);
+    form.reset({
+      name: '',
+      description: '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  // フォーム送信
+  const onSubmit = (data: OrganizationFormValues) => {
+    organizationMutation.mutate(data);
+  };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            <span>組織情報</span>
-          </CardTitle>
-          <CardDescription>
-            組織の基本情報を設定します
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>組織名</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold mb-4">組織一覧</h2>
+        
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={openCreateDialog} className="flex items-center gap-2">
+              <PlusCircle className="h-4 w-4" />
+              新規組織
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingCompany ? '組織情報編集' : '新規組織作成'}</DialogTitle>
+              <DialogDescription>
+                {editingCompany 
+                  ? '組織情報を編集します。' 
+                  : '新しい組織を作成します。組織ごとにユーザーとロールモデルを管理できます。'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>組織名</FormLabel>
+                      <FormControl>
+                        <Input placeholder="組織名" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>説明</FormLabel>
+                      <FormControl>
+                        <Input placeholder="組織の説明" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <DialogFooter>
+                  <Button type="submit" disabled={organizationMutation.isPending}>
+                    {organizationMutation.isPending && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    {editingCompany ? '更新' : '作成'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>説明</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        rows={3}
-                        placeholder="組織の説明を入力してください（任意）"
-                        value={field.value || ''}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button 
-                type="submit" 
-                disabled={updateOrgMutation.isPending || createOrgMutation.isPending}
-              >
-                {(updateOrgMutation.isPending || createOrgMutation.isPending) ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {organization ? '更新中...' : '作成中...'}
-                  </>
-                ) : (
-                  organization ? '変更を保存' : '組織を作成'
-                )}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : !companies || companies.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          組織が登録されていません
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>組織名</TableHead>
+              <TableHead>説明</TableHead>
+              <TableHead>作成日</TableHead>
+              <TableHead className="w-[100px]">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {companies.map((company) => (
+              <TableRow key={company.id}>
+                <TableCell className="font-medium">{company.name}</TableCell>
+                <TableCell>{company.description || '-'}</TableCell>
+                <TableCell>{new Date(company.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => openEditDialog(company)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">編集</span>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </div>
   );
 };

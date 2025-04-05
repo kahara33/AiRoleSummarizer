@@ -2,7 +2,7 @@ import { Express, Request, Response, NextFunction } from 'express';
 import { Server, createServer } from 'http';
 import { setupWebSocketServer, sendMessageToRoleModelViewers, sendAgentThoughts } from './websocket';
 import { db } from './db';
-import { setupAuth, isAuthenticated, requireRole, hashPassword } from './auth';
+import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
 import { eq, and, or, not, sql } from 'drizzle-orm';
 import { 
@@ -52,6 +52,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyId: req.user.companyId,
       } : null,
     });
+  });
+  
+  // ユーザー認証関連API
+  // 現在のユーザー情報取得
+  app.get('/api/user', (req, res) => {
+    if (req.isAuthenticated()) {
+      // ユーザー情報をクライアントに返す
+      const user = req.user;
+      // パスワードは送信しない
+      const { password, ...userInfo } = user;
+      res.json(userInfo);
+    } else {
+      res.status(401).json({ error: '認証されていません' });
+    }
+  });
+  
+  // プロフィール更新API
+  app.patch('/api/profile', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { currentPassword, newPassword, confirmPassword, ...profileData } = req.body;
+      
+      // 現在のパスワードが正しいか確認
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: 'ユーザーが見つかりません' });
+      }
+      
+      const isPasswordCorrect = await comparePasswords(currentPassword, user.password);
+      if (!isPasswordCorrect) {
+        return res.status(400).json({ error: '現在のパスワードが正しくありません' });
+      }
+      
+      // 更新データ準備
+      const updateData: any = {
+        name: profileData.name,
+        email: profileData.email,
+      };
+      
+      // パスワード変更がある場合
+      if (newPassword) {
+        updateData.password = await hashPassword(newPassword);
+      }
+      
+      // ユーザー情報更新
+      const [updatedUser] = await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.id, userId))
+        .returning();
+      
+      // パスワードを除いた情報を返す
+      const { password, ...userInfo } = updatedUser;
+      res.json(userInfo);
+    } catch (error) {
+      console.error('プロフィール更新エラー:', error);
+      res.status(500).json({ error: 'プロフィールの更新に失敗しました' });
+    }
   });
 
   // ==================

@@ -6,8 +6,10 @@ import { z } from 'zod';
 // ユーザーロール定義
 export const USER_ROLES = {
   ADMIN: 'admin',
+  COMPANY_ADMIN: 'company_admin',
   EDITOR: 'editor',
-  VIEWER: 'viewer'
+  VIEWER: 'viewer',
+  USER: 'user'
 } as const;
 
 export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];

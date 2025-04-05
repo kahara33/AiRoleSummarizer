@@ -12,6 +12,7 @@ import NotFoundPage from '@/pages/not-found';
 import OrganizationsPage from '@/pages/organizations';
 import RoleModelsPage from '@/pages/role-models';
 import RoleModelDetailPage from '@/pages/role-model-detail';
+import SettingsPage from '@/pages/settings';
 import { ComponentProps } from '@/lib/types';
 
 // QueryClientの設定
@@ -51,6 +52,7 @@ const AppRoutes: React.FC = () => (
       <ProtectedRoute path="/role-models" component={RoleModelsPageComponent} />
       <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPageComponent} />
       <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
+      <ProtectedRoute path="/settings" component={SettingsPage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFoundPage} />
     </Switch>

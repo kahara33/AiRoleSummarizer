@@ -1,8 +1,11 @@
 import React from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -10,158 +13,126 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { queryClient, apiRequest } from '@/lib/queryClient';
-import { Loader2, User } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
 
-// プロフィールフォームのスキーマ
-const profileFormSchema = z.object({
-  name: z.string().min(2, '名前は2文字以上で入力してください'),
-  email: z.string().email('有効なメールアドレスを入力してください'),
-  currentPassword: z.string().min(1, '現在のパスワードを入力してください'),
-  newPassword: z.string().min(6, 'パスワードは6文字以上で入力してください').optional(),
+const ProfileFormSchema = z.object({
+  name: z.string().min(2, { message: '名前は2文字以上で入力してください' }),
+  email: z.string().email({ message: '有効なメールアドレスを入力してください' }),
+  currentPassword: z.string().min(1, { message: '現在のパスワードを入力してください' }),
+  newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
 }).refine((data) => {
+  // 新しいパスワードが入力されている場合、確認パスワードも必須
+  if (data.newPassword && !data.confirmPassword) {
+    return false;
+  }
+  return true;
+}, {
+  message: "確認パスワードを入力してください",
+  path: ["confirmPassword"],
+}).refine((data) => {
+  // 新しいパスワードと確認パスワードが一致するか確認
   if (data.newPassword && data.newPassword !== data.confirmPassword) {
     return false;
   }
   return true;
 }, {
-  message: '新しいパスワードと確認用パスワードが一致しません',
-  path: ['confirmPassword'],
+  message: "パスワードが一致しません",
+  path: ["confirmPassword"],
 });
 
-type ProfileFormValues = z.infer<typeof profileFormSchema>;
+type ProfileFormValues = z.infer<typeof ProfileFormSchema>;
 
 const ProfileSettings: React.FC = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
-  const { user, isLoading: authLoading } = useAuth();
-  
-  // プロフィールフォーム
+  const queryClient = useQueryClient();
+
   const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
+    resolver: zodResolver(ProfileFormSchema),
     defaultValues: {
-      name: '',
-      email: '',
+      name: user?.name || '',
+      email: user?.email || '',
       currentPassword: '',
       newPassword: '',
       confirmPassword: '',
     },
   });
 
-  // ユーザー情報を取得したらフォームに設定
-  React.useEffect(() => {
-    if (user) {
-      form.reset({
-        name: user.name,
-        email: user.email,
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-    }
-  }, [user, form]);
-
-  // プロフィール更新ミューテーション
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormValues) => {
-      const response = await apiRequest('PATCH', '/api/profile', data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'プロフィールの更新に失敗しました');
+      const res = await apiRequest('PATCH', '/api/profile', data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'プロフィールの更新に失敗しました');
       }
-      return response.json();
+      return await res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      toast({
+        title: '更新完了',
+        description: 'プロフィール情報を更新しました',
+      });
       form.reset({
-        ...form.getValues(),
+        name: user?.name,
+        email: user?.email,
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
-      toast({
-        title: '更新完了',
-        description: 'プロフィール情報が正常に更新されました',
-      });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: '更新エラー',
-        description: error instanceof Error ? error.message : '不明なエラーが発生しました',
+        description: error.message,
         variant: 'destructive',
       });
     },
   });
 
-  const onSubmit = async (data: ProfileFormValues) => {
-    // パスワード変更なしの場合は関連フィールドを削除
-    if (!data.newPassword) {
-      const { newPassword, confirmPassword, ...profileData } = data;
-      updateProfileMutation.mutate(profileData);
-    } else {
-      updateProfileMutation.mutate(data);
-    }
+  const onSubmit = (data: ProfileFormValues) => {
+    updateProfileMutation.mutate(data);
   };
 
-  if (authLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            <span>プロフィール情報</span>
-          </CardTitle>
-          <CardDescription>
-            個人プロフィール情報とパスワードを設定します
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>名前</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+    <Card className="border-0 shadow-none">
+      <CardContent className="px-0">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>名前</FormLabel>
+                  <FormControl>
+                    <Input placeholder="名前" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>メールアドレス</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="email" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>メールアドレス</FormLabel>
+                  <FormControl>
+                    <Input placeholder="email@example.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <hr className="my-6" />
-              
+            <div className="border-t pt-6 mt-6">
               <h3 className="text-lg font-medium mb-4">パスワード変更</h3>
 
               <FormField
@@ -171,7 +142,7 @@ const ProfileSettings: React.FC = () => {
                   <FormItem>
                     <FormLabel>現在のパスワード</FormLabel>
                     <FormControl>
-                      <Input {...field} type="password" />
+                      <Input type="password" placeholder="現在のパスワード" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -183,9 +154,9 @@ const ProfileSettings: React.FC = () => {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>新しいパスワード (変更する場合のみ)</FormLabel>
+                    <FormLabel>新しいパスワード（空白の場合は変更しません）</FormLabel>
                     <FormControl>
-                      <Input {...field} type="password" />
+                      <Input type="password" placeholder="新しいパスワード" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -197,33 +168,26 @@ const ProfileSettings: React.FC = () => {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>新しいパスワード (確認)</FormLabel>
+                    <FormLabel>パスワード確認</FormLabel>
                     <FormControl>
-                      <Input {...field} type="password" />
+                      <Input type="password" placeholder="パスワード確認" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
 
-              <Button 
-                type="submit" 
-                disabled={updateProfileMutation.isPending}
-              >
-                {updateProfileMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    更新中...
-                  </>
-                ) : (
-                  '変更を保存'
-                )}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+            <Button type="submit" disabled={updateProfileMutation.isPending}>
+              {updateProfileMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              保存
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 };
 
