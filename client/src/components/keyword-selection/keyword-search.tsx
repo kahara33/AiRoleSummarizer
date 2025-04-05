@@ -4,8 +4,11 @@ import { Keyword } from "@shared/schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Search } from "lucide-react";
+import { Check, Plus, Search } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface KeywordSearchProps {
   selectedKeywords: string[];
@@ -21,7 +24,7 @@ export default function KeywordSearch({
   title = "キーワード検索"
 }: KeywordSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [suggestions, setSuggestions] = useState<Keyword[]>([]);
+  const [filteredKeywords, setFilteredKeywords] = useState<Keyword[]>([]);
 
   // キーワードの取得
   const { data: keywords = [], isLoading } = useQuery<Keyword[]>({
@@ -29,17 +32,22 @@ export default function KeywordSearch({
     staleTime: 0, // キャッシュを無効化
   });
 
-  // 検索語が変更されたときにサジェスト表示
+  // 検索語が変更されたときにキーワードをフィルタリング
   useEffect(() => {
-    if (searchTerm.trim().length > 0) {
-      // 既存のキーワードから検索
-      const matchedKeywords = keywords.filter((keyword) => 
-        keyword.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !selectedKeywords.includes(keyword.id)
-      ).slice(0, 5); // 最大5件表示
-      setSuggestions(matchedKeywords);
+    if (searchTerm.trim() === "") {
+      // 検索語がない場合は、選択されていないすべてのキーワードを表示
+      setFilteredKeywords(
+        keywords.filter((keyword) => !selectedKeywords.includes(keyword.id))
+      );
     } else {
-      setSuggestions([]);
+      // 検索語がある場合は、検索にマッチするキーワードをフィルタリング
+      setFilteredKeywords(
+        keywords.filter(
+          (keyword) =>
+            keyword.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+            !selectedKeywords.includes(keyword.id)
+        )
+      );
     }
   }, [searchTerm, keywords, selectedKeywords]);
 
@@ -85,10 +93,9 @@ export default function KeywordSearch({
     }
   };
 
-  // サジェストアイテムのクリック
-  const handleSuggestionClick = (keywordId: string) => {
+  // キーワードアイテムのクリック
+  const handleKeywordClick = (keywordId: string) => {
     onSelectKeyword(keywordId, true);
-    setSearchTerm("");
   };
 
   return (
@@ -99,35 +106,52 @@ export default function KeywordSearch({
           <div className="relative flex-1">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="キーワードを入力または検索..."
+              placeholder="キーワードを検索..."
               className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleKeyDown}
             />
-            {suggestions.length > 0 && (
-              <div className="absolute z-10 w-full bg-background border rounded-md mt-1 shadow-lg">
-                {suggestions.map((keyword) => (
-                  <div
-                    key={keyword.id}
-                    className="p-2 hover:bg-accent/50 cursor-pointer"
-                    onClick={() => handleSuggestionClick(keyword.id)}
-                  >
-                    {keyword.name}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
           <Button onClick={addKeyword} disabled={!searchTerm.trim()}>
             <Plus className="h-4 w-4 mr-1" />
-            追加
+            新規追加
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          キーワードを入力して追加するか、サジェストから選択してください
+          キーワードリストから選択するか、新しいキーワードを作成できます
         </p>
       </CardHeader>
+
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+          </div>
+        ) : filteredKeywords.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            {searchTerm.trim() ? "検索条件に一致するキーワードがありません" : "選択可能なキーワードがありません"}
+          </p>
+        ) : (
+          <ScrollArea style={{ height: maxHeight }} className="pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 py-2">
+              {filteredKeywords.map((keyword) => (
+                <Badge
+                  key={keyword.id}
+                  variant="outline"
+                  className="flex justify-between items-center cursor-pointer px-3 py-2 hover:bg-accent/50"
+                  onClick={() => handleKeywordClick(keyword.id)}
+                >
+                  <span className="truncate mr-2">{keyword.name}</span>
+                  <Plus className="h-3 w-3 flex-shrink-0" />
+                </Badge>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
     </Card>
   );
 }
