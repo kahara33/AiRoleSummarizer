@@ -1028,6 +1028,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // 業界カテゴリの名前からIDを取得する関数
+  async function getIndustryIdByName(name: string): Promise<string | null> {
+    try {
+      // 名前と合致する業界サブカテゴリを検索
+      const industry = await db.query.industrySubcategories.findFirst({
+        where: eq(industrySubcategories.name, name),
+      });
+
+      return industry ? industry.id : null;
+    } catch (error) {
+      console.error('業界カテゴリID検索エラー:', error);
+      return null;
+    }
+  }
+
   // ロールモデルと業界カテゴリの関連付け作成
   app.post('/api/role-model-industries', isAuthenticated, async (req, res) => {
     try {
@@ -1056,9 +1071,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
       
+      // 業界カテゴリIDの取得
+      // UUIDの形式かどうかをチェック
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let actualIndustryId: string;
+
+      if (uuidPattern.test(industrySubcategoryId)) {
+        // すでにUUID形式ならそのまま使用
+        actualIndustryId = industrySubcategoryId;
+      } else {
+        // 名前からIDを取得
+        const industryId = await db.query.industrySubcategories.findFirst({
+          where: eq(industrySubcategories.name, industrySubcategoryId),
+        });
+        
+        if (!industryId) {
+          return res.status(404).json({ error: `業界カテゴリが見つかりません(名前: ${industrySubcategoryId})` });
+        }
+        
+        actualIndustryId = industryId.id;
+      }
+      
       // 業界カテゴリの存在確認
       const industry = await db.query.industrySubcategories.findFirst({
-        where: eq(industrySubcategories.id, industrySubcategoryId),
+        where: eq(industrySubcategories.id, actualIndustryId),
       });
       
       if (!industry) {
@@ -1069,7 +1105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingRelation = await db.query.roleModelIndustries.findFirst({
         where: and(
           eq(roleModelIndustries.roleModelId, roleModelId),
-          eq(roleModelIndustries.industrySubcategoryId, industrySubcategoryId)
+          eq(roleModelIndustries.industrySubcategoryId, actualIndustryId)
         ),
       });
       
@@ -1080,7 +1116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 関連付けを作成
       const [newRelation] = await db.insert(roleModelIndustries).values({
         roleModelId,
-        industrySubcategoryId,
+        industrySubcategoryId: actualIndustryId,
       }).returning();
       
       res.status(201).json(newRelation);
@@ -1124,6 +1160,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // キーワードのIDを取得する関数
+  async function getKeywordIdByNameOrId(nameOrId: string): Promise<string | null> {
+    try {
+      // まずIDとして検索
+      const keywordById = await db.query.keywords.findFirst({
+        where: eq(keywords.id, nameOrId),
+      });
+
+      if (keywordById) {
+        return keywordById.id;
+      }
+
+      // 次に名前として検索
+      const keywordByName = await db.query.keywords.findFirst({
+        where: eq(keywords.name, nameOrId),
+      });
+
+      return keywordByName ? keywordByName.id : null;
+    } catch (error) {
+      console.error('キーワードID検索エラー:', error);
+      return null;
+    }
+  }
+
   // ロールモデルとキーワードの関連付け作成
   app.post('/api/role-model-keywords', isAuthenticated, async (req, res) => {
     try {
@@ -1152,9 +1212,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
       
+      // キーワードIDの取得
+      // UUIDの形式かどうかをチェック
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let actualKeywordId: string;
+
+      if (uuidPattern.test(keywordId)) {
+        // すでにUUID形式ならそのまま使用
+        actualKeywordId = keywordId;
+      } else {
+        // 名前からIDを取得
+        const keyword = await db.query.keywords.findFirst({
+          where: eq(keywords.name, keywordId),
+        });
+        
+        if (!keyword) {
+          return res.status(404).json({ error: `キーワードが見つかりません(名前: ${keywordId})` });
+        }
+        
+        actualKeywordId = keyword.id;
+      }
+      
       // キーワードの存在確認
       const keyword = await db.query.keywords.findFirst({
-        where: eq(keywords.id, keywordId),
+        where: eq(keywords.id, actualKeywordId),
       });
       
       if (!keyword) {
@@ -1165,7 +1246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingRelation = await db.query.roleModelKeywords.findFirst({
         where: and(
           eq(roleModelKeywords.roleModelId, roleModelId),
-          eq(roleModelKeywords.keywordId, keywordId)
+          eq(roleModelKeywords.keywordId, actualKeywordId)
         ),
       });
       
@@ -1176,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 関連付けを作成
       const [newRelation] = await db.insert(roleModelKeywords).values({
         roleModelId,
-        keywordId,
+        keywordId: actualKeywordId,
       }).returning();
       
       res.status(201).json(newRelation);
