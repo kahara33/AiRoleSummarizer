@@ -134,9 +134,9 @@ export const roleModelIndustries = pgTable('role_model_industries', {
   roleModelId: uuid('role_model_id')
     .notNull()
     .references(() => roleModels.id, { onDelete: 'cascade' }),
-  industryId: integer('industry_id')
+  industrySubcategoryId: uuid('industry_subcategory_id')
     .notNull()
-    .references(() => industries.id, { onDelete: 'cascade' }),
+    .references(() => industrySubcategories.id, { onDelete: 'cascade' }),
 });
 
 // 中間テーブルのリレーション
@@ -145,9 +145,9 @@ export const roleModelIndustriesRelations = relations(roleModelIndustries, ({ on
     fields: [roleModelIndustries.roleModelId],
     references: [roleModels.id],
   }),
-  industry: one(industries, {
-    fields: [roleModelIndustries.industryId],
-    references: [industries.id],
+  industry: one(industrySubcategories, {
+    fields: [roleModelIndustries.industrySubcategoryId],
+    references: [industrySubcategories.id],
   }),
 }));
 
@@ -393,7 +393,7 @@ export type IndustrySubcategory = typeof industrySubcategories.$inferSelect;
 
 // 結合タイプ
 export type RoleModelWithIndustriesAndKeywords = RoleModel & {
-  industries: Industry[];
+  industries: IndustrySubcategory[];
   keywords: Keyword[];
 };
 
