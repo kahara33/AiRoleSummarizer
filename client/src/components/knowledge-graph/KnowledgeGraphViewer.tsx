@@ -19,7 +19,7 @@ import 'reactflow/dist/style.css';
 
 import { KnowledgeNode } from '@shared/schema';
 import { getHierarchicalLayout } from '@/lib/graph-layout';
-import { initSocket, addSocketListener, removeSocketListener } from '@/lib/socket';
+import { initSocket, addSocketListener, removeSocketListener, sendSocketMessage } from '@/lib/socket';
 import ConceptNode from '@/components/nodes/ConceptNode';
 import AgentNode from '@/components/nodes/AgentNode';
 import DataFlowEdge from '@/components/edges/DataFlowEdge';
@@ -215,7 +215,14 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     const socket = initSocket();
     
     // ロールモデルを購読
-    sendSocketMessage('subscribe', { roleModelId });
+    if (socket.readyState === WebSocket.OPEN) {
+      sendSocketMessage('subscribe', { roleModelId });
+    } else {
+      // ソケットが開くのを待つ
+      socket.addEventListener('open', () => {
+        sendSocketMessage('subscribe', { roleModelId });
+      });
+    }
     
     // 進捗更新リスナー
     const handleProgress = (data: any) => {
