@@ -34,10 +34,11 @@ export function initSocket(): WebSocket {
   socket.addEventListener('message', (event) => {
     try {
       const data = JSON.parse(event.data);
+      console.log('WebSocketメッセージ受信:', data);
       
       // イベントタイプに基づいてリスナーを呼び出す
       if (data.type && listeners[data.type]) {
-        listeners[data.type].forEach(callback => callback(data.payload));
+        listeners[data.type].forEach(callback => callback(data));
       }
       
       // すべてのリスナーに対してメッセージを送信

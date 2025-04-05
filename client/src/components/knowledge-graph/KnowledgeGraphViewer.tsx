@@ -214,8 +214,12 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     
     const socket = initSocket();
     
+    // ロールモデルを購読
+    sendSocketMessage('subscribe', { roleModelId });
+    
     // 進捗更新リスナー
     const handleProgress = (data: any) => {
+      console.log('Progress update received:', data);
       if (data.roleModelId === roleModelId) {
         setProgress(data.progress);
         setProgressMessage(data.message);
@@ -232,6 +236,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     
     // エージェント思考リスナー
     const handleAgentThoughts = (data: any) => {
+      console.log('Agent thoughts received:', data);
       if (data.roleModelId === roleModelId) {
         setAgentMessages(prev => [
           ...prev, 
@@ -247,6 +252,12 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     // イベントリスナーの登録
     addSocketListener('progress', handleProgress);
     addSocketListener('agent_thoughts', handleAgentThoughts);
+    
+    // 接続イベントリスナー
+    const handleConnected = (data: any) => {
+      console.log('WebSocket connected:', data);
+    }
+    addSocketListener('connected', handleConnected);
     
     return () => {
       // イベントリスナーの解除
