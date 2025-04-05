@@ -519,6 +519,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // 共有ロールモデル取得
+  app.get('/api/role-models/shared', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user.companyId) {
+        return res.status(400).json({ error: '所属組織がないため、共有ロールモデルを取得できません' });
+      }
+      
+      const sharedRoleModels = await db.query.roleModels.findMany({
+        where: and(
+          eq(roleModels.companyId, user.companyId),
+          eq(roleModels.isShared, 1)
+        ),
+        with: {
+          user: true,
+          company: true,
+          industries: {
+            with: {
+              industry: true,
+            },
+          },
+          keywords: {
+            with: {
+              keyword: true,
+            },
+          },
+        },
+        orderBy: (roleModels, { desc }) => [desc(roleModels.createdAt)],
+      });
+      
+      // 安全な情報のみを返す
+      const safeRoleModels = sharedRoleModels.map(model => ({
+        ...model,
+        user: {
+          id: model.user?.id,
+          name: model.user?.name,
+        },
+        company: model.company ? {
+          id: model.company.id,
+          name: model.company.name,
+        } : null,
+        // 業界とキーワードデータを追加
+        industries: model.industries?.map(rel => rel.industry) || [],
+        keywords: model.keywords?.map(rel => rel.keyword) || [],
+      }));
+      
+      res.json(safeRoleModels);
+    } catch (error) {
+      console.error('共有ロールモデル取得エラー:', error);
+      res.status(500).json({ error: '共有ロールモデルの取得に失敗しました' });
+    }
+  });
+  
   // ロールモデル詳細取得
   app.get('/api/role-models/:id', isAuthenticated, async (req, res) => {
     try {
