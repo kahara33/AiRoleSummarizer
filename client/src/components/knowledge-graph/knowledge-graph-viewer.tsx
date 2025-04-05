@@ -25,7 +25,7 @@ import { Slider } from "@/components/ui/slider";
 
 // 新しいReactFlowベースのコンポーネントをインポート
 import ReactFlowKnowledgeGraph from './ReactFlowKnowledgeGraph';
-import { ReactFlowProvider } from 'reactflow';
+// ReactFlowProviderは必要ないので削除
 
 interface KnowledgeGraphViewerProps {
   roleModelId: string;
@@ -196,16 +196,15 @@ export default function KnowledgeGraphViewer({
           </Button>
         </div>
 
-        <ReactFlowProvider>
-          <ReactFlowKnowledgeGraph
-            roleModelId={roleModelId}
-            onNodeClick={onNodeClick}
-            onNodeCreate={onNodeCreate}
-            onNodeExpand={onNodeExpand}
-            width={width}
-            height={height}
-          />
-        </ReactFlowProvider>
+        {/* ReactFlowインポート（ReactFlowProviderはコンポーネント内部で使用） */}
+        <ReactFlowKnowledgeGraph
+          roleModelId={roleModelId}
+          onNodeClick={onNodeClick}
+          onNodeCreate={onNodeCreate}
+          onNodeExpand={onNodeExpand}
+          width={width}
+          height={height}
+        />
       </div>
     
       {/* チャットプロンプトダイアログ */}

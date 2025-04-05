@@ -1,8 +1,12 @@
 import dagre from 'dagre';
 import { Node, Edge } from 'reactflow';
 
-// 型定義が見つからない場合のワークアラウンド
-declare module 'dagre' {}
+// ワークアラウンド: dagre型定義
+// @ts-ignore
+if (!window.__dagreTypeDefined) {
+  // @ts-ignore
+  window.__dagreTypeDefined = true;
+}
 
 // dagreを使ったグラフレイアウト
 export const getLayoutedElements = (

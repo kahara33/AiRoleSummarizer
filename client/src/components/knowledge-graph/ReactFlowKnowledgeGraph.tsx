@@ -10,10 +10,11 @@ import ReactFlow, {
   EdgeTypes,
   applyEdgeChanges,
   applyNodeChanges,
-  useReactFlow,
+  ReactFlowProvider,
   Panel,
   NodeChange,
-  EdgeChange
+  EdgeChange,
+  useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Button } from '@/components/ui/button';
@@ -48,7 +49,8 @@ interface ReactFlowKnowledgeGraphProps {
   height?: number;
 }
 
-const ReactFlowKnowledgeGraph: React.FC<ReactFlowKnowledgeGraphProps> = ({
+// 実装コンポーネント
+const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
   roleModelId,
   onNodeClick,
   onNodeCreate,
@@ -296,6 +298,17 @@ const ReactFlowKnowledgeGraph: React.FC<ReactFlowKnowledgeGraphProps> = ({
           </div>
         </Panel>
       </ReactFlow>
+    </div>
+  );
+};
+
+// ReactFlowProviderでラップしたエクスポート用コンポーネント
+const ReactFlowKnowledgeGraph: React.FC<ReactFlowKnowledgeGraphProps> = (props) => {
+  return (
+    <div style={{ width: props.width || 800, height: props.height || 600 }}>
+      <ReactFlowProvider>
+        <ReactFlowGraphContent {...props} />
+      </ReactFlowProvider>
     </div>
   );
 };
