@@ -479,6 +479,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         with: {
           user: true,
           company: true,
+          // 業界とキーワードの関連データも取得
+          industries: {
+            with: {
+              industry: true,
+            },
+          },
+          keywords: {
+            with: {
+              keyword: true,
+            },
+          },
         },
         orderBy: (roleModels, { desc }) => [desc(roleModels.createdAt)],
       });
@@ -487,13 +498,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeRoleModels = roleModelsQuery.map(model => ({
         ...model,
         user: {
-          id: model.user.id,
-          name: model.user.name,
+          id: model.user?.id,
+          name: model.user?.name,
         },
         company: model.company ? {
           id: model.company.id,
           name: model.company.name,
         } : null,
+        // 業界とキーワードデータを追加
+        industries: model.industries?.map(rel => rel.industry) || [],
+        keywords: model.keywords?.map(rel => rel.keyword) || [],
       }));
       
       res.json(safeRoleModels);
