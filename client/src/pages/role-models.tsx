@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { RoleModel, IndustrySubcategoryWithCategory, Keyword, RoleModelWithIndustriesAndKeywords } from "@shared/schema";
+import { RoleModel, Keyword, RoleModelWithIndustriesAndKeywords } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useRoute, useLocation, Link } from "wouter";
 
 import { useToast } from "@/hooks/use-toast";
-import AppLayout from "@/components/layout/app-layout";
+
 import RoleModelForm from "@/components/role-models/role-model-form";
 import {
   Card,
@@ -124,7 +124,16 @@ export default function RoleModelsPage() {
   };
 
   const handleEditClick = (model: RoleModel) => {
-    setEditingModel(model);
+    // RoleModelFormコンポーネントが必要とするプロパティだけを渡す
+    const formModel = {
+      id: model.id,
+      name: model.name,
+      description: model.description,
+      isShared: model.isShared || 0,
+      industries: model.industries || [],
+      keywords: model.keywords || []
+    };
+    setEditingModel(formModel);
     setIsEditOpen(true);
   };
 
@@ -140,7 +149,7 @@ export default function RoleModelsPage() {
   };
 
   return (
-    <AppLayout>
+    <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold font-heading text-gray-900 dark:text-gray-100">
@@ -416,6 +425,6 @@ export default function RoleModelsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppLayout>
+    </div>
   );
 }

@@ -2,7 +2,6 @@ import React, { Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import AppLayout from '@/components/layout/app-layout';
 import { Loader2, Building2, User, UserCog } from 'lucide-react';
 
 // 設定コンポーネントを動的インポートして遅延ロードする
@@ -16,7 +15,6 @@ const SettingsPage: React.FC = () => {
   const isAdmin = user?.role === USER_ROLES.ADMIN;
 
   return (
-    <AppLayout>
       <div className="container mx-auto py-6 space-y-8">
         <div>
           <h1 className="text-3xl font-bold">設定</h1>
@@ -98,7 +96,6 @@ const SettingsPage: React.FC = () => {
           )}
         </Tabs>
       </div>
-    </AppLayout>
   );
 };
 
