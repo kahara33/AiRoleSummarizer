@@ -2,11 +2,12 @@ import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
 import { registerRoutes } from './routes';
-import { db } from './db';
+import { db, pool } from './db';
 import { users, organizations, companies } from '@shared/schema';
 import { hashPassword } from './auth';
 import { closeNeo4j } from './neo4j';
 import { eq, or } from 'drizzle-orm';
+import { setupVite } from './vite';
 
 // Express アプリケーションの初期化
 const app = express();
@@ -79,35 +80,60 @@ async function initializeAdminUser() {
   }
 }
 
+// プロセス終了時のクリーンアップ関数
+async function gracefulShutdown(signal: string, server: any) {
+  console.log(`${signal} シグナルを受信しました。サーバーをシャットダウンしています...`);
+  
+  try {
+    // Neo4j接続のクローズ
+    await closeNeo4j();
+    
+    // PostgreSQL接続プールのクローズ
+    await pool.end();
+    console.log('データベース接続を終了しました');
+  } catch (err) {
+    console.error('リソース解放エラー:', err);
+  }
+  
+  // サーバーの終了
+  server.close(() => {
+    console.log('サーバーをシャットダウンしました');
+    process.exit(0);
+  });
+}
+
 // サーバーの開始
 async function startServer() {
   try {
     // ルートの登録
     const server = await registerRoutes(app);
     
+    // 開発環境でViteのセットアップ
+    if (process.env.NODE_ENV !== 'production') {
+      await setupVite(app, server);
+    }
+    
     // 初期管理者ユーザーの作成
     await initializeAdminUser();
     
     // サーバーの起動
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 5000;
     
     server.listen(PORT, () => {
       console.log(`サーバーがポート ${PORT} で起動しました`);
     });
     
     // プロセス終了時のクリーンアップ
-    process.on('SIGINT', async () => {
-      console.log('サーバーをシャットダウンしています...');
-      
-      // Neo4j接続のクローズ
-      await closeNeo4j();
-      
-      // サーバーの終了
-      server.close(() => {
-        console.log('サーバーをシャットダウンしました');
-        process.exit(0);
-      });
+    process.on('SIGINT', () => gracefulShutdown('SIGINT', server));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM', server));
+    process.on('SIGHUP', () => gracefulShutdown('SIGHUP', server));
+    
+    // 予期しないエラーの処理
+    process.on('uncaughtException', (error) => {
+      console.error('予期しないエラーが発生しました:', error);
+      gracefulShutdown('uncaughtException', server);
     });
+    
   } catch (error) {
     console.error('サーバー起動エラー:', error);
     process.exit(1);

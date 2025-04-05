@@ -1,5 +1,5 @@
 import { Express, Request, Response, NextFunction } from 'express';
-import { Server } from 'http';
+import { Server, createServer } from 'http';
 import { setupWebSocketServer, sendMessageToRoleModelViewers, sendAgentThoughts } from './websocket';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole } from './auth';
@@ -16,7 +16,7 @@ import { generateKnowledgeGraphForNode } from './azure-openai';
 // ルートの登録
 export async function registerRoutes(app: Express): Promise<Server> {
   // HTTPサーバーの作成
-  const httpServer = new Server(app);
+  const httpServer = createServer(app);
   
   // 認証のセットアップ
   setupAuth(app);
