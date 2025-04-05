@@ -1,14 +1,20 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Home, Network, Users, Brain, Settings, LogOut } from 'lucide-react';
+import { Home, Network, Users, Brain, Settings, LogOut, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 interface NavbarProps {
   username?: string;
   orgName?: string;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ username = '管理者', orgName = 'EVERYS' }) => {
+const Navbar: React.FC<NavbarProps> = ({ username: propUsername, orgName: propOrgName }) => {
+  const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
+  
+  // propsより認証データを優先
+  const username = user?.name || propUsername || '管理者';
+  const orgName = propOrgName || 'EVERYS';
   
   // 現在のルートがアクティブかどうかをチェック
   const isActive = (path: string): boolean => {
@@ -94,8 +100,17 @@ const Navbar: React.FC<NavbarProps> = ({ username = '管理者', orgName = 'EVER
             <div className="font-medium">{username}</div>
             <div className="text-sm text-gray-500">{orgName}</div>
           </div>
-          <button className="ml-auto text-gray-400 hover:text-gray-600">
-            <LogOut size={18} />
+          <button 
+            className="ml-auto text-gray-400 hover:text-gray-600" 
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+            title="ログアウト"
+          >
+            {logoutMutation.isPending ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <LogOut size={18} />
+            )}
           </button>
         </div>
       </div>
