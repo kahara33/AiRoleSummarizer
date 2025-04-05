@@ -1049,7 +1049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // WebSocketでリアルタイム更新を通知
       sendMessageToRoleModelViewers('graph-update', { 
-        type: 'expand', 
+        updateType: 'expand', 
         nodeId,
         data: {
           nodes: newNodes,

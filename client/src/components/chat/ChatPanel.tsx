@@ -46,64 +46,70 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     
     // エージェントの思考プロセス
     const handleAgentThoughts = (data: any) => {
+      console.log('Agent thoughts received in ChatPanel:', data);
       setMessages(msgs => [...msgs, {
         id: `thought-${Date.now()}`,
         type: 'thought',
-        agentId: data.agentId,
-        agentName: data.agentName,
-        agentType: data.agentType,
-        content: data.thoughts,
-        timestamp: data.timestamp,
-        relatedNodes: [data.agentId]
+        agentId: data.agentId || 'unknown',
+        agentName: data.agentName || data.agent,
+        agentType: data.agentType || 'system',
+        content: data.thoughts || 'No thoughts content',
+        timestamp: data.timestamp || new Date().toISOString(),
+        relatedNodes: [data.agentId || 'unknown']
       }]);
     };
     
     // エージェント間の通信
     const handleAgentCommunication = (data: any) => {
+      console.log('Agent communication received:', data);
       setMessages(msgs => [...msgs, {
         id: `comm-${Date.now()}`,
         type: 'communication',
-        sourceAgentId: data.sourceAgentId,
-        sourceAgentName: data.sourceAgentName,
-        sourceAgentType: data.sourceAgentType,
-        targetAgentId: data.targetAgentId,
-        targetAgentName: data.targetAgentName,
-        targetAgentType: data.targetAgentType,
-        content: data.message,
-        timestamp: data.timestamp,
-        relatedNodes: [data.sourceAgentId, data.targetAgentId]
+        sourceAgentId: data.sourceAgentId || 'unknown',
+        sourceAgentName: data.sourceAgentName || 'Unknown Source',
+        sourceAgentType: data.sourceAgentType || 'system',
+        targetAgentId: data.targetAgentId || 'unknown',
+        targetAgentName: data.targetAgentName || 'Unknown Target',
+        targetAgentType: data.targetAgentType || 'system',
+        content: data.message || 'No message content',
+        timestamp: data.timestamp || new Date().toISOString(),
+        relatedNodes: [data.sourceAgentId || 'unknown', data.targetAgentId || 'unknown']
       }]);
     };
     
     // 処理進捗状況
     const handleProgressUpdate = (data: any) => {
+      console.log('Progress update received in ChatPanel:', data);
       setMessages(msgs => [...msgs, {
         id: `progress-${Date.now()}`,
         type: 'progress',
-        stage: data.stage,
-        progress: data.progress,
-        content: `${getStageLabel(data.stage)} - ${data.progress}%: ${data.details.message || ''}`,
-        timestamp: data.timestamp,
-        relatedNodes: [data.stage]
+        stage: data.stage || 'system',
+        progress: data.progress || 0,
+        content: `${getStageLabel(data.stage || 'system')} - ${data.progress || 0}%: ${data.message || ''}`,
+        timestamp: data.timestamp || new Date().toISOString(),
+        relatedNodes: [data.stage || 'system']
       }]);
     };
     
     // グラフ更新
     const handleGraphUpdate = (data: any) => {
+      console.log('Graph update received:', data);
+      const nodeCount = data.data?.nodes?.length || 0;
+      const edgeCount = data.data?.edges?.length || 0;
       setMessages(msgs => [...msgs, {
         id: `graph-${Date.now()}`,
         type: 'graph-update',
-        content: `ナレッジグラフが更新されました: ${data.nodes.length}ノード, ${data.edges.length}エッジ`,
-        timestamp: data.timestamp,
+        content: `ナレッジグラフが更新されました: ${nodeCount}ノード, ${edgeCount}エッジ`,
+        timestamp: data.timestamp || new Date().toISOString(),
         relatedNodes: ['knowledge-graph']
       }]);
     };
     
     // イベントリスナーの登録
-    addSocketListener('agent-thoughts', handleAgentThoughts);
+    addSocketListener('agent_thoughts', handleAgentThoughts);
     addSocketListener('agent-communication', handleAgentCommunication);
-    addSocketListener('progress-update', handleProgressUpdate);
-    addSocketListener('knowledge-graph-update', handleGraphUpdate);
+    addSocketListener('progress', handleProgressUpdate);
+    addSocketListener('graph-update', handleGraphUpdate);
     
     // 初期メッセージの追加（デモ用）
     setTimeout(() => {
@@ -133,10 +139,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     
     return () => {
       // イベントリスナーの解除
-      removeSocketListener('agent-thoughts', handleAgentThoughts);
+      removeSocketListener('agent_thoughts', handleAgentThoughts);
       removeSocketListener('agent-communication', handleAgentCommunication);
-      removeSocketListener('progress-update', handleProgressUpdate);
-      removeSocketListener('knowledge-graph-update', handleGraphUpdate);
+      removeSocketListener('progress', handleProgressUpdate);
+      removeSocketListener('graph-update', handleGraphUpdate);
     };
   }, []);
   

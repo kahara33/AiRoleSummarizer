@@ -45,6 +45,20 @@ export function initSocket(): WebSocket {
       if (listeners['all']) {
         listeners['all'].forEach(callback => callback(data));
       }
+      
+      // 接続確認メッセージを受け取ったら、ロールモデルの購読テストを送信
+      if (data.type === 'connected') {
+        console.log('WebSocket接続確認を受信しました。購読テストを送信します。');
+        // テスト用のサブスクリプションメッセージを送信（実際のロールモデルIDに置き換える）
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          const testRoleModelId = '9c1bc76d-ff4c-4f87-844f-ac77dafa63b4'; // ログに表示されるIDを使用
+          socket.send(JSON.stringify({
+            type: 'subscribe',
+            roleModelId: testRoleModelId
+          }));
+          console.log(`テスト購読メッセージを送信: ${testRoleModelId}`);
+        }
+      }
     } catch (error) {
       console.error('WebSocketメッセージの解析エラー:', error);
     }

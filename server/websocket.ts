@@ -128,54 +128,59 @@ export function sendToUser(userId: string, message: any): void {
 }
 
 /**
- * 特定のロールモデルを購読しているクライアントに進捗更新を送信
- * @param message 進捗メッセージ
- * @param progress 進捗パーセンテージ (0-100)
+ * 特定のロールモデルを購読しているクライアントにメッセージを送信
+ * @param type メッセージタイプ
+ * @param payload メッセージ内容
  * @param roleModelId ロールモデルID
  */
-export function sendMessageToRoleModelViewers(message: any, roleModelId: string): void {
+export function sendMessageToRoleModelViewers(type: string, payload: any, roleModelId: string): void {
+  console.log(`Sending ${type} message to roleModel ${roleModelId} subscribers:`, payload);
+  
+  const message = {
+    type,
+    ...payload,
+    roleModelId,
+    timestamp: new Date().toISOString()
+  };
+  
   if (roleModelSubscriptions.has(roleModelId)) {
     const subscribers = roleModelSubscriptions.get(roleModelId)!;
+    console.log(`Sending to ${subscribers.size} subscribers`);
     
     for (const socket of subscribers) {
       if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(message));
+        try {
+          socket.send(JSON.stringify(message));
+        } catch (err) {
+          console.error('WebSocket送信エラー:', err);
+        }
       }
     }
+  } else {
+    console.log(`No subscribers found for roleModel ${roleModelId}`);
   }
 }
 
 export function sendAgentThoughts(agentName: string, thoughts: string, roleModelId?: string): void {
-  const message = {
-    type: 'agent_thoughts',
-    agentName,
-    thoughts,
-    timestamp: new Date().toISOString()
-  };
-  
   console.log(`エージェント思考: ${agentName} - ${thoughts.substring(0, 50)}...`);
   
   if (roleModelId) {
-    sendMessageToRoleModelViewers(message, roleModelId);
+    const payload = {
+      agentName,
+      thoughts
+    };
+    
+    sendMessageToRoleModelViewers('agent_thoughts', payload, roleModelId);
   }
 }
 
 export function sendProgressUpdate(message: string, progress: number, roleModelId: string): void {
   console.log(`進捗更新: ${message} (${progress}%) - ロールモデル ${roleModelId}`);
   
-  if (roleModelSubscriptions.has(roleModelId)) {
-    const subscribers = roleModelSubscriptions.get(roleModelId)!;
-    
-    for (const socket of subscribers) {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-          type: 'progress',
-          message,
-          progress,
-          roleModelId,
-          timestamp: new Date().toISOString()
-        }));
-      }
-    }
-  }
+  const payload = {
+    message,
+    progress
+  };
+  
+  sendMessageToRoleModelViewers('progress', payload, roleModelId);
 }
