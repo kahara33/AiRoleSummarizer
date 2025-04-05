@@ -25,11 +25,9 @@ export function ProtectedRoute({
   }
 
   if (!user) {
-    return (
-      <Route path={path}>
-        {() => <Redirect to="/auth" />}
-      </Route>
-    );
+    // wouter's Redirectの代わりにwindow.locationを使用
+    window.location.href = "/auth";
+    return null;
   }
 
   return (

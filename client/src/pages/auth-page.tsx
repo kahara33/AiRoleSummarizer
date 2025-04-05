@@ -37,9 +37,9 @@ export default function AuthPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate("/");
+      window.location.href = "/";
     }
-  }, [user, navigate]);
+  }, [user]);
 
   // Setup login form
   const loginForm = useForm<LoginData>({

@@ -54,6 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: (user: User) => {
       console.log("ログイン成功:", user);
       queryClient.setQueryData(["/api/user"], user);
+      // ログイン成功後にホーム画面に遷移
+      window.location.href = "/";
       toast({
         title: "ログイン成功",
         description: `${user.name}さん、ようこそ！`,
