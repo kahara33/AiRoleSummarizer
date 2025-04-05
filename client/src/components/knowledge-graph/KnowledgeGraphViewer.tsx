@@ -240,14 +240,18 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     
     const socket = initSocket();
     
-    // ロールモデルを購読
-    if (socket.readyState === WebSocket.OPEN) {
-      sendSocketMessage('subscribe', { roleModelId });
-    } else {
-      // ソケットが開くのを待つ
-      socket.addEventListener('open', () => {
+    // ロールモデルを購読（UUIDの検証を追加）
+    if (roleModelId && roleModelId !== 'default') {
+      if (socket.readyState === WebSocket.OPEN) {
         sendSocketMessage('subscribe', { roleModelId });
-      });
+      } else {
+        // ソケットが開くのを待つ
+        socket.addEventListener('open', () => {
+          sendSocketMessage('subscribe', { roleModelId });
+        });
+      }
+    } else {
+      console.warn('有効なロールモデルIDがありません。WebSocket購読をスキップします。');
     }
     
     // 進捗更新リスナー
