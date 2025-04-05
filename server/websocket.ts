@@ -1,244 +1,182 @@
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
-import url from 'url';
+import { parse } from 'cookie';
 import { verifySession } from './auth';
 
-interface Client {
-  id: string;
-  ws: WebSocket;
-  userId?: string;
-  roleModelId?: string;
-}
+// 接続中のクライアントソケットを格納するマップ
+// ユーザーID -> そのユーザーが開いている全WebSocket接続
+const clients = new Map<string, Set<WebSocket>>();
 
-// クライアント管理
-let clients: Client[] = [];
+// ロールモデルID -> そのロールモデルに関心のあるWebSocket接続
+const roleModelSubscriptions = new Map<string, Set<WebSocket>>();
 
 /**
- * WebSocketサーバーの初期化
- * @param server HTTPサーバーインスタンス
+ * WebSocketサーバーをセットアップ
+ * @param httpServer HTTPサーバー
  */
-export function setupWebSocketServer(server: HttpServer): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+export function setupWebSocketServer(httpServer: HttpServer): void {
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/ws'
+  });
 
-  console.log('WebSocketサーバーが初期化されました');
-
-  // 接続時の処理
-  wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
-    // クライアントID生成
-    const clientId = generateClientId();
+  wss.on('connection', async (ws, req) => {
+    console.log('WebSocket接続を受け付けました');
     
-    // セッションCookieからユーザーIDを取得
-    const cookies = parseCookies(req);
-    const sessionId = cookies['connect.sid'];
-    const userId = sessionId ? await verifySession(sessionId) : null;
+    let userId: string | null = null;
+    let roleModelId: string | null = null;
     
-    // クエリパラメータから表示中のロールモデルIDを取得
-    const queryParams = url.parse(req.url || '', true).query;
-    const roleModelId = queryParams.roleModelId as string;
+    // クッキーからセッションIDを取得し、ユーザー認証を行う
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+      const cookies = parse(cookieHeader);
+      const sessionId = cookies['connect.sid'];
+      
+      if (sessionId) {
+        try {
+          userId = await verifySession(sessionId);
+          console.log(`WebSocket: ユーザー ${userId} が認証されました`);
+        } catch (error) {
+          console.error('WebSocket: セッション検証エラー:', error);
+        }
+      }
+    }
     
-    // クライアント情報を記録
-    const client: Client = {
-      id: clientId,
-      ws,
-      userId: userId || undefined,
-      roleModelId: roleModelId,
-    };
+    // 認証に失敗した場合は接続を閉じる
+    if (!userId) {
+      console.log('WebSocket: 未認証の接続をクローズします');
+      ws.close(1008, '認証が必要です');
+      return;
+    }
     
-    clients.push(client);
+    // クライアントマップに追加
+    if (!clients.has(userId)) {
+      clients.set(userId, new Set());
+    }
+    clients.get(userId)!.add(ws);
     
-    console.log(`新しいWebSocket接続: クライアントID=${clientId}, ユーザーID=${userId || 'ゲスト'}`);
-    
-    // 認証状態をクライアントに通知
-    const authStatus = {
-      type: 'auth-status',
-      payload: {
-        authenticated: !!userId,
-        userId: userId,
-      },
-    };
-    
-    ws.send(JSON.stringify(authStatus));
-    
-    // クライアントがメッセージを送信した時の処理
+    // クライアントからのメッセージを処理
     ws.on('message', (message: string) => {
       try {
         const data = JSON.parse(message);
-        console.log(`クライアント ${clientId} からのメッセージ:`, data);
         
-        // 必要に応じてメッセージを処理
-        handleClientMessage(client, data);
+        // ロールモデルの購読
+        if (data.type === 'subscribe' && data.roleModelId) {
+          roleModelId = data.roleModelId;
+          console.log(`WebSocket: ユーザー ${userId} がロールモデル ${roleModelId} を購読しました`);
+          
+          if (!roleModelSubscriptions.has(roleModelId)) {
+            roleModelSubscriptions.set(roleModelId, new Set());
+          }
+          roleModelSubscriptions.get(roleModelId)!.add(ws);
+          
+          // 購読確認のレスポンスを送信
+          ws.send(JSON.stringify({
+            type: 'subscribed',
+            roleModelId: roleModelId
+          }));
+        }
       } catch (error) {
-        console.error('WebSocketメッセージの解析エラー:', error);
+        console.error('WebSocket: メッセージ処理エラー:', error);
       }
     });
     
-    // 接続が閉じられた時の処理
+    // 接続クローズ時の処理
     ws.on('close', () => {
-      console.log(`クライアント ${clientId} の接続が閉じられました`);
-      clients = clients.filter(c => c.id !== clientId);
+      console.log(`WebSocket: ユーザー ${userId} の接続が閉じられました`);
+      
+      // クライアントリストから削除
+      if (userId && clients.has(userId)) {
+        clients.get(userId)!.delete(ws);
+        if (clients.get(userId)!.size === 0) {
+          clients.delete(userId);
+        }
+      }
+      
+      // サブスクリプションリストから削除
+      if (roleModelId && roleModelSubscriptions.has(roleModelId)) {
+        roleModelSubscriptions.get(roleModelId)!.delete(ws);
+        if (roleModelSubscriptions.get(roleModelId)!.size === 0) {
+          roleModelSubscriptions.delete(roleModelId);
+        }
+      }
     });
     
-    // エラー処理
-    ws.on('error', (error) => {
-      console.error(`クライアント ${clientId} でエラーが発生:`, error);
-    });
+    // 初期状態の通知
+    ws.send(JSON.stringify({
+      type: 'connected',
+      userId: userId
+    }));
   });
-
-  return wss;
-}
-
-/**
- * 全クライアントにメッセージをブロードキャスト
- * @param type メッセージタイプ
- * @param payload メッセージデータ
- * @param filter 特定の条件でフィルタリング
- */
-export function broadcastMessage(
-  type: string,
-  payload: any,
-  filter?: (client: Client) => boolean
-): void {
-  const message = JSON.stringify({ type, payload });
   
-  clients.forEach(client => {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      if (!filter || filter(client)) {
-        client.ws.send(message);
-      }
-    }
-  });
-}
-
-/**
- * 特定のロールモデル閲覧者にメッセージを送信
- * @param type メッセージタイプ
- * @param payload メッセージデータ
- * @param roleModelId ロールモデルID
- */
-export function sendMessageToRoleModelViewers(
-  type: string,
-  payload: any,
-  roleModelId: string
-): void {
-  broadcastMessage(type, payload, client => client.roleModelId === roleModelId);
-}
-
-/**
- * エージェントの思考プロセスを送信
- * @param agentName エージェント名
- * @param thought 思考内容
- * @param roleModelId ロールモデルID (オプション)
- */
-export function sendAgentThoughts(
-  agentName: string,
-  thought: string,
-  roleModelId?: string
-): void {
-  const payload = {
-    agent: agentName,
-    thought: thought,
-    timestamp: new Date().toISOString()
-  };
-  
-  if (roleModelId) {
-    sendMessageToRoleModelViewers('agent-thoughts', payload, roleModelId);
-  } else {
-    broadcastMessage('agent-thoughts', payload);
-  }
-}
-
-/**
- * 進捗状況を送信
- * @param message 進捗メッセージ
- * @param percent 完了パーセンテージ (0-100)
- * @param roleModelId ロールモデルID (オプション)
- */
-export function sendProgressUpdate(
-  message: string,
-  percent: number,
-  roleModelId?: string
-): void {
-  const payload = {
-    message,
-    percent: Math.min(100, Math.max(0, percent)),
-    timestamp: new Date().toISOString()
-  };
-  
-  if (roleModelId) {
-    sendMessageToRoleModelViewers('progress-update', payload, roleModelId);
-  } else {
-    broadcastMessage('progress-update', payload);
-  }
+  console.log('WebSocketサーバーが起動しました');
 }
 
 /**
  * 特定のユーザーにメッセージを送信
- * @param type メッセージタイプ
- * @param payload メッセージデータ
  * @param userId ユーザーID
+ * @param message 送信するメッセージ
  */
-export function sendMessageToUser(
-  type: string,
-  payload: any,
-  userId: string
-): void {
-  broadcastMessage(type, payload, client => client.userId === userId);
-}
-
-/**
- * クライアントメッセージの処理
- * @param client クライアント情報
- * @param data メッセージデータ
- */
-function handleClientMessage(client: Client, data: any): void {
-  const { type, payload } = data;
-  
-  switch (type) {
-    case 'subscribe-role-model':
-      // ロールモデル購読のリクエスト
-      client.roleModelId = payload.roleModelId;
-      console.log(`クライアント ${client.id} がロールモデル ${payload.roleModelId} を購読`);
-      break;
-      
-    case 'agent-control':
-      // エージェント制御コマンド
-      if (client.userId) {
-        // 認証済みユーザーからのコマンドのみ処理
-        console.log(`ユーザー ${client.userId} からのエージェント制御コマンド:`, payload);
-        // ここでエージェント制御のロジックを呼び出す
+export function sendToUser(userId: string, message: any): void {
+  if (clients.has(userId)) {
+    const userSockets = clients.get(userId)!;
+    for (const socket of userSockets) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
       }
-      break;
+    }
   }
 }
 
 /**
- * 一意のクライアントIDを生成
+ * 特定のロールモデルを購読しているクライアントに進捗更新を送信
+ * @param message 進捗メッセージ
+ * @param progress 進捗パーセンテージ (0-100)
+ * @param roleModelId ロールモデルID
  */
-function generateClientId(): string {
-  return `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+export function sendMessageToRoleModelViewers(message: any, roleModelId: string): void {
+  if (roleModelSubscriptions.has(roleModelId)) {
+    const subscribers = roleModelSubscriptions.get(roleModelId)!;
+    
+    for (const socket of subscribers) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
+      }
+    }
+  }
 }
 
-/**
- * リクエストヘッダーからCookieを解析
- * @param req リクエストオブジェクト
- * @returns Cookieオブジェクト
- */
-function parseCookies(req: IncomingMessage): Record<string, string> {
-  const cookies: Record<string, string> = {};
-  const cookieHeader = req.headers.cookie;
+export function sendAgentThoughts(agentName: string, thoughts: string, roleModelId?: string): void {
+  const message = {
+    type: 'agent_thoughts',
+    agentName,
+    thoughts,
+    timestamp: new Date().toISOString()
+  };
   
-  if (cookieHeader) {
-    cookieHeader.split(';').forEach(cookie => {
-      const parts = cookie.trim().split('=');
-      if (parts.length >= 2) {
-        const name = parts[0];
-        // '='が複数ある場合、最初の'='以降をすべて値として扱う
-        const value = parts.slice(1).join('=');
-        cookies[name] = decodeURIComponent(value);
-      }
-    });
+  console.log(`エージェント思考: ${agentName} - ${thoughts.substring(0, 50)}...`);
+  
+  if (roleModelId) {
+    sendMessageToRoleModelViewers(message, roleModelId);
   }
+}
+
+export function sendProgressUpdate(message: string, progress: number, roleModelId: string): void {
+  console.log(`進捗更新: ${message} (${progress}%) - ロールモデル ${roleModelId}`);
   
-  return cookies;
+  if (roleModelSubscriptions.has(roleModelId)) {
+    const subscribers = roleModelSubscriptions.get(roleModelId)!;
+    
+    for (const socket of subscribers) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'progress',
+          message,
+          progress,
+          roleModelId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+    }
+  }
 }

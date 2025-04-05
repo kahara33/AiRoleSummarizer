@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import ChatPanel from '@/components/chat/ChatPanel';
-import { KnowledgeNode } from '@shared/schema';
+import { KnowledgeNode, Keyword, KnowledgeEdge } from '@shared/schema';
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface KnowledgeGraphPageProps {
   id?: string;
@@ -11,7 +15,19 @@ interface KnowledgeGraphPageProps {
 const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const roleModelId = id || 'default';
+  const { toast } = useToast();
+
+  // Fetch role model data to get industries and keywords
+  const { data: roleModel } = useQuery({
+    queryKey: [`/api/role-models/${roleModelId}`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/role-models/${roleModelId}`);
+      return await res.json();
+    },
+    enabled: !!roleModelId && roleModelId !== 'default'
+  });
 
   // ノード選択時の処理
   const handleNodeSelect = (node: KnowledgeNode) => {
@@ -22,6 +38,66 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
   // サイドパネルの表示/非表示を切り替え
   const togglePanel = () => {
     setIsPanelOpen(!isPanelOpen);
+  };
+
+  // AI知識グラフ生成Mutation
+  const generateGraphMutation = useMutation({
+    mutationFn: async () => {
+      setIsGenerating(true);
+      
+      const res = await apiRequest(
+        "POST", 
+        `/api/role-models/${roleModelId}/generate-knowledge-graph`
+      );
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`グラフ生成に失敗しました: ${errorText}`);
+      }
+      
+      try {
+        const result = await res.json();
+        return result as { 
+          nodes: KnowledgeNode[], 
+          edges: KnowledgeEdge[] 
+        };
+      } catch (error) {
+        console.error("APIレスポンスの解析中にエラーが発生しました:", error);
+        throw new Error("APIレスポンスの解析に失敗しました");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/knowledge-graph/${roleModelId}`]
+      });
+      toast({
+        title: "知識グラフが自動生成されました",
+        description: "AIによって役割モデルの知識構造が生成されました。",
+      });
+      setIsGenerating(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "エラー",
+        description: error.message || "知識グラフの自動生成に失敗しました。",
+        variant: "destructive"
+      });
+      setIsGenerating(false);
+    }
+  });
+
+  // グラフ生成ハンドラ
+  const handleGenerateGraph = () => {
+    if (roleModelId === 'default') {
+      toast({
+        title: "エラー",
+        description: "有効なロールモデルが選択されていません。",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    generateGraphMutation.mutate();
   };
 
   return (
@@ -36,6 +112,18 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
           )}
         </h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleGenerateGraph()}
+            disabled={isGenerating}
+            className={`px-3 py-1 rounded text-sm flex items-center gap-1 ${
+              isGenerating 
+                ? 'bg-gray-300 text-gray-600 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600'
+            }`}
+          >
+            {isGenerating && <Loader2 className="h-3 w-3 animate-spin" />}
+            {isGenerating ? 'AI生成中...' : 'AIで知識グラフ生成'}
+          </button>
           <button
             onClick={togglePanel}
             className={`px-3 py-1 rounded text-sm ${

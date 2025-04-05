@@ -1,5 +1,9 @@
 import { storage } from './storage';
-import { InsertSummary, Tag, InsertKnowledgeNode, InsertKnowledgeEdge } from '@shared/schema';
+import { 
+  InsertKnowledgeNode, 
+  InsertKnowledgeEdge,
+  KnowledgeGraphData 
+} from '@shared/schema';
 
 import fetch from 'node-fetch';
 
@@ -240,35 +244,15 @@ type KnowledgeGraphData = {
 
 // Function to generate a knowledge graph for a role model using Azure OpenAI
 export async function generateKnowledgeGraph(
-  roleModelId: string,
   roleName: string,
-  roleDescription: string
-): Promise<boolean> {
+  roleDescription: string,
+  industries: string[],
+  keywords: string[]
+): Promise<KnowledgeGraphData> {
   try {
     console.log(`Generating knowledge graph for role model: ${roleName}`);
-    
-    // 業界とキーワードデータを取得
-    let industries: string[] = [];
-    let keywords: string[] = [];
-    
-    try {
-      // 業界データを取得
-      const roleModelIndustries = await storage.getRoleModelIndustriesWithData(roleModelId);
-      if (roleModelIndustries && roleModelIndustries.length > 0) {
-        industries = roleModelIndustries.map(i => i.name);
-      }
-      
-      // キーワードデータを取得
-      const roleModelKeywords = await storage.getRoleModelKeywordsWithData(roleModelId);
-      if (roleModelKeywords && roleModelKeywords.length > 0) {
-        keywords = roleModelKeywords.map(k => k.name);
-      }
-      
-      console.log(`Retrieved ${industries.length} industries and ${keywords.length} keywords for role model`);
-    } catch (error) {
-      console.error("Error retrieving industries and keywords:", error);
-      // エラーが発生しても処理を続行 - 空の配列を使用
-    }
+    console.log(`Industries: ${industries.join(', ')}`);
+    console.log(`Keywords: ${keywords.join(', ')}`);
     
     let graphData: KnowledgeGraphData;
     

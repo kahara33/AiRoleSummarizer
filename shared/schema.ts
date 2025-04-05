@@ -398,6 +398,18 @@ export type RoleModelWithIndustriesAndKeywords = RoleModel & {
 };
 
 export type KnowledgeGraphData = {
-  nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
+  nodes: {
+    name: string;
+    level: number;
+    type?: string;
+    parentId?: string | null;
+    description?: string | null;
+    color?: string | null;
+  }[];
+  edges: {
+    source: string;
+    target: string;
+    label?: string | null;
+    strength?: number;
+  }[];
 };

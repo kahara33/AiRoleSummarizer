@@ -23,6 +23,9 @@ import { initSocket, addSocketListener, removeSocketListener } from '@/lib/socke
 import ConceptNode from '@/components/nodes/ConceptNode';
 import AgentNode from '@/components/nodes/AgentNode';
 import DataFlowEdge from '@/components/edges/DataFlowEdge';
+import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Loader2, ZapIcon } from 'lucide-react';
 
 interface KnowledgeGraphViewerProps {
   roleModelId: string;
@@ -170,50 +173,192 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     []
   );
 
+  // AIによるグラフ生成
+  const [generating, setGenerating] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [agentMessages, setAgentMessages] = useState<{agent: string, message: string, timestamp: string}[]>([]);
+
+  // AI生成リクエスト
+  const generateKnowledgeGraph = useCallback(async () => {
+    try {
+      setGenerating(true);
+      setProgress(0);
+      setProgressMessage('知識グラフの生成を開始しています...');
+      setAgentMessages([]);
+      
+      // 生成リクエストを送信
+      const response = await fetch(`/api/knowledge-graph/generate/${roleModelId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`知識グラフの生成リクエストに失敗しました: ${response.statusText}`);
+      }
+      
+      // WebSocketで進捗が通知されるので、レスポンスは特に処理しない
+      
+    } catch (err) {
+      console.error('知識グラフ生成エラー:', err);
+      setProgressMessage(err instanceof Error ? err.message : '不明なエラーが発生しました');
+      setGenerating(false);
+    }
+  }, [roleModelId]);
+
+  // WebSocketから進捗と結果を受信
+  useEffect(() => {
+    if (!roleModelId) return;
+    
+    const socket = initSocket();
+    
+    // 進捗更新リスナー
+    const handleProgress = (data: any) => {
+      if (data.roleModelId === roleModelId) {
+        setProgress(data.progress);
+        setProgressMessage(data.message);
+        
+        // 完了時
+        if (data.progress >= 100) {
+          setTimeout(() => {
+            setGenerating(false);
+            fetchGraphData();
+          }, 1000);
+        }
+      }
+    };
+    
+    // エージェント思考リスナー
+    const handleAgentThoughts = (data: any) => {
+      if (data.roleModelId === roleModelId) {
+        setAgentMessages(prev => [
+          ...prev, 
+          {
+            agent: data.agentName, 
+            message: data.thoughts,
+            timestamp: data.timestamp
+          }
+        ]);
+      }
+    };
+    
+    // イベントリスナーの登録
+    addSocketListener('progress', handleProgress);
+    addSocketListener('agent_thoughts', handleAgentThoughts);
+    
+    return () => {
+      // イベントリスナーの解除
+      removeSocketListener('progress', handleProgress);
+      removeSocketListener('agent_thoughts', handleAgentThoughts);
+    };
+  }, [roleModelId, fetchGraphData]);
+
   return (
-    <div style={{ width, height }}>
-      {loading ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+    <div className="flex flex-col w-full" style={{ height }}>
+      <div className="flex justify-between items-center mb-2 px-4 py-2 bg-muted/50 rounded-lg">
+        <h3 className="text-lg font-semibold">知識グラフビューワー</h3>
+        {!generating && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2">
+                <ZapIcon className="w-4 h-4" />
+                AIで生成
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>知識グラフの自動生成</AlertDialogTitle>
+                <AlertDialogDescription>
+                  AIを使用して知識グラフを自動的に生成します。ロールモデル、業界、キーワードから情報を分析し、階層的な知識グラフを生成します。
+                  <br /><br />
+                  この処理には数分かかることがあります。進捗はリアルタイムで表示されます。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                <AlertDialogAction onClick={generateKnowledgeGraph}>生成開始</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+      
+      {generating ? (
+        <div className="flex-1 flex flex-col items-center justify-center bg-white/50 rounded-lg p-8">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <div className="w-full max-w-md">
+            <div className="flex justify-between mb-2">
+              <span className="text-sm font-medium">{progressMessage}</span>
+              <span className="text-sm font-medium">{progress}%</span>
+            </div>
+            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+          
+          {agentMessages.length > 0 && (
+            <div className="mt-8 w-full max-w-md">
+              <h4 className="text-md font-medium mb-2">AI思考プロセス:</h4>
+              <div className="bg-muted/30 rounded-lg p-4 max-h-60 overflow-y-auto text-sm">
+                {agentMessages.map((msg, idx) => (
+                  <div key={idx} className="mb-3 last:mb-0">
+                    <div className="font-semibold text-primary">{msg.agent}</div>
+                    <div className="whitespace-pre-line">{msg.message}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
       ) : error ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-red-500 bg-red-50 p-4 rounded-lg">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-red-500 bg-red-50 p-4 rounded-lg max-w-md">
             <h3 className="font-semibold mb-2">エラーが発生しました</h3>
             <p>{error}</p>
-            <button
-              className="mt-4 px-4 py-2 bg-primary text-white rounded-lg"
+            <Button
+              className="mt-4"
               onClick={fetchGraphData}
             >
               再試行
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <ReactFlowProvider>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={handleEdgesChange}
-            onNodeClick={handleNodeClick}
-            onConnect={handleConnect}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            connectionLineType={ConnectionLineType.SmoothStep}
-            fitView
-            attributionPosition="bottom-right"
-          >
-            <Background color="#aaa" gap={16} />
-            <Controls />
-            <MiniMap
-              nodeStrokeWidth={3}
-              nodeColor={(node) => {
-                return node.data?.color || '#1a192b';
-              }}
-            />
-          </ReactFlow>
-        </ReactFlowProvider>
+        <div className="flex-1">
+          <ReactFlowProvider>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
+              onNodeClick={handleNodeClick}
+              onConnect={handleConnect}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              fitView
+              attributionPosition="bottom-right"
+            >
+              <Background color="#aaa" gap={16} />
+              <Controls />
+              <MiniMap
+                nodeStrokeWidth={3}
+                nodeColor={(node) => {
+                  return node.data?.color || '#1a192b';
+                }}
+              />
+            </ReactFlow>
+          </ReactFlowProvider>
+        </div>
       )}
     </div>
   );

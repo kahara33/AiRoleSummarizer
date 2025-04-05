@@ -1,6 +1,11 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { Server, createServer } from 'http';
-import { setupWebSocketServer, sendMessageToRoleModelViewers, sendAgentThoughts } from './websocket';
+import { 
+  setupWebSocketServer, 
+  sendProgressUpdate,
+  sendAgentThoughts,
+  sendMessageToRoleModelViewers
+} from './websocket';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
@@ -25,6 +30,7 @@ import {
   insertKeywordSchema,
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
+import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
 import { randomUUID } from 'crypto';
 
 // ルートの登録
@@ -634,6 +640,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // ロールモデル作成
+  // AI生成ナレッジグラフのエンドポイント
+  app.post('/api/knowledge-graph/generate/:roleModelId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      const user = req.user;
+
+      // 権限チェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+        with: {
+          industries: {
+            with: {
+              industry: true,
+            },
+          },
+          keywords: {
+            with: {
+              keyword: true,
+            },
+          },
+        },
+      });
+
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+
+      // 自分のロールモデルのみ編集可能
+      if (roleModel.userId !== user!.id && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
+      }
+
+      // 産業と業界名を抽出
+      const industries = roleModel.industries.map(rel => rel.industry.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword.name);
+
+      // 非同期処理を開始し、すぐにレスポンスを返す
+      res.json({ 
+        success: true, 
+        message: '知識グラフの生成を開始しました',
+        roleModelId
+      });
+
+      // バックグラウンドで処理を継続
+      generateKnowledgeGraphForRoleModel(
+        roleModelId,
+        roleModel.name,
+        roleModel.description || '',
+        industries,
+        keywords
+      ).catch(err => {
+        console.error('知識グラフ生成エラー:', err);
+        sendProgressUpdate(`エラーが発生しました: ${err.message}`, 100, roleModelId);
+      });
+    } catch (error) {
+      console.error('知識グラフ生成リクエストエラー:', error);
+      res.status(500).json({ error: '知識グラフの生成に失敗しました' });
+    }
+  });
+
   app.post('/api/role-models', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
