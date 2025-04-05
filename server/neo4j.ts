@@ -5,15 +5,22 @@ let driver: Driver;
 /**
  * Neo4jドライバーの初期化
  */
-export async function initNeo4j(): Promise<Driver> {
+export async function initNeo4j(): Promise<Driver | null> {
+  // すでにドライバーが初期化されている場合は、そのドライバーを返す
   if (driver) {
     return driver;
   }
 
+  // 環境変数が設定されていない場合は、Neo4jを使用しない
+  if (!process.env.NEO4J_URI || !process.env.NEO4J_USER || !process.env.NEO4J_PASSWORD) {
+    console.log('Neo4j環境変数が設定されていないため、Neo4jは使用しません');
+    return null;
+  }
+
   try {
-    const uri = process.env.NEO4J_URI || 'neo4j://localhost:7687';
-    const user = process.env.NEO4J_USER || 'neo4j';
-    const password = process.env.NEO4J_PASSWORD || 'password';
+    const uri = process.env.NEO4J_URI;
+    const user = process.env.NEO4J_USER;
+    const password = process.env.NEO4J_PASSWORD;
 
     driver = neo4j.driver(uri, neo4j.auth.basic(user, password), {
       maxTransactionRetryTime: 30000,
@@ -26,17 +33,26 @@ export async function initNeo4j(): Promise<Driver> {
     return driver;
   } catch (error) {
     console.error('Neo4j接続に失敗しました:', error);
-    throw error;
+    // エラーをスローせず、nullを返す
+    return null;
   }
 }
 
 /**
  * Neo4jセッションの取得
  */
-export async function getSession(): Promise<Session> {
+export async function getSession(): Promise<Session | null> {
   if (!driver) {
-    await initNeo4j();
+    const result = await initNeo4j();
+    if (!result) {
+      return null;
+    }
   }
+  
+  if (!driver) {
+    return null;
+  }
+  
   return driver.session();
 }
 
@@ -49,11 +65,18 @@ export async function runQuery(
 ): Promise<Neo4jRecord[]> {
   const session = await getSession();
   
+  if (!session) {
+    console.log('Neo4jセッションが取得できなかったため、操作をスキップします');
+    return [];
+  }
+  
   try {
     const result = await session.run(query, params);
     return result.records;
   } finally {
-    await session.close();
+    if (session) {
+      await session.close();
+    }
   }
 }
 
@@ -64,8 +87,13 @@ export async function createNode(
   label: string,
   properties: Record<string, any>,
   roleModelId: string
-): Promise<Neo4jRecord> {
+): Promise<Neo4jRecord | null> {
   const session = await getSession();
+  
+  if (!session) {
+    console.log('Neo4jセッションが取得できなかったため、ノード作成をスキップします');
+    return null;
+  }
   
   try {
     const query = `
@@ -84,12 +112,18 @@ export async function createNode(
     
     const result = await session.run(query, params);
     if (result.records.length === 0) {
-      throw new Error('ノードの作成に失敗しました');
+      console.error('ノードの作成に失敗しました');
+      return null;
     }
     
     return result.records[0];
+  } catch (error) {
+    console.error('ノード作成エラー:', error);
+    return null;
   } finally {
-    await session.close();
+    if (session) {
+      await session.close();
+    }
   }
 }
 
@@ -102,8 +136,13 @@ export async function createRelationship(
   type: string,
   properties: Record<string, any> = {},
   roleModelId: string
-): Promise<Neo4jRecord> {
+): Promise<Neo4jRecord | null> {
   const session = await getSession();
+  
+  if (!session) {
+    console.log('Neo4jセッションが取得できなかったため、関係作成をスキップします');
+    return null;
+  }
   
   try {
     const propertiesClause = Object.keys(properties).length > 0
@@ -126,12 +165,18 @@ export async function createRelationship(
     
     const result = await session.run(query, params);
     if (result.records.length === 0) {
-      throw new Error('関係の作成に失敗しました');
+      console.error('関係の作成に失敗しました');
+      return null;
     }
     
     return result.records[0];
+  } catch (error) {
+    console.error('関係作成エラー:', error);
+    return null;
   } finally {
-    await session.close();
+    if (session) {
+      await session.close();
+    }
   }
 }
 
@@ -143,6 +188,11 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   edges: any[];
 }> {
   const session = await getSession();
+  
+  if (!session) {
+    console.log('Neo4jセッションが取得できなかったため、空のグラフを返します');
+    return { nodes: [], edges: [] };
+  }
   
   try {
     // ノードの取得
@@ -186,8 +236,13 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
     });
     
     return { nodes, edges };
+  } catch (error) {
+    console.error('グラフ取得エラー:', error);
+    return { nodes: [], edges: [] };
   } finally {
-    await session.close();
+    if (session) {
+      await session.close();
+    }
   }
 }
 

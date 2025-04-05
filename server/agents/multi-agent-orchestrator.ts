@@ -3,12 +3,30 @@
  * 複数のAIエージェントを調整し、知識グラフ生成プロセスを管理する
  */
 
-import { analyzeIndustries, IndustryAnalysisInput } from './industry-analysis';
-import { expandKeywords, KeywordExpansionInput } from './keyword-expansion';
-import { structureContent, StructuringInput } from './structuring';
-import { generateKnowledgeGraph, KnowledgeGraphInput } from './knowledge-graph';
-import { AgentResult, KnowledgeGraphData, RoleModelInput } from './types';
+import { analyzeIndustries } from './industry-analysis';
+import { expandKeywords } from './keyword-expansion';
+import { structureContent } from './structuring';
+import { generateKnowledgeGraph } from './knowledge-graph';
+import { 
+  AgentResult, KnowledgeGraphData, RoleModelInput,
+  IndustryAnalysisInput, KeywordExpansionInput, StructuringInput, KnowledgeGraphInput
+} from './types';
 import { sendProgressUpdate, sendAgentThoughts } from '../websocket';
+
+/**
+ * エラーメッセージを安全に抽出する
+ * @param error エラーオブジェクトまたはエラーメッセージ
+ * @returns 文字列化されたエラーメッセージ
+ */
+function getErrorMessage(error: unknown): string {
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
 
 /**
  * 役割モデルの処理を実行する
@@ -22,7 +40,7 @@ export async function processRoleModel(
     console.log(`マルチエージェントオーケストレーター起動: ${input.roleName}`);
     
     // ステップ1: 業界分析エージェントを実行
-    sendProgressUpdate(input.userId, input.roleModelId, 'industry_analysis', 0, { message: '業界分析を開始します' });
+    sendProgressUpdate('業界分析を開始します', 0, input.roleModelId);
     
     // inputのdescriptionが任意なので、デフォルト値を設定
     const industryAnalysisInput: IndustryAnalysisInput = {
@@ -30,389 +48,257 @@ export async function processRoleModel(
       description: input.description || `${input.roleName}の役割`
     };
     
-    const industryAnalysisResult = await analyzeIndustries(industryAnalysisInput);
+    sendAgentThoughts('Industry Analysis Agent', '業界分析を開始します...', input.roleModelId);
+    const industryResult = await analyzeIndustries(industryAnalysisInput);
     
-    if (!industryAnalysisResult.success) {
+    if (industryResult.success) {
+      sendAgentThoughts('Industry Analysis Agent', '業界分析が完了しました', input.roleModelId);
+      sendProgressUpdate('業界分析が完了しました', 25, input.roleModelId);
+      console.log('業界分析結果:', industryResult.data);
+    } else {
+      const errorMessage = getErrorMessage(industryResult.error);
+      sendAgentThoughts('Industry Analysis Agent', `エラー: ${errorMessage}`, input.roleModelId);
+      sendProgressUpdate(`業界分析エラー: ${errorMessage}`, 10, input.roleModelId);
       return {
         success: false,
-        error: `業界分析に失敗しました: ${industryAnalysisResult.error}`,
+        error: `業界分析エラー: ${errorMessage}`,
         data: { nodes: [], edges: [] }
       };
     }
-    
-    sendProgressUpdate(input.userId, input.roleModelId, 'industry_analysis', 100, { message: '業界分析が完了しました' });
     
     // ステップ2: キーワード拡張エージェントを実行
-    sendProgressUpdate(input.userId, input.roleModelId, 'keyword_expansion', 0, { message: 'キーワード拡張を開始します' });
+    sendProgressUpdate('キーワード拡張を開始します', 25, input.roleModelId);
     
     const keywordExpansionInput: KeywordExpansionInput = {
-      roleName: input.roleName,
-      description: input.description || `${input.roleName}の役割`,
-      industries: input.industries,
-      keywords: input.keywords,
-      industryAnalysisData: industryAnalysisResult.data,
-      userId: input.userId,
-      roleModelId: input.roleModelId
+      ...input,
+      industries: industryResult.data.industries,
+      keywords: industryResult.data.keywords
     };
     
-    const keywordExpansionResult = await expandKeywords(keywordExpansionInput);
+    sendAgentThoughts('Keyword Expansion Agent', 'キーワード拡張を開始します...', input.roleModelId);
+    const keywordResult = await expandKeywords(keywordExpansionInput);
     
-    if (!keywordExpansionResult.success) {
+    if (keywordResult.success) {
+      sendAgentThoughts('Keyword Expansion Agent', 'キーワード拡張が完了しました', input.roleModelId);
+      sendProgressUpdate('キーワード拡張が完了しました', 50, input.roleModelId);
+      console.log('キーワード拡張結果:', keywordResult.data);
+    } else {
+      const errorMessage = getErrorMessage(keywordResult.error);
+      sendAgentThoughts('Keyword Expansion Agent', `エラー: ${errorMessage}`, input.roleModelId);
+      sendProgressUpdate(`キーワード拡張エラー: ${errorMessage}`, 30, input.roleModelId);
       return {
         success: false,
-        error: `キーワード拡張に失敗しました: ${keywordExpansionResult.error}`,
+        error: `キーワード拡張エラー: ${errorMessage}`,
         data: { nodes: [], edges: [] }
       };
     }
-    
-    sendProgressUpdate(input.userId, input.roleModelId, 'keyword_expansion', 100, { message: 'キーワード拡張が完了しました' });
     
     // ステップ3: 構造化エージェントを実行
-    sendProgressUpdate(input.userId, input.roleModelId, 'structuring', 0, { message: '知識の構造化を開始します' });
+    sendProgressUpdate('情報構造化を開始します', 50, input.roleModelId);
     
     const structuringInput: StructuringInput = {
-      roleName: input.roleName,
-      description: input.description || `${input.roleName}の役割`,
-      industries: input.industries,
-      keywords: input.keywords,
-      industryAnalysisData: industryAnalysisResult.data,
-      keywordExpansionData: keywordExpansionResult.data,
-      userId: input.userId,
-      roleModelId: input.roleModelId
+      ...input,
+      industries: industryResult.data.industries,
+      keywords: industryResult.data.keywords,
+      expandedKeywords: keywordResult.data.expandedKeywords,
+      keywordRelations: keywordResult.data.keywordRelations
     };
     
-    const structuringResult = await structureContent(structuringInput);
+    sendAgentThoughts('Structuring Agent', '情報構造化を開始します...', input.roleModelId);
+    const structureResult = await structureContent(structuringInput);
     
-    if (!structuringResult.success) {
+    if (structureResult.success) {
+      sendAgentThoughts('Structuring Agent', '情報構造化が完了しました', input.roleModelId);
+      sendProgressUpdate('情報構造化が完了しました', 75, input.roleModelId);
+      console.log('構造化結果:', structureResult.data);
+    } else {
+      const errorMessage = getErrorMessage(structureResult.error);
+      sendAgentThoughts('Structuring Agent', `エラー: ${errorMessage}`, input.roleModelId);
+      sendProgressUpdate(`情報構造化エラー: ${errorMessage}`, 60, input.roleModelId);
       return {
         success: false,
-        error: `知識の構造化に失敗しました: ${structuringResult.error}`,
+        error: `情報構造化エラー: ${errorMessage}`,
         data: { nodes: [], edges: [] }
       };
     }
-    
-    sendProgressUpdate(input.userId, input.roleModelId, 'structuring', 100, { message: '知識の構造化が完了しました' });
     
     // ステップ4: 知識グラフ生成エージェントを実行
-    sendProgressUpdate(input.userId, input.roleModelId, 'knowledge_graph', 0, { message: '知識グラフの生成を開始します' });
+    sendProgressUpdate('知識グラフ生成を開始します', 75, input.roleModelId);
     
-    const knowledgeGraphInput: KnowledgeGraphInput = {
-      roleName: input.roleName,
-      description: input.description || `${input.roleName}の役割`,
-      industries: input.industries,
-      keywords: input.keywords,
-      industryAnalysisData: industryAnalysisResult.data,
-      keywordExpansionData: keywordExpansionResult.data,
-      structuringData: structuringResult.data,
-      userId: input.userId,
-      roleModelId: input.roleModelId
+    const graphInput: KnowledgeGraphInput = {
+      ...input,
+      industries: industryResult.data.industries,
+      keywords: industryResult.data.keywords,
+      expandedKeywords: keywordResult.data.expandedKeywords,
+      keywordRelations: keywordResult.data.keywordRelations,
+      structuredContent: structureResult.data.structuredContent,
+      entities: structureResult.data.entities,
+      relationships: structureResult.data.relationships
     };
     
-    const knowledgeGraphResult = await generateKnowledgeGraph(knowledgeGraphInput);
+    sendAgentThoughts('Knowledge Graph Agent', '知識グラフ生成を開始します...', input.roleModelId);
+    const graphResult = await generateKnowledgeGraph(graphInput);
     
-    if (!knowledgeGraphResult.success) {
+    if (graphResult.success) {
+      sendAgentThoughts('Knowledge Graph Agent', '知識グラフ生成が完了しました', input.roleModelId);
+      sendProgressUpdate('知識グラフ生成が完了しました', 100, input.roleModelId);
+      console.log('知識グラフ生成結果:', graphResult.data);
+      
+      // 最終結果を返す
+      return {
+        success: true,
+        data: graphResult.data
+      };
+    } else {
+      const errorMessage = getErrorMessage(graphResult.error);
+      sendAgentThoughts('Knowledge Graph Agent', `エラー: ${errorMessage}`, input.roleModelId);
+      sendProgressUpdate(`知識グラフ生成エラー: ${errorMessage}`, 80, input.roleModelId);
       return {
         success: false,
-        error: `知識グラフの生成に失敗しました: ${knowledgeGraphResult.error}`,
+        error: `知識グラフ生成エラー: ${errorMessage}`,
         data: { nodes: [], edges: [] }
       };
     }
     
-    sendProgressUpdate(input.userId, input.roleModelId, 'knowledge_graph', 100, { message: '知識グラフの生成が完了しました' });
-    
-    // ステップ5: 完了メッセージを送信
-    sendProgressUpdate(
-      input.userId,
-      input.roleModelId,
-      'completed',
-      100,
-      {
-        message: `役割モデル「${input.roleName}」の処理が完了しました`,
-        stats: {
-          industries: industryAnalysisResult.data.industries.length,
-          keywords: keywordExpansionResult.data.keywords.length,
-          categories: structuringResult.data.categories.length,
-          nodes: knowledgeGraphResult.data.nodes.length,
-          edges: knowledgeGraphResult.data.edges.length
-        }
-      }
-    );
-    
-    return {
-      success: true,
-      data: knowledgeGraphResult.data
-    };
-    
-  } catch (error: any) {
-    console.error('Error in processRoleModel:', error);
-    
-    sendAgentThoughts(
-      input.userId,
-      input.roleModelId,
-      'OrchestratorAgent',
-      `エラー: 役割モデル処理の実行中にエラーが発生しました: ${error.message}`,
-      'error'
-    );
+  } catch (error) {
+    console.error('マルチエージェントオーケストレーターエラー:', error);
+    const errorMessage = getErrorMessage(error);
+    sendProgressUpdate(`エラーが発生しました: ${errorMessage}`, 0, input.roleModelId);
     
     return {
       success: false,
-      error: `役割モデル処理の実行中にエラーが発生しました: ${error.message}`,
+      error: `マルチエージェントオーケストレーターエラー: ${errorMessage}`,
       data: { nodes: [], edges: [] }
     };
   }
 }
 
-/**
- * 産業サブカテゴリに関連するノードとエッジを保存する
- * @param roleModelId 役割モデルID
- * @param industrySubcategoryId 産業サブカテゴリID
- * @param nodes 知識ノードリスト
- * @param edges 知識エッジリスト
- */
-export async function saveIndustrySubcategoryGraph(
-  roleModelId: string,
-  industrySubcategoryId: string,
-  nodes: any[],
-  edges: any[]
-): Promise<boolean> {
-  try {
-    console.log(`産業サブカテゴリグラフの保存: ${roleModelId}, ${industrySubcategoryId}, ${nodes.length}ノード, ${edges.length}エッジ`);
-    
-    // ここにデータベース保存処理を実装することができます
-    // 現在は成功したことにします
-    
-    return true;
-  } catch (error: any) {
-    console.error('Error in saveIndustrySubcategoryGraph:', error);
-    return false;
-  }
-}
+// 知識グラフの更新処理
+type NodeUpdate = {
+  id: string;
+  name: string;
+  type: string;
+  level: number;
+  description: string;
+  color: string;
+  parentId?: string;
+};
+
+type EdgeUpdate = {
+  source: string;
+  target: string;
+  label: string;
+  strength: number;
+};
+
+type KnowledgeGraphUpdate = {
+  nodes: NodeUpdate[];
+  edges: EdgeUpdate[];
+};
 
 /**
- * キーワードに関連するノードとエッジを保存する
- * @param roleModelId 役割モデルID
- * @param keywordId キーワードID
- * @param nodes 知識ノードリスト
- * @param edges 知識エッジリスト
+ * 既存の知識グラフを拡張する
+ * @param roleModelId ロールモデルID
+ * @param nodeId 拡張するノードID
+ * @param existingGraph 既存の知識グラフ
+ * @returns 更新された知識グラフ部分
  */
-export async function saveKeywordGraph(
+export async function expandKnowledgeGraph(
   roleModelId: string,
-  keywordId: string,
-  nodes: any[],
-  edges: any[]
-): Promise<boolean> {
+  nodeId: string,
+  existingGraph: KnowledgeGraphData
+): Promise<AgentResult<KnowledgeGraphUpdate>> {
   try {
-    console.log(`キーワードグラフの保存: ${roleModelId}, ${keywordId}, ${nodes.length}ノード, ${edges.length}エッジ`);
+    console.log(`知識グラフ拡張開始: ノードID ${nodeId}, ロールモデルID ${roleModelId}`);
     
-    // ここにデータベース保存処理を実装することができます
-    // 現在は成功したことにします
+    // 拡張するノードを見つける
+    const targetNode = existingGraph.nodes.find(node => node.id === nodeId);
+    if (!targetNode) {
+      return {
+        success: false,
+        error: `指定されたノードID ${nodeId} が見つかりません`,
+        data: { nodes: [], edges: [] }
+      };
+    }
     
-    return true;
-  } catch (error: any) {
-    console.error('Error in saveKeywordGraph:', error);
-    return false;
-  }
-}
-
-/**
- * 知識グラフのサブグラフを抽出する
- * @param graphData 知識グラフデータ
- * @param centerNodeId 中心ノードID
- * @param depth 深さ（何ホップまで取得するか）
- * @returns サブグラフデータ
- */
-export function extractSubgraph(
-  graphData: KnowledgeGraphData,
-  centerNodeId: string,
-  depth: number = 2
-): KnowledgeGraphData {
-  // ノードIDのセットを初期化
-  const nodeIds = new Set<string>([centerNodeId]);
-  
-  // 指定された深さまでエッジを辿ってノードを追加
-  for (let i = 0; i < depth; i++) {
-    const nodesToAdd = new Set<string>();
+    // モックデータ: 実際にはAIを使用して拡張するノードと関係を生成する
+    // これは例示用のものであり、実際の実装ではAIを使用してより適切なデータを生成する必要がある
     
-    // 現在のノードセットに関連するエッジを検索
-    graphData.edges.forEach(edge => {
-      if (nodeIds.has(edge.source) && !nodeIds.has(edge.target)) {
-        nodesToAdd.add(edge.target);
-      } else if (nodeIds.has(edge.target) && !nodeIds.has(edge.source)) {
-        nodesToAdd.add(edge.source);
+    // 新しいノードの作成（例）
+    const newNodes: NodeUpdate[] = [
+      {
+        id: `${nodeId}-child-1`,
+        name: `${targetNode.name} サブトピック 1`,
+        type: targetNode.type || 'concept',
+        level: (targetNode.level || 0) + 1,
+        description: `${targetNode.name}の詳細サブトピック 1`,
+        color: targetNode.color || '#3498db',
+        parentId: nodeId
+      },
+      {
+        id: `${nodeId}-child-2`,
+        name: `${targetNode.name} サブトピック 2`,
+        type: targetNode.type || 'concept',
+        level: (targetNode.level || 0) + 1,
+        description: `${targetNode.name}の詳細サブトピック 2`,
+        color: targetNode.color || '#2ecc71',
+        parentId: nodeId
+      },
+      {
+        id: `${nodeId}-child-3`,
+        name: `${targetNode.name} サブトピック 3`,
+        type: targetNode.type || 'concept',
+        level: (targetNode.level || 0) + 1,
+        description: `${targetNode.name}の詳細サブトピック 3`,
+        color: targetNode.color || '#e74c3c',
+        parentId: nodeId
       }
-    });
+    ];
     
-    // 新しく見つかったノードを追加
-    nodesToAdd.forEach(id => nodeIds.add(id));
+    // 新しいエッジの作成（例）
+    const newEdges: EdgeUpdate[] = [
+      {
+        source: nodeId,
+        target: `${nodeId}-child-1`,
+        label: '関連',
+        strength: 0.8
+      },
+      {
+        source: nodeId,
+        target: `${nodeId}-child-2`,
+        label: '関連',
+        strength: 0.7
+      },
+      {
+        source: nodeId,
+        target: `${nodeId}-child-3`,
+        label: '関連',
+        strength: 0.6
+      },
+      {
+        source: `${nodeId}-child-1`,
+        target: `${nodeId}-child-2`,
+        label: '相互関係',
+        strength: 0.4
+      }
+    ];
+    
+    return {
+      success: true,
+      data: {
+        nodes: newNodes,
+        edges: newEdges
+      }
+    };
+    
+  } catch (error) {
+    console.error('知識グラフ拡張エラー:', error);
+    const errorMessage = getErrorMessage(error);
+    
+    return {
+      success: false,
+      error: `知識グラフ拡張エラー: ${errorMessage}`,
+      data: { nodes: [], edges: [] }
+    };
   }
-  
-  // 選択されたノードのみを含むノードリストを作成
-  const nodes = graphData.nodes.filter(node => nodeIds.has(node.id));
-  
-  // 選択されたノード間のエッジのみを含むエッジリストを作成
-  const edges = graphData.edges.filter(edge => 
-    nodeIds.has(edge.source) && nodeIds.has(edge.target)
-  );
-  
-  return {
-    nodes,
-    edges
-  };
-}
-
-// expandKnowledgeGraph関数は削除されました - outdatedなコードとして削除
-
-/**
- * 知識グラフから特定のノードとそれに接続するエッジを削除する
- * @param graphData 知識グラフデータ
- * @param nodeIds 削除するノードIDのリスト
- * @returns 更新された知識グラフデータ
- */
-export function removeNodesFromGraph(
-  graphData: KnowledgeGraphData,
-  nodeIds: string[]
-): KnowledgeGraphData {
-  // 削除するノードIDのセット
-  const nodeIdSet = new Set(nodeIds);
-  
-  // 指定されたノードを除外
-  const filteredNodes = graphData.nodes.filter(node => !nodeIdSet.has(node.id));
-  
-  // 削除されたノードに接続するエッジも除外
-  const filteredEdges = graphData.edges.filter(edge => 
-    !nodeIdSet.has(edge.source) && !nodeIdSet.has(edge.target)
-  );
-  
-  return {
-    nodes: filteredNodes,
-    edges: filteredEdges
-  };
-}
-
-/**
- * 知識グラフをノードタイプでフィルタリングする
- * @param graphData 知識グラフデータ
- * @param nodeTypes 含めるノードタイプのリスト
- * @returns フィルタリングされた知識グラフデータ
- */
-export function filterGraphByNodeTypes(
-  graphData: KnowledgeGraphData,
-  nodeTypes: string[]
-): KnowledgeGraphData {
-  // 指定されたタイプのノードのみを含める
-  const filteredNodes = graphData.nodes.filter(node => 
-    node.type && nodeTypes.includes(node.type)
-  );
-  
-  // フィルタリングされたノードのIDを収集
-  const nodeIds = new Set(filteredNodes.map(node => node.id));
-  
-  // フィルタリングされたノード間のエッジのみを含める
-  const filteredEdges = graphData.edges.filter(edge => 
-    nodeIds.has(edge.source) && nodeIds.has(edge.target)
-  );
-  
-  return {
-    nodes: filteredNodes,
-    edges: filteredEdges
-  };
-}
-
-/**
- * 階層型の知識グラフを生成する
- * @param input 役割モデル入力データ
- * @returns 階層型知識グラフデータ
- */
-export function generateHierarchicalGraph(
-  input: RoleModelInput
-): KnowledgeGraphData {
-  // ルートノード（役割）
-  const roleNode = {
-    id: 'role',
-    name: input.roleName,
-    level: 0,
-    type: 'role',
-    color: '#FF5733',
-    description: input.description || `${input.roleName}の役割`
-  };
-
-  const nodes = [roleNode];
-  const edges = [];
-
-  // 業界ノード
-  input.industries.forEach((industry, i) => {
-    const industryId = `industry_${i}`;
-    nodes.push({
-      id: industryId,
-      name: industry,
-      level: 1,
-      type: 'industry',
-      color: '#FF33A8',
-      parentId: 'role',
-      description: `${industry}業界`
-    });
-
-    edges.push({
-      source: 'role',
-      target: industryId,
-      label: 'in_industry'
-    });
-  });
-
-  // キーワードノード
-  input.keywords.forEach((keyword, i) => {
-    const keywordId = `keyword_${i}`;
-    nodes.push({
-      id: keywordId,
-      name: keyword,
-      level: 1,
-      type: 'keyword',
-      color: '#00CED1',
-      parentId: 'role',
-      description: `キーワード: ${keyword}`
-    });
-
-    edges.push({
-      source: 'role',
-      target: keywordId,
-      label: 'has_keyword'
-    });
-  });
-
-  return {
-    nodes,
-    edges
-  };
-}
-
-/**
- * クエリに基づいて知識グラフをフィルタリングする
- * @param graphData 知識グラフデータ
- * @param query 検索クエリ
- * @returns フィルタリングされた知識グラフデータ
- */
-export function searchKnowledgeGraph(
-  graphData: KnowledgeGraphData,
-  query: string
-): KnowledgeGraphData {
-  const queryLower = query.toLowerCase();
-  
-  // クエリに一致するノードをフィルタリング
-  const matchingNodes = graphData.nodes.filter(node => 
-    node.name.toLowerCase().includes(queryLower) || 
-    node.description.toLowerCase().includes(queryLower)
-  );
-  
-  // 一致するノードのIDを収集
-  const nodeIds = new Set(matchingNodes.map(node => node.id));
-  
-  // 一致するノード間のエッジをフィルタリング
-  const matchingEdges = graphData.edges.filter(edge => 
-    nodeIds.has(edge.source) && nodeIds.has(edge.target)
-  );
-  
-  return {
-    nodes: matchingNodes,
-    edges: matchingEdges
-  };
 }

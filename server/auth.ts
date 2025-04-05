@@ -79,17 +79,20 @@ export function setupAuth(app: Express): void {
 
   // パスポート戦略の設定
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
+    new LocalStrategy({
+      usernameField: 'email',
+      passwordField: 'password'
+    }, async (email, password, done) => {
       try {
         // ユーザー認証処理
         const { rows } = await pool.query(
-          'SELECT * FROM users WHERE username = $1',
-          [username]
+          'SELECT * FROM users WHERE email = $1',
+          [email]
         );
 
         const user = rows[0];
         if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false, { message: 'ユーザー名またはパスワードが正しくありません' });
+          return done(null, false, { message: 'メールアドレスまたはパスワードが正しくありません' });
         }
 
         return done(null, user);
@@ -105,7 +108,7 @@ export function setupAuth(app: Express): void {
   });
 
   // セッションからユーザーを復元
-  passport.deserializeUser(async (id: number, done) => {
+  passport.deserializeUser(async (id: string, done) => {
     try {
       const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
       const user = rows[0];

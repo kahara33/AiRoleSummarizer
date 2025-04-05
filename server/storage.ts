@@ -1,26 +1,22 @@
 import { 
   User, InsertUser, 
-  Company, InsertCompany,
   RoleModel, InsertRoleModel, 
   KnowledgeNode, InsertKnowledgeNode,
   KnowledgeEdge, InsertKnowledgeEdge,
   Keyword, InsertKeyword,
   Industry,
-  RoleModelKeyword, InsertRoleModelKeyword,
-  RoleModelWithIndustriesAndKeywords,
-  companies,
-  users,
   roleModels,
+  users,
   knowledgeNodes,
-  knowledgeEdges,
+  knowledgeEdges, 
   keywords,
-  roleModelKeywords,
-  industries
+  industries,
+  RoleModelWithIndustriesAndKeywords
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import crypto from "crypto";
-import { sql, eq, ilike, desc, and, isNull, count, not, or, inArray, asc } from "drizzle-orm";
+import { sql, eq, and, inArray } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
 
@@ -31,7 +27,6 @@ const MemoryStore = createMemoryStore(session);
 const PostgresSessionStore = connectPg(session);
 
 // Storage interface
-// 必須のインターフェースを定義
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -48,79 +43,35 @@ export interface IStorage {
   getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined>;
   createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge>;
 
+  // Role Model operations
+  getRoleModels(userId: string): Promise<RoleModel[]>;
+  getSharedRoleModels(companyId: string): Promise<RoleModel[]>;
+  getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined>;
+
   // Session store
   sessionStore: any; // session.SessionStore
 }
 
 // In-memory storage implementation
 export class MemStorage implements IStorage {
-  private companies: Map<string, Company>;
   private users: Map<string, User>;
   private roleModels: Map<string, RoleModel>;
-  private tags: Map<string, Tag>;
   private knowledgeNodes: Map<string, KnowledgeNode>;
   private knowledgeEdges: Map<string, KnowledgeEdge>;
-  private summaries: Map<string, Summary>;
-  private industryCategories: Map<string, IndustryCategory>;
-  private industrySubcategories: Map<string, IndustrySubcategory>;
   private keywords: Map<string, Keyword>;
-  private roleModelIndustries: Map<string, RoleModelIndustry>;
-  private roleModelKeywords: Map<string, RoleModelKeyword>;
-  private industryCombinations: Map<string, IndustryCombination>;
-  private industryCombinationDetails: Map<string, IndustryCombinationDetail>;
+  private industries: Map<string, Industry>;
   sessionStore: any; // session.SessionStore
 
   constructor() {
-    this.companies = new Map();
     this.users = new Map();
     this.roleModels = new Map();
-    this.tags = new Map();
     this.knowledgeNodes = new Map();
     this.knowledgeEdges = new Map();
-    this.summaries = new Map();
-    this.industryCategories = new Map();
-    this.industrySubcategories = new Map();
     this.keywords = new Map();
-    this.roleModelIndustries = new Map();
-    this.roleModelKeywords = new Map();
-    this.industryCombinations = new Map();
-    this.industryCombinationDetails = new Map();
+    this.industries = new Map();
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     });
-  }
-
-  // Company methods
-  async getCompany(id: string): Promise<Company | undefined> {
-    return this.companies.get(id);
-  }
-
-  async getCompanies(): Promise<Company[]> {
-    return Array.from(this.companies.values());
-  }
-
-  async createCompany(insertCompany: InsertCompany): Promise<Company> {
-    const id = crypto.randomUUID();
-    const company: Company = { 
-      ...insertCompany, 
-      id,
-      description: insertCompany.description || null
-    };
-    this.companies.set(id, company);
-    return company;
-  }
-
-  async updateCompany(id: string, company: Partial<InsertCompany>): Promise<Company | undefined> {
-    const existingCompany = this.companies.get(id);
-    if (!existingCompany) return undefined;
-
-    const updatedCompany = { ...existingCompany, ...company };
-    this.companies.set(id, updatedCompany);
-    return updatedCompany;
-  }
-
-  async deleteCompany(id: string): Promise<boolean> {
-    return this.companies.delete(id);
   }
 
   // User methods
@@ -132,17 +83,6 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values()).find(
       (user) => user.email === email
     );
-  }
-
-  async getUsers(companyId?: string): Promise<User[]> {
-    if (companyId) {
-      // companyIdが一致するユーザーのみをフィルタリング
-      // さらに、実際のUserオブジェクトであることを確認（nameとemailプロパティがあるか）
-      return Array.from(this.users.values()).filter(
-        (user) => user.companyId === companyId && typeof user.name === 'string' && typeof user.email === 'string'
-      );
-    }
-    return Array.from(this.users.values());
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -157,20 +97,7 @@ export class MemStorage implements IStorage {
     this.users.set(id, user);
     return user;
   }
-
-  async updateUser(id: string, userData: Partial<InsertUser>): Promise<User | undefined> {
-    const existingUser = this.users.get(id);
-    if (!existingUser) return undefined;
-
-    const updatedUser = { ...existingUser, ...userData };
-    this.users.set(id, updatedUser);
-    return updatedUser;
-  }
-
-  async deleteUser(id: string): Promise<boolean> {
-    return this.users.delete(id);
-  }
-
+  
   // Role model methods
   async getRoleModels(userId: string): Promise<RoleModel[]> {
     const user = Array.from(this.users.values()).find(u => u.id === userId);
@@ -193,71 +120,17 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getRoleModelWithTags(id: string): Promise<RoleModelWithTags | undefined> {
+  // Extended role model operations
+  async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
     const roleModel = this.roleModels.get(id);
     if (!roleModel) return undefined;
 
-    const modelTags = Array.from(this.tags.values()).filter(
-      (tag) => tag.roleModelId === id
-    );
-
+    // メモリストレージにはこのメソッドの完全実装がないので、空の配列を返す
     return {
       ...roleModel,
-      tags: modelTags
+      industries: [],
+      keywords: []
     };
-  }
-
-  async createRoleModel(insertRoleModel: InsertRoleModel): Promise<RoleModel> {
-    const id = crypto.randomUUID();
-    const roleModel: RoleModel = { 
-      ...insertRoleModel, 
-      id,
-      companyId: insertRoleModel.companyId || null,
-      isShared: insertRoleModel.isShared || 0,
-      createdAt: new Date() 
-    };
-    this.roleModels.set(id, roleModel);
-    return roleModel;
-  }
-
-  async updateRoleModel(id: string, roleModel: Partial<InsertRoleModel>): Promise<RoleModel | undefined> {
-    const existingRoleModel = this.roleModels.get(id);
-    if (!existingRoleModel) return undefined;
-
-    const updatedRoleModel = { ...existingRoleModel, ...roleModel };
-    this.roleModels.set(id, updatedRoleModel);
-    return updatedRoleModel;
-  }
-
-  async deleteRoleModel(id: string): Promise<boolean> {
-    return this.roleModels.delete(id);
-  }
-
-  // Tag methods
-  async getTags(roleModelId: string): Promise<Tag[]> {
-    return Array.from(this.tags.values()).filter(
-      (tag) => tag.roleModelId === roleModelId
-    );
-  }
-
-  async createTag(insertTag: InsertTag): Promise<Tag> {
-    const id = crypto.randomUUID();
-    const tag: Tag = { ...insertTag, id };
-    this.tags.set(id, tag);
-    return tag;
-  }
-
-  async updateTag(id: string, tag: Partial<InsertTag>): Promise<Tag | undefined> {
-    const existingTag = this.tags.get(id);
-    if (!existingTag) return undefined;
-
-    const updatedTag = { ...existingTag, ...tag };
-    this.tags.set(id, updatedTag);
-    return updatedTag;
-  }
-
-  async deleteTag(id: string): Promise<boolean> {
-    return this.tags.delete(id);
   }
   
   // Knowledge Node methods
@@ -272,7 +145,7 @@ export class MemStorage implements IStorage {
   }
   
   async createKnowledgeNode(insertNode: InsertKnowledgeNode): Promise<KnowledgeNode> {
-    const id = crypto.randomUUID();
+    const id = insertNode.id || crypto.randomUUID();
     const node: KnowledgeNode = {
       ...insertNode,
       id,
@@ -285,31 +158,6 @@ export class MemStorage implements IStorage {
     };
     this.knowledgeNodes.set(id, node);
     return node;
-  }
-  
-  async updateKnowledgeNode(id: string, nodeData: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined> {
-    const existingNode = this.knowledgeNodes.get(id);
-    if (!existingNode) return undefined;
-    
-    const updatedNode = { ...existingNode, ...nodeData };
-    this.knowledgeNodes.set(id, updatedNode);
-    return updatedNode;
-  }
-  
-  async deleteKnowledgeNode(id: string): Promise<boolean> {
-    // 削除するノードに依存する子ノードも削除
-    const childNodes = Array.from(this.knowledgeNodes.values())
-      .filter(node => node.parentId === id);
-      
-    childNodes.forEach(node => this.knowledgeNodes.delete(node.id));
-    
-    // 関連するエッジも削除
-    const relatedEdges = Array.from(this.knowledgeEdges.values())
-      .filter(edge => edge.sourceId === id || edge.targetId === id);
-      
-    relatedEdges.forEach(edge => this.knowledgeEdges.delete(edge.id));
-    
-    return this.knowledgeNodes.delete(id);
   }
   
   // Knowledge Edge methods
@@ -333,977 +181,238 @@ export class MemStorage implements IStorage {
     this.knowledgeEdges.set(id, edge);
     return edge;
   }
-  
-  async updateKnowledgeEdge(id: string, edgeData: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined> {
-    const existingEdge = this.knowledgeEdges.get(id);
-    if (!existingEdge) return undefined;
-    
-    const updatedEdge = { ...existingEdge, ...edgeData };
-    this.knowledgeEdges.set(id, updatedEdge);
-    return updatedEdge;
-  }
-  
-  async deleteKnowledgeEdge(id: string): Promise<boolean> {
-    return this.knowledgeEdges.delete(id);
-  }
-
-  // Summary methods
-  async getSummaries(roleModelId: string): Promise<Summary[]> {
-    return Array.from(this.summaries.values())
-      .filter((summary) => summary.roleModelId === roleModelId)
-      .sort((a, b) => {
-        // Sort by createdAt in descending order
-        const dateA = a.createdAt instanceof Date ? a.createdAt : new Date();
-        const dateB = b.createdAt instanceof Date ? b.createdAt : new Date();
-        return dateB.getTime() - dateA.getTime();
-      });
-  }
-
-  async getSummaryWithTags(id: string): Promise<SummaryWithTags | undefined> {
-    const summary = this.summaries.get(id);
-    if (!summary) return undefined;
-
-    // Find all tags for this summary's role model
-    const summaryTags = Array.from(this.tags.values()).filter(
-      (tag) => tag.roleModelId === summary.roleModelId
-    );
-
-    return {
-      ...summary,
-      tags: summaryTags
-    };
-  }
-
-  async createSummary(insertSummary: InsertSummary): Promise<Summary> {
-    const id = crypto.randomUUID();
-    const createdAt = new Date();
-    const summary: Summary = { 
-      ...insertSummary, 
-      id, 
-      createdAt,
-      sources: insertSummary.sources || null,
-      feedback: insertSummary.feedback || null
-    };
-    this.summaries.set(id, summary);
-    return summary;
-  }
-
-  async updateSummaryFeedback(id: string, feedback: number): Promise<Summary | undefined> {
-    const existingSummary = this.summaries.get(id);
-    if (!existingSummary) return undefined;
-
-    const updatedSummary = { ...existingSummary, feedback };
-    this.summaries.set(id, updatedSummary);
-    return updatedSummary;
-  }
-
-  // Industry category methods
-  async getIndustryCategories(): Promise<IndustryCategory[]> {
-    return Array.from(this.industryCategories.values());
-  }
-
-  async getIndustryCategory(id: string): Promise<IndustryCategory | undefined> {
-    return this.industryCategories.get(id);
-  }
-
-  async createIndustryCategory(category: InsertIndustryCategory): Promise<IndustryCategory> {
-    const id = crypto.randomUUID();
-    const newCategory: IndustryCategory = {
-      ...category,
-      id,
-      description: category.description || "",
-      displayOrder: category.displayOrder || 0,
-      createdAt: new Date()
-    };
-    this.industryCategories.set(id, newCategory);
-    return newCategory;
-  }
-
-  async updateIndustryCategory(id: string, categoryData: Partial<InsertIndustryCategory>): Promise<IndustryCategory | undefined> {
-    const existingCategory = this.industryCategories.get(id);
-    if (!existingCategory) return undefined;
-
-    const updatedCategory = { ...existingCategory, ...categoryData };
-    this.industryCategories.set(id, updatedCategory);
-    return updatedCategory;
-  }
-
-  async deleteIndustryCategory(id: string): Promise<boolean> {
-    return this.industryCategories.delete(id);
-  }
-
-  // Industry subcategory methods
-  async getIndustrySubcategories(categoryId?: string): Promise<IndustrySubcategory[]> {
-    if (categoryId) {
-      return Array.from(this.industrySubcategories.values()).filter(
-        subcategory => subcategory.categoryId === categoryId
-      );
-    }
-    return Array.from(this.industrySubcategories.values());
-  }
-
-  async getIndustrySubcategoriesWithCategory(): Promise<IndustrySubcategoryWithCategory[]> {
-    return Array.from(this.industrySubcategories.values()).map(subcategory => {
-      const category = this.industryCategories.get(subcategory.categoryId);
-      if (!category) {
-        throw new Error(`Category not found for subcategory: ${subcategory.id}`);
-      }
-      return {
-        ...subcategory,
-        category
-      };
-    });
-  }
-
-  async getIndustrySubcategory(id: string): Promise<IndustrySubcategory | undefined> {
-    return this.industrySubcategories.get(id);
-  }
-
-  async createIndustrySubcategory(subcategory: InsertIndustrySubcategory): Promise<IndustrySubcategory> {
-    const id = crypto.randomUUID();
-    const newSubcategory: IndustrySubcategory = {
-      ...subcategory,
-      id,
-      createdAt: new Date()
-    };
-    this.industrySubcategories.set(id, newSubcategory);
-    return newSubcategory;
-  }
-
-  async updateIndustrySubcategory(id: string, subcategoryData: Partial<InsertIndustrySubcategory>): Promise<IndustrySubcategory | undefined> {
-    const existingSubcategory = this.industrySubcategories.get(id);
-    if (!existingSubcategory) return undefined;
-
-    const updatedSubcategory = { ...existingSubcategory, ...subcategoryData };
-    this.industrySubcategories.set(id, updatedSubcategory);
-    return updatedSubcategory;
-  }
-
-  async deleteIndustrySubcategory(id: string): Promise<boolean> {
-    return this.industrySubcategories.delete(id);
-  }
-
-  // Keyword methods
-  async getKeywords(search?: string): Promise<Keyword[]> {
-    if (search) {
-      return Array.from(this.keywords.values()).filter(
-        keyword => keyword.name.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-    return Array.from(this.keywords.values());
-  }
-
-  async getKeyword(id: string): Promise<Keyword | undefined> {
-    return this.keywords.get(id);
-  }
-
-  async createKeyword(keyword: InsertKeyword): Promise<Keyword> {
-    const id = crypto.randomUUID();
-    const newKeyword: Keyword = {
-      ...keyword,
-      id,
-      createdAt: new Date()
-    };
-    this.keywords.set(id, newKeyword);
-    return newKeyword;
-  }
-
-  async updateKeyword(id: string, keywordData: Partial<InsertKeyword>): Promise<Keyword | undefined> {
-    const existingKeyword = this.keywords.get(id);
-    if (!existingKeyword) return undefined;
-
-    const updatedKeyword = { ...existingKeyword, ...keywordData };
-    this.keywords.set(id, updatedKeyword);
-    return updatedKeyword;
-  }
-
-  async deleteKeyword(id: string): Promise<boolean> {
-    return this.keywords.delete(id);
-  }
-
-  // Role model industry mapping methods
-  async getRoleModelIndustries(roleModelId: string): Promise<RoleModelIndustry[]> {
-    return Array.from(this.roleModelIndustries.values()).filter(
-      mapping => mapping.roleModelId === roleModelId
-    );
-  }
-
-  async getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]> {
-    const mappings = await this.getRoleModelIndustries(roleModelId);
-    
-    return Promise.all(mappings.map(async mapping => {
-      const subcategory = this.industrySubcategories.get(mapping.industrySubcategoryId);
-      if (!subcategory) {
-        throw new Error(`Subcategory not found for mapping: ${mapping.id}`);
-      }
-      
-      const category = this.industryCategories.get(subcategory.categoryId);
-      if (!category) {
-        throw new Error(`Category not found for subcategory: ${subcategory.id}`);
-      }
-      
-      return {
-        ...subcategory,
-        category
-      };
-    }));
-  }
-
-  async createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
-    const id = crypto.randomUUID();
-    const newMapping: RoleModelIndustry = {
-      ...mapping,
-      id
-    };
-    this.roleModelIndustries.set(id, newMapping);
-    return newMapping;
-  }
-
-  async deleteRoleModelIndustry(id: string): Promise<boolean> {
-    return this.roleModelIndustries.delete(id);
-  }
-  
-  async deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean> {
-    // 特定のロールモデルに紐づく全ての業界マッピングを削除
-    const roleMappings = await this.getRoleModelIndustries(roleModelId);
-    let deletedCount = 0;
-    
-    for (const mapping of roleMappings) {
-      if (await this.deleteRoleModelIndustry(mapping.id)) {
-        deletedCount++;
-      }
-    }
-    
-    return deletedCount > 0;
-  }
-  
-  // Role model keyword mapping methods
-  async getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]> {
-    return Array.from(this.roleModelKeywords.values()).filter(
-      mapping => mapping.roleModelId === roleModelId
-    );
-  }
-
-  async getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]> {
-    const mappings = await this.getRoleModelKeywords(roleModelId);
-    
-    return Promise.all(mappings.map(async mapping => {
-      const keyword = this.keywords.get(mapping.keywordId);
-      if (!keyword) {
-        throw new Error(`Keyword not found for mapping: ${mapping.id}`);
-      }
-      
-      return keyword;
-    }));
-  }
-
-  async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
-    const id = crypto.randomUUID();
-    const newMapping: RoleModelKeyword = {
-      ...mapping,
-      id
-    };
-    this.roleModelKeywords.set(id, newMapping);
-    return newMapping;
-  }
-
-  async deleteRoleModelKeyword(id: string): Promise<boolean> {
-    return this.roleModelKeywords.delete(id);
-  }
-  
-  // Extended role model operations
-  async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
-    const roleModel = this.roleModels.get(id);
-    if (!roleModel) return undefined;
-
-    const industries = await this.getRoleModelIndustriesWithData(id);
-    const keywords = await this.getRoleModelKeywordsWithData(id);
-
-    return {
-      ...roleModel,
-      industries,
-      keywords
-    };
-  }
-  
-  // Industry combination methods
-  async getIndustryCombinations(userId: string, companyId: string | null): Promise<IndustryCombination[]> {
-    // ユーザー自身の組み合わせ
-    const userCombinations = Array.from(this.industryCombinations.values()).filter(
-      combination => combination.userId === userId
-    );
-    
-    // 会社の共有組み合わせ（もし会社IDがあれば）
-    if (companyId) {
-      const companyCombinations = Array.from(this.industryCombinations.values()).filter(
-        combination => combination.companyId === companyId && combination.isShared
-      );
-      return [...userCombinations, ...companyCombinations];
-    }
-    
-    return userCombinations;
-  }
-  
-  async getIndustryCombination(id: string): Promise<IndustryCombination | undefined> {
-    return this.industryCombinations.get(id);
-  }
-  
-  async getIndustryCombinationDetails(combinationId: string): Promise<IndustryCombinationDetail[]> {
-    return Array.from(this.industryCombinationDetails.values()).filter(
-      detail => detail.combinationId === combinationId
-    );
-  }
-  
-  async createIndustryCombination(combination: InsertIndustryCombination): Promise<IndustryCombination> {
-    const id = crypto.randomUUID();
-    const now = new Date();
-    const newCombination: IndustryCombination = {
-      ...combination,
-      id,
-      createdAt: now,
-      updatedAt: now,
-      companyId: combination.companyId || null,
-      isShared: combination.isShared || false
-    };
-    this.industryCombinations.set(id, newCombination);
-    return newCombination;
-  }
-  
-  async addIndustryCombinationDetail(combinationId: string, industrySubcategoryId: string): Promise<IndustryCombinationDetail> {
-    const id = crypto.randomUUID();
-    const detail: IndustryCombinationDetail = {
-      id,
-      combinationId,
-      industrySubcategoryId,
-      createdAt: new Date()
-    };
-    this.industryCombinationDetails.set(id, detail);
-    return detail;
-  }
-  
-  async deleteIndustryCombination(id: string): Promise<boolean> {
-    // 関連する詳細情報も削除
-    const details = Array.from(this.industryCombinationDetails.values()).filter(
-      detail => detail.combinationId === id
-    );
-    
-    for (const detail of details) {
-      this.industryCombinationDetails.delete(detail.id);
-    }
-    
-    return this.industryCombinations.delete(id);
-  }
 }
 
-// PostgreSQL Storage Implementation
+// PostgresStorage implementation
 export class PostgresStorage implements IStorage {
   sessionStore: any;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({
-      pool,
+      pool, 
       createTableIfMissing: true
     });
   }
 
-  // Company methods
-  async getCompany(id: string): Promise<Company | undefined> {
-    const result = await db.select().from(companies).where(eq(companies.id, id));
-    return result[0];
-  }
-
-  async getCompanies(): Promise<Company[]> {
-    return await db.select().from(companies);
-  }
-
-  async createCompany(company: InsertCompany): Promise<Company> {
-    const result = await db.insert(companies).values(company).returning();
-    return result[0];
-  }
-
-  async updateCompany(id: string, companyData: Partial<InsertCompany>): Promise<Company | undefined> {
-    const result = await db.update(companies)
-      .set(companyData)
-      .where(eq(companies.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteCompany(id: string): Promise<boolean> {
-    const result = await db.delete(companies).where(eq(companies.id, id)).returning();
-    return result.length > 0;
-  }
-
   // User methods
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id));
-    return result[0];
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      return user;
+    } catch (error) {
+      console.error("Error in getUser:", error);
+      return undefined;
+    }
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email));
-    return result[0];
-  }
-
-  async getUsers(companyId?: string): Promise<User[]> {
-    if (companyId) {
-      return await db.select().from(users).where(eq(users.companyId, companyId));
+    try {
+      const [user] = await db.select().from(users).where(eq(users.email, email));
+      return user;
+    } catch (error) {
+      console.error("Error in getUserByEmail:", error);
+      return undefined;
     }
-    return await db.select().from(users);
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(user).returning();
-    return result[0];
-  }
-
-  async updateUser(id: string, userData: Partial<InsertUser>): Promise<User | undefined> {
-    const result = await db.update(users)
-      .set(userData)
-      .where(eq(users.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteUser(id: string): Promise<boolean> {
-    const result = await db.delete(users).where(eq(users.id, id)).returning();
-    return result.length > 0;
+    try {
+      const [newUser] = await db.insert(users).values(user).returning();
+      return newUser;
+    } catch (error) {
+      console.error("Error in createUser:", error);
+      throw error;
+    }
   }
 
   // Role model methods
   async getRoleModels(userId: string): Promise<RoleModel[]> {
-    // ユーザー固有のロールモデルを取得
-    const userModels = await db.select()
-      .from(roleModels)
-      .where(eq(roleModels.userId, userId));
-    
-    // ユーザーの会社情報を取得
-    const userResult = await db.select()
-      .from(users)
-      .where(eq(users.id, userId));
-    
-    const user = userResult[0];
-    
-    // 会社に所属していない場合は、ユーザー固有のモデルのみを返す
-    if (!user || !user.companyId) {
+    try {
+      // ユーザーが所属する会社を取得
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      
+      // ユーザーに直接紐づくロールモデル
+      const userModels = await db.select()
+        .from(roleModels)
+        .where(eq(roleModels.userId, userId));
+      
+      // 会社に紐づく共有ロールモデル
+      if (user && user.companyId) {
+        const companyModels = await this.getSharedRoleModels(user.companyId);
+        return [...userModels, ...companyModels];
+      }
+      
       return userModels;
+    } catch (error) {
+      console.error("Error in getRoleModels:", error);
+      return [];
     }
-    
-    // 会社の共有ロールモデルを取得
-    const sharedModels = await this.getSharedRoleModels(user.companyId);
-    
-    // 両方を結合して返す
-    return [...userModels, ...sharedModels];
   }
   
   async getSharedRoleModels(companyId: string): Promise<RoleModel[]> {
-    return await db.select()
-      .from(roleModels)
-      .where(
-        and(
-          eq(roleModels.companyId, companyId),
-          eq(roleModels.isShared, 1)
-        )
-      );
-  }
-
-  async getRoleModelWithTags(id: string): Promise<RoleModelWithTags | undefined> {
-    const roleModelResult = await db.select()
-      .from(roleModels)
-      .where(eq(roleModels.id, id));
-      
-    if (roleModelResult.length === 0) {
-      return undefined;
+    try {
+      return await db.select()
+        .from(roleModels)
+        .where(
+          and(
+            eq(roleModels.companyId, companyId),
+            eq(roleModels.isShared, 1)
+          )
+        );
+    } catch (error) {
+      console.error("Error in getSharedRoleModels:", error);
+      return [];
     }
-    
-    const roleModel = roleModelResult[0];
-    const tagsList = await db.select()
-      .from(tags)
-      .where(eq(tags.roleModelId, id));
-      
-    return {
-      ...roleModel,
-      tags: tagsList
-    };
-  }
-
-  async createRoleModel(roleModel: InsertRoleModel): Promise<RoleModel> {
-    const result = await db.insert(roleModels).values(roleModel).returning();
-    return result[0];
-  }
-
-  async updateRoleModel(id: string, roleModelData: Partial<InsertRoleModel>): Promise<RoleModel | undefined> {
-    const result = await db.update(roleModels)
-      .set(roleModelData)
-      .where(eq(roleModels.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteRoleModel(id: string): Promise<boolean> {
-    const result = await db.delete(roleModels).where(eq(roleModels.id, id)).returning();
-    return result.length > 0;
-  }
-
-  // Tag methods
-  async getTags(roleModelId: string): Promise<Tag[]> {
-    return await db.select()
-      .from(tags)
-      .where(eq(tags.roleModelId, roleModelId));
-  }
-
-  async createTag(tag: InsertTag): Promise<Tag> {
-    const result = await db.insert(tags).values(tag).returning();
-    return result[0];
-  }
-
-  async updateTag(id: string, tagData: Partial<InsertTag>): Promise<Tag | undefined> {
-    const result = await db.update(tags)
-      .set(tagData)
-      .where(eq(tags.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteTag(id: string): Promise<boolean> {
-    const result = await db.delete(tags).where(eq(tags.id, id)).returning();
-    return result.length > 0;
   }
 
   // Knowledge Node methods
   async getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]> {
-    return await db.select()
-      .from(knowledgeNodes)
-      .where(eq(knowledgeNodes.roleModelId, roleModelId))
-      .orderBy(sql`"level" ASC`);
+    try {
+      return await db.select()
+        .from(knowledgeNodes)
+        .where(eq(knowledgeNodes.roleModelId, roleModelId))
+        .orderBy(knowledgeNodes.level);
+    } catch (error) {
+      console.error("Error in getKnowledgeNodes:", error);
+      return [];
+    }
   }
   
   async getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined> {
-    const result = await db.select()
-      .from(knowledgeNodes)
-      .where(eq(knowledgeNodes.id, id));
-    return result[0];
+    try {
+      const [node] = await db.select()
+        .from(knowledgeNodes)
+        .where(eq(knowledgeNodes.id, id));
+      return node;
+    } catch (error) {
+      console.error("Error in getKnowledgeNode:", error);
+      return undefined;
+    }
   }
   
   async createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode> {
-    const result = await db.insert(knowledgeNodes).values(node).returning();
-    return result[0];
-  }
-  
-  async updateKnowledgeNode(id: string, nodeData: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined> {
-    const result = await db.update(knowledgeNodes)
-      .set(nodeData)
-      .where(eq(knowledgeNodes.id, id))
-      .returning();
-    return result[0];
-  }
-  
-  async deleteKnowledgeNode(id: string): Promise<boolean> {
-    // 子ノードの検索と削除
-    const childNodes = await db.select()
-      .from(knowledgeNodes)
-      .where(eq(knowledgeNodes.parentId, id));
-      
-    for (const child of childNodes) {
-      await this.deleteKnowledgeNode(child.id);
+    try {
+      const [newNode] = await db.insert(knowledgeNodes).values(node).returning();
+      return newNode;
+    } catch (error) {
+      console.error("Error in createKnowledgeNode:", error);
+      throw error;
     }
-    
-    // 関連するエッジの削除
-    await db.delete(knowledgeEdges)
-      .where(
-        or(
-          eq(knowledgeEdges.sourceId, id),
-          eq(knowledgeEdges.targetId, id)
-        )
-      );
-    
-    // ノード自体の削除
-    const result = await db.delete(knowledgeNodes)
-      .where(eq(knowledgeNodes.id, id))
-      .returning();
-      
-    return result.length > 0;
   }
   
   // Knowledge Edge methods
   async getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]> {
-    return await db.select()
-      .from(knowledgeEdges)
-      .where(eq(knowledgeEdges.roleModelId, roleModelId));
+    try {
+      return await db.select()
+        .from(knowledgeEdges)
+        .where(eq(knowledgeEdges.roleModelId, roleModelId));
+    } catch (error) {
+      console.error("Error in getKnowledgeEdges:", error);
+      return [];
+    }
   }
   
   async getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined> {
-    const result = await db.select()
-      .from(knowledgeEdges)
-      .where(eq(knowledgeEdges.id, id));
-    return result[0];
+    try {
+      const [edge] = await db.select()
+        .from(knowledgeEdges)
+        .where(eq(knowledgeEdges.id, id));
+      return edge;
+    } catch (error) {
+      console.error("Error in getKnowledgeEdge:", error);
+      return undefined;
+    }
   }
   
   async createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge> {
-    const result = await db.insert(knowledgeEdges).values(edge).returning();
-    return result[0];
-  }
-  
-  async updateKnowledgeEdge(id: string, edgeData: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined> {
-    const result = await db.update(knowledgeEdges)
-      .set(edgeData)
-      .where(eq(knowledgeEdges.id, id))
-      .returning();
-    return result[0];
-  }
-  
-  async deleteKnowledgeEdge(id: string): Promise<boolean> {
-    const result = await db.delete(knowledgeEdges)
-      .where(eq(knowledgeEdges.id, id))
-      .returning();
-    return result.length > 0;
-  }
-
-  // Summary methods
-  async getSummaries(roleModelId: string): Promise<Summary[]> {
-    return await db.select()
-      .from(summaries)
-      .where(eq(summaries.roleModelId, roleModelId))
-      .orderBy(sql`"created_at" DESC`);
-  }
-
-  async getSummaryWithTags(id: string): Promise<SummaryWithTags | undefined> {
-    const summaryResult = await db.select()
-      .from(summaries)
-      .where(eq(summaries.id, id));
-      
-    if (summaryResult.length === 0) {
-      return undefined;
-    }
-    
-    const summary = summaryResult[0];
-    const tagsList = await db.select()
-      .from(tags)
-      .where(eq(tags.roleModelId, summary.roleModelId));
-      
-    return {
-      ...summary,
-      tags: tagsList
-    };
-  }
-
-  async createSummary(summary: InsertSummary): Promise<Summary> {
-    const result = await db.insert(summaries).values(summary).returning();
-    return result[0];
-  }
-
-  async updateSummaryFeedback(id: string, feedback: number): Promise<Summary | undefined> {
-    const result = await db.update(summaries)
-      .set({ feedback })
-      .where(eq(summaries.id, id))
-      .returning();
-    return result[0];
-  }
-
-  // Industry category methods
-  async getIndustryCategories(): Promise<IndustryCategory[]> {
-    return await db.select().from(industryCategories);
-  }
-
-  async getIndustryCategory(id: string): Promise<IndustryCategory | undefined> {
-    const result = await db.select().from(industryCategories).where(eq(industryCategories.id, id));
-    return result[0];
-  }
-
-  async createIndustryCategory(category: InsertIndustryCategory): Promise<IndustryCategory> {
-    const result = await db.insert(industryCategories).values(category).returning();
-    return result[0];
-  }
-
-  async updateIndustryCategory(id: string, categoryData: Partial<InsertIndustryCategory>): Promise<IndustryCategory | undefined> {
-    const result = await db.update(industryCategories)
-      .set(categoryData)
-      .where(eq(industryCategories.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteIndustryCategory(id: string): Promise<boolean> {
-    const result = await db.delete(industryCategories).where(eq(industryCategories.id, id)).returning();
-    return result.length > 0;
-  }
-
-  // Industry subcategory methods
-  async getIndustrySubcategories(categoryId?: string): Promise<IndustrySubcategory[]> {
-    if (categoryId) {
-      return await db.select().from(industrySubcategories).where(eq(industrySubcategories.categoryId, categoryId));
-    }
-    return await db.select().from(industrySubcategories);
-  }
-
-  async getIndustrySubcategoriesWithCategory(): Promise<IndustrySubcategoryWithCategory[]> {
-    const result = await db
-      .select({
-        subcategory: industrySubcategories,
-        category: industryCategories
-      })
-      .from(industrySubcategories)
-      .leftJoin(industryCategories, eq(industrySubcategories.categoryId, industryCategories.id));
-
-    return result.map(({ subcategory, category }) => ({
-      ...subcategory,
-      category
-    }));
-  }
-
-  async getIndustrySubcategory(id: string): Promise<IndustrySubcategory | undefined> {
-    const result = await db.select().from(industrySubcategories).where(eq(industrySubcategories.id, id));
-    return result[0];
-  }
-
-  async createIndustrySubcategory(subcategory: InsertIndustrySubcategory): Promise<IndustrySubcategory> {
-    const result = await db.insert(industrySubcategories).values(subcategory).returning();
-    return result[0];
-  }
-
-  async updateIndustrySubcategory(id: string, subcategoryData: Partial<InsertIndustrySubcategory>): Promise<IndustrySubcategory | undefined> {
-    const result = await db.update(industrySubcategories)
-      .set(subcategoryData)
-      .where(eq(industrySubcategories.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteIndustrySubcategory(id: string): Promise<boolean> {
-    const result = await db.delete(industrySubcategories).where(eq(industrySubcategories.id, id)).returning();
-    return result.length > 0;
-  }
-
-  // Keyword methods
-  async getKeywords(search?: string): Promise<Keyword[]> {
-    if (search) {
-      return await db.select().from(keywords)
-        .where(sql`${keywords.name} ILIKE ${`%${search}%`}`);
-    }
-    return await db.select().from(keywords);
-  }
-
-  async getKeyword(id: string): Promise<Keyword | undefined> {
-    const result = await db.select().from(keywords).where(eq(keywords.id, id));
-    return result[0];
-  }
-
-  async createKeyword(keyword: InsertKeyword): Promise<Keyword> {
-    const result = await db.insert(keywords).values(keyword).returning();
-    return result[0];
-  }
-
-  async updateKeyword(id: string, keywordData: Partial<InsertKeyword>): Promise<Keyword | undefined> {
-    const result = await db.update(keywords)
-      .set(keywordData)
-      .where(eq(keywords.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteKeyword(id: string): Promise<boolean> {
-    const result = await db.delete(keywords).where(eq(keywords.id, id)).returning();
-    return result.length > 0;
-  }
-
-  // Role model industry mapping methods
-  async getRoleModelIndustries(roleModelId: string): Promise<RoleModelIndustry[]> {
-    return await db.select()
-      .from(roleModelIndustries)
-      .where(eq(roleModelIndustries.roleModelId, roleModelId));
-  }
-
-  async getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]> {
     try {
-      // SQL JOINを使って一度のクエリで全てのデータを取得する
-      console.log(`ロールモデルID: ${roleModelId} の業界データを取得します`);
-      
-      const result = await db
-        .select({
-          // サブカテゴリのデータ
-          id: industrySubcategories.id,
-          name: industrySubcategories.name,
-          description: industrySubcategories.description,
-          displayOrder: industrySubcategories.displayOrder,
-          categoryId: industrySubcategories.categoryId,
-          createdAt: industrySubcategories.createdAt,
-          // カテゴリのデータ
-          category: {
-            id: industryCategories.id,
-            name: industryCategories.name,
-            description: industryCategories.description,
-            displayOrder: industryCategories.displayOrder,
-            createdAt: industryCategories.createdAt,
-          }
-        })
-        .from(roleModelIndustries)
-        .innerJoin(
-          industrySubcategories,
-          eq(roleModelIndustries.industrySubcategoryId, industrySubcategories.id)
-        )
-        .innerJoin(
-          industryCategories,
-          eq(industrySubcategories.categoryId, industryCategories.id)
-        )
-        .where(eq(roleModelIndustries.roleModelId, roleModelId));
-        
-      console.log(`業界データを取得（JOIN利用）: ${JSON.stringify(result)}`);
-      
-      // 以下の型キャストはTSの型エラーを回避するためのもの
-      return result as unknown as IndustrySubcategoryWithCategory[];
+      const [newEdge] = await db.insert(knowledgeEdges).values(edge).returning();
+      return newEdge;
     } catch (error) {
-      console.error('getRoleModelIndustriesWithData エラー:', error);
-      return [];
+      console.error("Error in createKnowledgeEdge:", error);
+      throw error;
     }
   }
 
-  async createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
-    const result = await db.insert(roleModelIndustries).values(mapping).returning();
-    return result[0];
-  }
-
-  async deleteRoleModelIndustry(id: string): Promise<boolean> {
-    const result = await db.delete(roleModelIndustries).where(eq(roleModelIndustries.id, id)).returning();
-    return result.length > 0;
-  }
-  
-  async deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean> {
-    // 削除前に確認のためデータを取得
-    const existingData = await db.select()
-      .from(roleModelIndustries)
-      .where(eq(roleModelIndustries.roleModelId, roleModelId));
-    
-    console.log(`削除前のロールモデル業界データ: ${JSON.stringify(existingData)}`);
-    
-    const result = await db.delete(roleModelIndustries)
-      .where(eq(roleModelIndustries.roleModelId, roleModelId))
-      .returning();
-    
-    console.log(`削除実行結果: ${JSON.stringify(result)}`);
-    
-    return result.length > 0;
-  }
-  
-  // Role model keyword mapping methods
-  async getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]> {
-    return await db.select()
-      .from(roleModelKeywords)
-      .where(eq(roleModelKeywords.roleModelId, roleModelId));
-  }
-
-  async getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]> {
-    try {
-      // SQL JOINを使って一度のクエリで全てのデータを取得する
-      console.log(`ロールモデルID: ${roleModelId} のキーワードデータを取得します`);
-      
-      // まず役割モデルに関連するキーワードのIDを取得
-      const roleModelKeywordsData = await db
-        .select()
-        .from(roleModelKeywords)
-        .where(eq(roleModelKeywords.roleModelId, roleModelId));
-      
-      console.log(`キーワードマッピングを取得: ${JSON.stringify(roleModelKeywordsData)}`);
-      
-      if (roleModelKeywordsData.length === 0) {
-        return [];
-      }
-      
-      // キーワードIDリストを作成
-      const keywordIds = roleModelKeywordsData.map(item => item.keywordId);
-      
-      // キーワードの詳細情報を取得
-      const result = await db
-        .select()
-        .from(keywords)
-        .where(inArray(keywords.id, keywordIds));
-        
-      console.log(`キーワードデータを取得: ${JSON.stringify(result)}`);
-      
-      return result;
-    } catch (error) {
-      console.error('getRoleModelKeywordsWithData エラー:', error);
-      return [];
-    }
-  }
-
-  async createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
-    const result = await db.insert(roleModelKeywords).values(mapping).returning();
-    return result[0];
-  }
-
-  async deleteRoleModelKeyword(id: string): Promise<boolean> {
-    const result = await db.delete(roleModelKeywords).where(eq(roleModelKeywords.id, id)).returning();
-    return result.length > 0;
-  }
-  
-  async deleteRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<boolean> {
-    // 削除前に確認のためデータを取得
-    const existingData = await db.select()
-      .from(roleModelKeywords)
-      .where(eq(roleModelKeywords.roleModelId, roleModelId));
-    
-    console.log(`削除前のロールモデルキーワードデータ: ${JSON.stringify(existingData)}`);
-    
-    const result = await db.delete(roleModelKeywords)
-      .where(eq(roleModelKeywords.roleModelId, roleModelId))
-      .returning();
-    
-    console.log(`削除実行結果: ${JSON.stringify(result)}`);
-    
-    return result.length > 0;
-  }
-  
   // Extended role model operations
   async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
     try {
-      const roleModelResult = await db.select()
-        .from(roleModels)
-        .where(eq(roleModels.id, id));
-        
-      if (roleModelResult.length === 0) {
-        return undefined;
-      }
-      
-      const roleModel = roleModelResult[0];
-      
-      // 並行して業界とキーワードを取得
-      const [industries, keywords] = await Promise.all([
-        this.getRoleModelIndustriesWithData(id),
-        this.getRoleModelKeywordsWithData(id)
-      ]);
-      
-      console.log(`Role model industries: ${JSON.stringify(industries)}`);
-      console.log(`Role model keywords: ${JSON.stringify(keywords)}`);
-      
-      const result = {
-        ...roleModel,
-        industries,
-        keywords
-      };
-      
-      console.log(`Complete role model response: ${JSON.stringify(result, null, 2)}`);
-      
-      return result;
-    } catch (error) {
-      console.error('getRoleModelWithIndustriesAndKeywords エラー:', error);
-      // エラーが発生しても、基本的なロールモデル情報だけでも返す
-      const roleModelResult = await db.select()
-        .from(roleModels)
-        .where(eq(roleModels.id, id));
-        
-      if (roleModelResult.length === 0) {
-        return undefined;
-      }
-      
+      const [roleModel] = await db.select().from(roleModels).where(eq(roleModels.id, id));
+      if (!roleModel) return undefined;
+
+      // DBから業界とキーワードデータを取得
+      const industriesData = await this.getRoleModelIndustriesData(id);
+      const keywordsData = await this.getRoleModelKeywordsData(id);
+
       return {
-        ...roleModelResult[0],
-        industries: [],
-        keywords: []
+        ...roleModel,
+        industries: industriesData,
+        keywords: keywordsData
       };
+    } catch (error) {
+      console.error("Error in getRoleModelWithIndustriesAndKeywords:", error);
+      return undefined;
+    }
+  }
+
+  // ロールモデルに関連する業界データを取得
+  private async getRoleModelIndustriesData(roleModelId: string): Promise<Industry[]> {
+    try {
+      // ロールモデルに関連する業界IDを取得
+      const industryMappings = await db
+        .select()
+        .from(sql`role_model_industries`)
+        .where(sql`role_model_id = ${roleModelId}`);
+      
+      if (!industryMappings || industryMappings.length === 0) {
+        return [];
+      }
+      
+      // 業界IDリスト
+      const industryIds = industryMappings.map((mapping: any) => mapping.industry_id);
+      
+      // 業界データ取得
+      const industryData = await db
+        .select()
+        .from(industries)
+        .where(inArray(industries.id, industryIds));
+      
+      return industryData;
+    } catch (error) {
+      console.error("Error in getRoleModelIndustriesData:", error);
+      return [];
+    }
+  }
+
+  // ロールモデルに関連するキーワードデータを取得
+  private async getRoleModelKeywordsData(roleModelId: string): Promise<Keyword[]> {
+    try {
+      // ロールモデルに関連するキーワードIDを取得（SQLで直接クエリ）
+      const keywordMappings = await db
+        .select()
+        .from(sql`role_model_keywords`)
+        .where(sql`role_model_id = ${roleModelId}`);
+      
+      if (!keywordMappings || keywordMappings.length === 0) {
+        return [];
+      }
+      
+      // キーワードIDリスト
+      const keywordIds = keywordMappings.map((mapping: any) => mapping.keyword_id);
+      
+      // キーワードデータ取得
+      const keywordData = await db
+        .select()
+        .from(keywords)
+        .where(inArray(keywords.id, keywordIds));
+      
+      return keywordData;
+    } catch (error) {
+      console.error("Error in getRoleModelKeywordsData:", error);
+      return [];
     }
   }
 }
 
-// Export a singleton instance - PostgreSQLストレージに切り替え
-// export const storage = new MemStorage();
+// ストレージインスタンスを作成
 export const storage = new PostgresStorage();
