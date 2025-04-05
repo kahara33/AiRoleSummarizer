@@ -3,12 +3,27 @@ import { relations } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
+// ユーザーロール定義
+export const USER_ROLES = {
+  ADMIN: 'admin',
+  EDITOR: 'editor',
+  VIEWER: 'viewer'
+} as const;
+
+export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
+
 // 会社テーブル
 export const companies = pgTable('companies', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   description: text('description'),
 });
+
+// 会社テーブル関連付け
+export const companiesRelations = relations(companies, ({ many }) => ({
+  users: many(users),
+  roleModels: many(roleModels),
+}));
 
 // 組織テーブル (オリジナルのスキーマとの互換性のため)
 export const organizations = pgTable('organizations', {
@@ -239,6 +254,13 @@ export const graphVersionsRelations = relations(graphVersions, ({ one }) => ({
 }));
 
 // Zodスキーマとタイプ
+export const insertCompanySchema = createInsertSchema(companies, {
+  name: z.string().min(1, '会社名は必須です'),
+  description: z.string().nullable().optional(),
+}).omit({ id: true });
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+
 export const insertUserSchema = createInsertSchema(users, {
   companyId: z.string().uuid().nullable().optional(),
   role: z.string(),

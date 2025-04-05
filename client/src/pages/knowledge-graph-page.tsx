@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { useParams, useLocation } from 'wouter';
+import { useLocation } from 'wouter';
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import ChatPanel from '@/components/chat/ChatPanel';
 import { KnowledgeNode } from '@shared/schema';
 
-const KnowledgeGraphPage: React.FC = () => {
+interface KnowledgeGraphPageProps {
+  id?: string;
+}
+
+const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
-  const params = useParams<{ id: string }>();
-  const roleModelId = params?.id || 'default';
+  const roleModelId = id || 'default';
 
   // ノード選択時の処理
   const handleNodeSelect = (node: KnowledgeNode) => {

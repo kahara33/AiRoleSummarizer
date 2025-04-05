@@ -230,8 +230,13 @@ function parseCookies(req: IncomingMessage): Record<string, string> {
   
   if (cookieHeader) {
     cookieHeader.split(';').forEach(cookie => {
-      const [name, value] = cookie.trim().split('=');
-      cookies[name] = decodeURIComponent(value);
+      const parts = cookie.trim().split('=');
+      if (parts.length >= 2) {
+        const name = parts[0];
+        // '='が複数ある場合、最初の'='以降をすべて値として扱う
+        const value = parts.slice(1).join('=');
+        cookies[name] = decodeURIComponent(value);
+      }
     });
   }
   

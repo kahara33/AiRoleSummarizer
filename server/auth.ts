@@ -201,14 +201,32 @@ export const requireRole = (role: string | string[]) => {
  */
 export async function verifySession(sessionId: string): Promise<string | null> {
   try {
+    if (!sessionId) {
+      return null;
+    }
+
+    // セッションIDの形式を調整
+    // 'connect.sid=s%3A...' のような形式の場合、s%3A以降の部分を取得
+    let sid = sessionId;
+    if (sid.includes('=')) {
+      sid = sid.split('=')[1];
+    }
+    if (sid.startsWith('s%3A')) {
+      sid = decodeURIComponent(sid).substring(2);
+    }
+    // signatureを分離
+    if (sid.includes('.')) {
+      sid = sid.split('.')[0];
+    }
+
     // セッションIDからユーザーIDを取得する処理
-    // 実際には、セッションストアからセッションデータを取得し、ユーザーIDを抽出
     const { rows } = await pool.query(
       'SELECT sess FROM session WHERE sid = $1',
-      [sessionId]
+      [sid]
     );
 
     if (rows.length === 0 || !rows[0].sess) {
+      console.log('セッションが見つかりません:', sid);
       return null;
     }
 

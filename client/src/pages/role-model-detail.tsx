@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RoleModel, Tag, IndustrySubcategoryWithCategory, Keyword } from "@shared/schema";
+import { RoleModel, Keyword } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,25 +38,47 @@ import RoleModelForm from "@/components/role-models/role-model-form";
 import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
 
-export default function RoleModelDetailPage() {
+// カスタムインターフェース
+interface Tag {
+  id: string;
+  name: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface IndustrySubcategoryWithCategory {
+  id: number;
+  name: string;
+  category?: Category;
+}
+
+interface RoleModelDetailPageProps {
+  id?: string;
+}
+
+interface RoleModelWithRelations extends RoleModel {
+  tags: Tag[];
+  industries: (IndustrySubcategoryWithCategory & { id: string })[];
+  keywords: Keyword[];
+}
+
+export default function RoleModelDetailPage({ id }: RoleModelDetailPageProps) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [isRoleModelRoute, roleModelParams] = useRoute("/role-model/:id");
-  const [isRoleModelsRoute, roleModelsParams] = useRoute("/role-models/:id");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   
-  // どちらかのルートからIDを取得
-  const roleModelId = (isRoleModelRoute ? roleModelParams?.id : 
-                        isRoleModelsRoute ? roleModelsParams?.id : "") || "";
+  // URLパラメータからIDを取得
+  const roleModelId = id || "";
   
   // デバッグログの追加
   useEffect(() => {
     console.log("RoleModelDetailPage - パラメータID:", roleModelId);
-    console.log("パスの種類:", isRoleModelRoute ? "/role-model/:id" : 
-                       isRoleModelsRoute ? "/role-models/:id" : "未マッチ");
-  }, [roleModelId, isRoleModelRoute, isRoleModelsRoute]);
+  }, [roleModelId]);
   
   // ロールモデル削除のミューテーション
   const deleteRoleModelMutation = useMutation({
@@ -93,18 +115,14 @@ export default function RoleModelDetailPage() {
 
   // Fetch role model with tags, industries and keywords
   const { data: roleModel, isLoading, error, refetch } = useQuery({
-    queryKey: [`/api/role-models/${roleModelId}/with-tags`],
+    queryKey: [`/api/role-models/${roleModelId}`],
     queryFn: async () => {
-      console.log("APIリクエスト開始:", `/api/role-models/${roleModelId}/with-tags`);
+      console.log("APIリクエスト開始:", `/api/role-models/${roleModelId}`);
       try {
         // タイムスタンプをクエリパラメータに追加してキャッシュを回避
         const timestamp = new Date().getTime();
-        const res = await apiRequest("GET", `/api/role-models/${roleModelId}/with-tags?t=${timestamp}`);
-        const data = await res.json() as RoleModel & { 
-          tags: Tag[], 
-          industries: IndustrySubcategoryWithCategory[],
-          keywords: Keyword[]
-        };
+        const res = await apiRequest("GET", `/api/role-models/${roleModelId}?t=${timestamp}`);
+        const data = await res.json() as RoleModelWithRelations;
         console.log("APIレスポンス:", data);
         return data;
       } catch (err) {
@@ -178,14 +196,9 @@ export default function RoleModelDetailPage() {
             </p>
           </div>
           <div className="flex space-x-2">
-            <Link href={`/role-model/${roleModelId}/knowledge-graph`}>
+            <Link href={`/knowledge-graph/${roleModelId}`}>
               <Button>
                 知識グラフを表示
-              </Button>
-            </Link>
-            <Link href={`/role-model/${roleModelId}/summaries`}>
-              <Button variant="outline">
-                サマリー一覧
               </Button>
             </Link>
             <Button 
@@ -342,7 +355,17 @@ export default function RoleModelDetailPage() {
             <DialogTitle>ロールモデルを編集</DialogTitle>
           </DialogHeader>
           <RoleModelForm
-            roleModel={roleModel}
+            roleModel={{
+              id: roleModel.id,
+              name: roleModel.name,
+              description: roleModel.description,
+              isShared: roleModel.isShared || 0,
+              industries: roleModel.industries.map(industry => ({
+                ...industry,
+                id: String(industry.id)
+              })),
+              keywords: roleModel.keywords
+            }}
             onSuccess={handleEditSuccess}
           />
         </DialogContent>
