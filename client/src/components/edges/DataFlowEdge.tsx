@@ -1,14 +1,10 @@
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { EdgeProps, getBezierPath, EdgeLabelRenderer } from 'reactflow';
 
-interface DataFlowEdgeData {
-  label?: string;
-  type?: string;
-  strength?: number;
-}
-
-const DataFlowEdge = ({
+const DataFlowEdge: React.FC<EdgeProps> = ({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -18,57 +14,9 @@ const DataFlowEdge = ({
   data,
   markerEnd,
   style = {},
-  animated
-}: EdgeProps<DataFlowEdgeData>) => {
-  // エッジタイプに基づくスタイル
-  const getEdgeStyle = (type?: string, strength = 1) => {
-    const baseThickness = Math.max(1, Math.min(4, strength)); // 太さ制限
-    
-    switch (type?.toLowerCase()) {
-      case 'contains':
-        return {
-          stroke: '#3b82f6', // ブルー
-          strokeWidth: baseThickness + 1,
-          strokeDasharray: '0'
-        };
-      case 'depends_on':
-        return {
-          stroke: '#ef4444', // レッド
-          strokeWidth: baseThickness,
-          strokeDasharray: '0'
-        };
-      case 'related_to':
-        return {
-          stroke: '#10b981', // グリーン
-          strokeWidth: baseThickness,
-          strokeDasharray: '0'
-        };
-      case 'task_flow':
-        return {
-          stroke: '#8b5cf6', // パープル
-          strokeWidth: baseThickness,
-          strokeDasharray: '5,5'
-        };
-      default:
-        return {
-          stroke: '#64748b', // スレート
-          strokeWidth: baseThickness,
-          strokeDasharray: '0'
-        };
-    }
-  };
-  
-  // ベースとなるエッジスタイルを取得
-  const edgeStyle = getEdgeStyle(data?.type, data?.strength);
-  
-  // アニメーションスタイルを適用
-  const animationStyle = animated ? {
-    animation: 'flow 20s linear infinite',
-    strokeDasharray: '15,10',
-    animationDuration: '3s'
-  } : {};
-  
-  // ベジエカーブを生成
+  label,
+}) => {
+  // エッジのパスを計算
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -77,40 +25,55 @@ const DataFlowEdge = ({
     targetY,
     targetPosition,
   });
-  
+
+  // データの流れの強さに基づくスタイリング
+  const getEdgeStrengthStyle = () => {
+    const strength = data?.strength || 1;
+    
+    // 強さに応じて線の太さを調整
+    const strokeWidth = Math.max(1, Math.min(5, 1 + strength * 0.5));
+    
+    // 強さに応じて色を調整（弱い: 薄い青、強い: 濃い青）
+    const intensity = Math.max(0.4, Math.min(0.9, 0.4 + strength * 0.1));
+    const strokeColor = `rgba(59, 130, 246, ${intensity})`;
+    
+    return {
+      strokeWidth,
+      stroke: strokeColor,
+    };
+  };
+
+  const strengthStyle = getEdgeStrengthStyle();
+  const mergedStyle = { ...style, ...strengthStyle };
+
   return (
     <>
       <path
         id={id}
-        className="react-flow__edge-path"
+        className="react-flow__edge-path transition-all duration-300"
         d={edgePath}
         markerEnd={markerEnd}
-        style={{
-          ...edgeStyle,
-          ...style,
-          ...animationStyle,
-        }}
+        style={mergedStyle}
       />
       
-      {/* エッジラベル */}
-      {data?.label && (
+      {label && (
         <EdgeLabelRenderer>
           <div
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: 10,
-              // エッジと同じ色でラベルを表示
-              backgroundColor: edgeStyle.stroke,
-              color: 'white',
+              fontSize: 12,
+              // 背景を追加して可読性を向上
+              background: 'rgba(255, 255, 255, 0.7)',
               padding: '2px 4px',
               borderRadius: 4,
-              fontWeight: 500,
               pointerEvents: 'all',
+              // アニメーションされたエッジの場合、特別なスタイル
+              boxShadow: data?.animated ? '0 0 5px rgba(59, 130, 246, 0.5)' : 'none',
             }}
-            className="nodrag nopan"
+            className="nodrag nopan text-xs"
           >
-            {data.label}
+            {label}
           </div>
         </EdgeLabelRenderer>
       )}

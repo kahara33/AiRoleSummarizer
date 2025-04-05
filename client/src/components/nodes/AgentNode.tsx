@@ -1,121 +1,132 @@
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
-import 'react-circular-progressbar/dist/styles.css';
-import { Bot, Network, Activity, Database, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Brain, Network, Share2, BarChart3 } from 'lucide-react';
 
-interface AgentNodeData {
-  label: string;
-  agentType: string;
-  status: string;
-  progress: number;
-  message?: string;
-  thoughts?: string[];
-}
+const AgentNode: React.FC<NodeProps> = ({ data, isConnectable }) => {
+  // エージェントタイプに基づくスタイリング
+  const getAgentStyles = () => {
+    const agentColors: Record<string, { bg: string; border: string; icon: JSX.Element }> = {
+      'industry-analysis': {
+        bg: 'bg-blue-50',
+        border: 'border-blue-300',
+        icon: <Search size={18} className="text-blue-500" />,
+      },
+      'keyword-expansion': {
+        bg: 'bg-purple-50',
+        border: 'border-purple-300',
+        icon: <Brain size={18} className="text-purple-500" />,
+      },
+      'structuring': {
+        bg: 'bg-green-50',
+        border: 'border-green-300',
+        icon: <Network size={18} className="text-green-500" />,
+      },
+      'knowledge-graph': {
+        bg: 'bg-orange-50',
+        border: 'border-orange-300',
+        icon: <Share2 size={18} className="text-orange-500" />,
+      },
+      'orchestrator': {
+        bg: 'bg-red-50',
+        border: 'border-red-300',
+        icon: <BarChart3 size={18} className="text-red-500" />,
+      },
+    };
 
-function getAgentIcon(agentType: string) {
-  switch (agentType.toLowerCase()) {
-    case 'orchestrator':
-      return <Network className="w-4 h-4 mr-1" />;
-    case 'analyzer':
-      return <Activity className="w-4 h-4 mr-1" />;
-    case 'data':
-      return <Database className="w-4 h-4 mr-1" />;
-    default:
-      return <Bot className="w-4 h-4 mr-1" />;
-  }
-}
+    return (
+      agentColors[data.agentType] || {
+        bg: 'bg-gray-50',
+        border: 'border-gray-300',
+        icon: <Brain size={18} className="text-gray-500" />,
+      }
+    );
+  };
 
-function getStatusColor(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'running':
-      return '#3b82f6'; // ブルー
-    case 'completed':
-      return '#10b981'; // グリーン
-    case 'waiting':
-      return '#f59e0b'; // アンバー
-    case 'error':
-      return '#ef4444'; // レッド
-    default:
-      return '#6b7280'; // グレー
-  }
-}
+  const { bg, border, icon } = getAgentStyles();
 
-function getStatusIcon(status: string) {
-  switch (status.toLowerCase()) {
-    case 'running':
-      return <Activity className="w-4 h-4" />;
-    case 'completed':
-      return <CheckCircle2 className="w-4 h-4" />;
-    case 'error':
-      return <AlertTriangle className="w-4 h-4" />;
-    default:
-      return null;
-  }
-}
+  // エージェントのステータスに基づく表示
+  const getStatusIndicator = () => {
+    const status = data.status || 'idle';
+    const statusColors: Record<string, string> = {
+      active: 'bg-green-500',
+      processing: 'bg-blue-500 animate-pulse',
+      idle: 'bg-gray-400',
+      error: 'bg-red-500',
+      completed: 'bg-teal-500',
+    };
 
-const AgentNode = ({ data }: NodeProps<AgentNodeData>) => {
-  const statusColor = getStatusColor(data.status);
-  const agentIcon = getAgentIcon(data.agentType);
-  const statusIcon = getStatusIcon(data.status);
-  
+    return (
+      <div className="absolute -top-1 -right-1">
+        <div
+          className={`w-3 h-3 rounded-full ${statusColors[status]}`}
+          title={`ステータス: ${status}`}
+        ></div>
+      </div>
+    );
+  };
+
   return (
-    <>
-      {/* インプットハンドル（上部） */}
+    <div
+      className={`px-4 py-3 rounded-lg shadow-md border ${border} ${bg} relative`}
+      style={{
+        width: 180,
+        transition: 'all 0.3s ease',
+      }}
+    >
+      {getStatusIndicator()}
+      
       <Handle
         type="target"
         position={Position.Top}
-        style={{ background: statusColor, width: 8, height: 8 }}
+        isConnectable={isConnectable}
+        className="w-2 h-2 bg-purple-400"
       />
       
-      {/* ノード本体 */}
-      <div className="flex items-center bg-background border-2 border-border rounded-md p-2 shadow-md"
-           style={{ width: '180px', minHeight: '80px' }}>
-        <div className="flex flex-col w-full">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center font-bold text-sm">
-              {agentIcon}
-              <span className="truncate max-w-[100px]">{data.label}</span>
-            </div>
-            <div className="flex items-center">
-              <div className="text-xs font-medium px-1.5 py-0.5 rounded-full" 
-                   style={{ backgroundColor: statusColor, color: 'white' }}>
-                {data.status}
-              </div>
-            </div>
-          </div>
-          
-          {/* 進捗状況 */}
-          <div className="flex items-center mt-1">
-            <div className="w-10 h-10 mr-2">
-              <CircularProgressbar
-                value={data.progress}
-                text={`${data.progress}%`}
-                styles={buildStyles({
-                  textSize: '30px',
-                  pathColor: statusColor,
-                  textColor: statusColor,
-                  trailColor: '#d6d6d6',
-                })}
-              />
-            </div>
-            <div className="flex-1 ml-2">
-              <p className="text-xs text-muted-foreground truncate max-w-[110px]">
-                {data.message || `${data.agentType} ${data.status}`}
-              </p>
-            </div>
-          </div>
+      <div className="flex items-center">
+        <div className="p-1.5 rounded-full bg-white mr-2">{icon}</div>
+        <div className="font-semibold text-sm" title={data.label}>
+          {data.label}
         </div>
       </div>
       
-      {/* アウトプットハンドル（下部） */}
+      {data.progress !== undefined && (
+        <div className="mt-2">
+          <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-500"
+              style={{ width: `${data.progress}%` }}
+            ></div>
+          </div>
+          <div className="text-right text-xs mt-0.5 text-gray-500">
+            {data.progress}%
+          </div>
+        </div>
+      )}
+      
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ background: statusColor, width: 8, height: 8 }}
+        isConnectable={isConnectable}
+        className="w-2 h-2 bg-purple-400"
       />
-    </>
+      
+      {/* サイドハンドル（必要に応じて） */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        isConnectable={isConnectable}
+        className="w-2 h-2 bg-purple-400"
+      />
+      
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="left"
+        isConnectable={isConnectable}
+        className="w-2 h-2 bg-purple-400"
+      />
+    </div>
   );
 };
 

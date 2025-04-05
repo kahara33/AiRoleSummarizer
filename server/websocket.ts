@@ -1,370 +1,191 @@
-/**
- * WebSocketサーバー
- * クライアントとのリアルタイム通信を管理するモジュール
- */
-
-import { Server } from 'http';
+import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { randomUUID } from 'crypto';
+import { IncomingMessage } from 'http';
+import url from 'url';
 import { verifySession } from './auth';
 
-/**
- * WebSocket通信の接続状態
- */
-export enum WebSocketState {
-  OPEN = 1
+interface Client {
+  id: string;
+  ws: WebSocket;
+  userId?: string;
+  roleModelId?: string;
 }
 
-/**
- * WebSocketクライアント接続情報
- */
-interface ClientConnection {
-  id: string;           // 接続ID
-  ws: WebSocket;        // WebSocketインスタンス
-  userId: string;       // ユーザーID
-  roleModelIds: string[]; // 購読している役割モデルID
-}
+// クライアント管理
+let clients: Client[] = [];
 
 /**
- * WebSocketメッセージ型
+ * WebSocketサーバーの初期化
+ * @param server HTTPサーバーインスタンス
  */
-interface WebSocketMessage {
-  type: string;         // メッセージタイプ
-  payload: any;         // ペイロード
-}
+export function setupWebSocketServer(server: HttpServer): WebSocketServer {
+  const wss = new WebSocketServer({ server, path: '/ws' });
 
-// アクティブな接続を管理するMap
-const clients = new Map<string, ClientConnection>();
+  console.log('WebSocketサーバーが初期化されました');
 
-/**
- * WebSocketサーバーを設定する
- * @param server HTTPサーバー
- * @returns 設定されたWebSocketServer
- */
-export function setupWebSocketServer(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ 
-    server,
-    path: '/ws'
-  });
-
-  wss.on('connection', async (ws, req) => {
-    // クライアント識別子を生成
-    const clientId = randomUUID();
+  // 接続時の処理
+  wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
+    // クライアントID生成
+    const clientId = generateClientId();
     
-    // クッキーからセッションIDを取得
-    const cookies = req.headers.cookie || '';
-    const sessionIdMatch = cookies.match(/connect\.sid=s%3A([^.]+)/);
-    let userId = null;
+    // セッションCookieからユーザーIDを取得
+    const cookies = parseCookies(req);
+    const sessionId = cookies['connect.sid'];
+    const userId = sessionId ? await verifySession(sessionId) : null;
     
-    if (sessionIdMatch && sessionIdMatch[1]) {
-      const sessionId = decodeURIComponent(sessionIdMatch[1]);
-      userId = await verifySession(sessionId);
-    }
+    // クエリパラメータから表示中のロールモデルIDを取得
+    const queryParams = url.parse(req.url || '', true).query;
+    const roleModelId = queryParams.roleModelId as string;
     
-    if (!userId) {
-      console.log('WebSocket connection rejected: Not authenticated');
-      ws.close(4001, 'Not authenticated');
-      return;
-    }
-    
-    // クライアント情報を保存
-    const client: ClientConnection = {
+    // クライアント情報を記録
+    const client: Client = {
       id: clientId,
       ws,
-      userId,
-      roleModelIds: []
+      userId: userId || undefined,
+      roleModelId: roleModelId,
     };
     
-    clients.set(clientId, client);
-    console.log(`WebSocket client connected: ${clientId}, userId: ${userId}`);
+    clients.push(client);
     
-    // 接続確認メッセージを送信
-    sendMessage(ws, {
-      type: 'connected',
-      payload: { clientId }
-    });
+    console.log(`新しいWebSocket接続: クライアントID=${clientId}, ユーザーID=${userId || 'ゲスト'}`);
     
-    // メッセージ受信時の処理
-    ws.on('message', (data: any) => {
+    // 認証状態をクライアントに通知
+    const authStatus = {
+      type: 'auth-status',
+      payload: {
+        authenticated: !!userId,
+        userId: userId,
+      },
+    };
+    
+    ws.send(JSON.stringify(authStatus));
+    
+    // クライアントがメッセージを送信した時の処理
+    ws.on('message', (message: string) => {
       try {
-        // 文字列に変換し、不要な制御文字を削除
-        const cleanData = data.toString().replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+        const data = JSON.parse(message);
+        console.log(`クライアント ${clientId} からのメッセージ:`, data);
         
-        // JSONとして安全にパース
-        let message;
-        try {
-          message = JSON.parse(cleanData);
-        } catch (parseError) {
-          console.error(`Invalid JSON from client ${clientId}: ${cleanData.substring(0, 100)}...`, parseError);
-          sendMessage(ws, {
-            type: 'error',
-            payload: {
-              timestamp: Date.now(),
-              error: 'Invalid message format',
-              details: { reason: 'JSON parse error' }
-            }
-          });
-          return;
-        }
-        
-        // メッセージの形式を検証
-        if (!message || typeof message !== 'object' || !message.type) {
-          console.error(`Invalid message structure from client ${clientId}`);
-          sendMessage(ws, {
-            type: 'error',
-            payload: {
-              timestamp: Date.now(),
-              error: 'Invalid message structure',
-              details: { reason: 'Message must have a type field' }
-            }
-          });
-          return;
-        }
-        
-        console.log(`WebSocket message received from client ${clientId}: type=${message.type}`);
-        handleClientMessage(clientId, message);
+        // 必要に応じてメッセージを処理
+        handleClientMessage(client, data);
       } catch (error) {
-        console.error(`Error processing WebSocket message from client ${clientId}:`, error);
-        try {
-          sendMessage(ws, {
-            type: 'error',
-            payload: {
-              timestamp: Date.now(),
-              error: 'Server error processing message',
-              details: { reason: error instanceof Error ? error.message : 'Unknown error' }
-            }
-          });
-        } catch (sendError) {
-          console.error('Failed to send error message:', sendError);
-        }
+        console.error('WebSocketメッセージの解析エラー:', error);
       }
     });
     
-    // 接続終了時の処理
+    // 接続が閉じられた時の処理
     ws.on('close', () => {
-      clients.delete(clientId);
-      console.log(`WebSocket client disconnected: ${clientId}`);
+      console.log(`クライアント ${clientId} の接続が閉じられました`);
+      clients = clients.filter(c => c.id !== clientId);
+    });
+    
+    // エラー処理
+    ws.on('error', (error) => {
+      console.error(`クライアント ${clientId} でエラーが発生:`, error);
     });
   });
-  
+
   return wss;
 }
 
 /**
- * クライアントからのメッセージを処理する
- * @param clientId クライアントID
- * @param message 受信したメッセージ
+ * 全クライアントにメッセージをブロードキャスト
+ * @param type メッセージタイプ
+ * @param payload メッセージデータ
+ * @param filter 特定の条件でフィルタリング
  */
-function handleClientMessage(clientId: string, message: WebSocketMessage): void {
-  const client = clients.get(clientId);
-  if (!client) return;
+export function broadcastMessage(
+  type: string,
+  payload: any,
+  filter?: (client: Client) => boolean
+): void {
+  const message = JSON.stringify({ type, payload });
   
-  switch (message.type) {
-    case 'subscribe_role_model':
-      // 役割モデルの購読
-      if (message.payload && message.payload.roleModelId) {
-        const { roleModelId } = message.payload;
-        
-        if (!client.roleModelIds.includes(roleModelId)) {
-          client.roleModelIds.push(roleModelId);
-          console.log(`Client ${clientId} subscribed to role model: ${roleModelId}`);
-          
-          sendMessage(client.ws, {
-            type: 'subscription_success',
-            payload: { roleModelId }
-          });
-        }
+  clients.forEach(client => {
+    if (client.ws.readyState === WebSocket.OPEN) {
+      if (!filter || filter(client)) {
+        client.ws.send(message);
+      }
+    }
+  });
+}
+
+/**
+ * 特定のロールモデル閲覧者にメッセージを送信
+ * @param type メッセージタイプ
+ * @param payload メッセージデータ
+ * @param roleModelId ロールモデルID
+ */
+export function sendMessageToRoleModelViewers(
+  type: string,
+  payload: any,
+  roleModelId: string
+): void {
+  broadcastMessage(type, payload, client => client.roleModelId === roleModelId);
+}
+
+/**
+ * 特定のユーザーにメッセージを送信
+ * @param type メッセージタイプ
+ * @param payload メッセージデータ
+ * @param userId ユーザーID
+ */
+export function sendMessageToUser(
+  type: string,
+  payload: any,
+  userId: string
+): void {
+  broadcastMessage(type, payload, client => client.userId === userId);
+}
+
+/**
+ * クライアントメッセージの処理
+ * @param client クライアント情報
+ * @param data メッセージデータ
+ */
+function handleClientMessage(client: Client, data: any): void {
+  const { type, payload } = data;
+  
+  switch (type) {
+    case 'subscribe-role-model':
+      // ロールモデル購読のリクエスト
+      client.roleModelId = payload.roleModelId;
+      console.log(`クライアント ${client.id} がロールモデル ${payload.roleModelId} を購読`);
+      break;
+      
+    case 'agent-control':
+      // エージェント制御コマンド
+      if (client.userId) {
+        // 認証済みユーザーからのコマンドのみ処理
+        console.log(`ユーザー ${client.userId} からのエージェント制御コマンド:`, payload);
+        // ここでエージェント制御のロジックを呼び出す
       }
       break;
-      
-    case 'unsubscribe_role_model':
-      // 役割モデルの購読解除
-      if (message.payload && message.payload.roleModelId) {
-        const { roleModelId } = message.payload;
-        
-        client.roleModelIds = client.roleModelIds.filter(id => id !== roleModelId);
-        console.log(`Client ${clientId} unsubscribed from role model: ${roleModelId}`);
-        
-        sendMessage(client.ws, {
-          type: 'unsubscription_success',
-          payload: { roleModelId }
-        });
-      }
-      break;
-      
-    case 'ping':
-      // Keep-alive ping
-      sendMessage(client.ws, { type: 'pong', payload: {} });
-      break;
-      
-    default:
-      console.log(`Unknown message type from client ${clientId}: ${message.type}`);
   }
 }
 
 /**
- * WebSocket経由でメッセージを送信する
- * @param ws WebSocketインスタンス
- * @param message 送信するメッセージ
+ * 一意のクライアントIDを生成
  */
-function sendMessage(ws: WebSocket, message: WebSocketMessage): void {
-  if (ws.readyState === WebSocketState.OPEN) {
-    try {
-      // 特殊文字や制御文字を安全に処理するためのフィルタリング
-      const safeMessage = sanitizeMessage(message);
-      const messageString = JSON.stringify(safeMessage);
-      
-      console.log(`Sending WebSocket message: ${messageString.substring(0, 200)}${messageString.length > 200 ? '...[truncated]' : ''}`);
-      ws.send(messageString);
-    } catch (error) {
-      console.error('Error sending WebSocket message:', error);
-    }
-  } else {
-    console.warn(`Cannot send message, WebSocket not OPEN: readyState=${ws.readyState}`);
-  }
+function generateClientId(): string {
+  return `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 /**
- * メッセージオブジェクトを安全な形式に変換（JSONとして問題ない形に）
- * @param message 元のメッセージオブジェクト
- * @returns 安全に処理されたメッセージオブジェクト
+ * リクエストヘッダーからCookieを解析
+ * @param req リクエストオブジェクト
+ * @returns Cookieオブジェクト
  */
-function sanitizeMessage(message: WebSocketMessage): WebSocketMessage {
-  // 再帰的に処理するヘルパー関数
-  function sanitizeValue(value: any): any {
-    if (value === null || value === undefined) {
-      return null;
-    }
-    
-    if (typeof value === 'string') {
-      // 制御文字を削除、長すぎる文字列を切り詰め
-      return value
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 制御文字の削除
-        .slice(0, 10000); // 極端に長い文字列を防止
-    }
-    
-    if (typeof value === 'object') {
-      if (Array.isArray(value)) {
-        return value.map(item => sanitizeValue(item));
-      }
-      
-      const result: Record<string, any> = {};
-      for (const key in value) {
-        if (Object.prototype.hasOwnProperty.call(value, key)) {
-          result[key] = sanitizeValue(value[key]);
-        }
-      }
-      return result;
-    }
-    
-    // 数値、真偽値はそのまま
-    return value;
+function parseCookies(req: IncomingMessage): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  const cookieHeader = req.headers.cookie;
+  
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach(cookie => {
+      const [name, value] = cookie.trim().split('=');
+      cookies[name] = decodeURIComponent(value);
+    });
   }
   
-  return {
-    type: message.type,
-    payload: sanitizeValue(message.payload)
-  };
-}
-
-/**
- * 特定ユーザーの特定役割モデルに関連する全クライアントにエージェントの思考を送信する
- * @param userId ユーザーID
- * @param roleModelId 役割モデルID
- * @param agentName エージェント名
- * @param message メッセージ内容
- * @param type メッセージタイプ（デフォルト: 'info'）
- */
-export function sendAgentThoughts(
-  userId: string,
-  roleModelId: string,
-  agentName: string,
-  message: string,
-  type: 'info' | 'error' | 'success' | 'thinking' = 'info'
-): void {
-  // Array.fromで安全にイテレーション
-  Array.from(clients.values()).forEach(client => {
-    if (
-      client.userId === userId &&
-      client.roleModelIds.includes(roleModelId) &&
-      client.ws.readyState === WebSocketState.OPEN
-    ) {
-      sendMessage(client.ws, {
-        type: 'agent_thoughts',
-        payload: {
-          timestamp: Date.now(),
-          agentName,
-          message,
-          type
-        }
-      });
-    }
-  });
-}
-
-/**
- * 特定ユーザーの特定役割モデルに関連する全クライアントに進捗状況を送信する
- * @param userId ユーザーID
- * @param roleModelId 役割モデルID
- * @param stage 現在のステージ
- * @param progress 進捗率（0-100）
- * @param details 詳細情報
- */
-export function sendProgressUpdate(
-  userId: string,
-  roleModelId: string,
-  stage: string,
-  progress: number,
-  details: any = {}
-): void {
-  // Array.fromで安全にイテレーション
-  Array.from(clients.values()).forEach(client => {
-    if (
-      client.userId === userId &&
-      client.roleModelIds.includes(roleModelId) &&
-      client.ws.readyState === WebSocketState.OPEN
-    ) {
-      sendMessage(client.ws, {
-        type: 'progress_update',
-        payload: {
-          stage,
-          progress,
-          message: details.message || `${stage} ${progress}% 完了`,
-          details
-        }
-      });
-    }
-  });
-}
-
-/**
- * 特定ユーザーの特定役割モデルに関連する全クライアントにエラーを送信する
- * @param userId ユーザーID
- * @param roleModelId 役割モデルID
- * @param error エラーメッセージ
- * @param details 詳細情報
- */
-export function sendErrorMessage(
-  userId: string,
-  roleModelId: string,
-  error: string,
-  details: any = {}
-): void {
-  // Array.fromで安全にイテレーション
-  Array.from(clients.values()).forEach(client => {
-    if (
-      client.userId === userId &&
-      client.roleModelIds.includes(roleModelId) &&
-      client.ws.readyState === WebSocketState.OPEN
-    ) {
-      sendMessage(client.ws, {
-        type: 'error',
-        payload: {
-          timestamp: Date.now(),
-          error,
-          details
-        }
-      });
-    }
-  });
+  return cookies;
 }

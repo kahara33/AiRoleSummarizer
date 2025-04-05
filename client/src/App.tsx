@@ -1,49 +1,52 @@
-import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import NotFound from "@/pages/not-found";
-import { AuthProvider } from "@/hooks/use-auth";
-import { ProtectedRoute } from "@/lib/protected-route";
-import AuthPage from "@/pages/auth-page";
-import Dashboard from "@/pages/dashboard";
-import RoleModelsPage from "@/pages/role-models";
-import RoleModelDetailPage from "@/pages/role-model-detail";
-import TagsPage from "@/pages/tags";
-import SummariesPage from "@/pages/summaries";
-import KnowledgeGraphPage from "@/pages/knowledge-graph";
-import OrganizationsPage from "@/pages/organizations";
-import InformationCollectionPage from "@/pages/information-collection";
+import React from 'react';
+import { Switch, Route } from 'wouter';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import MainLayout from '@/components/layout/MainLayout';
+import HomePage from '@/pages/home-page';
+import KnowledgeGraphPage from '@/pages/knowledge-graph-page';
 
-function Router() {
-  return (
-    <Switch>
-      <Route path="/auth" component={AuthPage} />
-      <ProtectedRoute path="/role-models/new" component={RoleModelsPage} />
-      <ProtectedRoute path="/role-models/:id" component={RoleModelDetailPage} />
-      <ProtectedRoute path="/role-models" component={RoleModelsPage} />
-      <ProtectedRoute path="/role-model/:id/knowledge-graph" component={KnowledgeGraphPage} />
-      <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPage} />
-      <ProtectedRoute path="/knowledge-graph" component={KnowledgeGraphPage} />
-      <ProtectedRoute path="/information-collection" component={InformationCollectionPage} />
-      <ProtectedRoute path="/tags" component={TagsPage} />
-      <ProtectedRoute path="/summaries" component={SummariesPage} />
-      <ProtectedRoute path="/organizations" component={OrganizationsPage} />
-      <ProtectedRoute path="/" component={Dashboard} />
-      <Route path="/:rest*" component={NotFound} />
-    </Switch>
-  );
-}
+// エラーが発生した場合のフォールバックページ
+const NotFoundPage = () => (
+  <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="text-center p-8 bg-white rounded-lg shadow-md">
+      <h1 className="text-3xl font-bold text-gray-800 mb-2">404</h1>
+      <p className="text-xl text-gray-600 mb-4">ページが見つかりません</p>
+      <a
+        href="/"
+        className="text-blue-500 hover:text-blue-700 transition-colors"
+      >
+        ホームに戻る
+      </a>
+    </div>
+  </div>
+);
 
-function App() {
+// QueryClientの設定
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router />
-        <Toaster />
-      </AuthProvider>
+      <MainLayout>
+        <Switch>
+          <Route path="/" component={HomePage} />
+          <Route path="/knowledge-graph/:id">
+            {(params) => <KnowledgeGraphPage />}
+          </Route>
+          <Route component={NotFoundPage} />
+        </Switch>
+      </MainLayout>
+      <Toaster />
     </QueryClientProvider>
   );
-}
+};
 
 export default App;

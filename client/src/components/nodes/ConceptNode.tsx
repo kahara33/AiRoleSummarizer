@@ -1,119 +1,90 @@
-import { useState, memo } from 'react';
+import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { Brain, Database, Book, Lightbulb, Code, Hash, FileText } from 'lucide-react';
+import { Brain, FileText, Zap, Database, Search, Lightbulb } from 'lucide-react';
 
-interface ConceptNodeData {
-  label: string;
-  description?: string;
-  type?: string;
-  level?: number;
-  importance?: number;
-  color?: string;
-  keywords?: string[];
-}
+const ConceptNode: React.FC<NodeProps> = ({ data, isConnectable }) => {
+  // ノードタイプに基づくスタイリング
+  const getNodeStyles = () => {
+    const typeColors: Record<string, { bg: string; border: string; icon: JSX.Element }> = {
+      concept: {
+        bg: 'bg-blue-50',
+        border: 'border-blue-300',
+        icon: <Lightbulb size={16} className="text-blue-500" />,
+      },
+      industry: {
+        bg: 'bg-purple-50',
+        border: 'border-purple-300',
+        icon: <Brain size={16} className="text-purple-500" />,
+      },
+      technology: {
+        bg: 'bg-green-50',
+        border: 'border-green-300',
+        icon: <Zap size={16} className="text-green-500" />,
+      },
+      company: {
+        bg: 'bg-amber-50',
+        border: 'border-amber-300',
+        icon: <Database size={16} className="text-amber-500" />,
+      },
+      keyword: {
+        bg: 'bg-cyan-50',
+        border: 'border-cyan-300',
+        icon: <Search size={16} className="text-cyan-500" />,
+      },
+      document: {
+        bg: 'bg-gray-50',
+        border: 'border-gray-300',
+        icon: <FileText size={16} className="text-gray-500" />,
+      },
+    };
 
-function getNodeIcon(type?: string) {
-  switch (type?.toLowerCase()) {
-    case 'concept':
-      return <Brain className="w-4 h-4 mr-1" />;
-    case 'data':
-      return <Database className="w-4 h-4 mr-1" />;
-    case 'resource':
-      return <Book className="w-4 h-4 mr-1" />;
-    case 'idea':
-      return <Lightbulb className="w-4 h-4 mr-1" />;
-    case 'tool':
-      return <Code className="w-4 h-4 mr-1" />;
-    case 'keyword':
-      return <Hash className="w-4 h-4 mr-1" />;
-    default:
-      return <FileText className="w-4 h-4 mr-1" />;
-  }
-}
-
-function getNodeColor(color?: string, type?: string): string {
-  if (color) return color;
-  
-  switch (type?.toLowerCase()) {
-    case 'concept':
-      return '#3b82f6'; // ブルー
-    case 'data':
-      return '#10b981'; // エメラルド
-    case 'resource':
-      return '#f59e0b'; // アンバー
-    case 'idea':
-      return '#8b5cf6'; // バイオレット
-    case 'tool':
-      return '#ef4444'; // レッド
-    case 'keyword':
-      return '#14b8a6'; // ティール
-    default:
-      return '#6b7280'; // グレー
-  }
-}
-
-// ノードのサイズを重要度に応じて計算
-function getNodeSize(importance?: number): { width: number, height: number } {
-  const baseSize = 120;
-  const baseHeight = 40;
-  const factor = importance || 1;
-  
-  return {
-    width: Math.max(baseSize, baseSize * Math.sqrt(factor / 3)),
-    height: Math.max(baseHeight, baseHeight * Math.sqrt(factor / 3))
+    return typeColors[data.type] || typeColors.concept;
   };
-}
 
-const ConceptNode = ({ data, selected }: NodeProps<ConceptNodeData>) => {
-  const [showDescription, setShowDescription] = useState(false);
-  
-  const nodeColor = getNodeColor(data.color, data.type);
-  const nodeIcon = getNodeIcon(data.type);
-  const { width, height } = getNodeSize(data.importance);
-  
+  const { bg, border, icon } = getNodeStyles();
+
+  // レベルに基づく透明度調整
+  const getOpacityByLevel = () => {
+    const level = data.level || 0;
+    // レベルが上がるほど透明になる（ただし最小0.6）
+    return Math.max(0.6, 1 - level * 0.1);
+  };
+
+  const opacity = getOpacityByLevel();
+
   return (
-    <>
-      {/* インプットハンドル（上部） */}
+    <div
+      className={`px-4 py-2 rounded-lg shadow-md border ${border} ${bg}`}
+      style={{
+        width: 180,
+        opacity,
+        transition: 'all 0.3s ease',
+      }}
+    >
       <Handle
         type="target"
         position={Position.Top}
-        style={{ background: nodeColor, width: 8, height: 8 }}
+        isConnectable={isConnectable}
+        className="w-2 h-2 bg-blue-400"
       />
-      
-      {/* ノード本体 */}
-      <div
-        style={{ width: `${width}px`, height: `${height}px` }}
-        className={`flex items-center justify-center rounded-md border-2 transition-all duration-200 ${
-          selected ? 'shadow-lg border-primary' : 'shadow border-transparent'
-        }`}
-        onClick={() => setShowDescription(!showDescription)}
-      >
-        {/* ノードの内容 */}
-        <div
-          className="flex flex-col items-center justify-center p-2 w-full h-full rounded"
-          style={{ backgroundColor: nodeColor, color: 'white' }}
-        >
-          <div className="flex items-center justify-center text-center font-medium truncate w-full">
-            {nodeIcon}
-            <span className="truncate max-w-full">{data.label}</span>
-          </div>
-          
-          {/* 説明（ホバー時に表示） */}
-          {showDescription && data.description && (
-            <div className="absolute bottom-full left-0 w-48 bg-gray-800 text-white text-xs rounded p-2 shadow-lg mb-2 z-10">
-              {data.description}
-            </div>
-          )}
+      <div className="flex items-center">
+        <div className="p-1.5 rounded-full bg-white mr-2">{icon}</div>
+        <div className="font-semibold text-sm truncate" title={data.label}>
+          {data.label}
         </div>
       </div>
-      
-      {/* アウトプットハンドル（下部） */}
+      {data.description && (
+        <div className="mt-1 text-xs text-gray-500 line-clamp-2" title={data.description}>
+          {data.description}
+        </div>
+      )}
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ background: nodeColor, width: 8, height: 8 }}
+        isConnectable={isConnectable}
+        className="w-2 h-2 bg-blue-400"
       />
-    </>
+    </div>
   );
 };
 

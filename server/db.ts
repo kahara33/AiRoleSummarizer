@@ -1,15 +1,16 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "@shared/schema";
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import * as schema from '@shared/schema';
 
-neonConfig.webSocketConstructor = ws;
+// 環境変数からデータベース接続情報を取得
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+// 接続テスト
+pool.connect()
+  .then(() => console.log('データベース接続に成功しました'))
+  .catch(err => console.error('データベース接続に失敗しました:', err));
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Drizzle ORM インスタンスの作成
+export const db = drizzle(pool, { schema });

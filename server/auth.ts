@@ -1,191 +1,195 @@
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
-import session from "express-session";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
-import { promisify } from "util";
-import { storage } from "./storage";
-import { User as SelectUser } from "@shared/schema";
+import passport from 'passport';
+import { Strategy as LocalStrategy } from 'passport-local';
+import { Express, Request, Response, NextFunction } from 'express';
+import session from 'express-session';
+import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
+import { promisify } from 'util';
+import { pool } from './db';
+import connectPgSimple from 'connect-pg-simple';
 
+// ユーザー型定義
+export interface DatabaseUser {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  companyId: string | null;
+  username?: string; // 既存コードとの互換性のため
+  organizationId?: string; // 既存コードとの互換性のため
+}
+
+// Expressのユーザー型を拡張
 declare global {
   namespace Express {
-    interface User extends SelectUser {}
+    interface User {
+      id: string;
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      companyId: string | null;
+      username?: string; 
+      organizationId?: string;
+    }
   }
 }
 
-// セッション用の署名済みCookieの解析と検証
-import * as cookieParser from 'cookie-parser';
-
 const scryptAsync = promisify(scrypt);
+const PgSessionStore = connectPgSimple(session);
 
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
+// セッションストア設定
+const sessionStore = new PgSessionStore({
+  pool,
+  tableName: 'session',
+  createTableIfMissing: true,
+});
+
+// パスワードハッシュ化
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
+  return `${buf.toString('hex')}.${salt}`;
 }
 
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
+// パスワードの比較
+export async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+  const [hashed, salt] = stored.split('.');
+  const hashedBuf = Buffer.from(hashed, 'hex');
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-export function setupAuth(app: Express) {
-  console.log("認証システムをセットアップしています...");
+// 認証の設定
+export function setupAuth(app: Express): void {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "supersecretkey",
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || 'everys-secret-key',
     resave: false,
     saveUninitialized: false,
-    store: storage.sessionStore,
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      httpOnly: true,
-      secure: false, // 開発環境ではfalse
-      sameSite: 'lax'
-    }
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 1週間
+      secure: process.env.NODE_ENV === 'production',
+    },
   };
 
-  app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // パスポート戦略の設定
   passport.use(
-    new LocalStrategy({
-      usernameField: 'email',
-      passwordField: 'password',
-    }, async (email, password, done) => {
+    new LocalStrategy(async (username, password, done) => {
       try {
-        console.log("Passport認証開始:", { email });
-        const user = await storage.getUserByEmail(email);
-        
-        if (!user) {
-          console.log("ユーザーが見つかりません:", { email });
-          return done(null, false, { message: "ユーザーが見つかりません" });
+        // ユーザー認証処理
+        const { rows } = await pool.query(
+          'SELECT * FROM users WHERE username = $1',
+          [username]
+        );
+
+        const user = rows[0];
+        if (!user || !(await comparePasswords(password, user.password))) {
+          return done(null, false, { message: 'ユーザー名またはパスワードが正しくありません' });
         }
-        
-        console.log("ユーザーが見つかりました。パスワード検証中:", { id: user.id, email: user.email });
-        const isValidPassword = await comparePasswords(password, user.password);
-        
-        if (!isValidPassword) {
-          console.log("パスワードが一致しません:", { email });
-          return done(null, false, { message: "パスワードが正しくありません" });
-        }
-        
-        console.log("認証成功:", { id: user.id, email: user.email });
+
         return done(null, user);
-      } catch (error) {
-        console.error("認証プロセスでエラーが発生:", error);
-        return done(error);
+      } catch (err) {
+        return done(err);
       }
-    }),
+    })
   );
 
-  passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser(async (id: string, done) => {
+  // セッションにユーザーIDを保存
+  passport.serializeUser((user, done) => {
+    done(null, user.id);
+  });
+
+  // セッションからユーザーを復元
+  passport.deserializeUser(async (id: number, done) => {
     try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (error) {
-      done(error);
+      const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+      const user = rows[0];
+      done(null, user || null);
+    } catch (err) {
+      done(err);
     }
   });
 
-  // ユーザー登録エンドポイント
-  app.post("/api/register", async (req, res, next) => {
-    try {
-      console.log("ユーザー登録リクエスト受信:", { email: req.body.email });
-      
-      // 既存ユーザーの確認
-      const existingUser = await storage.getUserByEmail(req.body.email);
-      if (existingUser) {
-        console.log("登録失敗: ユーザーは既に存在します:", { email: req.body.email });
-        return res.status(400).json({ message: "Email already in use" });
-      }
-      
-      // パスワードハッシュ化
-      const hashedPassword = await hashPassword(req.body.password);
-      
-      // ユーザー作成
-      const user = await storage.createUser({
-        ...req.body,
-        password: hashedPassword
-      });
-      
-      console.log("ユーザー登録成功、ログイン処理:", { id: user.id, email: user.email });
-      
-      // 自動ログイン
-      req.login(user, (err) => {
-        if (err) {
-          console.error("自動ログインエラー:", err);
-          return next(err);
-        }
-        console.log("ユーザー登録・ログイン完了:", { id: user.id, email: user.email });
-        return res.status(201).json(user);
-      });
-    } catch (error) {
-      console.error("ユーザー登録エラー:", error);
-      res.status(500).json({ message: "Registration failed" });
-    }
-  });
-
-  app.post("/api/login", (req, res, next) => {
-    console.log("ログインリクエスト受信:", { email: req.body.email });
-    
-    passport.authenticate("local", (err: Error, user: SelectUser, info: any) => {
+  // ログインエンドポイント
+  app.post('/api/login', (req, res, next) => {
+    passport.authenticate('local', (err: Error, user: DatabaseUser, info: any) => {
       if (err) {
-        console.error("ログイン認証エラー:", err);
         return next(err);
       }
       if (!user) {
-        console.log("ユーザー認証失敗:", { email: req.body.email });
-        return res.status(401).json({ message: "Invalid email or password" });
+        return res.status(401).json({ message: info.message || 'ログインに失敗しました' });
       }
-      
-      console.log("ユーザー認証成功、セッション作成中:", { id: user.id, email: user.email });
-      req.login(user, (err) => {
-        if (err) {
-          console.error("セッション作成エラー:", err);
-          return next(err);
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          return next(loginErr);
         }
-        console.log("ログイン完了、レスポンス送信:", { id: user.id, email: user.email });
-        return res.status(200).json(user);
+        return res.json({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+        });
       });
     })(req, res, next);
   });
 
-  app.post("/api/logout", (req, res, next) => {
+  // ログアウトエンドポイント
+  app.post('/api/logout', (req, res) => {
     req.logout((err) => {
-      if (err) return next(err);
-      res.sendStatus(200);
+      if (err) {
+        return res.status(500).json({ message: 'ログアウトに失敗しました' });
+      }
+      return res.json({ message: 'ログアウトしました' });
     });
   });
 
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
+  // 現在のユーザー情報を取得
+  app.get('/api/user', (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: '認証されていません' });
+    }
+    const user = req.user as DatabaseUser;
+    return res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+    });
   });
-
-  // ロールベースの認可ミドルウェアはここには含めない
 }
 
-// 別途エクスポート
+// 認証ミドルウェア
+export function isAuthenticated(req: Request, res: Response, next: NextFunction): void {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ message: 'ログインが必要です' });
+}
+
+// ロールベースのアクセス制御
 export const requireRole = (role: string | string[]) => {
-  const roleArray = Array.isArray(role) ? role : [role];
-  
-  return (req: any, res: any, next: any) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "認証が必要です" });
+      return res.status(401).json({ message: 'ログインが必要です' });
     }
 
-    if (!roleArray.includes(req.user.role)) {
-      return res.status(403).json({ message: "この操作を行う権限がありません" });
+    const user = req.user as DatabaseUser;
+    const roles = Array.isArray(role) ? role : [role];
+
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({ message: 'アクセス権限がありません' });
     }
 
     next();
   };
-}
+};
 
 /**
  * WebSocket接続用にセッションIDからユーザーIDを取得
@@ -194,30 +198,26 @@ export const requireRole = (role: string | string[]) => {
  */
 export async function verifySession(sessionId: string): Promise<string | null> {
   try {
-    if (!sessionId) return null;
-    
-    // セッションストアからセッションを取得
-    const sessionStore = storage.sessionStore;
-    
-    return new Promise((resolve) => {
-      sessionStore.get(sessionId, (err, session) => {
-        if (err) {
-          console.error("セッション検証エラー:", err);
-          resolve(null);
-          return;
-        }
-        
-        if (!session || !session.passport || !session.passport.user) {
-          resolve(null);
-          return;
-        }
-        
-        // パスポートからユーザーIDを取得
-        resolve(session.passport.user);
-      });
-    });
-  } catch (error) {
-    console.error("セッション検証中にエラーが発生:", error);
+    // セッションIDからユーザーIDを取得する処理
+    // 実際には、セッションストアからセッションデータを取得し、ユーザーIDを抽出
+    const { rows } = await pool.query(
+      'SELECT sess FROM session WHERE sid = $1',
+      [sessionId]
+    );
+
+    if (rows.length === 0 || !rows[0].sess) {
+      return null;
+    }
+
+    const sessionData = rows[0].sess;
+    if (typeof sessionData === 'string') {
+      const parsedSession = JSON.parse(sessionData);
+      return parsedSession.passport?.user || null;
+    }
+
+    return sessionData.passport?.user || null;
+  } catch (err) {
+    console.error('セッション検証エラー:', err);
     return null;
   }
 }
