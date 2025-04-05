@@ -84,12 +84,30 @@ async function initializeAdminUser() {
 async function gracefulShutdown(signal: string, server: any) {
   console.log(`${signal} シグナルを受信しました。サーバーをシャットダウンしています...`);
   
+  // シャットダウンタイムアウト (10秒後に強制終了)
+  const shutdownTimeout = setTimeout(() => {
+    console.error('シャットダウンがタイムアウトしました。強制終了します...');
+    process.exit(1);
+  }, 10000);
+  
   try {
     // Neo4j接続のクローズ
-    await closeNeo4j();
+    await Promise.race([
+      closeNeo4j(),
+      new Promise(resolve => setTimeout(() => {
+        console.warn('Neo4j接続のクローズがタイムアウトしました');
+        resolve(null);
+      }, 3000))
+    ]);
     
     // PostgreSQL接続プールのクローズ
-    await pool.end();
+    await Promise.race([
+      pool.end(),
+      new Promise(resolve => setTimeout(() => {
+        console.warn('PostgreSQL接続プールのクローズがタイムアウトしました');
+        resolve(null);
+      }, 3000))
+    ]);
     console.log('データベース接続を終了しました');
   } catch (err) {
     console.error('リソース解放エラー:', err);
@@ -98,6 +116,7 @@ async function gracefulShutdown(signal: string, server: any) {
   // サーバーの終了
   server.close(() => {
     console.log('サーバーをシャットダウンしました');
+    clearTimeout(shutdownTimeout);
     process.exit(0);
   });
 }
@@ -105,6 +124,17 @@ async function gracefulShutdown(signal: string, server: any) {
 // サーバーの開始
 async function startServer() {
   try {
+    // データベース接続テストの実行（明示的に確認）
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      console.log('データベース接続に成功しました');
+    } catch (error) {
+      console.error('データベース接続テストエラー:', error);
+      console.log('アプリケーションは続行しますが、データベース機能が制限される可能性があります');
+    }
+    
     // ルートの登録
     const server = await registerRoutes(app);
     
@@ -113,8 +143,13 @@ async function startServer() {
       await setupVite(app, server);
     }
     
-    // 初期管理者ユーザーの作成
-    await initializeAdminUser();
+    // 初期管理者ユーザーの作成を試みる（エラーでもアプリ起動は継続）
+    try {
+      await initializeAdminUser();
+    } catch (error) {
+      console.error('管理者ユーザー初期化エラー:', error);
+      console.log('管理者ユーザーの初期化に失敗しましたが、アプリケーションは続行します');
+    }
     
     // サーバーの起動
     const PORT = process.env.PORT || 5000;
@@ -128,10 +163,16 @@ async function startServer() {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM', server));
     process.on('SIGHUP', () => gracefulShutdown('SIGHUP', server));
     
-    // 予期しないエラーの処理
+    // 未処理の例外/Promiseリジェクションの処理
     process.on('uncaughtException', (error) => {
-      console.error('予期しないエラーが発生しました:', error);
-      gracefulShutdown('uncaughtException', server);
+      console.error('未処理の例外:', error);
+      // クリティカルな例外の場合はシャットダウン
+      gracefulShutdown('UNCAUGHT_EXCEPTION', server);
+    });
+    
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('未処理のPromiseリジェクション:', reason);
+      // ここではアプリケーションをクラッシュさせないが、ログに記録する
     });
     
   } catch (error) {

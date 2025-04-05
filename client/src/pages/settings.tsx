@@ -3,13 +3,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import AppLayout from '@/components/layout/app-layout';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Building2, User, UserCog } from 'lucide-react';
 
 // 設定コンポーネントを動的インポートして遅延ロードする
 const ProfileSettings = React.lazy(() => import('@/components/settings/profile-settings'));
 const UserSettings = React.lazy(() => import('@/components/settings/user-settings'));
 const OrganizationSettings = React.lazy(() => import('@/components/settings/organization-settings'));
-import { Building2, User, UserCog } from 'lucide-react';
 import { USER_ROLES } from '@shared/schema';
 
 const SettingsPage: React.FC = () => {

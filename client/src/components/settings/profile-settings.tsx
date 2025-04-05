@@ -1,205 +1,188 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { apiRequest } from '@/lib/queryClient';
-import { Button } from '@/components/ui/button';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { useMutation } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Loader2 } from 'lucide-react';
-
-const ProfileFormSchema = z.object({
-  name: z.string().min(2, { message: '名前は2文字以上で入力してください' }),
-  email: z.string().email({ message: '有効なメールアドレスを入力してください' }),
-  currentPassword: z.string().min(1, { message: '現在のパスワードを入力してください' }),
-  newPassword: z.string().optional(),
-  confirmPassword: z.string().optional(),
-}).refine((data) => {
-  // 新しいパスワードが入力されている場合、確認パスワードも必須
-  if (data.newPassword && !data.confirmPassword) {
-    return false;
-  }
-  return true;
-}, {
-  message: "確認パスワードを入力してください",
-  path: ["confirmPassword"],
-}).refine((data) => {
-  // 新しいパスワードと確認パスワードが一致するか確認
-  if (data.newPassword && data.newPassword !== data.confirmPassword) {
-    return false;
-  }
-  return true;
-}, {
-  message: "パスワードが一致しません",
-  path: ["confirmPassword"],
-});
-
-type ProfileFormValues = z.infer<typeof ProfileFormSchema>;
 
 const ProfileSettings: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  // 初期値の設定
-  const defaultValues = useMemo(() => ({
-    name: user?.name || '',
-    email: user?.email || '',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  }), [user]);
-
-  // フォームの初期化
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(ProfileFormSchema),
-    defaultValues,
-  });
-
-  // ユーザーデータが変更されたときにフォームの値を更新
-  useEffect(() => {
-    if (user) {
-      form.setValue('name', user.name || '');
-      form.setValue('email', user.email || '');
-    }
-  }, [user, form.setValue]);
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: ProfileFormValues) => {
-      const res = await apiRequest('PATCH', '/api/profile', data);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'プロフィールの更新に失敗しました');
-      }
-      return await res.json();
+    mutationFn: async (profileData: { name: string; email: string }) => {
+      await apiRequest('PUT', `/api/users/${user?.id}`, profileData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       toast({
         title: '更新完了',
-        description: 'プロフィール情報を更新しました',
-      });
-      form.reset({
-        name: user?.name,
-        email: user?.email,
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
+        description: 'プロフィール情報が更新されました',
       });
     },
     onError: (error: Error) => {
       toast({
-        title: '更新エラー',
-        description: error.message,
+        title: '更新失敗',
+        description: error.message || 'プロフィール情報の更新に失敗しました',
         variant: 'destructive',
       });
     },
   });
 
-  const onSubmit = (data: ProfileFormValues) => {
-    updateProfileMutation.mutate(data);
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (passwordData: { currentPassword: string; newPassword: string }) => {
+      await apiRequest('PUT', `/api/users/${user?.id}/password`, passwordData);
+    },
+    onSuccess: () => {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      toast({
+        title: '更新完了',
+        description: 'パスワードが更新されました',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: '更新失敗',
+        description: error.message || 'パスワードの更新に失敗しました',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleProfileSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProfileMutation.mutate({ name, email });
   };
 
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: '確認エラー',
+        description: '新しいパスワードと確認用パスワードが一致しません',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    updatePasswordMutation.mutate({ currentPassword, newPassword });
+  };
+
+  if (!user) return null;
+
   return (
-    <Card className="border-0 shadow-none">
-      <CardContent className="px-0">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>名前</FormLabel>
-                  <FormControl>
-                    <Input placeholder="名前" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-lg font-medium">アカウント情報</h3>
+        <p className="text-sm text-muted-foreground">
+          基本的なプロフィール情報を更新します
+        </p>
+        
+        <form onSubmit={handleProfileSubmit} className="mt-6 space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="name">名前</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={updateProfileMutation.isPending}
             />
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>メールアドレス</FormLabel>
-                  <FormControl>
-                    <Input placeholder="email@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="email">メールアドレス</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={updateProfileMutation.isPending}
             />
-
-            <div className="border-t pt-6 mt-6">
-              <h3 className="text-lg font-medium mb-4">パスワード変更</h3>
-
-              <FormField
-                control={form.control}
-                name="currentPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>現在のパスワード</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="現在のパスワード" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>新しいパスワード（空白の場合は変更しません）</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="新しいパスワード" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>パスワード確認</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="パスワード確認" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <Button type="submit" disabled={updateProfileMutation.isPending}>
-              {updateProfileMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              保存
+          </div>
+          
+          <div className="flex justify-end">
+            <Button 
+              type="submit" 
+              disabled={updateProfileMutation.isPending}
+            >
+              {updateProfileMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  更新中...
+                </>
+              ) : '保存'}
             </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+          </div>
+        </form>
+      </div>
+      
+      <div className="pt-4 border-t">
+        <h3 className="text-lg font-medium">パスワード変更</h3>
+        <p className="text-sm text-muted-foreground">
+          アカウントのパスワードを変更します
+        </p>
+        
+        <form onSubmit={handlePasswordSubmit} className="mt-6 space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="current-password">現在のパスワード</Label>
+            <Input
+              id="current-password"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              disabled={updatePasswordMutation.isPending}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="new-password">新しいパスワード</Label>
+            <Input
+              id="new-password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              disabled={updatePasswordMutation.isPending}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">パスワード（確認）</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={updatePasswordMutation.isPending}
+            />
+          </div>
+          
+          <div className="flex justify-end">
+            <Button 
+              type="submit" 
+              disabled={updatePasswordMutation.isPending || !currentPassword || !newPassword || !confirmPassword}
+            >
+              {updatePasswordMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  更新中...
+                </>
+              ) : 'パスワード変更'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 };
 

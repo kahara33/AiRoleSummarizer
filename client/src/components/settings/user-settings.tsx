@@ -1,166 +1,97 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { apiRequest } from '@/lib/queryClient';
-import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
 } from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Loader2, PlusCircle, Pencil, Trash2 } from 'lucide-react';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Loader2, PlusCircle, Trash2, UserCog, User as UserIcon } from 'lucide-react';
 import { USER_ROLES } from '@shared/schema';
-
-// ユーザーフォームのスキーマ定義
-const userFormSchema = z.object({
-  name: z.string().min(2, { message: '名前は2文字以上で入力してください' }),
-  email: z.string().email({ message: '有効なメールアドレスを入力してください' }),
-  password: z.string().min(6, { message: 'パスワードは6文字以上で入力してください' }),
-  role: z.string(),
-  companyId: z.string().optional(),
-});
-
-type UserFormValues = z.infer<typeof userFormSchema>;
 
 type User = {
   id: string;
   name: string;
   email: string;
   role: string;
-  company?: {
-    id: string;
-    name: string;
-  } | null;
-};
-
-type Company = {
-  id: string;
-  name: string;
+  companyId: string | null;
 };
 
 const UserSettings: React.FC = () => {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
-
-  // フォーム定義
-  const form = useForm<UserFormValues>({
-    resolver: zodResolver(userFormSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      password: '',
-      role: 'user',
-      companyId: user?.companyId || '',
-    },
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  // ユーザーロール型を明示的に定義
+  type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
+  
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: USER_ROLES.USER as UserRole,
   });
 
-  // ユーザー一覧取得クエリ
+  // ユーザー一覧の取得
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users'],
     queryFn: async () => {
       const res = await apiRequest('GET', '/api/users');
-      if (!res.ok) {
-        throw new Error('ユーザー情報の取得に失敗しました');
-      }
       return res.json();
     },
   });
 
-  // 会社一覧取得クエリ (システム管理者のみ)
-  const { data: companies } = useQuery<Company[]>({
-    queryKey: ['/api/companies'],
-    queryFn: async () => {
-      const res = await apiRequest('GET', '/api/companies');
-      if (!res.ok) {
-        throw new Error('組織情報の取得に失敗しました');
-      }
-      return res.json();
-    },
-    enabled: user?.role === USER_ROLES.ADMIN,
-  });
-
-  // ユーザー作成/更新ミューテーション
-  const userMutation = useMutation({
-    mutationFn: async (data: UserFormValues) => {
-      let res;
-      
-      if (editingUser) {
-        // 更新
-        res = await apiRequest('PUT', `/api/users/${editingUser.id}`, data);
-      } else {
-        // 新規作成
-        res = await apiRequest('POST', '/api/users', data);
-      }
-      
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'ユーザーの保存に失敗しました');
-      }
-      
-      return await res.json();
+  // ユーザー作成ミューテーション
+  const createUserMutation = useMutation({
+    mutationFn: async (userData: Omit<typeof newUser, 'confirmPassword'>) => {
+      const { confirmPassword, ...data } = userData as any;
+      await apiRequest('POST', '/api/users', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       setIsDialogOpen(false);
-      setEditingUser(null);
-      form.reset();
-      
+      setNewUser({
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        role: USER_ROLES.USER as UserRole,
+      });
       toast({
-        title: '保存完了',
-        description: `ユーザー情報を${editingUser ? '更新' : '作成'}しました`,
+        title: 'ユーザー作成完了',
+        description: 'ユーザーが作成されました',
       });
     },
     onError: (error: Error) => {
       toast({
-        title: '保存エラー',
-        description: error.message,
+        title: 'ユーザー作成失敗',
+        description: error.message || 'ユーザーの作成に失敗しました',
         variant: 'destructive',
       });
     },
@@ -169,308 +100,267 @@ const UserSettings: React.FC = () => {
   // ユーザー削除ミューテーション
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await apiRequest('DELETE', `/api/users/${userId}`);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'ユーザーの削除に失敗しました');
-      }
-      return true;
+      await apiRequest('DELETE', `/api/users/${userId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       setIsDeleteDialogOpen(false);
-      setUserToDelete(null);
-      
+      setSelectedUser(null);
       toast({
-        title: '削除完了',
-        description: 'ユーザーを削除しました',
+        title: 'ユーザー削除完了',
+        description: 'ユーザーが削除されました',
       });
     },
     onError: (error: Error) => {
       toast({
-        title: '削除エラー',
-        description: error.message,
+        title: 'ユーザー削除失敗',
+        description: error.message || 'ユーザーの削除に失敗しました',
         variant: 'destructive',
       });
     },
   });
 
-  // 編集ダイアログを開く
-  const openEditDialog = (user: User) => {
-    setEditingUser(user);
-    form.reset({
-      name: user.name,
-      email: user.email,
-      password: '', // 更新時はパスワードフィールドをクリア
-      role: user.role,
-      companyId: user.company?.id || '',
-    });
-    setIsDialogOpen(true);
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newUser.password !== newUser.confirmPassword) {
+      toast({
+        title: '確認エラー',
+        description: 'パスワードと確認用パスワードが一致しません',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // パスワードの長さチェック
+    if (newUser.password.length < 8) {
+      toast({
+        title: 'パスワードエラー',
+        description: 'パスワードは8文字以上で入力してください',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    createUserMutation.mutate(newUser);
   };
 
-  // 新規作成ダイアログを開く
-  const openCreateDialog = () => {
-    setEditingUser(null);
-    form.reset({
-      name: '',
-      email: '',
-      password: '',
-      role: 'user',
-      companyId: user?.companyId || '',
-    });
-    setIsDialogOpen(true);
-  };
-
-  // 削除ダイアログを開く
   const openDeleteDialog = (user: User) => {
-    setUserToDelete(user);
+    setSelectedUser(user);
     setIsDeleteDialogOpen(true);
   };
 
-  // ユーザー削除を実行
-  const confirmDelete = () => {
-    if (userToDelete) {
-      deleteUserMutation.mutate(userToDelete.id);
+  const handleDeleteConfirm = () => {
+    if (selectedUser) {
+      deleteUserMutation.mutate(selectedUser.id);
     }
   };
 
-  // フォーム送信
-  const onSubmit = (data: UserFormValues) => {
-    userMutation.mutate(data);
+  const getRoleName = (role: string) => {
+    switch (role) {
+      case USER_ROLES.ADMIN:
+        return '管理者';
+      case USER_ROLES.USER:
+        return '一般ユーザー';
+      default:
+        return role;
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold mb-4">ユーザー一覧</h2>
-        
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreateDialog} className="flex items-center gap-2">
-              <PlusCircle className="h-4 w-4" />
-              新規ユーザー
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingUser ? 'ユーザー情報編集' : '新規ユーザー作成'}</DialogTitle>
-              <DialogDescription>
-                {editingUser 
-                  ? 'ユーザー情報を編集します。' 
-                  : '新しいユーザーを作成します。'}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>名前</FormLabel>
-                      <FormControl>
-                        <Input placeholder="名前" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>メールアドレス</FormLabel>
-                      <FormControl>
-                        <Input placeholder="email@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {editingUser
-                          ? 'パスワード（変更する場合のみ入力）'
-                          : 'パスワード'}
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="パスワード"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>役割</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="役割を選択" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="user">一般ユーザー</SelectItem>
-                          <SelectItem value="company_admin">組織管理者</SelectItem>
-                          {user?.role === USER_ROLES.ADMIN && (
-                            <SelectItem value="admin">システム管理者</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                {user?.role === USER_ROLES.ADMIN && (
-                  <FormField
-                    control={form.control}
-                    name="companyId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>所属組織</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="所属組織を選択" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="">なし</SelectItem>
-                            {companies?.map((company) => (
-                              <SelectItem key={company.id} value={company.id}>
-                                {company.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                
-                <DialogFooter>
-                  <Button type="submit" disabled={userMutation.isPending}>
-                    {userMutation.isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    {editingUser ? '更新' : '作成'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <div>
+          <h3 className="text-lg font-medium">ユーザー管理</h3>
+          <p className="text-sm text-muted-foreground">
+            組織内のユーザーアカウントを管理します
+          </p>
+        </div>
+        <Button onClick={() => setIsDialogOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          ユーザー追加
+        </Button>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-8">
+        <div className="flex justify-center py-6">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : !users || users.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          ユーザーが登録されていません
-        </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名前</TableHead>
-              <TableHead>メールアドレス</TableHead>
-              <TableHead>役割</TableHead>
-              <TableHead>所属組織</TableHead>
-              <TableHead className="w-[100px]">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((userItem) => (
-              <TableRow key={userItem.id}>
-                <TableCell className="font-medium">{userItem.name}</TableCell>
-                <TableCell>{userItem.email}</TableCell>
-                <TableCell>
-                  {userItem.role === USER_ROLES.ADMIN
-                    ? 'システム管理者'
-                    : userItem.role === USER_ROLES.COMPANY_ADMIN
-                    ? '組織管理者'
-                    : '一般ユーザー'}
-                </TableCell>
-                <TableCell>{userItem.company?.name || '-'}</TableCell>
-                <TableCell className="flex space-x-1">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => openEditDialog(userItem)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    <span className="sr-only">編集</span>
-                  </Button>
-                  
-                  {userItem.id !== user?.id && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => openDeleteDialog(userItem)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">削除</span>
-                    </Button>
-                  )}
-                </TableCell>
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]"></TableHead>
+                <TableHead>名前</TableHead>
+                <TableHead>メールアドレス</TableHead>
+                <TableHead>権限</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-      
-      {/* 削除確認ダイアログ */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>ユーザーを削除しますか？</AlertDialogTitle>
-            <AlertDialogDescription>
-              {userToDelete?.name} を削除します。この操作は元に戻せません。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              disabled={deleteUserMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteUserMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            </TableHeader>
+            <TableBody>
+              {users && users.length > 0 ? (
+                users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      {user.role === USER_ROLES.ADMIN ? (
+                        <UserCog className="h-4 w-4 text-primary" />
+                      ) : (
+                        <UserIcon className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </TableCell>
+                    <TableCell>{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{getRoleName(user.role)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDeleteDialog(user)}
+                        disabled={user.id === currentUser?.id}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-4">
+                    ユーザーが見つかりません
+                  </TableCell>
+                </TableRow>
               )}
-              削除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      {/* ユーザー作成ダイアログ */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新規ユーザー作成</DialogTitle>
+            <DialogDescription>
+              組織に新しいユーザーを追加します。メールアドレスとパスワードが必要です。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleCreateSubmit} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="user-name">名前</Label>
+              <Input
+                id="user-name"
+                value={newUser.name}
+                onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                disabled={createUserMutation.isPending}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="user-email">メールアドレス</Label>
+              <Input
+                id="user-email"
+                type="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                disabled={createUserMutation.isPending}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="user-password">パスワード</Label>
+              <Input
+                id="user-password"
+                type="password"
+                value={newUser.password}
+                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                disabled={createUserMutation.isPending}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="user-confirm-password">パスワード（確認）</Label>
+              <Input
+                id="user-confirm-password"
+                type="password"
+                value={newUser.confirmPassword}
+                onChange={(e) => setNewUser({...newUser, confirmPassword: e.target.value})}
+                disabled={createUserMutation.isPending}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="user-role">権限</Label>
+              <Select
+                value={newUser.role}
+                onValueChange={(value: UserRole) => setNewUser({...newUser, role: value})}
+                disabled={createUserMutation.isPending}
+              >
+                <SelectTrigger id="user-role">
+                  <SelectValue placeholder="権限を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={USER_ROLES.ADMIN as UserRole}>管理者</SelectItem>
+                  <SelectItem value={USER_ROLES.USER as UserRole}>一般ユーザー</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <DialogFooter className="pt-4">
+              <Button
+                type="submit"
+                disabled={createUserMutation.isPending || !newUser.name || !newUser.email || !newUser.password || !newUser.confirmPassword}
+              >
+                {createUserMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    作成中...
+                  </>
+                ) : '作成'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ユーザー削除確認ダイアログ */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ユーザー削除の確認</DialogTitle>
+            <DialogDescription>
+              {selectedUser?.name} を削除します。この操作は元に戻せません。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <DialogFooter className="pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={deleteUserMutation.isPending}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleteUserMutation.isPending}
+            >
+              {deleteUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  削除中...
+                </>
+              ) : '削除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
