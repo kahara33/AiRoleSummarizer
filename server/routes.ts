@@ -1080,13 +1080,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // すでにUUID形式ならそのまま使用
         actualIndustryId = industrySubcategoryId;
       } else {
+        // ID（英語名）から日本語名へのマッピング
+        const idToNameMap: Record<string, string> = {
+          // IT・インターネット関連
+          "ai": "AI",
+          "cloud": "クラウド",
+          "ecommerce": "eコマース",
+          "system-dev": "システム開発",
+          "saas": "ソフトウェア(SaaS)",
+          "mobile-carrier": "携帯電話事業者",
+          "internet-line": "インターネット回線",
+          "cybersecurity": "サイバーセキュリティー",
+          "web-app": "Webアプリ",
+          "quantum-computer": "量子コンピューター",
+          "dx": "DX",
+          "youtuber": "ユーチューバー(YouTuber)",
+          "mobile-sales": "携帯電話販売代理店",
+          "metaverse": "メタバース",
+          "nft": "NFT",
+          "programming": "プログラミング",
+          "medical-tech": "医療テック",
+          "web3": "Web3",
+          
+          // 金融・法人サービス関連
+          "esg": "ESG",
+          "ma-merger": "M&A仲介・合併",
+          "pr-ir": "PR・IR",
+          "activist": "アクティビスト",
+          
+          // 生活用品・嗜好品・薬
+          "bags": "かばん",
+          "cro-pharma": "CRO・臨床検査・薬",
+          
+          // 食品・農業
+          "tobacco": "たばこ"
+        };
+        
+        let searchName = industrySubcategoryId;
+        if (idToNameMap[industrySubcategoryId]) {
+          searchName = idToNameMap[industrySubcategoryId];
+        }
+        
         // 名前からIDを取得
         const industryId = await db.query.industrySubcategories.findFirst({
-          where: eq(industrySubcategories.name, industrySubcategoryId),
+          where: eq(industrySubcategories.name, searchName),
         });
         
         if (!industryId) {
-          return res.status(404).json({ error: `業界カテゴリが見つかりません(名前: ${industrySubcategoryId})` });
+          return res.status(404).json({ error: `業界カテゴリが見つかりません(名前: ${searchName}, 元の値: ${industrySubcategoryId})` });
         }
         
         actualIndustryId = industryId.id;
@@ -1221,13 +1262,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // すでにUUID形式ならそのまま使用
         actualKeywordId = keywordId;
       } else {
+        // ID（英語名）と日本語名のマッピング（必要に応じて追加）
+        const idToNameMap: Record<string, string> = {
+          "gdp": "GDP",
+          "cpi": "CPI",
+          "ev": "EV",
+          "dmo": "DMO",
+          "saas": "SaaS",
+          "esg": "ESG",
+          "api": "API",
+          "llm": "LLM",
+          "5g": "5G"
+        };
+        
+        let searchName = keywordId;
+        if (idToNameMap[keywordId.toLowerCase()]) {
+          searchName = idToNameMap[keywordId.toLowerCase()];
+        }
+        
         // 名前からIDを取得
         const keyword = await db.query.keywords.findFirst({
-          where: eq(keywords.name, keywordId),
+          where: eq(keywords.name, searchName),
         });
         
         if (!keyword) {
-          return res.status(404).json({ error: `キーワードが見つかりません(名前: ${keywordId})` });
+          return res.status(404).json({ error: `キーワードが見つかりません(名前: ${searchName}, 元の値: ${keywordId})` });
         }
         
         actualKeywordId = keyword.id;
