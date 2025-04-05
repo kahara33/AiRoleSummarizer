@@ -16,6 +16,11 @@ import {
   roleModels,
   insertRoleModelSchema,
   insertCompanySchema,
+  industries,
+  keywords,
+  roleModelIndustries,
+  roleModelKeywords,
+  insertKeywordSchema,
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { randomUUID } from 'crypto';
@@ -897,6 +902,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('ノード展開エラー:', error);
       res.status(500).json({ error: '知識ノードの展開に失敗しました' });
+    }
+  });
+
+  // ==================
+  // 業界カテゴリーAPI
+  // ==================
+  // 業界カテゴリー一覧取得
+  app.get('/api/industry-categories', async (req, res) => {
+    try {
+      const categories = await db.query.industries.findMany({
+        orderBy: (industries, { asc }) => [asc(industries.name)]
+      });
+      res.json(categories);
+    } catch (error) {
+      console.error('業界カテゴリー取得エラー:', error);
+      res.status(500).json({ error: '業界カテゴリーの取得に失敗しました' });
+    }
+  });
+
+  // 業界サブカテゴリー一覧取得
+  app.get('/api/industry-subcategories', async (req, res) => {
+    try {
+      const subcategories = await db.query.industries.findMany({
+        orderBy: (industries, { asc }) => [asc(industries.name)]
+      });
+      res.json(subcategories);
+    } catch (error) {
+      console.error('業界サブカテゴリー取得エラー:', error);
+      res.status(500).json({ error: '業界サブカテゴリーの取得に失敗しました' });
+    }
+  });
+
+  // カテゴリーに関連するサブカテゴリーを取得
+  app.get('/api/industry-categories/:categoryId/subcategories', async (req, res) => {
+    try {
+      const { categoryId } = req.params;
+      const subcategories = await db.query.industries.findMany({
+        where: eq(industries.id, parseInt(categoryId)),
+        orderBy: (industries, { asc }) => [asc(industries.name)]
+      });
+      res.json(subcategories);
+    } catch (error) {
+      console.error('カテゴリーサブカテゴリー取得エラー:', error);
+      res.status(500).json({ error: 'カテゴリーに関連するサブカテゴリーの取得に失敗しました' });
+    }
+  });
+
+  // ==================
+  // キーワードAPI
+  // ==================
+  // キーワード一覧取得
+  app.get('/api/keywords', async (req, res) => {
+    try {
+      const allKeywords = await db.query.keywords.findMany({
+        orderBy: (keywords, { asc }) => [asc(keywords.name)]
+      });
+      res.json(allKeywords);
+    } catch (error) {
+      console.error('キーワード取得エラー:', error);
+      res.status(500).json({ error: 'キーワードの取得に失敗しました' });
+    }
+  });
+
+  // キーワード作成
+  app.post('/api/keywords', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertKeywordSchema.parse(req.body);
+      
+      // 作成者IDを設定
+      validatedData.createdBy = req.user?.id;
+      
+      const result = await db.insert(keywords).values(validatedData).returning();
+      
+      res.status(201).json(result[0]);
+    } catch (error) {
+      console.error('キーワード作成エラー:', error);
+      res.status(500).json({ error: 'キーワードの作成に失敗しました' });
+    }
+  });
+
+  // キーワード検索
+  app.get('/api/keywords/search', async (req, res) => {
+    try {
+      const { query } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: '検索クエリが必要です' });
+      }
+      
+      const searchResults = await db.query.keywords.findMany({
+        where: sql`${keywords.name} ILIKE ${`%${query}%`}`,
+        orderBy: (keywords, { asc }) => [asc(keywords.name)],
+        limit: 10
+      });
+      
+      res.json(searchResults);
+    } catch (error) {
+      console.error('キーワード検索エラー:', error);
+      res.status(500).json({ error: 'キーワード検索に失敗しました' });
     }
   });
 
