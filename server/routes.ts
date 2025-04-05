@@ -911,8 +911,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 業界カテゴリー一覧取得
   app.get('/api/industry-categories', async (req, res) => {
     try {
-      const categories = await db.query.industries.findMany({
-        orderBy: (industries, { asc }) => [asc(industries.name)]
+      const categories = await db.query.industryCategories.findMany({
+        orderBy: (industryCategories, { asc }) => [asc(industryCategories.name)]
       });
       res.json(categories);
     } catch (error) {
@@ -924,8 +924,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 業界サブカテゴリー一覧取得
   app.get('/api/industry-subcategories', async (req, res) => {
     try {
-      const subcategories = await db.query.industries.findMany({
-        orderBy: (industries, { asc }) => [asc(industries.name)]
+      const subcategories = await db.query.industrySubcategories.findMany({
+        orderBy: (industrySubcategories, { asc }) => [asc(industrySubcategories.name)]
       });
       res.json(subcategories);
     } catch (error) {
@@ -938,9 +938,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/industry-categories/:categoryId/subcategories', async (req, res) => {
     try {
       const { categoryId } = req.params;
-      const subcategories = await db.query.industries.findMany({
-        where: eq(industries.id, parseInt(categoryId)),
-        orderBy: (industries, { asc }) => [asc(industries.name)]
+      const subcategories = await db.query.industrySubcategories.findMany({
+        where: eq(industrySubcategories.categoryId, categoryId),
+        orderBy: (industrySubcategories, { asc }) => [asc(industrySubcategories.name)]
       });
       res.json(subcategories);
     } catch (error) {

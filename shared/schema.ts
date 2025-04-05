@@ -96,6 +96,38 @@ export const industries = pgTable('industries', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// 業界カテゴリーテーブル
+export const industryCategories = pgTable('industry_categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  displayOrder: integer('display_order').default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 業界サブカテゴリーテーブル
+export const industrySubcategories = pgTable('industry_subcategories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  categoryId: uuid('category_id').references(() => industryCategories.id),
+  description: text('description'),
+  displayOrder: integer('display_order').default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 業界カテゴリーリレーション
+export const industryCategoriesRelations = relations(industryCategories, ({ many }) => ({
+  subcategories: many(industrySubcategories),
+}));
+
+// 業界サブカテゴリーリレーション
+export const industrySubcategoriesRelations = relations(industrySubcategories, ({ one }) => ({
+  category: one(industryCategories, {
+    fields: [industrySubcategories.categoryId],
+    references: [industryCategories.id],
+  }),
+}));
+
 // ロールモデルと業界の中間テーブル
 export const roleModelIndustries = pgTable('role_model_industries', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -340,6 +372,24 @@ export const insertGraphVersionSchema = createInsertSchema(graphVersions, {
 }).omit({ id: true, createdAt: true });
 export type InsertGraphVersion = z.infer<typeof insertGraphVersionSchema>;
 export type GraphVersion = typeof graphVersions.$inferSelect;
+
+// 型定義を追加
+export const insertIndustryCategorySchema = createInsertSchema(industryCategories, {
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  displayOrder: z.number().optional(),
+}).omit({ id: true, createdAt: true });
+export type InsertIndustryCategory = z.infer<typeof insertIndustryCategorySchema>;
+export type IndustryCategory = typeof industryCategories.$inferSelect;
+
+export const insertIndustrySubcategorySchema = createInsertSchema(industrySubcategories, {
+  name: z.string(),
+  categoryId: z.string().uuid(),
+  description: z.string().nullable().optional(),
+  displayOrder: z.number().optional(),
+}).omit({ id: true, createdAt: true });
+export type InsertIndustrySubcategory = z.infer<typeof insertIndustrySubcategorySchema>;
+export type IndustrySubcategory = typeof industrySubcategories.$inferSelect;
 
 // 結合タイプ
 export type RoleModelWithIndustriesAndKeywords = RoleModel & {
