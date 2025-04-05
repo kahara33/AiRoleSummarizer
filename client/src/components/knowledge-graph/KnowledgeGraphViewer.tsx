@@ -242,13 +242,21 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     
     // ロールモデルを購読（UUIDの検証を追加）
     if (roleModelId && roleModelId !== 'default') {
-      if (socket.readyState === WebSocket.OPEN) {
-        sendSocketMessage('subscribe', { roleModelId });
-      } else {
-        // ソケットが開くのを待つ
-        socket.addEventListener('open', () => {
+      // UUID形式かどうか検証
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidPattern.test(roleModelId)) {
+        if (socket.readyState === WebSocket.OPEN) {
+          console.log('Subscribing to roleModel:', roleModelId);
           sendSocketMessage('subscribe', { roleModelId });
-        });
+        } else {
+          // ソケットが開くのを待つ
+          socket.addEventListener('open', () => {
+            console.log('Socket opened, subscribing to roleModel:', roleModelId);
+            sendSocketMessage('subscribe', { roleModelId });
+          });
+        }
+      } else {
+        console.warn('無効なUUID形式です:', roleModelId);
       }
     } else {
       console.warn('有効なロールモデルIDがありません。WebSocket購読をスキップします。');

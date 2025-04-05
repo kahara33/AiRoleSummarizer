@@ -3,6 +3,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { parse } from 'cookie';
 import { verifySession } from './auth';
 
+// UUIDの検証関数
+function isValidUUID(str: string): boolean {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(str);
+}
+
 // 接続中のクライアントソケットを格納するマップ
 // ユーザーID -> そのユーザーが開いている全WebSocket接続
 const clients = new Map<string, Set<WebSocket>>();
@@ -60,8 +66,20 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
         const data = JSON.parse(message);
         
         // ロールモデルの購読
-        if (data.type === 'subscribe' && data.roleModelId) {
-          roleModelId = data.roleModelId;
+        if (data.type === 'subscribe' && data.payload && data.payload.roleModelId) {
+          const requestedRoleModelId = data.payload.roleModelId;
+          
+          // UUIDが有効かどうかを検証する
+          if (requestedRoleModelId === 'default' || !isValidUUID(requestedRoleModelId)) {
+            console.error(`無効なUUID形式: ${requestedRoleModelId}`);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: `無効なUUID形式: ${requestedRoleModelId}`
+            }));
+            return;
+          }
+          
+          roleModelId = requestedRoleModelId;
           console.log(`WebSocket: ユーザー ${userId} がロールモデル ${roleModelId} を購読しました`);
           
           if (!roleModelSubscriptions.has(roleModelId)) {
@@ -164,23 +182,29 @@ export function sendMessageToRoleModelViewers(type: string, payload: any, roleMo
 export function sendAgentThoughts(agentName: string, thoughts: string, roleModelId?: string): void {
   console.log(`エージェント思考: ${agentName} - ${thoughts.substring(0, 50)}...`);
   
-  if (roleModelId) {
+  if (roleModelId && isValidUUID(roleModelId)) {
     const payload = {
       agentName,
       thoughts
     };
     
     sendMessageToRoleModelViewers('agent_thoughts', payload, roleModelId);
+  } else {
+    console.error(`無効なUUID形式のロールモデルID: ${roleModelId}`);
   }
 }
 
 export function sendProgressUpdate(message: string, progress: number, roleModelId: string): void {
   console.log(`進捗更新: ${message} (${progress}%) - ロールモデル ${roleModelId}`);
   
-  const payload = {
-    message,
-    progress
-  };
-  
-  sendMessageToRoleModelViewers('progress', payload, roleModelId);
+  if (isValidUUID(roleModelId)) {
+    const payload = {
+      message,
+      progress
+    };
+    
+    sendMessageToRoleModelViewers('progress', payload, roleModelId);
+  } else {
+    console.error(`無効なUUID形式のロールモデルID: ${roleModelId}`);
+  }
 }
