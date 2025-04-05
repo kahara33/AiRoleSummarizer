@@ -170,6 +170,11 @@ export function setupAuth(app: Express): void {
 
 // 認証ミドルウェア
 export function isAuthenticated(req: Request, res: Response, next: NextFunction): void {
+  // 開発環境では認証をスキップ
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  
   if (req.isAuthenticated()) {
     return next();
   }

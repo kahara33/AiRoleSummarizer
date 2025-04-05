@@ -125,11 +125,26 @@ async function generateKnowledgeGraph(
         
         // JSONの修復を試みる
         try {
-          // 不正な制御文字を削除
-          const sanitized = cleanedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+          // 不正な制御文字を削除し、JSONの修復を試みる
+          let sanitized = cleanedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
             .replace(/\\n/g, ' ')
             .replace(/\\"/g, '"')
             .replace(/"\s+"/g, '","');
+          
+          // 末尾のカンマの処理（JSON配列内の最後の要素の後のカンマを削除）
+          sanitized = sanitized.replace(/,\s*]/g, ']');
+          // 閉じられていないブラケットを修正
+          const openBrackets = (sanitized.match(/\[/g) || []).length;
+          const closeBrackets = (sanitized.match(/\]/g) || []).length;
+          if (openBrackets > closeBrackets) {
+            sanitized = sanitized + ']'.repeat(openBrackets - closeBrackets);
+          }
+          // 閉じられていない中括弧を修正
+          const openBraces = (sanitized.match(/\{/g) || []).length;
+          const closeBraces = (sanitized.match(/\}/g) || []).length;
+          if (openBraces > closeBraces) {
+            sanitized = sanitized + '}'.repeat(openBraces - closeBraces);
+          }
           
           graphData = JSON.parse(sanitized);
           console.log('Recovered JSON after sanitization');
