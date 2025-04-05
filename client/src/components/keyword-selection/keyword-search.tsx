@@ -26,7 +26,7 @@ export default function KeywordSearch({
   // キーワードの取得
   const { data: keywords = [], isLoading } = useQuery<Keyword[]>({
     queryKey: ["/api/keywords"],
-    staleTime: 60 * 60 * 1000, // 1時間キャッシュ
+    staleTime: 0, // キャッシュを無効化
   });
 
   // 検索語が変更されたときにサジェスト表示

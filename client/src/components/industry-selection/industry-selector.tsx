@@ -52,8 +52,8 @@ export default function IndustrySelector({
     const lowercaseSearchTerm = searchTerm.toLowerCase();
     return subcategories
       .filter((sub: IndustrySubcategory) => 
-        sub.name.toLowerCase().includes(lowercaseSearchTerm))
-      .map((sub: IndustrySubcategory) => sub.categoryId);
+        sub.name.toLowerCase().includes(lowercaseSearchTerm) && sub.categoryId)
+      .map((sub: IndustrySubcategory) => sub.categoryId as string);
   };
 
   // 検索時に該当するカテゴリーを展開する
