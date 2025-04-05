@@ -17,6 +17,8 @@ import {
   insertRoleModelSchema,
   insertCompanySchema,
   industries,
+  industryCategories,
+  industrySubcategories,
   keywords,
   roleModelIndustries,
   roleModelKeywords,
