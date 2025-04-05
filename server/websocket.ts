@@ -125,6 +125,54 @@ export function sendMessageToRoleModelViewers(
 }
 
 /**
+ * エージェントの思考プロセスを送信
+ * @param agentName エージェント名
+ * @param thought 思考内容
+ * @param roleModelId ロールモデルID (オプション)
+ */
+export function sendAgentThoughts(
+  agentName: string,
+  thought: string,
+  roleModelId?: string
+): void {
+  const payload = {
+    agent: agentName,
+    thought: thought,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (roleModelId) {
+    sendMessageToRoleModelViewers('agent-thoughts', payload, roleModelId);
+  } else {
+    broadcastMessage('agent-thoughts', payload);
+  }
+}
+
+/**
+ * 進捗状況を送信
+ * @param message 進捗メッセージ
+ * @param percent 完了パーセンテージ (0-100)
+ * @param roleModelId ロールモデルID (オプション)
+ */
+export function sendProgressUpdate(
+  message: string,
+  percent: number,
+  roleModelId?: string
+): void {
+  const payload = {
+    message,
+    percent: Math.min(100, Math.max(0, percent)),
+    timestamp: new Date().toISOString()
+  };
+  
+  if (roleModelId) {
+    sendMessageToRoleModelViewers('progress-update', payload, roleModelId);
+  } else {
+    broadcastMessage('progress-update', payload);
+  }
+}
+
+/**
  * 特定のユーザーにメッセージを送信
  * @param type メッセージタイプ
  * @param payload メッセージデータ

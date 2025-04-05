@@ -260,41 +260,7 @@ export function extractSubgraph(
   };
 }
 
-/**
- * 知識グラフを拡張する（新しいノードとエッジを追加）
- * @param graphData 既存の知識グラフデータ
- * @param newNodes 追加するノード
- * @param newEdges 追加するエッジ
- * @returns 拡張された知識グラフデータ
- */
-export function expandKnowledgeGraph(
-  graphData: KnowledgeGraphData,
-  newNodes: any[],
-  newEdges: any[]
-): KnowledgeGraphData {
-  // 既存のノードIDを収集（重複チェック用）
-  const existingNodeIds = new Set(graphData.nodes.map(node => node.id));
-  
-  // 重複しないノードのみを追加
-  const filteredNewNodes = newNodes.filter(node => !existingNodeIds.has(node.id));
-  
-  // エッジの重複チェック用の関数
-  const createEdgeKey = (edge: any) => `${edge.source}-${edge.target}`;
-  
-  // 既存のエッジキーを収集
-  const existingEdgeKeys = new Set(graphData.edges.map(createEdgeKey));
-  
-  // 重複しないエッジのみを追加
-  const filteredNewEdges = newEdges.filter(edge => 
-    !existingEdgeKeys.has(createEdgeKey(edge))
-  );
-  
-  // 既存のグラフに新しいノードとエッジを追加
-  return {
-    nodes: [...graphData.nodes, ...filteredNewNodes],
-    edges: [...graphData.edges, ...filteredNewEdges]
-  };
-}
+// expandKnowledgeGraph関数は削除されました - outdatedなコードとして削除
 
 /**
  * 知識グラフから特定のノードとそれに接続するエッジを削除する

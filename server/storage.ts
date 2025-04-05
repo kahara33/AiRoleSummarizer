@@ -2,35 +2,20 @@ import {
   User, InsertUser, 
   Company, InsertCompany,
   RoleModel, InsertRoleModel, 
-  Tag, InsertTag, 
   KnowledgeNode, InsertKnowledgeNode,
   KnowledgeEdge, InsertKnowledgeEdge,
-  Summary, InsertSummary, 
-  RoleModelWithTags,
-  SummaryWithTags,
-  IndustryCategory, InsertIndustryCategory,
-  IndustrySubcategory, InsertIndustrySubcategory,
   Keyword, InsertKeyword,
-  RoleModelIndustry, InsertRoleModelIndustry,
+  Industry,
   RoleModelKeyword, InsertRoleModelKeyword,
-  IndustrySubcategoryWithCategory,
   RoleModelWithIndustriesAndKeywords,
-  IndustryCombination, InsertIndustryCombination,
-  IndustryCombinationDetail, InsertIndustryCombinationDetail,
   companies,
   users,
   roleModels,
-  tags,
   knowledgeNodes,
   knowledgeEdges,
-  summaries,
-  industryCategories,
-  industrySubcategories,
   keywords,
-  roleModelIndustries,
   roleModelKeywords,
-  industryCombinations,
-  industryCombinationDetails
+  industries
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -46,100 +31,22 @@ const MemoryStore = createMemoryStore(session);
 const PostgresSessionStore = connectPg(session);
 
 // Storage interface
+// 必須のインターフェースを定義
 export interface IStorage {
-  // Company operations
-  getCompany(id: string): Promise<Company | undefined>;
-  getCompanies(): Promise<Company[]>;
-  createCompany(company: InsertCompany): Promise<Company>;
-  updateCompany(id: string, company: Partial<InsertCompany>): Promise<Company | undefined>;
-  deleteCompany(id: string): Promise<boolean>;
-
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  getUsers(companyId?: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
-  deleteUser(id: string): Promise<boolean>;
-  
-  // Role model operations
-  getRoleModels(userId: string): Promise<RoleModel[]>;
-  getSharedRoleModels(companyId: string): Promise<RoleModel[]>;
-  getRoleModelWithTags(id: string): Promise<RoleModelWithTags | undefined>;
-  createRoleModel(roleModel: InsertRoleModel): Promise<RoleModel>;
-  updateRoleModel(id: string, roleModel: Partial<InsertRoleModel>): Promise<RoleModel | undefined>;
-  deleteRoleModel(id: string): Promise<boolean>;
-  
-  // Tag operations
-  getTags(roleModelId: string): Promise<Tag[]>;
-  createTag(tag: InsertTag): Promise<Tag>;
-  updateTag(id: string, tag: Partial<InsertTag>): Promise<Tag | undefined>;
-  deleteTag(id: string): Promise<boolean>;
   
   // Knowledge Node operations
   getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]>;
   getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined>;
   createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode>;
-  updateKnowledgeNode(id: string, node: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined>;
-  deleteKnowledgeNode(id: string): Promise<boolean>;
   
   // Knowledge Edge operations
   getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]>;
   getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined>;
   createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge>;
-  updateKnowledgeEdge(id: string, edge: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined>;
-  deleteKnowledgeEdge(id: string): Promise<boolean>;
-
-  // Summary operations
-  getSummaries(roleModelId: string): Promise<Summary[]>;
-  getSummaryWithTags(id: string): Promise<SummaryWithTags | undefined>;
-  createSummary(summary: InsertSummary): Promise<Summary>;
-  updateSummaryFeedback(id: string, feedback: number): Promise<Summary | undefined>;
-
-  // Industry category operations
-  getIndustryCategories(): Promise<IndustryCategory[]>;
-  getIndustryCategory(id: string): Promise<IndustryCategory | undefined>;
-  createIndustryCategory(category: InsertIndustryCategory): Promise<IndustryCategory>;
-  updateIndustryCategory(id: string, category: Partial<InsertIndustryCategory>): Promise<IndustryCategory | undefined>;
-  deleteIndustryCategory(id: string): Promise<boolean>;
-
-  // Industry subcategory operations
-  getIndustrySubcategories(categoryId?: string): Promise<IndustrySubcategory[]>;
-  getIndustrySubcategoriesWithCategory(): Promise<IndustrySubcategoryWithCategory[]>;
-  getIndustrySubcategory(id: string): Promise<IndustrySubcategory | undefined>;
-  createIndustrySubcategory(subcategory: InsertIndustrySubcategory): Promise<IndustrySubcategory>;
-  updateIndustrySubcategory(id: string, subcategory: Partial<InsertIndustrySubcategory>): Promise<IndustrySubcategory | undefined>;
-  deleteIndustrySubcategory(id: string): Promise<boolean>;
-
-  // Keyword operations
-  getKeywords(search?: string): Promise<Keyword[]>;
-  getKeyword(id: string): Promise<Keyword | undefined>;
-  createKeyword(keyword: InsertKeyword): Promise<Keyword>;
-  updateKeyword(id: string, keyword: Partial<InsertKeyword>): Promise<Keyword | undefined>;
-  deleteKeyword(id: string): Promise<boolean>;
-
-  // Role model industry mapping operations
-  getRoleModelIndustries(roleModelId: string): Promise<RoleModelIndustry[]>;
-  getRoleModelIndustriesWithData(roleModelId: string): Promise<IndustrySubcategoryWithCategory[]>;
-  createRoleModelIndustry(mapping: InsertRoleModelIndustry): Promise<RoleModelIndustry>;
-  deleteRoleModelIndustry(id: string): Promise<boolean>;
-  
-  // Role model keyword mapping operations
-  getRoleModelKeywords(roleModelId: string): Promise<RoleModelKeyword[]>;
-  getRoleModelKeywordsWithData(roleModelId: string): Promise<Keyword[]>;
-  createRoleModelKeyword(mapping: InsertRoleModelKeyword): Promise<RoleModelKeyword>;
-  deleteRoleModelKeyword(id: string): Promise<boolean>;
-  
-  // Extended role model operations
-  getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined>;
-  
-  // Industry combination operations
-  getIndustryCombinations(userId: string, companyId: string | null): Promise<IndustryCombination[]>;
-  getIndustryCombination(id: string): Promise<IndustryCombination | undefined>;
-  getIndustryCombinationDetails(combinationId: string): Promise<IndustryCombinationDetail[]>;
-  createIndustryCombination(combination: InsertIndustryCombination): Promise<IndustryCombination>;
-  addIndustryCombinationDetail(combinationId: string, industrySubcategoryId: string): Promise<IndustryCombinationDetail>;
-  deleteIndustryCombination(id: string): Promise<boolean>;
 
   // Session store
   sessionStore: any; // session.SessionStore

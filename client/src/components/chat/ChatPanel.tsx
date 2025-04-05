@@ -24,7 +24,7 @@ interface ChatMessage {
 
 interface ChatPanelProps {
   selectedNode?: KnowledgeNode | null;
-  height?: number;
+  height?: number | string;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => {

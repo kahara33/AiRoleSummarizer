@@ -3,7 +3,7 @@ import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
 import { registerRoutes } from './routes';
 import { db } from './db';
-import { users, userRoleEnum, organizations } from '@shared/schema';
+import { users, organizations, companies } from '@shared/schema';
 import { hashPassword } from './auth';
 import { closeNeo4j } from './neo4j';
 import { eq, or } from 'drizzle-orm';
@@ -40,23 +40,24 @@ async function initializeAdminUser() {
     if (!existingAdmin) {
       console.log('管理者ユーザーが存在しないため、初期管理者を作成します');
       
-      // 組織の追加
-      let orgId: number;
-      const existingOrg = await db.query.organizations.findFirst({
-        where: (orgs, { eq }) => eq(orgs.name, 'EVERYS'),
+      // 会社の追加
+      let companyId: string;
+      const existingCompany = await db.query.companies.findFirst({
+        where: (companies, { eq }) => eq(companies.name, 'EVERYS'),
       });
       
-      if (existingOrg) {
-        orgId = existingOrg.id;
+      if (existingCompany) {
+        companyId = existingCompany.id;
       } else {
-        const [org] = await db.insert(organizations)
+        const [company] = await db.insert(companies)
           .values({
+            id: 'cab10e27-6ece-4aea-951b-c28b1db39838',  // UUID for EVERYS
             name: 'EVERYS',
             description: 'EVERYSは自律型情報収集サービスを提供する組織です。',
           })
-          .returning({ id: organizations.id });
+          .returning({ id: companies.id });
         
-        orgId = org.id;
+        companyId = company.id;
       }
       
       // 管理者ユーザーの追加
@@ -64,11 +65,11 @@ async function initializeAdminUser() {
       
       await db.insert(users)
         .values({
-          username: 'k.harada@everys.jp',
+          name: 'K. Harada',
           password: hashedPassword,
           email: 'k.harada@everys.jp',
           role: 'admin',
-          organizationId: orgId,
+          companyId: companyId,
         });
       
       console.log('初期管理者ユーザーを作成しました');

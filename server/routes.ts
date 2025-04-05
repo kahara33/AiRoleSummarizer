@@ -1,11 +1,17 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { Server } from 'http';
-import { setupWebSocketServer } from './websocket';
+import { setupWebSocketServer, sendMessageToRoleModelViewers, sendAgentThoughts } from './websocket';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
 import { eq } from 'drizzle-orm';
-import { insertKnowledgeNodeSchema, insertKnowledgeEdgeSchema } from '@shared/schema';
+import { 
+  insertKnowledgeNodeSchema, 
+  insertKnowledgeEdgeSchema,
+  knowledgeNodes,
+  knowledgeEdges 
+} from '@shared/schema';
+import { generateKnowledgeGraphForNode } from './azure-openai';
 
 // ルートの登録
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -34,7 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       authenticated: req.isAuthenticated(),
       user: req.user ? {
         id: req.user.id,
-        username: req.user.username,
+        name: req.user.name,
         role: req.user.role,
       } : null,
     });
@@ -46,8 +52,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       const roleModels = await db.query.roleModels.findMany({
         where: (roleModels, { or, eq }) => or(
-          eq(roleModels.isPublic, true),
-          user && user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
+          eq(roleModels.isShared, 1),
+          user && user.companyId ? eq(roleModels.companyId, user.companyId) : undefined
         ),
       });
       
@@ -79,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertKnowledgeNodeSchema.parse(req.body);
       
       // PostgreSQLにノードを保存
-      const result = await db.insert(schema.knowledgeNodes).values(validatedData).returning();
+      const result = await db.insert(knowledgeNodes).values(validatedData).returning();
       
       // Neo4jにも同じノードを保存
       await createNodeInNeo4j(result[0]);
@@ -97,7 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertKnowledgeEdgeSchema.parse(req.body);
       
       // PostgreSQLにエッジを保存
-      const result = await db.insert(schema.knowledgeEdges).values(validatedData).returning();
+      const result = await db.insert(knowledgeEdges).values(validatedData).returning();
       
       // Neo4jにも同じエッジを保存
       await createEdgeInNeo4j(result[0]);
@@ -108,24 +114,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'エッジの作成に失敗しました' });
     }
   });
+  
+  // 知識ノード展開 - AIによるノード展開処理
+  app.post('/api/knowledge-nodes/:nodeId/expand', isAuthenticated, async (req, res) => {
+    try {
+      const { nodeId } = req.params;
+      
+      // ノードの存在確認とデータ取得
+      const node = await db.query.knowledgeNodes.findFirst({
+        where: eq(knowledgeNodes.id, nodeId)
+      });
+      
+      if (!node) {
+        return res.status(404).json({ error: '対象のノードが見つかりません' });
+      }
+      
+      console.log(`ノード "${node.name}" (ID: ${nodeId}) の展開を開始します`);
+      
+      // WebSocketを通じてエージェントの思考プロセスを通知
+      sendAgentThoughts(
+        "KnowledgeGraphAgent", 
+        `"${node.name}" の拡張ノードとエッジを生成しています。AIによる分析中...`,
+        node.roleModelId?.toString()
+      );
+      
+      // Azure OpenAIを使用してノードを展開
+      const success = await generateKnowledgeGraphForNode(
+        node.roleModelId?.toString() || "", // nullのケースもカバー
+        node.name || "",
+        nodeId
+      );
+      
+      if (!success) {
+        return res.status(500).json({ error: 'ノードの展開に失敗しました' });
+      }
+      
+      // 新しく作成されたノードとエッジを取得
+      const newNodes = await db.query.knowledgeNodes.findMany({
+        where: eq(knowledgeNodes.parentId, nodeId)
+      });
+      
+      const newEdges = await db.query.knowledgeEdges.findMany({
+        where: eq(knowledgeEdges.sourceId, nodeId)
+      });
+      
+      // WebSocketでリアルタイム更新を通知
+      sendMessageToRoleModelViewers('graph-update', { 
+        type: 'expand', 
+        nodeId,
+        data: {
+          nodes: newNodes,
+          edges: newEdges
+        }
+      }, node.roleModelId?.toString() || "");
+      
+      // 完了通知
+      sendAgentThoughts(
+        "OrchestratorAgent",
+        `ノード "${node.name}" の展開が完了しました。\n\n` +
+        `- 新規ノード: ${newNodes.length}個\n` +
+        `- 新規エッジ: ${newEdges.length}個\n\n` +
+        `グラフが正常に更新されました。`,
+        node.roleModelId?.toString()
+      );
+      
+      res.json({
+        success: true,
+        nodeId,
+        nodes: newNodes,
+        edges: newEdges
+      });
+    } catch (error) {
+      console.error('ノード展開エラー:', error);
+      res.status(500).json({ error: '知識ノードの展開に失敗しました' });
+    }
+  });
 
   // 管理者専用ルート
   app.get('/api/admin/users', requireRole('admin'), async (req, res) => {
     try {
       const users = await db.query.users.findMany({
         with: {
-          organization: true,
+          company: true,
         },
       });
       
       res.json(users.map(user => ({
         id: user.id,
-        username: user.username,
+        name: user.name,
         email: user.email,
         role: user.role,
-        organization: user.organization ? {
-          id: user.organization.id,
-          name: user.organization.name,
+        company: user.company ? {
+          id: user.company.id,
+          name: user.company.name,
         } : null,
       })));
     } catch (error) {
