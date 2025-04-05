@@ -23,6 +23,13 @@ export default function SelectedKeywords({
   // 全キーワードを取得
   const { data: allKeywords = [], isLoading } = useQuery<Keyword[]>({
     queryKey: ["/api/keywords"],
+    queryFn: async ({ queryKey }) => {
+      const res = await fetch(queryKey[0] as string);
+      if (!res.ok) {
+        throw new Error(`Error fetching keywords: ${res.statusText}`);
+      }
+      return res.json();
+    },
     staleTime: 60 * 60 * 1000, // 1時間キャッシュ
   });
 

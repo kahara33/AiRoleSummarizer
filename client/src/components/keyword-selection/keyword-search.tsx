@@ -29,6 +29,13 @@ export default function KeywordSearch({
   // キーワードの取得
   const { data: keywords = [], isLoading } = useQuery<Keyword[]>({
     queryKey: ["/api/keywords"],
+    queryFn: async ({ queryKey }) => {
+      const res = await fetch(queryKey[0] as string);
+      if (!res.ok) {
+        throw new Error(`Error fetching keywords: ${res.statusText}`);
+      }
+      return res.json();
+    },
     staleTime: 0, // キャッシュを無効化
   });
 

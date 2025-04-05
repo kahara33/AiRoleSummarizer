@@ -56,10 +56,11 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+export const defaultQueryFn = getQueryFn({ on401: "throw" });
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: 0, // キャッシュを無効化するために0に設定

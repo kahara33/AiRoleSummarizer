@@ -66,6 +66,13 @@ export default function RoleModelsPage() {
     refetch: refetchModels,
   } = useQuery<RoleModelWithIndustriesAndKeywords[]>({
     queryKey: ["/api/role-models"],
+    queryFn: async ({ queryKey }) => {
+      const res = await fetch(queryKey[0] as string);
+      if (!res.ok) {
+        throw new Error(`Error fetching role models: ${res.statusText}`);
+      }
+      return res.json();
+    },
     enabled: !!user,
   });
   
@@ -77,6 +84,13 @@ export default function RoleModelsPage() {
     refetch: refetchShared,
   } = useQuery<RoleModelWithIndustriesAndKeywords[]>({
     queryKey: ["/api/role-models/shared"],
+    queryFn: async ({ queryKey }) => {
+      const res = await fetch(queryKey[0] as string);
+      if (!res.ok) {
+        throw new Error(`Error fetching shared role models: ${res.statusText}`);
+      }
+      return res.json();
+    },
     enabled: !!user && !!user.companyId,
   });
 
