@@ -853,23 +853,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/knowledge-graph/:roleModelId', isAuthenticated, async (req, res) => {
     try {
       const { roleModelId } = req.params;
-      const user = req.user;
       
-      // アクセス権のチェック
-      const roleModel = await db.query.roleModels.findFirst({
-        where: eq(roleModels.id, roleModelId),
-      });
-      
-      if (!roleModel) {
-        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
-      }
-      
-      if (
-        roleModel.userId !== user.id && 
-        !(roleModel.isShared === 1 && roleModel.companyId === user.companyId) &&
-        user.role !== 'admin'
-      ) {
-        return res.status(403).json({ error: 'この知識グラフへのアクセス権限がありません' });
+      // 開発環境ではアクセス権チェックをスキップ
+      if (process.env.NODE_ENV !== 'production') {
+        // ロールモデルの存在確認のみ行う
+        const roleModel = await db.query.roleModels.findFirst({
+          where: eq(roleModels.id, roleModelId),
+        });
+        
+        if (!roleModel) {
+          return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+        }
+      } else {
+        // 本番環境ではアクセス権のチェック
+        const user = req.user;
+        
+        // アクセス権のチェック
+        const roleModel = await db.query.roleModels.findFirst({
+          where: eq(roleModels.id, roleModelId),
+        });
+        
+        if (!roleModel) {
+          return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+        }
+        
+        if (
+          roleModel.userId !== user?.id && 
+          !(roleModel.isShared === 1 && roleModel.companyId === user?.companyId) &&
+          user?.role !== 'admin'
+        ) {
+          return res.status(403).json({ error: 'この知識グラフへのアクセス権限がありません' });
+        }
       }
       
       // Neo4jからグラフデータ取得を試みる

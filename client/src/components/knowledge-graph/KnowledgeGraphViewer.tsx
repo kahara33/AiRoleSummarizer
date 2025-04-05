@@ -74,6 +74,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         throw new Error('無効なグラフデータ形式です');
       }
       
+      console.log('Received graph data:', graphData);
+      
       // ReactFlowノードへの変換
       const flowNodes: Node[] = graphData.nodes.map((node: any) => ({
         id: node.id,
@@ -85,18 +87,41 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         },
       }));
       
+      console.log('Created flow nodes:', flowNodes);
+      
+      // エッジデータのチェックと修正
+      const validEdges = graphData.edges.filter((edge: any) => {
+        // sourceとtargetが存在するノードを参照しているか確認
+        const sourceExists = flowNodes.some(node => node.id === edge.source || node.id === edge.sourceId);
+        const targetExists = flowNodes.some(node => node.id === edge.target || node.id === edge.targetId);
+        
+        if (!sourceExists || !targetExists) {
+          console.warn('Skipping invalid edge:', edge);
+          return false;
+        }
+        return true;
+      });
+      
       // ReactFlowエッジへの変換
-      const flowEdges: Edge[] = graphData.edges.map((edge: any) => ({
-        id: `${edge.source}-${edge.target}`,
-        source: edge.source,
-        target: edge.target,
-        type: 'dataFlow',
-        animated: edge.type === 'data-flow',
-        label: edge.label || '',
-        data: {
-          strength: edge.strength || 1,
-        },
-      }));
+      const flowEdges: Edge[] = validEdges.map((edge: any) => {
+        // sourceIdとtargetIdの優先的な使用 (PostgreSQLから取得した場合)
+        const source = edge.sourceId || edge.source;
+        const target = edge.targetId || edge.target;
+        
+        return {
+          id: `${source}-${target}`,
+          source,
+          target,
+          type: 'dataFlow',
+          animated: edge.type === 'data-flow',
+          label: edge.label || '',
+          data: {
+            strength: edge.strength || 1,
+          },
+        };
+      });
+      
+      console.log('Created flow edges:', flowEdges);
       
       // グラフのレイアウトを計算
       const { nodes: layoutedNodes, edges: layoutedEdges } = getHierarchicalLayout(
@@ -116,8 +141,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
   // グラフデータの初期ロード
   useEffect(() => {
+    console.log('Fetching graph data for roleModelId:', roleModelId);
     fetchGraphData();
-  }, [fetchGraphData]);
+  }, [fetchGraphData, roleModelId]);
 
   // WebSocketリスナーのセットアップ
   useEffect(() => {
