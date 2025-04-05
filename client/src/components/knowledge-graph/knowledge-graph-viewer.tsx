@@ -221,8 +221,6 @@ export default function KnowledgeGraphViewer({
           <ReactFlowKnowledgeGraph
             roleModelId={roleModelId}
             onNodeClick={onNodeClick}
-            onNodeCreate={onNodeCreate}
-            onNodeExpand={onNodeExpand}
             width={width}
             height={height}
           />
