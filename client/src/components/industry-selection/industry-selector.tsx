@@ -29,13 +29,13 @@ export default function IndustrySelector({
   // 業界カテゴリーの取得
   const { data: categories = [], isLoading: isLoadingCategories } = useQuery<IndustryCategory[]>({
     queryKey: ["/api/industry-categories"],
-    staleTime: 60 * 60 * 1000, // 1時間キャッシュ
+    staleTime: 0, // キャッシュを無効化
   });
 
   // 業界サブカテゴリーの取得（すべて）
   const { data: subcategories = [], isLoading: isLoadingSubcategories } = useQuery<IndustrySubcategory[]>({
     queryKey: ["/api/industry-subcategories"],
-    staleTime: 60 * 60 * 1000, // 1時間キャッシュ
+    staleTime: 0, // キャッシュを無効化
   });
 
   // カテゴリーに含まれるサブカテゴリーを取得する関数
