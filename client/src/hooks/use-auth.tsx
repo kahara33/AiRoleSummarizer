@@ -89,6 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
+      // ログイン画面にリダイレクト
+      window.location.href = "/auth";
       toast({
         title: "ログアウトしました",
       });

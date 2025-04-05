@@ -1,5 +1,5 @@
 import React from 'react';
-import { Switch, Route } from 'wouter';
+import { Switch, Route, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/hooks/use-auth';
@@ -44,20 +44,33 @@ const KnowledgeGraphPageComponent = (props: ComponentProps) => (
   <KnowledgeGraphPage id={props.params?.id} />
 );
 
-const AppRoutes: React.FC = () => (
-  <MainLayout>
-    <Switch>
-      <ProtectedRoute path="/" component={HomePageComponent} />
-      <ProtectedRoute path="/organizations" component={OrganizationsPageComponent} />
-      <ProtectedRoute path="/role-models" component={RoleModelsPageComponent} />
-      <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPageComponent} />
-      <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
-      <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
-      <Route path="/auth" component={AuthPage} />
-      <Route component={NotFoundPage} />
-    </Switch>
-  </MainLayout>
-);
+const AppRoutes: React.FC = () => {
+  const [location] = useLocation();
+  const isAuthPage = location === '/auth';
+  
+  return (
+    <>
+      {/* 認証ページの場合はMainLayoutを使わない */}
+      {isAuthPage ? (
+        <Switch>
+          <Route path="/auth" component={AuthPage} />
+        </Switch>
+      ) : (
+        <MainLayout>
+          <Switch>
+            <ProtectedRoute path="/" component={HomePageComponent} />
+            <ProtectedRoute path="/organizations" component={OrganizationsPageComponent} />
+            <ProtectedRoute path="/role-models" component={RoleModelsPageComponent} />
+            <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPageComponent} />
+            <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
+            <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
+            <Route component={NotFoundPage} />
+          </Switch>
+        </MainLayout>
+      )}
+    </>
+  );
+};
 
 const App: React.FC = () => {
   return (
