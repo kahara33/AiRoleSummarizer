@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import ReactFlow, {
   Background, 
   Controls, 
@@ -18,22 +18,20 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Button } from '@/components/ui/button';
-import { getLayoutedElements, getHierarchicalLayout } from '@/lib/graph-layout';
+import { getLayoutedElements } from '@/lib/graph-layout';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { toast } from '@/hooks/use-toast';
 import { KnowledgeNode, KnowledgeEdge } from '@shared/schema';
-import { ZoomIn, ZoomOut, RefreshCw, LayoutGrid, Layers } from 'lucide-react';
+import { ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 
 // カスタムノードとエッジのインポート
 import ConceptNode from '../nodes/ConceptNode';
-import AgentNode from '../nodes/AgentNode';
 import DataFlowEdge from '../edges/DataFlowEdge';
 
 // ノードタイプとエッジタイプの登録
 const nodeTypes: NodeTypes = {
-  concept: ConceptNode,
-  agent: AgentNode
+  concept: ConceptNode
 };
 
 const edgeTypes: EdgeTypes = {
@@ -43,58 +41,52 @@ const edgeTypes: EdgeTypes = {
 interface ReactFlowKnowledgeGraphProps {
   roleModelId: string;
   onNodeClick?: (node: KnowledgeNode) => void;
-  onNodeCreate?: (parentNode?: KnowledgeNode) => void;
-  onNodeExpand?: (node: KnowledgeNode) => void;
   width?: number;
   height?: number;
 }
 
-// 実装コンポーネント
+// 実際のグラフ描画コンポーネント
 const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
   roleModelId,
   onNodeClick,
-  onNodeCreate,
-  onNodeExpand,
   width = 800,
   height = 600
 }) => {
-  // React Flowインスタンスの参照
+  // React Flowインスタンス
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   
-  // ノードとエッジの状態
+  // ステート
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // レイアウトモード
-  const [layoutMode, setLayoutMode] = useState<'dagre' | 'hierarchical'>('dagre');
-  
-  // グラフデータの取得
-  const { data: knowledgeNodes = [], isLoading: isNodesLoading, error: nodesError } = useQuery({
+  // ノードデータの取得
+  const { data: knowledgeNodes = [] } = useQuery({
     queryKey: [`/api/role-models/${roleModelId}/knowledge-nodes`],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-nodes`);
       const data = await res.json() as KnowledgeNode[];
-      console.log('取得したノード:', data.length, data);
+      console.log('Fetched nodes:', data.length);
       return data;
     },
     enabled: !!roleModelId
   });
   
-  const { data: knowledgeEdges = [], isLoading: isEdgesLoading, error: edgesError } = useQuery({
+  // エッジデータの取得
+  const { data: knowledgeEdges = [] } = useQuery({
     queryKey: [`/api/role-models/${roleModelId}/knowledge-edges`],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/role-models/${roleModelId}/knowledge-edges`);
       const data = await res.json() as KnowledgeEdge[];
-      console.log('取得したエッジ:', data.length, data);
+      console.log('Fetched edges:', data.length);
       return data;
     },
     enabled: !!roleModelId
   });
-  
-  // APIから空のデータが返ってきた場合はサンプルデータを使用
-  const effectiveNodes = knowledgeNodes.length > 0 ? knowledgeNodes : [
+
+  // サンプルノード（データがない場合用）
+  const sampleNodes: KnowledgeNode[] = [
     {
       id: 'root',
       name: 'AIエンジニア',
@@ -130,7 +122,8 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
     }
   ];
   
-  const effectiveEdges = knowledgeEdges.length > 0 ? knowledgeEdges : [
+  // サンプルエッジ（データがない場合用）
+  const sampleEdges: KnowledgeEdge[] = [
     {
       id: 'edge1',
       sourceId: 'root',
@@ -149,31 +142,57 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
     }
   ];
   
-  // グラフデータの変換
+  // ノードとエッジからグラフデータを生成
   useEffect(() => {
     try {
       setLoading(true);
       
-      // ノードの変換（サンプルデータ対応）
+      // 実際のデータまたはサンプルデータを使用
+      const effectiveNodes = knowledgeNodes.length > 0 ? knowledgeNodes : sampleNodes;
+      const effectiveEdges = knowledgeEdges.length > 0 ? knowledgeEdges : sampleEdges;
+      
+      console.log('処理するノード数:', effectiveNodes.length);
+      console.log('処理するエッジ数:', effectiveEdges.length);
+      
+      // ノードの変換
       const graphNodes: Node[] = effectiveNodes.map(node => ({
         id: node.id,
-        type: 'concept', // ConceptNodeを使用
-        position: { x: 0, y: 0 }, // 初期位置（レイアウトで調整される）
+        type: 'concept',
+        // 初期位置（レイアウトで上書きされる）
+        position: { x: 0, y: 0 },
         data: {
           label: node.name,
           description: node.description || '',
           type: node.type || 'concept',
           level: node.level || 0,
-          importance: node.level === 0 ? 5 : Math.max(1, 4 - node.level), // レベルに基づく重要度
-          color: node.color || undefined,
-          // キーワードはここでは設定しない（実際のデータにはないため）
+          importance: node.level === 0 ? 5 : Math.max(1, 4 - node.level),
+          color: node.color || undefined
         }
       }));
       
       // エッジの変換
-      const graphEdges: Edge[] = [];
+      const graphEdges: Edge[] = effectiveEdges.map(edge => ({
+        id: edge.id,
+        source: edge.sourceId || '',
+        target: edge.targetId || '',
+        type: 'dataFlow',
+        animated: edge.label === 'TASK_FLOW',
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 15,
+          height: 15,
+        },
+        data: {
+          label: edge.label || 'RELATED_TO',
+          type: edge.label?.toLowerCase().replace(/_/g, '_') || 'related_to',
+          strength: edge.strength || 1
+        }
+      }));
       
-      // 親子関係のエッジを追加（サンプルデータ対応）
+      console.log('生成したノード数:', graphNodes.length);
+      console.log('生成したエッジ数:', graphEdges.length);
+      
+      // 親子関係からエッジを生成（親子関係がない場合でも追加）
       const parentChildEdges: Edge[] = effectiveNodes
         .filter(node => node.parentId)
         .map(node => ({
@@ -194,62 +213,34 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
           }
         }));
       
-      graphEdges.push(...parentChildEdges);
-      
-      // 明示的なエッジを追加（サンプルデータ対応）
-      const explicitEdges: Edge[] = effectiveEdges.map(edge => ({
-        id: edge.id,
-        source: edge.sourceId || '',
-        target: edge.targetId || '',
-        type: 'dataFlow',
-        animated: edge.label === 'TASK_FLOW',
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 15,
-          height: 15,
-        },
-        data: {
-          label: edge.label || 'RELATED_TO',
-          type: edge.label?.toLowerCase().replace(/_/g, '_') || 'related_to',
-          strength: edge.strength || 1
-        }
-      }));
-      
-      graphEdges.push(...explicitEdges);
-      
-      console.log('グラフノード:', graphNodes.length, 'グラフエッジ:', graphEdges.length);
+      // 親子関係のエッジを追加
+      if (parentChildEdges.length > 0) {
+        graphEdges.push(...parentChildEdges);
+      }
       
       // レイアウトを適用
-      const initialElements = layoutMode === 'dagre'
-        ? getLayoutedElements(graphNodes, graphEdges, 'TB')
-        : getHierarchicalLayout(graphNodes, graphEdges, width / 2, height / 4);
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        graphNodes, 
+        graphEdges, 
+        'TB'
+      );
       
-      setNodes(initialElements.nodes);
-      setEdges(initialElements.edges);
-    } catch (e) {
-      console.error('グラフデータの変換エラー:', e);
-      setError('グラフデータの処理中にエラーが発生しました。');
+      // 状態を更新
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+      
+    } catch (error) {
+      console.error('グラフの生成中にエラーが発生しました:', error);
+      setError('グラフの描画に失敗しました。');
       toast({
         title: 'エラー',
-        description: 'グラフデータの処理中にエラーが発生しました。',
+        description: 'グラフの描画に失敗しました。',
         variant: 'destructive'
       });
     } finally {
       setLoading(false);
     }
-  }, [effectiveNodes, effectiveEdges, layoutMode, width, height]);
-  
-  // ビューのフィット（ノードが更新されたとき）
-  useEffect(() => {
-    if (nodes.length > 0 && !loading) {
-      // 少し遅延を入れてレイアウト完了後にフィット
-      const timer = setTimeout(() => {
-        fitView({ padding: 0.2, includeHiddenNodes: false });
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [nodes, loading, fitView]);
+  }, [knowledgeNodes, knowledgeEdges, roleModelId]);
   
   // ノード変更ハンドラ
   const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -265,46 +256,50 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
   const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     if (!onNodeClick) return;
     
-    // KnowledgeNode型に変換
+    // クリックされたノードのKnowledgeNodeを検索
     const knowledgeNode = knowledgeNodes.find(kn => kn.id === node.id);
     if (knowledgeNode) {
       onNodeClick(knowledgeNode);
     }
   }, [onNodeClick, knowledgeNodes]);
   
-  // レイアウトの変更
-  const changeLayout = useCallback((mode: 'dagre' | 'hierarchical') => {
-    setLayoutMode(mode);
-  }, []);
-  
-  // レイアウトの再計算
+  // レイアウト再計算
   const recalculateLayout = useCallback(() => {
     if (nodes.length === 0) return;
     
-    const layouted = layoutMode === 'dagre'
-      ? getLayoutedElements(nodes, edges, 'TB')
-      : getHierarchicalLayout(nodes, edges, width / 2, height / 4);
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'TB');
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
     
-    setNodes(layouted.nodes);
-    setEdges(layouted.edges);
-    
-    // 少し遅延を入れてレイアウト完了後にフィット
+    // レイアウト適用後にビューをフィット
     setTimeout(() => {
       fitView({ padding: 0.2 });
     }, 100);
-  }, [nodes, edges, layoutMode, width, height, fitView]);
+  }, [nodes, edges, fitView]);
   
+  // ノードが変更されたらビューをフィット
+  useEffect(() => {
+    if (nodes.length > 0 && !loading) {
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.2 });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [nodes, loading, fitView]);
+  
+  // ローディング中表示
   if (loading) {
     return (
-      <div style={{ width, height, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <div>データを読み込み中...</div>
+      <div className="flex justify-center items-center" style={{ width, height }}>
+        <div>グラフデータを読み込み中...</div>
       </div>
     );
   }
   
+  // エラー表示
   if (error) {
     return (
-      <div style={{ width, height, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div className="flex justify-center items-center" style={{ width, height }}>
         <div>エラー: {error}</div>
       </div>
     );
@@ -324,14 +319,10 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
       >
         <Background />
         <Controls />
-        <MiniMap
-          nodeStrokeWidth={3}
-          zoomable
-          pannable
-        />
+        <MiniMap nodeStrokeWidth={3} zoomable pannable />
         
         <Panel position="top-right">
-          <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+          <div className="flex flex-col gap-2">
             <Button variant="outline" size="icon" onClick={() => zoomIn()}>
               <ZoomIn size={16} />
             </Button>
@@ -340,20 +331,6 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
             </Button>
             <Button variant="outline" size="icon" onClick={recalculateLayout}>
               <RefreshCw size={16} />
-            </Button>
-            <Button
-              variant={layoutMode === 'dagre' ? 'default' : 'outline'}
-              size="icon"
-              onClick={() => changeLayout('dagre')}
-            >
-              <LayoutGrid size={16} />
-            </Button>
-            <Button
-              variant={layoutMode === 'hierarchical' ? 'default' : 'outline'}
-              size="icon"
-              onClick={() => changeLayout('hierarchical')}
-            >
-              <Layers size={16} />
             </Button>
           </div>
         </Panel>
@@ -365,7 +342,7 @@ const ReactFlowGraphContent: React.FC<ReactFlowKnowledgeGraphProps> = ({
 // ReactFlowProviderでラップしたエクスポート用コンポーネント
 const ReactFlowKnowledgeGraph: React.FC<ReactFlowKnowledgeGraphProps> = (props) => {
   return (
-    <div style={{ width: props.width || 800, height: props.height || 600 }}>
+    <div style={{ width: props.width || 800, height: props.height || 600 }} className="border rounded-md overflow-hidden">
       <ReactFlowProvider>
         <ReactFlowGraphContent {...props} />
       </ReactFlowProvider>
