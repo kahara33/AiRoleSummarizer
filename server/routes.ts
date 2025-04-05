@@ -1026,6 +1026,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // ロールモデルと業界カテゴリの関連付け作成
+  app.post('/api/role-model-industries', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, industrySubcategoryId } = req.body;
+      
+      if (!roleModelId || !industrySubcategoryId) {
+        return res.status(400).json({ error: 'roleModelIdとindustrySubcategoryIdは必須です' });
+      }
+      
+      // ロールモデルの存在確認
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権のチェック
+      const user = req.user;
+      if (
+        roleModel.userId !== user.id && 
+        user.role !== 'admin' && 
+        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+      ) {
+        return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
+      }
+      
+      // 業界カテゴリの存在確認
+      const industry = await db.query.industrySubcategories.findFirst({
+        where: eq(industrySubcategories.id, industrySubcategoryId),
+      });
+      
+      if (!industry) {
+        return res.status(404).json({ error: '業界カテゴリが見つかりません' });
+      }
+      
+      // 既に関連付けが存在するか確認
+      const existingRelation = await db.query.roleModelIndustries.findFirst({
+        where: and(
+          eq(roleModelIndustries.roleModelId, roleModelId),
+          eq(roleModelIndustries.industrySubcategoryId, industrySubcategoryId)
+        ),
+      });
+      
+      if (existingRelation) {
+        return res.json(existingRelation); // 既に存在する場合はそれを返す
+      }
+      
+      // 関連付けを作成
+      const [newRelation] = await db.insert(roleModelIndustries).values({
+        roleModelId,
+        industrySubcategoryId,
+      }).returning();
+      
+      res.status(201).json(newRelation);
+    } catch (error) {
+      console.error('ロールモデル-業界カテゴリ関連付けエラー:', error);
+      res.status(500).json({ error: '業界カテゴリの関連付けに失敗しました' });
+    }
+  });
+  
+  // ロールモデルの業界カテゴリ関連付けを全て削除
+  app.delete('/api/role-model-industries/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params; // ロールモデルID
+      
+      // ロールモデルの存在確認
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, id),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権のチェック
+      const user = req.user;
+      if (
+        roleModel.userId !== user.id && 
+        user.role !== 'admin' && 
+        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+      ) {
+        return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
+      }
+      
+      // 関連付けを全て削除
+      await db.delete(roleModelIndustries).where(eq(roleModelIndustries.roleModelId, id));
+      
+      res.status(200).json({ message: '業界カテゴリ関連付けを削除しました' });
+    } catch (error) {
+      console.error('ロールモデル-業界カテゴリ関連付け削除エラー:', error);
+      res.status(500).json({ error: '業界カテゴリ関連付けの削除に失敗しました' });
+    }
+  });
+  
+  // ロールモデルとキーワードの関連付け作成
+  app.post('/api/role-model-keywords', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, keywordId } = req.body;
+      
+      if (!roleModelId || !keywordId) {
+        return res.status(400).json({ error: 'roleModelIdとkeywordIdは必須です' });
+      }
+      
+      // ロールモデルの存在確認
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権のチェック
+      const user = req.user;
+      if (
+        roleModel.userId !== user.id && 
+        user.role !== 'admin' && 
+        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+      ) {
+        return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
+      }
+      
+      // キーワードの存在確認
+      const keyword = await db.query.keywords.findFirst({
+        where: eq(keywords.id, keywordId),
+      });
+      
+      if (!keyword) {
+        return res.status(404).json({ error: 'キーワードが見つかりません' });
+      }
+      
+      // 既に関連付けが存在するか確認
+      const existingRelation = await db.query.roleModelKeywords.findFirst({
+        where: and(
+          eq(roleModelKeywords.roleModelId, roleModelId),
+          eq(roleModelKeywords.keywordId, keywordId)
+        ),
+      });
+      
+      if (existingRelation) {
+        return res.json(existingRelation); // 既に存在する場合はそれを返す
+      }
+      
+      // 関連付けを作成
+      const [newRelation] = await db.insert(roleModelKeywords).values({
+        roleModelId,
+        keywordId,
+      }).returning();
+      
+      res.status(201).json(newRelation);
+    } catch (error) {
+      console.error('ロールモデル-キーワード関連付けエラー:', error);
+      res.status(500).json({ error: 'キーワードの関連付けに失敗しました' });
+    }
+  });
+  
+  // ロールモデルのキーワード関連付けを全て削除
+  app.delete('/api/role-model-keywords/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params; // ロールモデルID
+      
+      // ロールモデルの存在確認
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, id),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権のチェック
+      const user = req.user;
+      if (
+        roleModel.userId !== user.id && 
+        user.role !== 'admin' && 
+        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+      ) {
+        return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
+      }
+      
+      // 関連付けを全て削除
+      await db.delete(roleModelKeywords).where(eq(roleModelKeywords.roleModelId, id));
+      
+      res.status(200).json({ message: 'キーワード関連付けを削除しました' });
+    } catch (error) {
+      console.error('ロールモデル-キーワード関連付け削除エラー:', error);
+      res.status(500).json({ error: 'キーワード関連付けの削除に失敗しました' });
+    }
+  });
+
   return httpServer;
 }
 
