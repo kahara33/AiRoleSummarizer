@@ -33,6 +33,12 @@ import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
 import { randomUUID } from 'crypto';
 
+// UUIDの検証関数
+function isValidUUID(str: string): boolean {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(str);
+}
+
 // ルートの登録
 export async function registerRoutes(app: Express): Promise<Server> {
   // HTTPサーバーの作成
@@ -853,6 +859,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/knowledge-graph/:roleModelId', isAuthenticated, async (req, res) => {
     try {
       const { roleModelId } = req.params;
+      
+      // UUID形式でない場合はエラー
+      if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
+        console.error(`無効なUUID形式: ${roleModelId}`);
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
       
       // 開発環境ではアクセス権チェックをスキップ
       if (process.env.NODE_ENV !== 'production') {
