@@ -47,8 +47,97 @@ export function initSocket(): WebSocket {
         });
       }
       
-      // 標準化された処理 - すべてのメッセージタイプで共通
-      if (data.type && listeners[data.type]) {
+      // エージェント関連のメッセージ変換処理（互換性対応）
+      if (data.type === 'agent_thoughts' || data.type === 'agent-thoughts') {
+        // agent_thoughtsイベントをエージェント思考メッセージへ標準化
+        const payloadData = data.payload || data;
+        
+        // リスナーに配信する前にデータ形式を標準化
+        const standardizedData = {
+          ...payloadData,
+          agentName: payloadData.agentName || payloadData.agent || 'エージェント',
+          agentType: payloadData.agentType || payloadData.agent_type || 'unknown',
+          thoughts: payloadData.thoughts || payloadData.message || payloadData.content || '',
+          timestamp: payloadData.timestamp || new Date().toISOString()
+        };
+        
+        console.log('エージェント思考の標準化データ:', standardizedData);
+        
+        // リスナーに配信（両方のイベント名で配信し、互換性を確保）
+        if (listeners['agent_thoughts']) {
+          listeners['agent_thoughts'].forEach(callback => callback(standardizedData));
+        }
+        if (listeners['agent-thoughts']) {
+          listeners['agent-thoughts'].forEach(callback => callback(standardizedData));
+        }
+      }
+      // 進捗更新の変換処理
+      else if (data.type === 'progress') {
+        // progressイベントを進捗メッセージへ標準化
+        const payloadData = data.payload || data;
+        
+        // リスナーに配信する前にデータ形式を標準化
+        const standardizedData = {
+          ...payloadData,
+          message: payloadData.message || `進捗: ${payloadData.progress || 0}%`,
+          progress: payloadData.progress || 0,
+          stage: payloadData.stage || 'system',
+          timestamp: payloadData.timestamp || new Date().toISOString()
+        };
+        
+        console.log('進捗更新の標準化データ:', standardizedData);
+        
+        // リスナーに配信
+        if (listeners['progress']) {
+          listeners['progress'].forEach(callback => callback(standardizedData));
+        }
+      }
+      // 知識グラフ更新の変換処理
+      else if (data.type === 'knowledge-graph-update' || data.type === 'graph-update') {
+        // graph-updateイベントを知識グラフ更新メッセージへ標準化
+        const payloadData = data.payload || data;
+        
+        // リスナーに配信する前にデータ形式を標準化
+        const standardizedData = {
+          ...payloadData,
+          message: payloadData.message || 'グラフが更新されました',
+          timestamp: payloadData.timestamp || new Date().toISOString(),
+          type: payloadData.updateType || 'update'
+        };
+        
+        console.log('グラフ更新の標準化データ:', standardizedData);
+        
+        // リスナーに配信（両方のイベント名で配信し、互換性を確保）
+        if (listeners['knowledge-graph-update']) {
+          listeners['knowledge-graph-update'].forEach(callback => callback(standardizedData));
+        }
+        if (listeners['graph-update']) {
+          listeners['graph-update'].forEach(callback => callback(standardizedData));
+        }
+      }
+      // エージェント間通信の変換処理
+      else if (data.type === 'agent-communication') {
+        // agent-communicationイベントをエージェント間通信メッセージへ標準化
+        const payloadData = data.payload || data;
+        
+        // リスナーに配信する前にデータ形式を標準化
+        const standardizedData = {
+          ...payloadData,
+          sourceAgentName: payloadData.sourceAgentName || payloadData.sourceAgent || 'Source',
+          targetAgentName: payloadData.targetAgentName || payloadData.targetAgent || 'Target',
+          message: payloadData.message || payloadData.content || 'エージェント間通信',
+          timestamp: payloadData.timestamp || new Date().toISOString()
+        };
+        
+        console.log('エージェント通信の標準化データ:', standardizedData);
+        
+        // リスナーに配信
+        if (listeners['agent-communication']) {
+          listeners['agent-communication'].forEach(callback => callback(standardizedData));
+        }
+      }
+      // その他の標準メッセージ処理
+      else if (data.type && listeners[data.type]) {
         // payloadが存在する場合はそれを使用、なければdata自体を使用
         const messageData = data.payload || data;
         // メッセージタイプに応じた詳細ログ
