@@ -57,17 +57,36 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
         roleModelId: data.roleModelId
       });
       
-      // JSONデータ構造に合わせて処理
-      setMessages(msgs => [...msgs, {
-        id: `thought-${Date.now()}`,
-        type: 'thought',
-        agentId: data.agentId || 'unknown',
-        agentName: data.agentName || data.agent || 'Agent',
-        agentType: data.agentType || 'system',
-        content: data.thoughts || 'No thoughts content',
-        timestamp: data.timestamp || new Date().toISOString(),
-        relatedNodes: [data.agentId || 'unknown']
-      }]);
+      const messageContent = data.thoughts || 'No thoughts content';
+      const agentName = data.agentName || data.agent || 'Agent';
+      
+      // 重複メッセージ防止のための簡易チェック
+      setMessages(currentMessages => {
+        // 最後の15個のメッセージ内に既に同じ内容があるか確認
+        const recentMessages = currentMessages.slice(-15);
+        const isDuplicate = recentMessages.some(m => 
+          m.content === messageContent && 
+          m.agentName === agentName && 
+          m.type === 'thought'
+        );
+        
+        if (isDuplicate) {
+          console.log('重複するエージェント思考をスキップします:', messageContent.substring(0, 30));
+          return currentMessages;
+        }
+        
+        // 新しいメッセージを追加
+        return [...currentMessages, {
+          id: `thought-${Date.now()}`,
+          type: 'thought',
+          agentId: data.agentId || 'unknown',
+          agentName: agentName,
+          agentType: data.agentType || 'system',
+          content: messageContent,
+          timestamp: data.timestamp || new Date().toISOString(),
+          relatedNodes: [data.agentId || 'unknown']
+        }];
+      });
     };
     
     // エージェント間の通信
@@ -100,15 +119,36 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
         roleModelId: data.roleModelId
       });
       
-      setMessages(msgs => [...msgs, {
-        id: `progress-${Date.now()}`,
-        type: 'progress',
-        stage: data.stage || 'system',
-        progress: data.progress || 0,
-        content: `${getStageLabel(data.stage || 'system')} - ${data.progress || 0}%: ${data.message || ''}`,
-        timestamp: data.timestamp || new Date().toISOString(),
-        relatedNodes: [data.stage || 'system']
-      }]);
+      const messageContent = `${getStageLabel(data.stage || 'system')} - ${data.progress || 0}%: ${data.message || ''}`;
+      const progressValue = data.progress || 0;
+      
+      // 重複メッセージ防止のための簡易チェック
+      setMessages(currentMessages => {
+        // 最後の10個のメッセージ内にほぼ同じ進捗情報があるか確認
+        const recentMessages = currentMessages.slice(-10);
+        const similarMessageExists = recentMessages.some(m => 
+          m.type === 'progress' && 
+          m.stage === (data.stage || 'system') && 
+          Math.abs((m.progress || 0) - progressValue) < 5 && // 進捗率の差が5%未満
+          m.content.includes(data.message || '')
+        );
+        
+        if (similarMessageExists) {
+          console.log('類似した進捗メッセージをスキップします:', data.message);
+          return currentMessages;
+        }
+        
+        // 新しいメッセージを追加
+        return [...currentMessages, {
+          id: `progress-${Date.now()}`,
+          type: 'progress',
+          stage: data.stage || 'system',
+          progress: progressValue,
+          content: messageContent,
+          timestamp: data.timestamp || new Date().toISOString(),
+          relatedNodes: [data.stage || 'system']
+        }];
+      });
     };
     
     // グラフ更新

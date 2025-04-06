@@ -154,11 +154,14 @@ export function sendToUser(userId: string, message: any): void {
 export function sendMessageToRoleModelViewers(type: string, payload: any, roleModelId: string): void {
   console.log(`Sending ${type} message to roleModel ${roleModelId} subscribers:`, payload);
   
+  // メッセージ形式を修正（payloadにネストして送信）
   const message = {
     type,
-    ...payload,
-    roleModelId,
-    timestamp: new Date().toISOString()
+    payload: {
+      ...payload,
+      roleModelId,
+      timestamp: new Date().toISOString()
+    }
   };
   
   if (roleModelSubscriptions.has(roleModelId)) {

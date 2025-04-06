@@ -1,8 +1,9 @@
 import dagre from 'dagre';
 import { Edge, Node, Position } from 'reactflow';
 
-const nodeWidth = 180;
-const nodeHeight = 60;
+// ノードの大きさを定義
+const nodeWidth = 200;  // 以前より大きく
+const nodeHeight = 80;  // 以前より大きく
 
 export interface LayoutOptions {
   direction?: 'TB' | 'LR' | 'RL' | 'BT';

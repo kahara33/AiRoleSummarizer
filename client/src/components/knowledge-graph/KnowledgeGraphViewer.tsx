@@ -77,15 +77,60 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       console.log('Received graph data:', graphData);
       
       // ReactFlowノードへの変換
-      const flowNodes: Node[] = graphData.nodes.map((node: any) => ({
-        id: node.id,
-        type: node.type === 'agent' ? 'agent' : 'concept',
-        position: { x: 0, y: 0 }, // 初期位置はレイアウト計算で上書き
-        data: {
-          ...node,
-          label: node.name,
-        },
-      }));
+      // レベルごとにノードをグループ化
+      const nodesByLevel: Record<number, any[]> = {};
+      graphData.nodes.forEach((node: any) => {
+        const level = node.level || 0;
+        if (!nodesByLevel[level]) {
+          nodesByLevel[level] = [];
+        }
+        nodesByLevel[level].push(node);
+      });
+      
+      // キャンバスの中心を計算
+      const centerX = 500;
+      const centerY = 100;
+      
+      // カラーマップ（レベルごとに異なる色を割り当て）
+      const colorMap = [
+        '#4361ee', '#3a0ca3', '#7209b7', '#f72585', '#4cc9f0', 
+        '#4895ef', '#560bad', '#480ca8', '#b5179e', '#3f37c9'
+      ];
+      
+      // ノードの初期位置を計算
+      const flowNodes: Node[] = graphData.nodes.map((node: any) => {
+        const level = node.level || 0;
+        const nodesInThisLevel = nodesByLevel[level].length;
+        
+        // このレベルでのインデックスを取得
+        const index = nodesByLevel[level].indexOf(node);
+        
+        // 水平方向の配置（中央から左右に均等に広がるように）
+        const horizontalSpacing = Math.max(250, 800 / Math.max(1, nodesInThisLevel));
+        const levelWidth = (nodesInThisLevel - 1) * horizontalSpacing;
+        const x = centerX - levelWidth / 2 + index * horizontalSpacing;
+        
+        // 垂直方向の配置（レベルごとに下に配置）
+        const y = centerY + level * 200;
+        
+        // ノードのタイプに基づいて色を設定
+        const color = colorMap[level % colorMap.length];
+        
+        return {
+          id: node.id,
+          type: node.type === 'agent' ? 'agent' : 'concept',
+          position: { x, y },
+          data: {
+            ...node,
+            label: node.name,
+            color: node.color || color,
+          },
+          style: {
+            background: node.color || color,
+            borderColor: color,
+          },
+        };
+      });
       
       console.log('Created flow nodes:', flowNodes);
       
@@ -123,7 +168,21 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       
       console.log('Created flow edges:', flowEdges);
       
-      // グラフのレイアウトを計算
+      // グラフの種類に応じてレイアウト方法を選択
+      // ノード数が少ない場合はそのままのレイアウトを使用（事前計算済み）
+      const useDirectLayout = flowNodes.length <= 20;
+      
+      if (useDirectLayout) {
+        // すでに計算されたレイアウトをそのまま使用
+        console.log('Using direct layout for small graph');
+        setNodes(flowNodes);
+        setEdges(flowEdges);
+        setLoading(false);
+        return;
+      }
+      
+      // 大きなグラフの場合はヒエラルキーレイアウトを使用
+      console.log('Using hierarchical layout for large graph');
       const { nodes: layoutedNodes, edges: layoutedEdges } = getHierarchicalLayout(
         flowNodes,
         flowEdges
