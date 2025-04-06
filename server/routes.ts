@@ -53,12 +53,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 認証のセットアップ
   setupAuth(app);
   
-  // Neo4jの初期化
-  try {
-    await initNeo4j();
-  } catch (error) {
+  // Neo4jの初期化 - サーバー起動を遅延させないように非同期で実行
+  // リクエストがあった際にNeo4jに接続できるようにする
+  initNeo4j().then(() => {
+    console.log('Neo4j接続に成功しました');
+  }).catch(error => {
     console.error('Neo4j初期化エラー:', error);
-  }
+  });
   
   // WebSocketサーバーのセットアップ
   initWebSocket(httpServer);

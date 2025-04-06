@@ -502,6 +502,7 @@ export const informationCollectionPlans = pgTable('information_collection_plans'
     .notNull()
     .references(() => roleModels.id, { onDelete: 'cascade' }),
   planData: text('plan_data').notNull(), // JSON形式のプランデータ
+  status: text('status').default('pending').notNull(), // pending, in_progress, completed, error
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -532,6 +533,7 @@ export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export const insertInformationCollectionPlanSchema = createInsertSchema(informationCollectionPlans, {
   roleModelId: z.string().uuid(),
   planData: z.string(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'error']).default('pending'),
   updatedBy: z.string().uuid().nullable().optional(),
 }).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertInformationCollectionPlan = z.infer<typeof insertInformationCollectionPlanSchema>;

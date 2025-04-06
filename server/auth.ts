@@ -43,6 +43,14 @@ const sessionStore = new PgSessionStore({
   pool,
   tableName: 'session',
   createTableIfMissing: true,
+  // 接続問題に対する耐性を高める設定
+  ttl: 86400, // セッションの有効期限（1日）
+  pruneSessionInterval: 60, // 古いセッションを削除する間隔（1分）
+  // セッションストアの実行中エラーの場合のリトライ設定
+  conObject: {
+    connectionTimeoutMillis: 10000, // 接続タイムアウト（10秒）
+    query_timeout: 10000 // クエリタイムアウト（10秒）
+  }
 });
 
 // パスワードハッシュ化

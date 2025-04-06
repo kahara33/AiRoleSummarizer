@@ -7,10 +7,10 @@ import * as schema from '@shared/schema';
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // 接続プールの安定性を向上させる設定
-  max: 10, // 最大接続数を減らして安定性を向上
-  idleTimeoutMillis: 30000, // アイドル状態の接続を閉じるまでの時間（30秒）
-  connectionTimeoutMillis: 5000, // 接続タイムアウト（5秒）
-  // エラーが発生した接続を自動的に新しい接続に置き換える
+  max: 5, // 最大接続数をさらに減らして安定性を向上
+  idleTimeoutMillis: 10000, // アイドル状態の接続を閉じるまでの時間（10秒）
+  connectionTimeoutMillis: 10000, // 接続タイムアウト（10秒）に延長
+  // クライアントを自動的に再接続させる
   allowExitOnIdle: true
 });
 
