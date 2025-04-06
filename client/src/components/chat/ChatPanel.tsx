@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { initSocket, addSocketListener, removeSocketListener } from '@/lib/socket';
+import { initSocket, addSocketListener, removeSocketListener, sendAgentChatMessage } from '@/lib/socket';
 import { KnowledgeNode } from '@shared/schema';
 import { Brain, Search, Network, Share2, User, MessageSquare, Filter, X, Lightbulb, Settings, RefreshCw } from 'lucide-react';
 
@@ -725,6 +725,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
   
   // ユーザーがエージェントにメッセージを送信した時の処理
   const handleSendMessage = (message: string) => {
+    // 現在のロールモデルIDを取得
+    const currentRoleModelId = getRoleModelId();
+    
     // 送信したメッセージをローカルのメッセージリストに追加
     setMessages(currentMessages => [...currentMessages, {
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -735,8 +738,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
       content: message,
       timestamp: new Date().toISOString(),
       relatedNodes: [],
-      roleModelId: getRoleModelId()
+      roleModelId: currentRoleModelId
     }]);
+    
+    // WebSocket経由でサーバーにメッセージを送信
+    console.log(`チャットメッセージをサーバーに送信します - ロールモデル: ${currentRoleModelId}, メッセージ: ${message}`);
+    sendAgentChatMessage(currentRoleModelId, message);
   };
 
   return (

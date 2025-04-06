@@ -152,7 +152,7 @@ async function startServer() {
     }
     
     // サーバーの起動
-    const PORT = process.env.PORT || 5000;
+    const PORT = parseInt(process.env.PORT || '5000', 10);
     const HOST = '0.0.0.0'; // すべてのネットワークインターフェイスにバインド
     
     server.listen(PORT, HOST, () => {
