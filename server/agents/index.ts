@@ -1,46 +1,83 @@
 /**
- * マルチエージェントシステムのエントリーポイント
- * 役割モデル用の知識グラフを生成する処理を提供する
+ * エージェント関連機能のエクスポートファイル
  */
 
-import { processRoleModel } from './multi-agent-orchestrator';
-import { processRoleModelWithCrewAI } from './crewai-agents';
-import { KnowledgeGraphData, RoleModelInput, AgentResult } from './types';
-export * from './langchain-utils';
-export * from './llamaindex-utils';
+// 各種エージェント実装をエクスポート
+export { processRoleModelWithCrewAI } from './crewai-agents';
+export { orchestrateAgents } from './multi-agent-orchestrator';
+
+// ツールとユーティリティ関数をエクスポート
+export { callLangChainTool } from './langchain-utils';
+export { callLlamaIndexTool, queryLlamaIndex, summarizeWithLlamaIndex } from './llamaindex-utils';
+
+// 型定義を直接提供（types.tsからコピー）
+export type KnowledgeNodeData = {
+  id: string;
+  name: string;
+  level: number;
+  type?: string;
+  parentId?: string | null;
+  description?: string | null;
+  color?: string | null;
+};
+
+export type RoleModelInput = {
+  roleModelId: string;
+  roleName: string;
+  description: string;
+  industries: string[];
+  keywords: string[];
+  userId: string;
+};
+
+// KnowledgeGraphDataの型定義を直接提供
+export type KnowledgeGraphData = {
+  nodes: {
+    id: string;
+    name: string;
+    level: number;
+    type?: string;
+    parentId?: string | null;
+    description?: string | null;
+    color?: string | null;
+  }[];
+  edges: {
+    source: string;
+    target: string;
+    label?: string | null;
+    strength?: number;
+  }[];
+};
 
 /**
- * 役割モデルのための知識グラフを生成する
- * @param input 役割モデル入力データ
- * @returns 知識グラフデータ
+ * エージェント処理結果の汎用型
  */
-export async function generateKnowledgeGraphForRoleModel(
-  input: RoleModelInput
-): Promise<AgentResult<KnowledgeGraphData>> {
-  // マルチエージェントオーケストレーターに処理を委譲
-  return await processRoleModel(input);
-}
+export type AgentResult = {
+  success: boolean;
+  data: any;
+  error?: string;
+};
 
 /**
- * CrewAI を使用して役割モデルの知識グラフを生成する
- * @param input 役割モデル入力データ
- * @returns 知識グラフデータ
+ * CrewAIを使った知識グラフ生成関数
+ * routes.tsから呼び出されるインターフェース
  */
-export async function generateKnowledgeGraphWithCrewAI(
-  input: RoleModelInput
-): Promise<AgentResult<KnowledgeGraphData>> {
+export async function generateKnowledgeGraphWithCrewAI(input: RoleModelInput): Promise<{success: boolean; data: any; error?: string}> {
   try {
-    const graphData = await processRoleModelWithCrewAI(input);
+    // multi-agent-orchestrator.tsの関数を呼び出す
+    const graphData = await orchestrateAgents(input);
+    
+    // 成功したらデータを返す
     return {
       success: true,
       data: graphData
     };
   } catch (error) {
-    console.error('CrewAI を使用した知識グラフ生成エラー:', error);
+    console.error('CrewAIによる知識グラフ生成エラー:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
-      data: { nodes: [], edges: [] }
+      data: { nodes: [], edges: [] },
+      error: error instanceof Error ? error.message : '不明なエラーが発生しました'
     };
   }
 }

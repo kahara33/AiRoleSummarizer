@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { parse } from 'cookie';
 import { verifySession } from './auth';
+import { ProgressUpdate } from '@shared/schema';
 
 // UUIDの検証関数
 function isValidUUID(str: string): boolean {
@@ -320,16 +321,7 @@ export function sendProgressUpdate(
   message: string, 
   progress: number, 
   roleModelId: string,
-  additionalData?: {
-    stage?: string;
-    subStage?: string;
-    detailedProgress?: Array<{
-      step: string;
-      progress: number;
-      status: 'pending' | 'processing' | 'completed' | 'error';
-      message?: string;
-    }>;
-  }
+  additionalData?: ProgressUpdate
 ): void {
   console.log(`進捗更新: ${message} (${progress}%) - ロールモデル ${roleModelId}`);
   

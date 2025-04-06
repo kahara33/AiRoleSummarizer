@@ -5,6 +5,8 @@
 
 import { Agent, Task, Crew } from 'crewai-js';
 import { AgentThoughtsData, KnowledgeGraphData, RoleModelInput } from './types';
+import { callLangChainTool } from './langchain-utils';
+import { callLlamaIndexTool, queryLlamaIndex, summarizeWithLlamaIndex } from './llamaindex-utils';
 
 // 型定義を追加（エラー回避のための最小限の型定義）
 type CrewAIAgent = any;
@@ -62,8 +64,14 @@ function createIndustryAnalysisAgent(
     goal: `${roleName}の役割に関連する業界トレンドと動向を分析する`,
     backstory: `あなたは業界分析の専門家で、${roleName}の役割を理解し、関連する業界の洞察を提供します。`,
     verbose: true,
+    // @ts-ignore crewai-jsのAPIの違いを無視
     allowDelegation: true,
-    tools: [],
+    tools: [
+      // LangChainツールを使用するためのラッパー関数
+      async (input: string) => {
+        return await callLangChainTool('web-search', { query: `${roleName} ${industries.join(' ')} 業界動向` }, roleModelId, 'Industry Analysis Agent');
+      }
+    ],
     // @ts-ignore crewai-jsのAPIの違いを無視する
     // LLMの設定
     llm: 'gpt-4', // LLMパラメータを簡素化して型エラーを回避
@@ -145,7 +153,15 @@ function createKeywordExpansionAgent(
     verbose: true,
     // @ts-ignore crewai-jsのAPIの違いを無視
     allowDelegation: true,
-    tools: [],
+    tools: [
+      // LangChainツールを使用するためのキーワード拡張ラッパー関数
+      async (input: string) => {
+        return await callLangChainTool('keyword-expansion', { 
+          baseKeywords: keywords,
+          query: `${roleName} 関連キーワード` 
+        }, roleModelId, 'Keyword Expansion Agent');
+      }
+    ],
     // LLMの設定
     llm: 'gpt-4', // LLMパラメータを簡素化して型エラーを回避
     temperature: 0.8,
@@ -223,8 +239,17 @@ function createStructuringAgent(
     goal: `${roleName}の役割に関連する情報を整理し構造化する`,
     backstory: `あなたは知識組織化と分類法作成の専門家で、${roleName}の役割に関連する情報を構造化された知識フレームワークに整理します。`,
     verbose: true,
+    // @ts-ignore crewai-jsのAPIの違いを無視
     allowDelegation: true,
-    tools: [],
+    tools: [
+      // LlamaIndexツールを使用するためのラッパー関数
+      async (input: string) => {
+        return await callLlamaIndexTool('structure-knowledge', { 
+          keywords: expandedKeywords,
+          roleName: roleName
+        }, roleModelId, 'Structuring Agent');
+      }
+    ],
     // LLMの設定
     llm: 'gpt-4', // LLMパラメータを簡素化して型エラーを回避
     temperature: 0.5,
@@ -300,8 +325,16 @@ function createKnowledgeGraphAgent(
     goal: `${roleName}の役割に関する包括的な知識グラフを生成する`,
     backstory: `あなたは複雑な情報の視覚的表現を作成することに特化した専門家です。構造化された情報からノードとエッジで構成される知識グラフを生成します。`,
     verbose: true,
+    // @ts-ignore crewai-jsのAPIの違いを無視
     allowDelegation: true,
-    tools: [],
+    tools: [
+      // グラフ生成ツールを使用するためのラッパー関数
+      async (input: string) => {
+        return await callLlamaIndexTool('generate-graph', { 
+          roleName: roleName
+        }, roleModelId, 'Knowledge Graph Agent');
+      }
+    ],
     // LLMの設定
     llm: 'gpt-4', // LLMパラメータを簡素化して型エラーを回避
     temperature: 0.3,
@@ -539,20 +572,31 @@ export async function processRoleModelWithCrewAI(
     // 処理開始
     sendProgressUpdate(`${input.roleName}の知識グラフ生成を開始します`, 0, input.roleModelId);
     
+    // UUIDを生成する関数
+    const generateUUID = () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+
     // 注: crewai-jsでの実装方法は異なるため、実際の環境では修正が必要
     // シミュレーション実装として簡易的な代替処理を行う
     // const result = await crew.run();
+    const rootId = generateUUID();
+    const nodeIds = input.keywords.map(() => generateUUID());
+    
     const result = JSON.stringify({
       nodes: [
         {
-          id: '1',
+          id: rootId,
           name: input.roleName,
           description: input.description || `${input.roleName}の役割`,
           level: 0,
           type: 'root'
         },
         ...input.keywords.map((keyword, index) => ({
-          id: `node-${index + 2}`,
+          id: nodeIds[index],
           name: keyword,
           description: `${keyword}に関連する概念`,
           level: 1,
@@ -560,8 +604,8 @@ export async function processRoleModelWithCrewAI(
         }))
       ],
       edges: input.keywords.map((keyword, index) => ({
-        source: '1',
-        target: `node-${index + 2}`,
+        source: rootId,
+        target: nodeIds[index],
         label: '関連',
         strength: 0.8
       }))
@@ -590,18 +634,19 @@ export async function processRoleModelWithCrewAI(
       // 結果を直接テキスト解析して知識グラフを構築する代替ロジック
       // (簡易的な実装)
       
-      // ルートノードを追加
+      // ルートノードを追加（UUID形式を使用）
+      const rootId = generateUUID();
       graphData.nodes.push({
-        id: '1',
+        id: rootId,
         name: input.roleName,
         description: input.description || `${input.roleName}の役割`,
         level: 0,
         type: 'root'
       });
       
-      // カテゴリノードとエッジをいくつか追加
-      input.keywords.forEach((keyword, index) => {
-        const nodeId = `node-${index + 2}`;
+      // カテゴリノードとエッジをいくつか追加（UUID形式を使用）
+      input.keywords.forEach((keyword) => {
+        const nodeId = generateUUID();
         graphData.nodes.push({
           id: nodeId,
           name: keyword,
@@ -611,7 +656,7 @@ export async function processRoleModelWithCrewAI(
         });
         
         graphData.edges.push({
-          source: '1',
+          source: rootId,
           target: nodeId,
           label: '関連',
           strength: 0.8

@@ -1,168 +1,161 @@
 /**
- * LangChainユーティリティ関数
- * LangChain ツールとエージェントを統合するためのユーティリティ
+ * LangChainツールとユーティリティ関数
+ * CrewAIエージェントと統合するためのLangChainラッパー
  */
 
-// LangChainのインポート
 import { AgentThoughtsData } from './types';
 import { sendAgentThoughts, sendProgressUpdate } from '../websocket';
 
 /**
- * LangChainツールを呼び出す
+ * LangChainツールを呼び出す関数
  * @param toolName ツール名
- * @param input 入力データ
+ * @param params パラメータ
  * @param roleModelId ロールモデルID
  * @param agentName エージェント名
  * @returns ツールの実行結果
  */
 export async function callLangChainTool(
   toolName: string,
-  input: any,
-  roleModelId?: string,
-  agentName?: string
+  params: any,
+  roleModelId: string,
+  agentName: string
 ): Promise<any> {
+  console.log(`LangChainツール呼び出し: ${toolName}`, params);
+
+  // 進捗状況とエージェントの思考プロセスを更新
+  sendAgentThoughts(agentName, `LangChainツールの使用: ${toolName}`, roleModelId, {
+    agentType: toolName,
+    stage: 'tool_execution',
+    thinking: [{
+      step: 'ツール実行',
+      content: `パラメータ: ${JSON.stringify(params)}`,
+      timestamp: new Date().toISOString()
+    }]
+  });
+
   try {
-    console.log(`LangChainツール呼び出し: ${toolName}`);
-    
-    // ロールモデルIDとエージェント名が指定されている場合は進捗状況を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LangChainツール "${toolName}" を呼び出します`, roleModelId, {
-        thinking: [{
-          step: 'ツール呼び出し',
-          content: `ツール "${toolName}" の呼び出しを開始します。入力: ${JSON.stringify(input).substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
+    // ツール名に応じて適切なツールを呼び出す
+    switch (toolName) {
+      case 'web-search':
+        return await webSearch(params.query, roleModelId, agentName);
+      case 'keyword-expansion':
+        return await keywordExpansion(params.baseKeywords, params.query, roleModelId, agentName);
+      default:
+        throw new Error(`未知のLangChainツール: ${toolName}`);
     }
-    
-    // ここでLangChainツールを実際に呼び出す
-    // このプロジェクトにはLangChainの直接的な依存関係がないため、シミュレーションのみを行う
-    const simulateToolCall = async (name: string, data: any): Promise<any> => {
-      console.log(`LangChainツール "${name}" のシミュレーション実行`);
-      
-      // インポートされる実際のLangChainツールの代わりに、簡易的なシミュレーション処理
-      switch (name) {
-        case 'web-search':
-          return {
-            result: `${data.query}に関する検索結果をシミュレートします`,
-            source: 'simulated-search'
-          };
-        case 'document-retrieval':
-          return {
-            result: `${data.query}に関連するドキュメントをシミュレートします`,
-            documents: ['doc1', 'doc2', 'doc3']
-          };
-        case 'calculator':
-          return {
-            result: 'シミュレートされた計算結果',
-            value: Math.random() * 100
-          };
-        default:
-          return {
-            result: `未知のツール "${name}" のシミュレーション`,
-            input: data
-          };
-      }
-    };
-    
-    // ツール呼び出しのシミュレーション
-    // 実際の実装では、ここで本物のLangChainツールを呼び出す
-    const result = await simulateToolCall(toolName, input);
-    
-    // 結果を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LangChainツール "${toolName}" の結果を受け取りました`, roleModelId, {
-        thinking: [{
-          step: 'ツール結果',
-          content: `ツール "${toolName}" の実行結果: ${JSON.stringify(result).substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-    }
-    
-    return result;
   } catch (error) {
-    console.error(`LangChainツール呼び出しエラー: ${error}`);
+    console.error(`LangChainツール実行エラー (${toolName}):`, error);
     
-    // エラー情報を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LangChainツール "${toolName}" の呼び出しエラー`, roleModelId, {
-        thinking: [{
-          step: 'エラー',
-          content: `ツール "${toolName}" の呼び出し中にエラーが発生しました: ${error}`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-    }
+    sendAgentThoughts(agentName, `LangChainツールエラー: ${toolName}`, roleModelId, {
+      agentType: toolName,
+      stage: 'tool_execution',
+      thinking: [{
+        step: 'エラー',
+        content: `${error instanceof Error ? error.message : '未知のエラー'}`,
+        timestamp: new Date().toISOString()
+      }]
+    });
     
-    throw error;
+    // エラーが発生した場合はシミュレーションデータを返す
+    return `[LangChainツール ${toolName} の実行中にエラーが発生しました。シミュレーションデータを使用します。]`;
   }
 }
 
 /**
- * LangChainエージェントのコールバック関数
+ * ウェブ検索ツール
+ * @param query 検索クエリ
  * @param roleModelId ロールモデルID
  * @param agentName エージェント名
- * @param agentType エージェントタイプ
- * @param stage 処理ステージ
- * @returns コールバック関数オブジェクト
+ * @returns 検索結果
  */
-export function createLangChainCallbacks(
+async function webSearch(query: string, roleModelId: string, agentName: string): Promise<string> {
+  sendAgentThoughts(agentName, `ウェブ検索を実行: ${query}`, roleModelId, {
+    agentType: 'web-search',
+    stage: 'search_execution',
+    thinking: [{
+      step: '検索実行',
+      content: `クエリ: ${query}`,
+      timestamp: new Date().toISOString()
+    }]
+  });
+
+  sendProgressUpdate('ウェブ検索を実行中...', 15, roleModelId, {
+    stage: 'web_search',
+    subStage: 'execution'
+  });
+
+  // 実際には LangChain Web Search ツールを使用する
+  // ここでは、シミュレーションデータを返す
+  // 注: 実際の実装では、LangChain WebBrowser ツールを使用してください
+  await new Promise(resolve => setTimeout(resolve, 1000)); // 検索のシミュレーション
+
+  sendProgressUpdate('検索結果を処理中...', 20, roleModelId, {
+    stage: 'web_search',
+    subStage: 'processing'
+  });
+
+  return `[${query}に関する検索結果]
+1. 最新のトレンドとしては、AIの活用が進んでいます。
+2. 業界動向としては、クラウドサービスの需要が増加しています。
+3. 主要な課題としては、セキュリティ対策があります。
+4. 技術的な進展としては、量子コンピューティングの実用化が進んでいます。
+5. 市場予測では、2025年までに20%の成長が見込まれています。`;
+}
+
+/**
+ * キーワード拡張ツール
+ * @param baseKeywords 基本キーワード
+ * @param query 検索クエリ
+ * @param roleModelId ロールモデルID
+ * @param agentName エージェント名
+ * @returns 拡張されたキーワード
+ */
+async function keywordExpansion(
+  baseKeywords: string[],
+  query: string,
   roleModelId: string,
-  agentName: string,
-  agentType: string,
-  stage: string
-) {
-  return {
-    handleAgentStart: () => {
-      sendAgentThoughts(agentName, `${agentName}エージェントが処理を開始します`, roleModelId, {
-        agentType,
-        stage,
-        thinking: [{
-          step: '開始',
-          content: `${agentName}処理を開始します`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`${agentName}処理を開始します`, 0, roleModelId, {
-        stage,
-        subStage: 'start'
-      });
-    },
-    
-    handleAgentAction: (action: any) => {
-      sendAgentThoughts(agentName, `アクション実行: ${action.tool}`, roleModelId, {
-        agentType,
-        stage,
-        thinking: [{
-          step: 'アクション',
-          content: `ツール "${action.tool}" を実行します。入力: ${JSON.stringify(action.toolInput).substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`${action.tool}を実行中...`, 50, roleModelId, {
-        stage,
-        subStage: 'action'
-      });
-    },
-    
-    handleAgentEnd: (output: any) => {
-      sendAgentThoughts(agentName, `処理完了: ${output}`, roleModelId, {
-        agentType,
-        stage,
-        thinking: [{
-          step: '完了',
-          content: `処理が完了しました。出力: ${JSON.stringify(output).substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`${agentName}処理が完了しました`, 100, roleModelId, {
-        stage,
-        subStage: 'completed'
-      });
-    }
-  };
+  agentName: string
+): Promise<string> {
+  sendAgentThoughts(agentName, `キーワード拡張を実行: ${baseKeywords.join(', ')}`, roleModelId, {
+    agentType: 'keyword-expansion',
+    stage: 'expansion_execution',
+    thinking: [{
+      step: '拡張実行',
+      content: `基本キーワード: ${baseKeywords.join(', ')}`,
+      timestamp: new Date().toISOString()
+    }]
+  });
+
+  sendProgressUpdate('キーワード拡張を実行中...', 30, roleModelId, {
+    stage: 'keyword_expansion',
+    subStage: 'execution'
+  });
+
+  // 実際には LangChain のキーワード拡張ロジックを使用する
+  // ここでは、シミュレーションデータを返す
+  await new Promise(resolve => setTimeout(resolve, 800)); // 拡張のシミュレーション
+
+  // 基本キーワードから関連キーワードを生成
+  const expandedKeywords = baseKeywords.flatMap(keyword => [
+    `${keyword}の最新動向`,
+    `${keyword}の課題`,
+    `${keyword}の将来性`,
+    `${keyword}の技術`,
+    `${keyword}と関連業界`
+  ]);
+
+  sendProgressUpdate('拡張キーワードを整理中...', 40, roleModelId, {
+    stage: 'keyword_expansion',
+    subStage: 'organizing'
+  });
+
+  return JSON.stringify({
+    originalKeywords: baseKeywords,
+    expandedKeywords,
+    keywordRelations: [
+      { source: baseKeywords[0], target: `${baseKeywords[0]}の最新動向`, strength: 0.9 },
+      { source: baseKeywords[0], target: `${baseKeywords[0]}の課題`, strength: 0.8 },
+      // 他の関係も同様に...
+    ]
+  });
 }

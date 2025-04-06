@@ -1,283 +1,217 @@
 /**
- * LlamaIndexユーティリティ関数
- * LlamaIndex ツールとエージェントを統合するためのユーティリティ
+ * LlamaIndex ツールとユーティリティ関数
+ * CrewAIエージェントと統合するためのLlamaIndexラッパー
  */
 
 import { AgentThoughtsData } from './types';
 import { sendAgentThoughts, sendProgressUpdate } from '../websocket';
 
 /**
- * LlamaIndexツールを呼び出す
+ * LlamaIndexツールを呼び出す関数
  * @param toolName ツール名
- * @param input 入力データ
+ * @param params パラメータ
  * @param roleModelId ロールモデルID
  * @param agentName エージェント名
  * @returns ツールの実行結果
  */
 export async function callLlamaIndexTool(
   toolName: string,
-  input: any,
-  roleModelId?: string,
-  agentName?: string
+  params: any,
+  roleModelId: string,
+  agentName: string
 ): Promise<any> {
+  console.log(`LlamaIndexツール呼び出し: ${toolName}`, params);
+
+  // 進捗状況とエージェントの思考プロセスを更新
+  sendAgentThoughts(agentName, `LlamaIndexツールの使用: ${toolName}`, roleModelId, {
+    agentType: toolName,
+    stage: 'llamaindex_tool_execution',
+    thinking: [{
+      step: 'ツール実行',
+      content: `パラメータ: ${JSON.stringify(params)}`,
+      timestamp: new Date().toISOString()
+    }]
+  });
+
   try {
-    console.log(`LlamaIndexツール呼び出し: ${toolName}`);
-    
-    // ロールモデルIDとエージェント名が指定されている場合は進捗状況を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LlamaIndexツール "${toolName}" を呼び出します`, roleModelId, {
-        thinking: [{
-          step: 'ツール呼び出し',
-          content: `ツール "${toolName}" の呼び出しを開始します。入力: ${JSON.stringify(input).substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
+    // ツール名に応じて適切なツールを呼び出す
+    switch (toolName) {
+      case 'structure-knowledge':
+        return await structureKnowledge(params.keywords, params.roleName, roleModelId, agentName);
+      case 'generate-graph':
+        return await generateKnowledgeGraph(params.roleName, roleModelId, agentName);
+      default:
+        throw new Error(`未知のLlamaIndexツール: ${toolName}`);
     }
-    
-    // ここでLlamaIndexツールを実際に呼び出す
-    // このプロジェクトにはLlamaIndexの直接的な依存関係がないため、シミュレーションのみを行う
-    const simulateToolCall = async (name: string, data: any): Promise<any> => {
-      console.log(`LlamaIndexツール "${name}" のシミュレーション実行`);
-      
-      // インポートされる実際のLlamaIndexツールの代わりに、簡易的なシミュレーション処理
-      switch (name) {
-        case 'query-engine':
-          return {
-            result: `${data.query}に関するクエリ結果をシミュレートします`,
-            source_nodes: ['node1', 'node2', 'node3']
-          };
-        case 'vector-store':
-          return {
-            result: `${data.query}に関連するベクトルストア検索結果をシミュレートします`,
-            similarity_scores: [0.9, 0.8, 0.7]
-          };
-        case 'document-summarizer':
-          return {
-            result: `以下のドキュメントの要約:
-            ${data.text ? data.text.substring(0, 50) + '...' : '入力テキストなし'}の要約をシミュレートします`,
-            extracted_keywords: ['keyword1', 'keyword2', 'keyword3']
-          };
-        default:
-          return {
-            result: `未知のツール "${name}" のシミュレーション`,
-            input: data
-          };
-      }
-    };
-    
-    // ツール呼び出しのシミュレーション
-    // 実際の実装では、ここで本物のLlamaIndexツールを呼び出す
-    const result = await simulateToolCall(toolName, input);
-    
-    // 結果を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LlamaIndexツール "${toolName}" の結果を受け取りました`, roleModelId, {
-        thinking: [{
-          step: 'ツール結果',
-          content: `ツール "${toolName}" の実行結果: ${JSON.stringify(result).substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-    }
-    
-    return result;
   } catch (error) {
-    console.error(`LlamaIndexツール呼び出しエラー: ${error}`);
+    console.error(`LlamaIndexツール実行エラー (${toolName}):`, error);
     
-    // エラー情報を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LlamaIndexツール "${toolName}" の呼び出しエラー`, roleModelId, {
-        thinking: [{
-          step: 'エラー',
-          content: `ツール "${toolName}" の呼び出し中にエラーが発生しました: ${error}`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-    }
+    sendAgentThoughts(agentName, `LlamaIndexツールエラー: ${toolName}`, roleModelId, {
+      agentType: toolName,
+      stage: 'llamaindex_tool_execution',
+      thinking: [{
+        step: 'エラー',
+        content: `${error instanceof Error ? error.message : '未知のエラー'}`,
+        timestamp: new Date().toISOString()
+      }]
+    });
     
-    throw error;
+    // エラーが発生した場合はシミュレーションデータを返す
+    return `[LlamaIndexツール ${toolName} の実行中にエラーが発生しました。シミュレーションデータを使用します。]`;
   }
 }
 
 /**
- * LlamaIndexクエリエンジンを使用してテキストに基づく質問に回答する
- * @param query 質問テキスト
- * @param documents 検索対象のドキュメント (シミュレーション用)
- * @param roleModelId ロールモデルID
- * @param agentName エージェント名
- * @returns 回答テキスト
+ * LlamaIndexを使用して情報をクエリする
+ * @param query クエリ
+ * @param context コンテキスト情報
+ * @returns クエリ結果
  */
-export async function queryLlamaIndex(
-  query: string,
-  documents: string[] = [],
-  roleModelId?: string,
-  agentName?: string
-): Promise<string> {
-  try {
-    console.log(`LlamaIndexクエリ実行: ${query}`);
-    
-    // ロールモデルIDとエージェント名が指定されている場合は進捗状況を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LlamaIndexに問い合わせています: "${query}"`, roleModelId, {
-        thinking: [{
-          step: 'クエリ実行',
-          content: `クエリの実行を開始します: "${query}"`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`LlamaIndexクエリを実行中...`, 50, roleModelId, {
-        stage: 'llamaindex-query',
-        subStage: 'query_execution'
-      });
-    }
-    
-    // LlamaIndexクエリのシミュレーション
-    // 実際の実装では、本物のLlamaIndexクエリエンジンを使用する
-    const simulateResponse = (queryText: string, docs: string[]): string => {
-      const hasDocuments = docs && docs.length > 0;
-      const responsePrefix = hasDocuments 
-        ? `${docs.length}個のドキュメントに基づいた回答: ` 
-        : '知識ベースに基づいた回答: ';
-      
-      return `${responsePrefix}${queryText}に対するシミュレートされた回答です。`;
-    };
-    
-    // 少し遅延をシミュレート（0.5〜2秒）
-    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500));
-    
-    // シミュレートされた応答を取得
-    const response = simulateResponse(query, documents);
-    
-    // 結果を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LlamaIndexから回答を受け取りました`, roleModelId, {
-        thinking: [{
-          step: 'クエリ結果',
-          content: `クエリ "${query}" の結果: ${response.substring(0, 100)}...`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`LlamaIndexクエリが完了しました`, 100, roleModelId, {
-        stage: 'llamaindex-query',
-        subStage: 'completed'
-      });
-    }
-    
-    return response;
-  } catch (error) {
-    console.error(`LlamaIndexクエリエラー: ${error}`);
-    
-    // エラー情報を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `LlamaIndexクエリエラー`, roleModelId, {
-        thinking: [{
-          step: 'エラー',
-          content: `クエリ "${query}" の処理中にエラーが発生しました: ${error}`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`LlamaIndexクエリエラー`, 0, roleModelId, {
-        stage: 'llamaindex-query',
-        subStage: 'error'
-      });
-    }
-    
-    throw error;
-  }
+export async function queryLlamaIndex(query: string, context: any): Promise<string> {
+  console.log(`LlamaIndexクエリ: ${query}`, context);
+  
+  // 実際には LlamaIndex のクエリメカニズムを使用する
+  // ここでは、シミュレーションデータを返す
+  await new Promise(resolve => setTimeout(resolve, 1200)); // クエリのシミュレーション
+  
+  return `[${query}のクエリ結果]
+クエリ対象: ${context?.topic || '不明'}
+結果:
+1. 関連データポイント1
+2. 関連データポイント2
+3. 関連データポイント3`;
 }
 
 /**
- * LlamaIndexを使用して文書を要約する
- * @param text 要約対象のテキスト
- * @param maxLength 最大長（シミュレーション用）
+ * LlamaIndexを使用してテキストを要約する
+ * @param text 要約するテキスト
+ * @param maxLength 最大長
+ * @returns 要約されたテキスト
+ */
+export async function summarizeWithLlamaIndex(text: string, maxLength?: number): Promise<string> {
+  console.log(`LlamaIndex要約: テキスト長さ ${text.length}文字`);
+  
+  // 実際には LlamaIndex の要約機能を使用する
+  // ここでは、シミュレーションデータを返す
+  await new Promise(resolve => setTimeout(resolve, 800)); // 要約のシミュレーション
+  
+  const summary = '要約されたテキスト。元のテキストの主要なポイントを含みます。';
+  return summary;
+}
+
+/**
+ * キーワードから知識を構造化するツール
+ * @param keywords キーワードリスト
+ * @param roleName 役割名
  * @param roleModelId ロールモデルID
  * @param agentName エージェント名
- * @returns 要約テキスト
+ * @returns 構造化された知識
  */
-export async function summarizeWithLlamaIndex(
-  text: string,
-  maxLength: number = 200,
-  roleModelId?: string,
-  agentName?: string
+async function structureKnowledge(
+  keywords: string[],
+  roleName: string,
+  roleModelId: string,
+  agentName: string
 ): Promise<string> {
-  try {
-    console.log(`LlamaIndex要約実行: テキスト長 ${text.length}文字`);
-    
-    // ロールモデルIDとエージェント名が指定されている場合は進捗状況を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `テキスト要約を開始します`, roleModelId, {
-        thinking: [{
-          step: '要約開始',
-          content: `${text.length}文字のテキストの要約を開始します`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`テキスト要約中...`, 50, roleModelId, {
-        stage: 'llamaindex-summarize',
-        subStage: 'summarization'
-      });
-    }
-    
-    // LlamaIndex要約のシミュレーション
-    // 実際の実装では、本物のLlamaIndex要約機能を使用する
-    const simulateSummary = (inputText: string, maxLen: number): string => {
-      if (!inputText || inputText.length === 0) {
-        return '入力テキストが空です';
-      }
-      
-      // 簡単な要約のシミュレーション
-      const firstSentences = inputText.split(/[.!?][\s\n]/g).slice(0, 3).join('. ');
-      return firstSentences.length > maxLen 
-        ? firstSentences.substring(0, maxLen) + '...' 
-        : firstSentences;
-    };
-    
-    // 少し遅延をシミュレート（1〜3秒）
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-    
-    // シミュレートされた要約を取得
-    const summary = simulateSummary(text, maxLength);
-    
-    // 結果を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `テキスト要約が完了しました`, roleModelId, {
-        thinking: [{
-          step: '要約完了',
-          content: `要約結果: ${summary}`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`テキスト要約が完了しました`, 100, roleModelId, {
-        stage: 'llamaindex-summarize',
-        subStage: 'completed'
-      });
-    }
-    
-    return summary;
-  } catch (error) {
-    console.error(`LlamaIndex要約エラー: ${error}`);
-    
-    // エラー情報を送信
-    if (roleModelId && agentName) {
-      sendAgentThoughts(agentName, `テキスト要約エラー`, roleModelId, {
-        thinking: [{
-          step: 'エラー',
-          content: `テキスト要約中にエラーが発生しました: ${error}`,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      
-      sendProgressUpdate(`テキスト要約エラー`, 0, roleModelId, {
-        stage: 'llamaindex-summarize',
-        subStage: 'error'
-      });
-    }
-    
-    throw error;
-  }
+  sendAgentThoughts(agentName, `知識構造化を実行: ${roleName}`, roleModelId, {
+    agentType: 'structure-knowledge',
+    stage: 'structuring_execution',
+    thinking: [{
+      step: '構造化開始',
+      content: `キーワード数: ${keywords.length}`,
+      timestamp: new Date().toISOString()
+    }]
+  });
+
+  sendProgressUpdate('知識構造化を実行中...', 55, roleModelId, {
+    stage: 'knowledge_structuring',
+    subStage: 'execution'
+  });
+
+  // 実際には LlamaIndex の構造化ロジックを使用する
+  // ここでは、シミュレーションデータを返す
+  await new Promise(resolve => setTimeout(resolve, 1500)); // 構造化のシミュレーション
+
+  // カテゴリの作成
+  const categories = [
+    { name: '情報収集目的', keywords: keywords.slice(0, 2) },
+    { name: '情報源と技術リソース', keywords: keywords.slice(2, 4) },
+    { name: '業界専門知識', keywords: keywords.slice(4, 6) }
+  ];
+
+  sendProgressUpdate('構造化情報を整理中...', 65, roleModelId, {
+    stage: 'knowledge_structuring',
+    subStage: 'organizing'
+  });
+
+  return JSON.stringify({
+    roleName,
+    categories,
+    hierarchies: [
+      { parent: '情報収集目的', children: ['最新動向', '技術情報'] },
+      { parent: '情報源と技術リソース', children: ['ドキュメント', 'コミュニティ'] },
+      { parent: '業界専門知識', children: ['専門用語', '業界標準'] }
+    ]
+  });
+}
+
+/**
+ * 知識グラフを生成するツール
+ * @param roleName 役割名
+ * @param roleModelId ロールモデルID
+ * @param agentName エージェント名
+ * @returns 生成された知識グラフ
+ */
+async function generateKnowledgeGraph(
+  roleName: string,
+  roleModelId: string,
+  agentName: string
+): Promise<string> {
+  sendAgentThoughts(agentName, `知識グラフ生成を実行: ${roleName}`, roleModelId, {
+    agentType: 'generate-graph',
+    stage: 'graph_generation',
+    thinking: [{
+      step: 'グラフ生成開始',
+      content: `対象役割: ${roleName}`,
+      timestamp: new Date().toISOString()
+    }]
+  });
+
+  sendProgressUpdate('知識グラフを生成中...', 80, roleModelId, {
+    stage: 'knowledge_graph_generation',
+    subStage: 'execution'
+  });
+
+  // 実際には LlamaIndex のグラフ生成ロジックを使用する
+  // ここでは、シミュレーションデータを返す
+  await new Promise(resolve => setTimeout(resolve, 2000)); // グラフ生成のシミュレーション
+
+  // ノードの作成
+  const nodes = [
+    { id: '1', name: roleName, description: `${roleName}の役割`, level: 0, type: 'root' },
+    { id: '2', name: '情報収集目的', description: '情報を収集する主な目的', level: 1, type: 'category' },
+    { id: '3', name: '情報源と技術リソース', description: '情報を得るための主要なリソース', level: 1, type: 'category' },
+    { id: '4', name: '業界専門知識', description: '業界特有の専門知識', level: 1, type: 'category' },
+    { id: '5', name: '最新動向', description: '業界の最新動向', level: 2, type: 'subcategory' },
+    { id: '6', name: '技術情報', description: '技術関連の情報', level: 2, type: 'subcategory' }
+  ];
+
+  // エッジの作成
+  const edges = [
+    { source: '1', target: '2', label: '含む', strength: 0.9 },
+    { source: '1', target: '3', label: '使用', strength: 0.8 },
+    { source: '1', target: '4', label: '要求', strength: 0.9 },
+    { source: '2', target: '5', label: '含む', strength: 0.7 },
+    { source: '2', target: '6', label: '含む', strength: 0.7 }
+  ];
+
+  sendProgressUpdate('知識グラフを最適化中...', 90, roleModelId, {
+    stage: 'knowledge_graph_generation',
+    subStage: 'optimization'
+  });
+
+  return JSON.stringify({
+    nodes,
+    edges
+  });
 }

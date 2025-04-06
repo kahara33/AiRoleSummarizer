@@ -1,220 +1,76 @@
 /**
- * エージェントシステム共通型定義
- * 複数のAIエージェント間で共有される型の定義
+ * マルチエージェントシステムの共通型定義
  */
 
 /**
- * 役割モデル入力データ
+ * 知識グラフノードデータ型
  */
-export interface RoleModelInput {
-  roleName: string;           // 役割名
-  description?: string;       // 役割の説明
-  industries: string[];       // 選択された業界
-  keywords: string[];         // 初期キーワード
-  userId: string;             // ユーザーID
-  roleModelId: string;        // 役割モデルID
-}
+export type KnowledgeNodeData = {
+  id: string; // ノードID
+  name: string; // ノード名
+  level: number; // 階層レベル（0がルート）
+  type?: string; // ノードタイプ（'root', 'category', 'subcategory'等）
+  parentId?: string | null; // 親ノードID
+  description?: string | null; // 説明
+  color?: string | null; // 色情報（必要に応じて）
+};
 
 /**
- * 知識ノード
+ * 知識グラフエッジデータ型
  */
-export interface KnowledgeNode {
-  id: string;                 // ノードID
-  name: string;               // ノード名
-  description: string;        // 説明
-  level: number;              // 階層レベル（0がルート）
-  type?: string;              // ノードタイプ
-  color?: string;             // 表示色
-  parentId?: string;          // 親ノードID
-}
+export type KnowledgeEdgeData = {
+  source: string; // ソースノードID
+  target: string; // ターゲットノードID
+  label?: string | null; // エッジラベル
+  strength?: number; // エッジの強さ（0.0～1.0）
+};
 
 /**
- * 知識エッジ
+ * 知識グラフデータ型
  */
-export interface KnowledgeEdge {
-  source: string;             // 始点ノードID
-  target: string;             // 終点ノードID
-  label?: string;             // ラベル
-  strength?: number;          // 関連強度
-}
+export type KnowledgeGraphData = {
+  nodes: KnowledgeNodeData[];
+  edges: KnowledgeEdgeData[];
+};
 
 /**
- * 知識グラフデータ
+ * 役割モデル入力データ型
  */
-export interface KnowledgeGraphData {
-  nodes: KnowledgeNode[];     // ノードリスト
-  edges: KnowledgeEdge[];     // エッジリスト
-}
+export type RoleModelInput = {
+  roleModelId: string; // 役割モデルID
+  roleName: string; // 役割名
+  description: string; // 説明
+  industries: string[]; // 関連業界リスト
+  keywords: string[]; // 初期キーワードリスト
+  userId: string; // ユーザーID
+};
 
 /**
- * 業界分析データ
+ * エージェント思考プロセスデータ型
  */
-export interface IndustryAnalysisInput extends RoleModelInput {}
-
-export interface IndustryAnalysisData {
-  industries: string[];       // 分析された業界
-  keywords: string[];         // 関連キーワード
-  description: string;        // 業界の詳細説明
-}
+export type AgentThoughtsData = {
+  agentType: string; // エージェントタイプ
+  stage: string; // 実行ステージ
+  thinking: {
+    step: string; // 思考ステップ
+    content: string; // 思考内容
+    timestamp: string; // タイムスタンプ
+  }[];
+  context?: any; // コンテキスト情報（任意）
+};
 
 /**
- * キーワード拡張入力データ
+ * 進捗更新オプション型
  */
-export interface KeywordExpansionInput extends RoleModelInput {
-  industries: string[];      // 業界リスト
-  keywords: string[];        // 初期キーワード
-}
-
-/**
- * キーワード拡張データ
- */
-export interface KeywordExpansionData {
-  expandedKeywords: string[];    // 拡張されたキーワード
-  keywordRelations: Array<{      // キーワード間の関係
-    source: string;
-    target: string;
-    strength: number;
-  }>;
-}
-
-/**
- * 構造化入力データ
- */
-export interface StructuringInput extends KeywordExpansionInput {
-  expandedKeywords: string[];    // 拡張されたキーワード
-  keywordRelations: Array<{      // キーワード間の関係
-    source: string;
-    target: string;
-    strength: number;
-  }>;
-}
-
-/**
- * カテゴリとサブカテゴリの構造
- */
-export interface Category {
-  name: string;
-  description: string;
-  subcategories: Subcategory[];
-}
-
-export interface Subcategory {
-  name: string;
-  description: string;
-  skills: Skill[];
-}
-
-export interface Skill {
-  name: string;
-  description: string;
-  importance: number; // 1-10
-}
-
-/**
- * 構造化データ
- */
-export interface StructuringData {
-  structuredContent: Category[];
-  entities: Array<{
-    id: string;
-    name: string;
-    type: string;
-    description: string;
-    level: number;
-  }>;
-  relationships: Array<{
-    source: string;
-    target: string;
-    type: string;
-    strength: number;
-  }>;
-}
-
-/**
- * 知識グラフ入力データ
- */
-export interface KnowledgeGraphInput extends StructuringInput {
-  structuredContent: Category[];
-  entities: Array<{
-    id: string;
-    name: string;
-    type: string;
-    description: string;
-    level: number;
-  }>;
-  relationships: Array<{
-    source: string;
-    target: string;
-    type: string;
-    strength: number;
-  }>;
-}
-
-/**
- * エージェント結果
- */
-export interface AgentResult<T> {
-  success: boolean;           // 成功したかどうか
-  error?: string | Error;     // エラーメッセージまたはエラーオブジェクト
-  data: T;                    // 結果データ
-}
-
-/**
- * 進捗ステップ状態
- */
-export type ProgressStatus = 'pending' | 'processing' | 'completed' | 'error';
-
-/**
- * 詳細な進捗ステップ
- */
-export interface ProgressStep {
-  step: string;               // ステップ名
-  progress: number;           // 進捗率（0-100）
-  status: ProgressStatus;     // ステータス
-  message?: string;           // メッセージ
-}
-
-/**
- * エージェント進捗状況
- */
-export interface AgentProgress {
-  stage: string;                    // 現在のステージ
-  subStage?: string;                // サブステージ
-  progress: number;                 // 進捗率（0-100）
-  message: string;                  // メッセージ
-  detailedProgress?: ProgressStep[]; // 詳細な進捗情報
-  details?: any;                    // その他の詳細情報
-}
-
-/**
- * エージェント出力メッセージ
- */
-export interface AgentOutputMessage {
-  timestamp: number;          // タイムスタンプ
-  agentName: string;          // エージェント名
-  message: string;            // メッセージ内容
-  type: 'info' | 'error' | 'success' | 'thinking';  // メッセージタイプ
-}
-
-/**
- * エージェント思考データ
- */
-export interface AgentThoughtsData {
-  agentName: string;           // エージェント名
-  thoughts: string;            // 思考内容
-  roleModelId?: string;        // ロールモデルID
-  timestamp?: string;          // タイムスタンプ
-  agentType?: string;          // エージェントタイプ
-  stage?: string;              // 処理ステージ
-  subStage?: string;           // 処理サブステージ
-  thinking?: Array<{           // 詳細な思考プロセス
-    step: string;              // 思考ステップ
-    content: string;           // 内容
-    timestamp: string;         // タイムスタンプ
-  }>;
-  reasoning?: string;          // 推論内容
-  decision?: string;           // 決定内容
-  context?: any;               // 文脈情報
-  inputData?: any;             // 入力データ
-  outputData?: any;            // 出力データ
-}
+export type ProgressUpdateOptions = {
+  stage?: string; // 実行ステージ
+  subStage?: string; // サブステージ
+  error?: boolean; // エラーフラグ
+  errorMessage?: string; // エラーメッセージ
+  detailedProgress?: {
+    step: string; // ステップ名
+    progress: number; // 進捗率（0-100）
+    status: 'pending' | 'processing' | 'completed' | 'error'; // ステータス
+    message?: string; // メッセージ（任意）
+  }[];
+};

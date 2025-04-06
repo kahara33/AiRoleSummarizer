@@ -399,6 +399,7 @@ export type RoleModelWithIndustriesAndKeywords = RoleModel & {
 
 export type KnowledgeGraphData = {
   nodes: {
+    id: string;
     name: string;
     level: number;
     type?: string;
@@ -411,5 +412,37 @@ export type KnowledgeGraphData = {
     target: string;
     label?: string | null;
     strength?: number;
+  }[];
+};
+
+export type KnowledgeNodeData = {
+  id: string;
+  name: string;
+  level: number;
+  type?: string;
+  parentId?: string | null;
+  description?: string | null;
+  color?: string | null;
+};
+
+export type KnowledgeEdgeData = {
+  source: string;
+  target: string;
+  label?: string | null;
+  strength?: number;
+};
+
+export type ProgressUpdate = {
+  message: string;
+  progress: number;
+  stage?: string;
+  subStage?: string;
+  error?: boolean;
+  errorMessage?: string;
+  detailedProgress?: {
+    step: string;
+    progress: number;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    message?: string;
   }[];
 };

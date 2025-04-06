@@ -831,6 +831,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
               
               sendProgressUpdate('知識グラフの生成と保存が完了しました', 100, roleModelId, {
+                message: '知識グラフの生成と保存が完了しました',
+                progress: 100,
                 stage: 'completed',
                 subStage: 'save_to_database'
               });
@@ -845,24 +847,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch (dbError) {
               console.error('知識グラフ保存エラー:', dbError);
               sendProgressUpdate(`データベース保存エラー: ${dbError.message}`, 100, roleModelId, {
+                message: `データベース保存エラー: ${dbError.message}`,
+                progress: 100,
                 stage: 'error',
-                error: dbError.message
+                error: true,
+                errorMessage: dbError.message
               });
             }
           } else {
             // エラーがあった場合
             console.error('CrewAI知識グラフ生成エラー:', result.error);
             sendProgressUpdate(`エラーが発生しました: ${result.error}`, 100, roleModelId, {
+              message: `エラーが発生しました: ${result.error}`,
+              progress: 100,
               stage: 'error',
-              error: result.error
+              error: true,
+              errorMessage: result.error
             });
           }
         })
         .catch(err => {
           console.error('CrewAI知識グラフ生成エラー:', err);
           sendProgressUpdate(`エラーが発生しました: ${err.message}`, 100, roleModelId, {
+            message: `エラーが発生しました: ${err.message}`,
+            progress: 100,
             stage: 'error',
-            error: err.message
+            error: true,
+            errorMessage: err.message
           });
         });
     } catch (error) {
