@@ -166,36 +166,42 @@ async function generateKnowledgeGraph(
         graphData = {
           nodes: [
             {
+              id: crypto.randomUUID(),
               name: roleName,
               level: 0,
               type: "central",
               color: "#ff5722"
             },
             {
+              id: crypto.randomUUID(),
               name: "情報収集目的",
               level: 1,
               type: "category",
               color: "#2196f3"
             },
             {
+              id: crypto.randomUUID(),
               name: "情報源と技術リソース",
               level: 1,
               type: "category",
               color: "#4caf50"
             },
             {
+              id: crypto.randomUUID(),
               name: "業界専門知識",
               level: 1,
               type: "category",
               color: "#9c27b0"
             },
             {
+              id: crypto.randomUUID(),
               name: "トレンド分析",
               level: 1,
               type: "category",
               color: "#ff9800"
             },
             {
+              id: crypto.randomUUID(),
               name: "実践応用分野",
               level: 1,
               type: "category",
@@ -238,6 +244,7 @@ async function generateKnowledgeGraph(
         console.warn('Central node (level 0) is missing in the knowledge graph, adding default one');
         // 中心ノードを追加
         graphData.nodes.unshift({
+          id: crypto.randomUUID(),
           name: roleName,
           level: 0,
           type: "central",
@@ -263,36 +270,42 @@ async function generateKnowledgeGraph(
       graphData = {
         nodes: [
           {
+            id: crypto.randomUUID(),
             name: roleName,
             level: 0,
             type: "central",
             color: "#ff5722"
           },
           {
+            id: crypto.randomUUID(),
             name: "情報収集目的",
             level: 1,
             type: "category",
             color: "#2196f3"
           },
           {
+            id: crypto.randomUUID(),
             name: "情報源と技術リソース",
             level: 1,
             type: "category",
             color: "#4caf50"
           },
           {
+            id: crypto.randomUUID(),
             name: "業界専門知識",
             level: 1,
             type: "category",
             color: "#9c27b0"
           },
           {
+            id: crypto.randomUUID(),
             name: "トレンド分析",
             level: 1,
             type: "category",
             color: "#ff9800"
           },
           {
+            id: crypto.randomUUID(),
             name: "実践応用分野",
             level: 1,
             type: "category",
@@ -336,6 +349,7 @@ async function generateKnowledgeGraph(
     return {
       nodes: [
         {
+          id: crypto.randomUUID(),
           name: roleName,
           level: 0,
           type: "central",
@@ -360,6 +374,22 @@ async function saveKnowledgeGraphToDatabase(
   try {
     console.log(`Saving knowledge graph to database for role model ID: ${roleModelId}`);
     console.log(`Graph data contains ${graphData.nodes.length} nodes and ${graphData.edges.length} edges`);
+    
+    // 既存のノードとエッジを削除する
+    console.log(`Cleaning up existing knowledge graph data for role model ID: ${roleModelId}`);
+    
+    try {
+      // まずエッジを削除（外部キー制約のため）
+      await storage.deleteKnowledgeEdgesByRoleModelId(roleModelId);
+      console.log(`Deleted existing edges for role model ID: ${roleModelId}`);
+      
+      // 次にノードを削除
+      await storage.deleteKnowledgeNodesByRoleModelId(roleModelId);
+      console.log(`Deleted existing nodes for role model ID: ${roleModelId}`);
+    } catch (cleanupError) {
+      console.error(`Error cleaning up existing knowledge graph data:`, cleanupError);
+      // エラーが発生しても処理を継続
+    }
     
     // ノード名からデータベースID へのマッピング
     const nodeIdMap = new Map<string, string>();

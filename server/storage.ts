@@ -37,11 +37,13 @@ export interface IStorage {
   getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]>;
   getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined>;
   createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode>;
+  deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<void>;
   
   // Knowledge Edge operations
   getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]>;
   getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined>;
   createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge>;
+  deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<void>;
 
   // Role Model operations
   getRoleModels(userId: string): Promise<RoleModel[]>;
@@ -160,6 +162,24 @@ export class MemStorage implements IStorage {
     return node;
   }
   
+  async deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<void> {
+    // ノードをフィルタリングして削除
+    const nodeIdsToDelete: string[] = [];
+    
+    this.knowledgeNodes.forEach((node, id) => {
+      if (node.roleModelId === roleModelId) {
+        nodeIdsToDelete.push(id);
+      }
+    });
+    
+    // 特定したノードをMapから削除
+    nodeIdsToDelete.forEach(id => {
+      this.knowledgeNodes.delete(id);
+    });
+    
+    console.log(`Deleted ${nodeIdsToDelete.length} knowledge nodes for role model ID: ${roleModelId}`);
+  }
+  
   // Knowledge Edge methods
   async getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]> {
     return Array.from(this.knowledgeEdges.values())
@@ -180,6 +200,24 @@ export class MemStorage implements IStorage {
     };
     this.knowledgeEdges.set(id, edge);
     return edge;
+  }
+  
+  async deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<void> {
+    // エッジをフィルタリングして削除
+    const edgeIdsToDelete: string[] = [];
+    
+    this.knowledgeEdges.forEach((edge, id) => {
+      if (edge.roleModelId === roleModelId) {
+        edgeIdsToDelete.push(id);
+      }
+    });
+    
+    // 特定したエッジをMapから削除
+    edgeIdsToDelete.forEach(id => {
+      this.knowledgeEdges.delete(id);
+    });
+    
+    console.log(`Deleted ${edgeIdsToDelete.length} knowledge edges for role model ID: ${roleModelId}`);
   }
 }
 
@@ -300,6 +338,17 @@ export class PostgresStorage implements IStorage {
     }
   }
   
+  async deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<void> {
+    try {
+      await db.delete(knowledgeNodes)
+        .where(eq(knowledgeNodes.roleModelId, roleModelId));
+      console.log(`Deleted knowledge nodes for role model ID: ${roleModelId}`);
+    } catch (error) {
+      console.error("Error in deleteKnowledgeNodesByRoleModelId:", error);
+      throw error;
+    }
+  }
+  
   // Knowledge Edge methods
   async getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]> {
     try {
@@ -330,6 +379,17 @@ export class PostgresStorage implements IStorage {
       return newEdge;
     } catch (error) {
       console.error("Error in createKnowledgeEdge:", error);
+      throw error;
+    }
+  }
+  
+  async deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<void> {
+    try {
+      await db.delete(knowledgeEdges)
+        .where(eq(knowledgeEdges.roleModelId, roleModelId));
+      console.log(`Deleted knowledge edges for role model ID: ${roleModelId}`);
+    } catch (error) {
+      console.error("Error in deleteKnowledgeEdgesByRoleModelId:", error);
       throw error;
     }
   }
