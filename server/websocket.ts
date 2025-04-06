@@ -30,7 +30,7 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
     console.log('WebSocket接続を受け付けました');
     
     let userId: string | null = null;
-    let roleModelId: string | null = null;
+    let roleModelId = "";
     
     // クッキーからセッションIDを取得し、ユーザー認証を行う
     const cookieHeader = req.headers.cookie;
@@ -58,7 +58,10 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
     if (!clients.has(userId)) {
       clients.set(userId, new Set());
     }
-    clients.get(userId)!.add(ws);
+    const userClients = clients.get(userId);
+    if (userClients) {
+      userClients.add(ws);
+    }
     
     // クライアントからのメッセージを処理
     ws.on('message', (message: string) => {
@@ -85,12 +88,15 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
           if (!roleModelSubscriptions.has(roleModelId)) {
             roleModelSubscriptions.set(roleModelId, new Set());
           }
-          roleModelSubscriptions.get(roleModelId)!.add(ws);
+          const subscribers = roleModelSubscriptions.get(roleModelId);
+          if (subscribers) {
+            subscribers.add(ws);
+          }
           
           // 購読確認のレスポンスを送信
           ws.send(JSON.stringify({
             type: 'subscribed',
-            roleModelId: roleModelId
+            roleModelId
           }));
         }
       } catch (error) {
@@ -104,17 +110,23 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
       
       // クライアントリストから削除
       if (userId && clients.has(userId)) {
-        clients.get(userId)!.delete(ws);
-        if (clients.get(userId)!.size === 0) {
-          clients.delete(userId);
+        const userClients = clients.get(userId);
+        if (userClients) {
+          userClients.delete(ws);
+          if (userClients.size === 0) {
+            clients.delete(userId);
+          }
         }
       }
       
       // サブスクリプションリストから削除
       if (roleModelId && roleModelSubscriptions.has(roleModelId)) {
-        roleModelSubscriptions.get(roleModelId)!.delete(ws);
-        if (roleModelSubscriptions.get(roleModelId)!.size === 0) {
-          roleModelSubscriptions.delete(roleModelId);
+        const subscribers = roleModelSubscriptions.get(roleModelId);
+        if (subscribers) {
+          subscribers.delete(ws);
+          if (subscribers.size === 0) {
+            roleModelSubscriptions.delete(roleModelId);
+          }
         }
       }
     });
@@ -136,11 +148,13 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
  */
 export function sendToUser(userId: string, message: any): void {
   if (clients.has(userId)) {
-    const userSockets = clients.get(userId)!;
-    for (const socket of userSockets) {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(message));
-      }
+    const userSockets = clients.get(userId);
+    if (userSockets) {
+      userSockets.forEach((socket) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(message));
+        }
+      });
     }
   }
 }
@@ -165,17 +179,19 @@ export function sendMessageToRoleModelViewers(type: string, payload: any, roleMo
   };
   
   if (roleModelSubscriptions.has(roleModelId)) {
-    const subscribers = roleModelSubscriptions.get(roleModelId)!;
-    console.log(`Sending to ${subscribers.size} subscribers`);
-    
-    for (const socket of subscribers) {
-      if (socket.readyState === WebSocket.OPEN) {
-        try {
-          socket.send(JSON.stringify(message));
-        } catch (err) {
-          console.error('WebSocket送信エラー:', err);
+    const subscribers = roleModelSubscriptions.get(roleModelId);
+    if (subscribers) {
+      console.log(`Sending to ${subscribers.size} subscribers`);
+      
+      subscribers.forEach((socket) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          try {
+            socket.send(JSON.stringify(message));
+          } catch (err) {
+            console.error('WebSocket送信エラー:', err);
+          }
         }
-      }
+      });
     }
   } else {
     console.log(`No subscribers found for roleModel ${roleModelId}`);
@@ -274,7 +290,7 @@ export function sendProgressUpdate(
 ): void {
   console.log(`進捗更新: ${message} (${progress}%) - ロールモデル ${roleModelId}`);
   
-  if (isValidUUID(roleModelId)) {
+  if (roleModelId && isValidUUID(roleModelId)) {
     const payload = {
       message,
       progress,

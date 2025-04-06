@@ -9,7 +9,8 @@ import { structureContent } from './structuring';
 import { generateKnowledgeGraph } from './knowledge-graph';
 import { 
   AgentResult, KnowledgeGraphData, RoleModelInput,
-  IndustryAnalysisInput, KeywordExpansionInput, StructuringInput, KnowledgeGraphInput
+  IndustryAnalysisInput, KeywordExpansionInput, StructuringInput, KnowledgeGraphInput,
+  ProgressStatus, ProgressStep
 } from './types';
 import { sendProgressUpdate, sendAgentThoughts } from '../websocket';
 
@@ -49,13 +50,11 @@ export async function processRoleModel(
     };
     
     // 業界分析の詳細な進捗情報を初期化
-    type ProgressStatus = 'pending' | 'processing' | 'completed' | 'error';
-    
-    const industryProgressSteps = [
-      { step: '業界データ収集', progress: 0, status: 'pending' as ProgressStatus, message: '' },
-      { step: 'トレンド分析', progress: 0, status: 'pending' as ProgressStatus, message: '' },
-      { step: '重要キーワード特定', progress: 0, status: 'pending' as ProgressStatus, message: '' },
-      { step: '業界レポート生成', progress: 0, status: 'pending' as ProgressStatus, message: '' }
+    const industryProgressSteps: ProgressStep[] = [
+      { step: '業界データ収集', progress: 0, status: 'pending', message: '' },
+      { step: 'トレンド分析', progress: 0, status: 'pending', message: '' },
+      { step: '重要キーワード特定', progress: 0, status: 'pending', message: '' },
+      { step: '業界レポート生成', progress: 0, status: 'pending', message: '' }
     ];
     
     // 詳細な進捗情報付きで初期進捗を送信
@@ -184,11 +183,11 @@ export async function processRoleModel(
     // ステップ2: キーワード拡張エージェントを実行
     
     // キーワード拡張の詳細な進捗情報を初期化
-    const keywordProgressSteps = [
-      { step: '基本キーワード分析', progress: 0, status: 'pending' as ProgressStatus, message: '' },
-      { step: '関連キーワード生成', progress: 0, status: 'pending' as ProgressStatus, message: '' },
-      { step: 'キーワード関係マッピング', progress: 0, status: 'pending' as ProgressStatus, message: '' },
-      { step: '最終キーワードセット生成', progress: 0, status: 'pending' as ProgressStatus, message: '' }
+    const keywordProgressSteps: ProgressStep[] = [
+      { step: '基本キーワード分析', progress: 0, status: 'pending', message: '' },
+      { step: '関連キーワード生成', progress: 0, status: 'pending', message: '' },
+      { step: 'キーワード関係マッピング', progress: 0, status: 'pending', message: '' },
+      { step: '最終キーワードセット生成', progress: 0, status: 'pending', message: '' }
     ];
     
     // 詳細な進捗情報付きで初期進捗を送信

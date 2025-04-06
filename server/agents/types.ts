@@ -160,13 +160,30 @@ export interface AgentResult<T> {
 }
 
 /**
+ * 進捗ステップ状態
+ */
+export type ProgressStatus = 'pending' | 'processing' | 'completed' | 'error';
+
+/**
+ * 詳細な進捗ステップ
+ */
+export interface ProgressStep {
+  step: string;               // ステップ名
+  progress: number;           // 進捗率（0-100）
+  status: ProgressStatus;     // ステータス
+  message?: string;           // メッセージ
+}
+
+/**
  * エージェント進捗状況
  */
 export interface AgentProgress {
-  stage: string;              // 現在のステージ
-  progress: number;           // 進捗率（0-100）
-  message: string;            // メッセージ
-  details?: any;              // 詳細情報
+  stage: string;                    // 現在のステージ
+  subStage?: string;                // サブステージ
+  progress: number;                 // 進捗率（0-100）
+  message: string;                  // メッセージ
+  detailedProgress?: ProgressStep[]; // 詳細な進捗情報
+  details?: any;                    // その他の詳細情報
 }
 
 /**
