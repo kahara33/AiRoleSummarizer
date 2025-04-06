@@ -5,6 +5,7 @@
 // 各種エージェント実装をエクスポート
 export { processRoleModelWithCrewAI } from './crewai-agents';
 export { orchestrateAgents } from './multi-agent-orchestrator';
+import { orchestrateAgents } from './multi-agent-orchestrator';
 
 // ツールとユーティリティ関数をエクスポート
 export { callLangChainTool } from './langchain-utils';

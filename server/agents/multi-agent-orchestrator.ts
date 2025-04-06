@@ -6,7 +6,7 @@
 import { processRoleModelWithCrewAI } from './crewai-agents';
 import { callLangChainTool } from './langchain-utils';
 import { callLlamaIndexTool, queryLlamaIndex, summarizeWithLlamaIndex } from './llamaindex-utils';
-import { KnowledgeGraphData, RoleModelInput } from './types';
+import { KnowledgeGraphData, RoleModelInput } from './index';
 import { sendProgressUpdate } from '../websocket';
 // Azure OpenAIのファイルから関数をインポート
 // Import Neo4j functions for saving knowledge graph data

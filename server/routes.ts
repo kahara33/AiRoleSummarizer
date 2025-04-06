@@ -771,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: roleModel.description || '',
         industries,
         keywords,
-        userId: roleModel.userId
+        userId: roleModel.userId || 'anonymous'
       };
 
       // バックグラウンドで処理を継続
