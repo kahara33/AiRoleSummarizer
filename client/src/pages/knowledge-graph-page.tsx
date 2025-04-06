@@ -17,6 +17,7 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
   const roleModelId = id || 'default';
   const { toast } = useToast();
 
@@ -64,7 +65,7 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
                 industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
                 keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
                 disabled={isGenerating}
-                hasKnowledgeGraph={true}
+                hasKnowledgeGraph={hasKnowledgeGraph}
               />
             </div>
           )}
@@ -93,6 +94,7 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
             onNodeSelect={handleNodeSelect}
             width="100%"
             height="calc(100vh - 50px)"
+            onGraphDataChange={setHasKnowledgeGraph}
           />
         </div>
 

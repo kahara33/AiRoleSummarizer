@@ -35,6 +35,7 @@ interface KnowledgeGraphViewerProps {
   onNodeSelect?: (node: KnowledgeNode) => void;
   width?: string | number;
   height?: string | number;
+  onGraphDataChange?: (hasData: boolean) => void;
 }
 
 // カスタムノードタイプの定義
@@ -53,11 +54,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   onNodeSelect,
   width = '100%',
   height = '600px',
+  onGraphDataChange,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
 
   // サーバーからグラフデータを取得
   const fetchGraphData = useCallback(async () => {
@@ -234,6 +237,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         setNodes(layoutedNodes);
         setEdges(layoutedEdges);
         setLoading(false);
+        
+        // ナレッジグラフが存在することを通知
+        const hasData = flowNodes.length > 0;
+        setHasKnowledgeGraph(hasData);
+        if (onGraphDataChange) {
+          onGraphDataChange(hasData);
+        }
         return;
       }
       
@@ -247,6 +257,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setNodes(layoutedNodes);
       setEdges(layoutedEdges);
       setLoading(false);
+      
+      // ナレッジグラフが存在することを通知
+      const hasData = flowNodes.length > 0;
+      setHasKnowledgeGraph(hasData);
+      if (onGraphDataChange) {
+        onGraphDataChange(hasData);
+      }
     } catch (err) {
       console.error('グラフデータの取得エラー:', err);
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
