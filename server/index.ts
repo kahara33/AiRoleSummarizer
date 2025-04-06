@@ -153,9 +153,10 @@ async function startServer() {
     
     // サーバーの起動
     const PORT = process.env.PORT || 5000;
+    const HOST = '0.0.0.0'; // すべてのネットワークインターフェイスにバインド
     
-    server.listen(PORT, () => {
-      console.log(`サーバーがポート ${PORT} で起動しました`);
+    server.listen(PORT, HOST, () => {
+      console.log(`サーバーが ${HOST}:${PORT} で起動しました`);
     });
     
     // プロセス終了時のクリーンアップ
