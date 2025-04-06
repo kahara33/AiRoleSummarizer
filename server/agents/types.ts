@@ -195,3 +195,26 @@ export interface AgentOutputMessage {
   message: string;            // メッセージ内容
   type: 'info' | 'error' | 'success' | 'thinking';  // メッセージタイプ
 }
+
+/**
+ * エージェント思考データ
+ */
+export interface AgentThoughtsData {
+  agentName: string;           // エージェント名
+  thoughts: string;            // 思考内容
+  roleModelId?: string;        // ロールモデルID
+  timestamp?: string;          // タイムスタンプ
+  agentType?: string;          // エージェントタイプ
+  stage?: string;              // 処理ステージ
+  subStage?: string;           // 処理サブステージ
+  thinking?: Array<{           // 詳細な思考プロセス
+    step: string;              // 思考ステップ
+    content: string;           // 内容
+    timestamp: string;         // タイムスタンプ
+  }>;
+  reasoning?: string;          // 推論内容
+  decision?: string;           // 決定内容
+  context?: any;               // 文脈情報
+  inputData?: any;             // 入力データ
+  outputData?: any;            // 出力データ
+}

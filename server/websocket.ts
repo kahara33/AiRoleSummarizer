@@ -83,14 +83,31 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
           }
           
           roleModelId = requestedRoleModelId;
-          console.log(`WebSocket: ユーザー ${userId || 'anonymous'} がロールモデル ${roleModelId} を購読しました`);
           
+          // クライアントの情報をログに記録（デバッグのため）
+          const clientInfo = {
+            userId: userId || 'anonymous',
+            roleModelId: roleModelId,
+            timestamp: new Date().toISOString(),
+            clientId: data.payload.clientId || 'unknown',
+            remoteAddress: req.socket.remoteAddress || 'unknown'
+          };
+          console.log(`WebSocket: ユーザー ${clientInfo.userId} がロールモデル ${roleModelId} を購読しました`, clientInfo);
+          
+          // ロールモデル購読セットが存在しない場合は作成
           if (!roleModelSubscriptions.has(roleModelId)) {
             roleModelSubscriptions.set(roleModelId, new Set());
+            console.log(`[WebSocket] ロールモデル ${roleModelId} の購読セットを新規作成しました`);
           }
+          
+          // 購読リストにWebSocketを追加
           const subscribers = roleModelSubscriptions.get(roleModelId);
           if (subscribers) {
             subscribers.add(ws);
+            console.log(`[WebSocket] ロールモデル ${roleModelId} の購読セット (${subscribers.size}件) にクライアントを追加しました`);
+            
+            // 既存のデータがあればそれらも送信（例：進行中の処理状態）
+            // 注：実際の実装ではここにキャッシュされた状態を送信する処理を追加できる
           }
           
           // 購読確認のレスポンスを送信

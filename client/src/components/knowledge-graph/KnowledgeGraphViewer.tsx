@@ -341,28 +341,54 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   useEffect(() => {
     if (!roleModelId) return;
     
+    console.log(`[KnowledgeGraphViewer] WebSocketリスナーをセットアップ: roleModelId=${roleModelId}`);
     const socket = initSocket();
     
-    // ロールモデルを購読（UUIDの検証を追加）
-    if (roleModelId && roleModelId !== 'default') {
+    // セットアップ関数 - 接続時とリトライ時に実行
+    const setupSubscription = () => {
+      if (!roleModelId || roleModelId === 'default') {
+        console.warn('有効なロールモデルIDがありません。WebSocket購読をスキップします。');
+        return;
+      }
+      
       // UUID形式かどうか検証
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (uuidPattern.test(roleModelId)) {
-        if (socket.readyState === WebSocket.OPEN) {
-          console.log('Subscribing to roleModel:', roleModelId);
-          sendSocketMessage('subscribe', { roleModelId });
-        } else {
-          // ソケットが開くのを待つ
-          socket.addEventListener('open', () => {
-            console.log('Socket opened, subscribing to roleModel:', roleModelId);
-            sendSocketMessage('subscribe', { roleModelId });
-          });
-        }
-      } else {
+      if (!uuidPattern.test(roleModelId)) {
         console.warn('無効なUUID形式です:', roleModelId);
+        return;
       }
+      
+      console.log(`[KnowledgeGraphViewer] このロールモデルをWebSocketで購読: ${roleModelId}`);
+      
+      // 現在の日時を含めて、キャッシュバスティングを行う
+      const timestamp = new Date().getTime();
+      sendSocketMessage('subscribe', { 
+        roleModelId,
+        timestamp,
+        clientId: `client-${Math.random().toString(36).substring(2, 9)}`
+      });
+      
+      console.log(`[KnowledgeGraphViewer] 購読メッセージを送信しました: ${roleModelId}`);
+    };
+    
+    // 即時実行とソケットオープン時の実行
+    if (socket.readyState === WebSocket.OPEN) {
+      setupSubscription();
     } else {
-      console.warn('有効なロールモデルIDがありません。WebSocket購読をスキップします。');
+      console.log('[KnowledgeGraphViewer] WebSocketが開いていません、接続待機中...');
+      
+      // ソケットが開くのを待つ
+      const handleOpen = () => {
+        console.log('[KnowledgeGraphViewer] WebSocketが開きました、購読設定中...');
+        setupSubscription();
+      };
+      
+      socket.addEventListener('open', handleOpen);
+      
+      // クリーンアップ関数でイベントリスナーを削除
+      return () => {
+        socket.removeEventListener('open', handleOpen);
+      };
     }
     
     // 進捗更新リスナー
