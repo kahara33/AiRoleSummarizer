@@ -19,6 +19,7 @@ import 'reactflow/dist/style.css';
 
 import { KnowledgeNode } from '@shared/schema';
 import { getHierarchicalLayout } from '@/lib/graph-layout';
+import { getImprovedHierarchicalLayout, getImprovedLayoutedElements } from '@/lib/improved-graph-layout';
 import { initSocket, addSocketListener, removeSocketListener, sendSocketMessage } from '@/lib/socket';
 import ConceptNode from '@/components/nodes/ConceptNode';
 import AgentNode from '@/components/nodes/AgentNode';
@@ -87,9 +88,15 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         nodesByLevel[level].push(node);
       });
       
-      // キャンバスの中心を計算
-      const centerX = 500;
-      const centerY = 100;
+      // グラフ全体の設定
+      const graphAreaWidth = window.innerWidth - 100; // 余白を考慮
+      const graphAreaHeight = window.innerHeight - 150; // 余白を考慮
+      const centerX = graphAreaWidth / 2;
+      const centerY = 150; // 上から少し下にずらす
+      
+      // 階層ごとの設定
+      const levelHeight = 250; // 階層間の垂直距離
+      const minHorizontalSpacing = 350; // ノード間の最小水平距離
       
       // カラーマップ（レベルごとに異なる色を割り当て）
       const colorMap = [
@@ -99,21 +106,40 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       
       // ノードの初期位置を計算
       const flowNodes: Node[] = graphData.nodes.map((node: any) => {
+        // レベルとインデックスを取得
         const level = node.level || 0;
-        const nodesInThisLevel = nodesByLevel[level].length;
+        const nodesInThisLevel = nodesByLevel[level] ? nodesByLevel[level].length : 0;
         
         // このレベルでのインデックスを取得
-        const index = nodesByLevel[level].indexOf(node);
+        const index = nodesByLevel[level] ? nodesByLevel[level].indexOf(node) : 0;
         
-        // 水平方向の配置（中央から左右に均等に広がるように）
-        const horizontalSpacing = Math.max(250, 800 / Math.max(1, nodesInThisLevel));
-        const levelWidth = (nodesInThisLevel - 1) * horizontalSpacing;
-        const x = centerX - levelWidth / 2 + index * horizontalSpacing;
+        // 水平方向の配置計算
+        let x;
+        let y;
         
-        // 垂直方向の配置（レベルごとに下に配置）
-        const y = centerY + level * 200;
+        if (level === 0) {
+          // ルートノードは中央上部に配置
+          x = centerX;
+          y = 100;
+        } else if (nodesInThisLevel === 1) {
+          // 1つしかない場合は親の下に直接配置
+          const parentId = node.parentId;
+          const parentNode = parentId ? graphData.nodes.find((n: any) => n.id === parentId) : null;
+          const parentIndex = parentNode ? 
+            (nodesByLevel[parentNode.level || 0] ? nodesByLevel[parentNode.level || 0].indexOf(parentNode) : 0) : 
+            0;
+          
+          // 親ノードの位置に基づいて配置
+          x = parentNode ? (centerX + (parentIndex - (nodesByLevel[parentNode.level || 0].length - 1) / 2) * minHorizontalSpacing) : centerX;
+          y = centerY + level * levelHeight;
+        } else {
+          // 複数ある場合は均等に配置
+          const sectionWidth = Math.max(minHorizontalSpacing * (nodesInThisLevel - 1), graphAreaWidth * 0.8);
+          x = centerX - sectionWidth / 2 + index * (sectionWidth / (nodesInThisLevel - 1));
+          y = centerY + level * levelHeight;
+        }
         
-        // ノードのタイプに基づいて色を設定
+        // ノードのタイプと階層に基づいて色を設定
         const color = colorMap[level % colorMap.length];
         
         return {
@@ -169,21 +195,30 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       console.log('Created flow edges:', flowEdges);
       
       // グラフの種類に応じてレイアウト方法を選択
-      // ノード数が少ない場合はそのままのレイアウトを使用（事前計算済み）
+      // ノード数が少ない場合はそのままのレイアウトと重なり防止メカニズムを使用
       const useDirectLayout = flowNodes.length <= 20;
       
       if (useDirectLayout) {
-        // すでに計算されたレイアウトをそのまま使用
-        console.log('Using direct layout for small graph');
-        setNodes(flowNodes);
-        setEdges(flowEdges);
+        // 直接レイアウトを使用するが、重なり防止処理も適用
+        console.log('Using direct layout with overlap prevention for small graph');
+        const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedLayoutedElements(
+          flowNodes,
+          flowEdges,
+          { 
+            direction: 'TB',
+            nodesep: 120,
+            ranksep: 150
+          }
+        );
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
         setLoading(false);
         return;
       }
       
-      // 大きなグラフの場合はヒエラルキーレイアウトを使用
-      console.log('Using hierarchical layout for large graph');
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getHierarchicalLayout(
+      // 大きなグラフの場合は改良されたヒエラルキーレイアウトを使用
+      console.log('Using improved hierarchical layout for large graph');
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
         flowNodes,
         flowEdges
       );
