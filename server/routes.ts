@@ -841,11 +841,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               
               // WebSocketで接続中のクライアントに通知
-              sendMessageToRoleModelViewers(roleModelId, {
-                type: 'knowledge_graph_update',
-                message: '知識グラフが更新されました',
-                roleModelId
-              });
+              sendMessageToRoleModelViewers('knowledge_graph_update', {
+                message: '知識グラフが更新されました'
+              }, roleModelId);
               
             } catch (dbError) {
               console.error('知識グラフ保存エラー:', dbError);
