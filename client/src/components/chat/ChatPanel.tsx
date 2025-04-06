@@ -60,7 +60,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
   
   // WebSocketリスナーの設定
   useEffect(() => {
+    console.log('[ChatPanel] WebSocketリスナーを初期化します');
     const socket = initSocket();
+    
+    // 接続確認のためのデバッグメッセージ
+    socket.addEventListener('open', () => {
+      console.log('[ChatPanel] WebSocketが接続しました');
+    });
     
     // エージェントの思考プロセス
     const handleAgentThoughts = (data: any) => {
@@ -490,9 +496,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     };
     
     // イベントリスナーの登録（複数のイベント名パターンに対応）
+    console.log('[ChatPanel] エージェント思考リスナーを登録します');
+    
     // エージェント思考のリスナー（ハイフンとアンダースコアの両方のパターンに対応）
     addSocketListener('agent_thoughts', handleAgentThoughts);
     addSocketListener('agent-thoughts', handleAgentThoughts);
+    
+    // 互換性のために追加のパターンにも対応
+    addSocketListener('agentThoughts', handleAgentThoughts);
+    addSocketListener('thoughts', handleAgentThoughts);
     
     // エージェント間通信のリスナー
     addSocketListener('agent_communication', handleAgentCommunication);
