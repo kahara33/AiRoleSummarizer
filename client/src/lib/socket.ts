@@ -190,8 +190,9 @@ export function initSocket(customRoleModelId?: string): WebSocket {
           }
         }
         // 知識グラフ更新の変換処理
-        else if (data.type === 'knowledge-graph-update' || data.type === 'graph-update') {
-          // graph-updateイベントを知識グラフ更新メッセージへ標準化
+        else if (data.type === 'knowledge-graph-update' || data.type === 'graph-update' || 
+                data.type === 'knowledge_graph_update') {
+          // すべての形式の知識グラフ更新イベントを標準化
           const payloadData = data.payload || data;
           
           // リスナーに配信する前にデータ形式を標準化
@@ -204,12 +205,15 @@ export function initSocket(customRoleModelId?: string): WebSocket {
           
           console.log('グラフ更新の標準化データ:', standardizedData);
           
-          // リスナーに配信（両方のイベント名で配信し、互換性を確保）
+          // リスナーに配信（すべての互換形式で配信し、互換性を確保）
           if (listeners['knowledge-graph-update']) {
             listeners['knowledge-graph-update'].forEach(callback => callback(standardizedData));
           }
           if (listeners['graph-update']) {
             listeners['graph-update'].forEach(callback => callback(standardizedData));
+          }
+          if (listeners['knowledge_graph_update']) {
+            listeners['knowledge_graph_update'].forEach(callback => callback(standardizedData));
           }
         }
         // エージェント間通信の変換処理

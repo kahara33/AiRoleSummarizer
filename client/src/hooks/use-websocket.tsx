@@ -58,17 +58,44 @@ export function useWebSocket(
       socketRef.current.onopen = () => {
         setIsConnected(true);
         setIsConnecting(false);
+        console.log(`WebSocket接続が確立されました: ${url}`);
+        
+        // URLからロールモデルIDを抽出
+        const match = url.match(/roleModelId=([^&]+)/);
+        if (match && match[1]) {
+          const roleModelId = match[1];
+          console.log(`ロールモデルID: ${roleModelId} のWebSocket接続が確立されました`);
+          
+          // 自動的に購読メッセージを送信（サーバーがこれをサポートしている場合）
+          try {
+            // 接続後少し待ってからサブスクリプションを送信
+            setTimeout(() => {
+              if (socketRef.current?.readyState === WebSocket.OPEN) {
+                console.log(`ロールモデルID ${roleModelId} を自動購読します`);
+                socketRef.current.send(JSON.stringify({
+                  type: 'subscribe',
+                  payload: { roleModelId }
+                }));
+              }
+            }, 500);
+          } catch (err) {
+            console.error('購読メッセージ送信エラー:', err);
+          }
+        }
+        
         events?.onConnect?.();
       };
       
-      socketRef.current.onclose = () => {
+      socketRef.current.onclose = (event) => {
         setIsConnected(false);
+        console.log(`WebSocket接続が閉じられました: コード=${event.code}, 理由=${event.reason || 'なし'}`);
         events?.onDisconnect?.();
       };
       
       socketRef.current.onerror = (event) => {
         setError('WebSocket接続エラー');
         setIsConnecting(false);
+        console.error('WebSocketエラーが発生しました:', event);
         events?.onConnectionError?.(event);
       };
       

@@ -5,7 +5,8 @@ import {
   KnowledgeGraphData 
 } from '@shared/schema';
 import { callAzureOpenAI } from './azure-openai';
-import { sendProgressUpdate } from './websocket';
+import { sendProgressUpdate, sendKnowledgeGraphUpdate } from './websocket';
+import { randomUUID } from 'crypto';
 
 /**
  * 役割モデルの知識グラフを生成する関数
@@ -466,6 +467,27 @@ async function saveKnowledgeGraphToDatabase(
     }
     
     console.log(`Successfully saved knowledge graph to database for role model ID: ${roleModelId}`);
+    
+    // WebSocketを通じて知識グラフ更新通知を送信
+    try {
+      // データベースに保存した後、クライアントに通知を送信
+      const graphPayload = {
+        nodes: graphData.nodes.map(node => ({
+          ...node,
+          id: nodeIdMap.get(node.name) || randomUUID()
+        })),
+        edges: graphData.edges
+      };
+      
+      // 複数の互換性のあるメッセージタイプで知識グラフ更新を通知
+      sendKnowledgeGraphUpdate(roleModelId, graphPayload, 'update');
+      
+      console.log(`WebSocket notification sent for knowledge graph update (${graphData.nodes.length} nodes, ${graphData.edges.length} edges)`);
+    } catch (notificationError) {
+      console.error('Error sending WebSocket notification for knowledge graph update:', notificationError);
+      // 通知エラーは処理成功に影響しない
+    }
+    
     return true;
   } catch (error) {
     console.error('Error saving knowledge graph to database:', error);

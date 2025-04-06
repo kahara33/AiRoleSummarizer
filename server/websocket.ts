@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { verifySession } from './auth';
 import { parse as parseCookie } from 'cookie';
+import { randomUUID } from 'crypto';
 
 // WebSocketServerのインスタンス
 let wss: WebSocketServer;
@@ -140,10 +141,54 @@ export function initWebSocket(server: HttpServer): void {
         ws.on('message', (message) => {
           try {
             // クライアントからのメッセージ処理
-            // 必要に応じて実装（現在はpingのみ対応）
             const msgStr = message.toString();
+            
+            // シンプルなping-pong処理
             if (msgStr === 'ping') {
               ws.send('pong');
+              return;
+            }
+            
+            // JSON形式のメッセージを解析
+            try {
+              const data = JSON.parse(msgStr);
+              console.log('WebSocketメッセージを受信:', data.type);
+              
+              // サブスクリプションメッセージの処理
+              if (data.type === 'subscribe') {
+                const specificRoleModelId = data.payload?.roleModelId;
+                
+                if (specificRoleModelId && specificRoleModelId !== 'default') {
+                  console.log(`クライアントがロールモデル ${specificRoleModelId} を購読しました`);
+                  
+                  // 既存のロールモデルグループから削除
+                  clients.forEach((clientSet, existingRoleModelId) => {
+                    if (existingRoleModelId !== specificRoleModelId) {
+                      clientSet.delete(ws);
+                    }
+                  });
+                  
+                  // 新しいロールモデルグループに追加
+                  if (!clients.has(specificRoleModelId)) {
+                    clients.set(specificRoleModelId, new Set());
+                  }
+                  clients.get(specificRoleModelId)?.add(ws);
+                  
+                  // クライアントにサブスクリプション確認を送信
+                  try {
+                    ws.send(JSON.stringify({
+                      type: 'subscription_confirmed',
+                      message: `ロールモデル ${specificRoleModelId} の購読を開始しました`,
+                      roleModelId: specificRoleModelId,
+                      timestamp: new Date().toISOString()
+                    }));
+                  } catch (sendError) {
+                    console.error(`サブスクリプション確認メッセージ送信エラー: ${sendError}`);
+                  }
+                }
+              }
+            } catch (jsonError) {
+              console.error('JSONメッセージの解析に失敗:', jsonError);
             }
           } catch (messageError) {
             console.error(`WebSocketメッセージ処理エラー: ${messageError}`);
@@ -363,6 +408,29 @@ export function sendMessageToRoleModelViewers(
   type: string = 'info',
   data?: any
 ): void {
+  // 接続されているクライアントが存在するかチェック
+  let activeClientsCount = 0;
+  clients.forEach((clientSet) => {
+    activeClientsCount += clientSet.size;
+  });
+  
+  // 接続されているクライアントがない場合
+  if (activeClientsCount === 0) {
+    console.log(`接続されているクライアントがないため、メッセージを送信できません: "${message}"`);
+    
+    // 知識グラフ更新の場合は特別なログを出力
+    if (type === 'knowledge_graph_update' || type === 'knowledge-graph-update' || type === 'graph-update') {
+      console.log('知識グラフが更新されました。クライアント再接続時に最新データが取得されます。');
+      
+      // データベースに保存されたことを確認する追加ログ
+      if (data?.nodes?.length) {
+        console.log(`知識グラフ更新の詳細: ${data.nodes.length}ノード, ${data.edges?.length || 0}エッジ`);
+      }
+    }
+    
+    return;
+  }
+
   // すべてのロールモデルクライアントを取得
   clients.forEach((clientSet, roleModelId) => {
     if (clientSet.size === 0) return;
@@ -380,12 +448,16 @@ export function sendMessageToRoleModelViewers(
     // クライアントに送信
     clientSet.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(message_json);
+        try {
+          client.send(message_json);
+        } catch (error) {
+          console.error(`クライアントへのメッセージ送信エラー: ${error}`);
+        }
       }
     });
   });
 
-  console.log(`全クライアントにメッセージを送信: "${message}"`);
+  console.log(`${activeClientsCount}個のクライアントにメッセージを送信: "${message}"`);
 }
 
 export function sendCompletionMessage(
@@ -431,6 +503,67 @@ export function sendCompletionMessage(
     stage: 'complete',
     subStage: data?.subStage || ''
   });
+}
+
+/**
+ * 知識グラフ更新メッセージを送信する関数
+ * @param roleModelId ロールモデルID
+ * @param graphData 知識グラフデータ（ノードとエッジの配列）
+ * @param updateType 更新タイプ（'create', 'update', 'delete'）
+ */
+export function sendKnowledgeGraphUpdate(
+  roleModelId: string,
+  graphData: { nodes: any[], edges: any[] },
+  updateType: 'create' | 'update' | 'delete' = 'update'
+): void {
+  const clientSet = clients.get(roleModelId);
+  
+  // 複数形式でのメッセージタイプ（クライアントの互換性確保のため）
+  const messageTypes = [
+    'knowledge_graph_update',
+    'knowledge-graph-update',
+    'graph-update'
+  ];
+  
+  // 詳細ログ - 接続クライアント
+  if (!clientSet || clientSet.size === 0) {
+    console.log(`ロールモデル ${roleModelId} に接続されたクライアントはありません`);
+    console.log(`知識グラフデータ（${graphData.nodes.length}ノード、${graphData.edges.length}エッジ）は保存されました`);
+    console.log('クライアントが接続された時点で最新データが利用可能になります');
+    return;
+  }
+  
+  // データの準備
+  const basePayload = {
+    roleModelId,
+    timestamp: new Date().toISOString(),
+    message: `知識グラフが${updateType === 'create' ? '作成' : updateType === 'update' ? '更新' : '削除'}されました`,
+    updateType,
+    ...graphData
+  };
+  
+  // 各タイプでメッセージを送信（クライアントの互換性確保のため）
+  messageTypes.forEach(type => {
+    const payload = {
+      ...basePayload,
+      type
+    };
+    
+    const message_json = JSON.stringify(payload);
+    
+    // 接続されているすべてのクライアントに送信
+    clientSet.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(message_json);
+        } catch (error) {
+          console.error(`知識グラフ更新メッセージ送信エラー: ${error}`);
+        }
+      }
+    });
+  });
+  
+  console.log(`知識グラフ更新を送信: ${roleModelId}, ${graphData.nodes.length}ノード, ${graphData.edges.length}エッジ`);
 }
 
 /**

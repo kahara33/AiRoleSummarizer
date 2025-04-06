@@ -293,6 +293,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       // roleModelIdが一致するか、data.roleModelIdがundefinedの場合（後方互換性のため）
       if (!data.roleModelId || data.roleModelId === roleModelId) {
         console.log('グラフデータの再取得をトリガー');
+        console.log(`更新内容：${data.nodes?.length || 0}ノード、${data.edges?.length || 0}エッジ`);
         fetchGraphData();
       }
     };
@@ -328,6 +329,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     // イベントリスナーの登録
     socket.addEventListener('open', handleSocketOpen);
     addSocketListener('knowledge-graph-update', handleGraphUpdate);
+    addSocketListener('knowledge_graph_update', handleGraphUpdate); // アンダースコア版も登録
+    addSocketListener('graph-update', handleGraphUpdate); // ハイフン版も登録
     
     // 定期的な再接続と購読の確認（5秒ごと）
     const intervalId = setInterval(() => {
@@ -344,6 +347,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       // イベントリスナーの解除
       socket.removeEventListener('open', handleSocketOpen);
       removeSocketListener('knowledge-graph-update', handleGraphUpdate);
+      removeSocketListener('knowledge_graph_update', handleGraphUpdate);
+      removeSocketListener('graph-update', handleGraphUpdate);
       clearInterval(intervalId);
     };
   }, [roleModelId, fetchGraphData]);
