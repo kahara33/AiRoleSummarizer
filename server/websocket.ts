@@ -112,7 +112,7 @@ export function sendProgressUpdate(
   }
 
   const data = {
-    type: 'progress_update',
+    type: 'progress',
     message,
     progress: Math.min(100, Math.max(0, progress)), // 0-100の範囲に制限
     roleModelId,
@@ -196,7 +196,7 @@ export function sendAgentThoughts(
   }
 
   const data = {
-    type: 'agent_thoughts',
+    type: 'agent-thoughts',
     agentName,
     thoughts,
     roleModelId,

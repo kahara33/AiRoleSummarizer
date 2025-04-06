@@ -23,6 +23,15 @@ interface CreateCollectionPlanButtonProps {
   hasKnowledgeGraph: boolean;
 }
 
+type ProgressState = {
+  message: string;
+  progress: number;
+  stage?: string;
+  subStage?: string;
+  error?: boolean;
+  errorMessage?: string;
+};
+
 export default function CreateCollectionPlanButton({
   roleModelId,
   industryIds,
@@ -37,7 +46,7 @@ export default function CreateCollectionPlanButton({
   // WebSocketのURL生成関数
   const getCorrectSocketUrl = (id: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/ws?roleModelId=${id}`;
+    return `${protocol}//${window.location.host}/ws?target=${id}`;
   };
 
   // WebSocket接続用URL
@@ -48,8 +57,8 @@ export default function CreateCollectionPlanButton({
   // WebSocketフックの使用
   const { isConnected, connect, disconnect } = useWebSocket(socketUrl, {
     onProgressUpdate: (data: Record<string, any>) => {
-      // 進捗状況はChatPanelで表示されるのでここでは何もしない
-      console.log('プラン作成進捗:', data);
+      // 進捗状況をトーストで表示（ChatPanelはすでに自動表示するのでここでは何もしない）
+      console.log('Progress update:', data);
     },
     onError: (data: Record<string, any>) => {
       toast({
