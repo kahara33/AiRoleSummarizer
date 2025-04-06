@@ -395,7 +395,7 @@ export function sendProgressUpdate(
  */
 async function handleAgentChatMessage(userId: string, roleModelId: string, message: string): Promise<void> {
   try {
-    // ロールモデルの情報を取得（実装に応じて）
+    console.log(`[WebSocket] ユーザー ${userId} からのチャットメッセージを処理: "${message.substring(0, 50)}..."`, { roleModelId });
     
     // 処理中メッセージを送信
     sendMessageToRoleModelViewers('agent_thoughts', {
@@ -406,6 +406,252 @@ async function handleAgentChatMessage(userId: string, roleModelId: string, messa
       timestamp: new Date().toISOString()
     }, roleModelId);
     
+    // コマンド検出 - 特定のコマンドパターンを認識
+    const addNodePattern = /^\/add(?:node)?\s+(.+)$/i;
+    const explainNodePattern = /^\/explain\s+(.+)$/i;
+    const linkNodesPattern = /^\/link\s+(.+)\s+(?:to|and|with)\s+(.+)(?:\s+(?:as|with|label)\s+(.+))?$/i;
+    
+    // コマンドに基づいた直接処理
+    const addNodeMatch = message.match(addNodePattern);
+    const explainNodeMatch = message.match(explainNodePattern);
+    const linkNodesMatch = message.match(linkNodesPattern);
+    
+    if (addNodeMatch) {
+      // ノード追加コマンド検出
+      const nodeName = addNodeMatch[1].trim();
+      
+      // コマンド認識メッセージを送信
+      sendMessageToRoleModelViewers('agent_thoughts', {
+        agentName: 'AIアシスタント',
+        agentType: 'assistant',
+        thoughts: `ノード追加コマンドを検出しました: "${nodeName}"`,
+        stage: 'command-detected',
+        timestamp: new Date().toISOString()
+      }, roleModelId);
+      
+      // ノード追加のために知識グラフ更新データを生成
+      const updateData = {
+        nodes: [{
+          name: nodeName,
+          level: 2, // デフォルトレベル
+          type: 'keyword',
+          description: `ユーザーによって追加された ${nodeName} ノード`
+        }],
+        edges: []
+      };
+      
+      try {
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'グラフ更新エージェント',
+          agentType: 'knowledge-graph',
+          thoughts: `ノード "${nodeName}" を知識グラフに追加しています...`,
+          stage: 'adding-node',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+        
+        // 知識グラフ更新処理を実行
+        const { updateKnowledgeGraphByChat } = await import('./azure-openai');
+        const updateResult = await updateKnowledgeGraphByChat(roleModelId, updateData);
+        
+        if (updateResult) {
+          // 成功メッセージを送信
+          sendMessageToRoleModelViewers('agent_thoughts', {
+            agentName: 'AIアシスタント',
+            agentType: 'assistant',
+            thoughts: `ノード "${nodeName}" を知識グラフに追加しました。`,
+            stage: 'response',
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+          
+          // グラフが更新されたことを通知
+          sendMessageToRoleModelViewers('knowledge-graph-update', {
+            message: `ノード "${nodeName}" が追加されました`,
+            updateType: 'add-node',
+            nodeNames: [nodeName],
+            roleModelId,
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+        } else {
+          sendMessageToRoleModelViewers('agent_thoughts', {
+            agentName: 'AIアシスタント',
+            agentType: 'assistant',
+            thoughts: `ノード "${nodeName}" の追加に失敗しました。`,
+            stage: 'response',
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+        }
+      } catch (error) {
+        console.error('ノード追加エラー:', error);
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'AIアシスタント',
+          agentType: 'assistant',
+          thoughts: `ノード追加中にエラーが発生しました: ${error.message}`,
+          stage: 'response',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+      }
+      return;
+    } else if (linkNodesMatch) {
+      // ノード接続コマンド検出
+      const sourceNodeName = linkNodesMatch[1].trim();
+      const targetNodeName = linkNodesMatch[2].trim();
+      const relationLabel = linkNodesMatch[3]?.trim() || 'relates to';
+      
+      // コマンド認識メッセージを送信
+      sendMessageToRoleModelViewers('agent_thoughts', {
+        agentName: 'AIアシスタント',
+        agentType: 'assistant',
+        thoughts: `ノード接続コマンドを検出しました: "${sourceNodeName}" から "${targetNodeName}" へ (関係: "${relationLabel}")`,
+        stage: 'command-detected',
+        timestamp: new Date().toISOString()
+      }, roleModelId);
+      
+      try {
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'グラフ更新エージェント',
+          agentType: 'knowledge-graph',
+          thoughts: `ノード "${sourceNodeName}" と "${targetNodeName}" を関係 "${relationLabel}" で接続しています...`,
+          stage: 'linking-nodes',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+        
+        // ノード間の関係を追加するためのデータを作成
+        const updateData = {
+          nodes: [], // 既存ノードを使用するため空配列
+          edges: [{
+            source: sourceNodeName, // 名前で指定（updateKnowledgeGraphByChat関数内でIDに変換される）
+            target: targetNodeName, // 名前で指定
+            label: relationLabel,
+            strength: 3 // デフォルト強度
+          }]
+        };
+        
+        // 知識グラフ更新処理を実行
+        const { updateKnowledgeGraphByChat } = await import('./azure-openai');
+        const updateResult = await updateKnowledgeGraphByChat(roleModelId, updateData);
+        
+        if (updateResult) {
+          // 成功メッセージを送信
+          sendMessageToRoleModelViewers('agent_thoughts', {
+            agentName: 'AIアシスタント',
+            agentType: 'assistant',
+            thoughts: `ノード "${sourceNodeName}" と "${targetNodeName}" を関係 "${relationLabel}" で接続しました。`,
+            stage: 'response',
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+          
+          // グラフが更新されたことを通知
+          sendMessageToRoleModelViewers('knowledge-graph-update', {
+            message: `ノード "${sourceNodeName}" と "${targetNodeName}" の間に関係が追加されました`,
+            updateType: 'add-edge',
+            sourceNode: sourceNodeName,
+            targetNode: targetNodeName,
+            label: relationLabel,
+            roleModelId,
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+        } else {
+          sendMessageToRoleModelViewers('agent_thoughts', {
+            agentName: 'AIアシスタント',
+            agentType: 'assistant',
+            thoughts: `ノード "${sourceNodeName}" と "${targetNodeName}" の接続に失敗しました。ノードが存在するか確認してください。`,
+            stage: 'response',
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+        }
+      } catch (error) {
+        console.error('ノード接続エラー:', error);
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'AIアシスタント',
+          agentType: 'assistant',
+          thoughts: `ノード接続中にエラーが発生しました: ${error.message}`,
+          stage: 'response',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+      }
+      return;
+    } else if (explainNodeMatch) {
+      // ノード説明コマンド検出
+      const nodeName = explainNodeMatch[1].trim();
+      
+      // コマンド認識メッセージを送信
+      sendMessageToRoleModelViewers('agent_thoughts', {
+        agentName: 'AIアシスタント',
+        agentType: 'assistant',
+        thoughts: `ノード説明コマンドを検出しました: "${nodeName}"`,
+        stage: 'command-detected',
+        timestamp: new Date().toISOString()
+      }, roleModelId);
+      
+      try {
+        // 処理中メッセージを送信
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'AIアシスタント',
+          agentType: 'assistant',
+          thoughts: `"${nodeName}" について説明を生成しています...`,
+          stage: 'processing',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+        
+        // Azure OpenAIを使用して説明を生成
+        const { callAzureOpenAI } = await import('./azure-openai');
+        const explainMessages = [
+          {
+            role: 'system',
+            content: `あなたは知識グラフのノードについて詳細な説明を生成するAIアシスタントです。"${nodeName}"というノードについて、関連する知識や概念を含めた詳細な説明を提供してください。説明は簡潔かつ情報量が多いものにしてください。`
+          },
+          {
+            role: 'user',
+            content: `"${nodeName}"について詳細に説明してください。`
+          }
+        ];
+        
+        const explanation = await callAzureOpenAI(explainMessages);
+        
+        // 生成した説明を送信
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'AIアシスタント',
+          agentType: 'assistant',
+          thoughts: `${nodeName}についての説明:\n\n${explanation}`,
+          stage: 'response',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+        
+        // ノードの説明を更新するためのデータを作成
+        const updateData = {
+          nodes: [{
+            name: nodeName,
+            description: explanation // AIが生成した説明
+          }],
+          edges: []
+        };
+        
+        // 知識グラフ更新処理を実行（ノードの説明を更新）
+        const { updateKnowledgeGraphByChat } = await import('./azure-openai');
+        await updateKnowledgeGraphByChat(roleModelId, updateData);
+        
+        // グラフが更新されたことを通知
+        sendMessageToRoleModelViewers('knowledge-graph-update', {
+          message: `ノード "${nodeName}" の説明が更新されました`,
+          updateType: 'update-node',
+          nodeNames: [nodeName],
+          roleModelId,
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+      } catch (error) {
+        console.error('ノード説明生成エラー:', error);
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'AIアシスタント',
+          agentType: 'assistant',
+          thoughts: `"${nodeName}" の説明生成中にエラーが発生しました: ${error.message}`,
+          stage: 'response',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+      }
+      return;
+    }
+    
+    // 通常の質問に対する処理（コマンドでない場合）
     // Azure OpenAIを使用して応答を生成
     const { callAzureOpenAI } = await import('./azure-openai');
     
@@ -413,7 +659,14 @@ async function handleAgentChatMessage(userId: string, roleModelId: string, messa
     const messages = [
       {
         role: 'system',
-        content: 'あなたは自律型情報収集サービスのAIアシスタントです。ユーザーのロールに関する質問や知識グラフへの追加・変更依頼に対応してください。応答は簡潔かつ親切に行ってください。'
+        content: `あなたは自律型情報収集サービスのAIアシスタントです。ユーザーのロールに関する質問や知識グラフへの追加・変更依頼に対応してください。応答は簡潔かつ親切に行ってください。
+
+指示に応じて知識グラフの操作も可能です。ユーザーに以下のコマンドを紹介してください：
+- /add [ノード名] - 新しいノードを追加します
+- /link [ノード1] to [ノード2] as [関係] - 二つのノードを接続します
+- /explain [ノード名] - 指定されたノードについて詳細な説明を生成します
+
+また、自然言語での依頼（例: "AWSについての知識を追加して"）も受け付けることを伝えてください。`
       },
       {
         role: 'user',
