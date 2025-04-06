@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, boolean, uuid, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp, boolean, uuid, primaryKey, doublePrecision } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
@@ -238,7 +238,7 @@ export const knowledgeEdges = pgTable('knowledge_edges', {
     .notNull()
     .references(() => knowledgeNodes.id, { onDelete: 'cascade' }),
   label: text('label'),
-  strength: integer('strength').default(1).notNull(),
+  strength: doublePrecision('strength').default(0.5).notNull(),
   roleModelId: uuid('role_model_id')
     .notNull()
     .references(() => roleModels.id, { onDelete: 'cascade' }),

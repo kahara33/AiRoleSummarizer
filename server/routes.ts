@@ -811,13 +811,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
               
               for (const edge of result.data.edges) {
+                // 数値に変換
+                const strengthValue = typeof edge.strength === 'string' ? parseFloat(edge.strength) : (edge.strength || 0.5);
+                
                 await db.insert(knowledgeEdges).values({
                   id: randomUUID(),
                   source: edge.source,
                   target: edge.target,
                   label: edge.label || null,
                   roleModelId,
-                  strength: edge.strength || 0.5
+                  strength: strengthValue
                 });
                 
                 // Neo4jにも保存
@@ -826,7 +829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   target: edge.target,
                   label: edge.label || null,
                   roleModelId,
-                  strength: edge.strength || 0.5
+                  strength: strengthValue
                 });
               }
               
