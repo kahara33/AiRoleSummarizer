@@ -1,9 +1,33 @@
 import { storage } from './storage';
 import { 
   InsertKnowledgeNode, 
-  InsertKnowledgeEdge,
-  KnowledgeGraphData 
+  InsertKnowledgeEdge 
 } from '@shared/schema';
+
+// 知識グラフデータの型定義
+// ノードデータの型
+export type KnowledgeNodeData = {
+  name: string;
+  level: number;
+  type?: string;
+  parentId?: string | null;
+  description?: string | null;
+  color?: string | null;
+};
+
+// エッジデータの型
+export type KnowledgeEdgeData = {
+  source: string;
+  target: string;
+  label?: string | null;
+  strength?: number;
+};
+
+// 知識グラフデータの型定義
+export type KnowledgeGraphData = {
+  nodes: KnowledgeNodeData[];
+  edges: KnowledgeEdgeData[];
+};
 
 import fetch from 'node-fetch';
 
@@ -12,21 +36,32 @@ const getAPIKey = (): string => {
   const key = process.env.AZURE_OPENAI_KEY || 
               process.env.AZURE_OPENAI_API_KEY || 
               '';
-  console.log(`Azure OpenAI Key configured: ${key ? 'Yes (Length: ' + key.length + ')' : 'No'}`);
+  console.log(`[Azure OpenAI] APIキー設定状況: ${key ? '設定済み (長さ: ' + key.length + ')' : '未設定'}`);
+  
+  if (!key || key.length < 10) { // 有効なAPIキーの最小長をチェック
+    console.warn('[Azure OpenAI] 警告: Azure OpenAI APIキーが正しく設定されていないか、短すぎます');
+  }
+  
   return key;
 };
 
 // Function to get Azure OpenAI endpoint from environment variables
 const getEndpoint = (): string => {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT || '';
-  console.log(`Azure OpenAI Endpoint: ${endpoint}`);
+  console.log(`[Azure OpenAI] エンドポイント: ${endpoint || '未設定'}`);
+  
+  if (!endpoint || !endpoint.startsWith('https://')) {
+    console.warn('[Azure OpenAI] 警告: Azure OpenAI エンドポイントが正しく設定されていないようです。通常はhttps://で始まります。');
+  }
+  
   return endpoint;
 };
 
 // Function to get Azure OpenAI deployment name from environment variables
 const getDeploymentName = (): string => {
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
-  console.log(`Azure OpenAI Deployment: ${deployment}`);
+  console.log(`[Azure OpenAI] デプロイメント名: ${deployment}`);
+  
   return deployment;
 };
 
@@ -37,12 +72,22 @@ export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTok
   const deploymentName = getDeploymentName();
   
   if (!apiKey || !endpoint) {
+    console.error('[Azure OpenAI] エラー: API キーまたはエンドポイントが設定されていません');
     throw new Error('Azure OpenAI API key or endpoint not configured');
   }
   
   const url = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2024-02-15-preview`;
   
   try {
+    console.log(`[Azure OpenAI] リクエスト送信: ${url} (メッセージ数: ${messages.length})`);
+    console.log(`[Azure OpenAI] リクエスト設定: 温度=${temperature}, 最大トークン=${maxTokens}`);
+    
+    // リクエスト内容の簡易ログ
+    const userMessages = messages.filter(msg => msg.role === 'user').map(msg => 
+      msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '')
+    );
+    console.log(`[Azure OpenAI] ユーザーメッセージプレビュー:`, userMessages);
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -53,12 +98,13 @@ export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTok
         messages,
         temperature,
         max_tokens: maxTokens,
-        response_format: { type: "json_object" }
+        response_format: { type: "text" } // JSONフォーマットを強制しない
       })
     });
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[Azure OpenAI] API エラーレスポンス: ${response.status} ${errorText}`);
       throw new Error(`Azure OpenAI API error: ${response.status} ${errorText}`);
     }
     
@@ -72,14 +118,47 @@ export async function callAzureOpenAI(messages: any[], temperature = 0.7, maxTok
     
     // エージェントモジュール用に応答データから直接コンテンツを抽出して返す
     if (data && data.choices && data.choices.length > 0) {
-      return data.choices[0].message.content;
+      const content = data.choices[0].message.content;
+      console.log(`[Azure OpenAI] 応答受信: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`);
+      return content;
     } else {
+      console.error('[Azure OpenAI] 応答構造が無効です:', data);
       throw new Error('Invalid response structure from Azure OpenAI API');
     }
   } catch (error) {
-    console.error('Error calling Azure OpenAI:', error);
+    console.error('[Azure OpenAI] 呼び出しエラー:', error);
+    
+    // エラーメッセージを明確に
+    if (error instanceof Error) {
+      if (error.message.includes('ENOTFOUND') || error.message.includes('ETIMEDOUT')) {
+        throw new Error(`Azure OpenAIエンドポイントに接続できません。ネットワーク接続またはエンドポイントURLを確認してください: ${error.message}`);
+      } else if (error.message.includes('401')) {
+        throw new Error(`Azure OpenAI認証エラー。APIキーが正しいか確認してください: ${error.message}`);
+      } else if (error.message.includes('429')) {
+        throw new Error(`Azure OpenAIレート制限に達しました。しばらく待ってから再試行してください: ${error.message}`);
+      } else if (error.message.includes('500')) {
+        throw new Error(`Azure OpenAIサーバーエラー。しばらく待ってから再試行してください: ${error.message}`);
+      }
+    }
+    
     throw error;
   }
+}
+
+// タグの型定義
+interface Tag {
+  id: string;
+  name: string;
+  category: string;
+}
+
+// サマリー挿入用の型定義
+interface InsertSummary {
+  title: string;
+  content: string;
+  sources: string[];
+  roleModelId: string;
+  feedback: number;
 }
 
 // Function to generate a summary using Azure OpenAI
@@ -220,30 +299,195 @@ export async function collectInformation(
   }
 }
 
-// Type definitions for knowledge graph generation
-type KnowledgeNodeData = {
-  name: string;
-  level: number;
-  type?: string;
-  parentId?: string | null;
-  description?: string | null;
-  color?: string | null;
-};
+// 既に冒頭で定義したので削除
 
-type KnowledgeEdgeData = {
-  source: string;
-  target: string;
-  label?: string | null;
-  strength?: number;
-};
+/**
+ * チャットメッセージに基づいて知識グラフを更新する関数
+ * @param roleModelId ロールモデルID
+ * @param graphUpdateData グラフ更新データ 
+ * @returns 更新に成功したかどうか
+ */
+export async function updateKnowledgeGraphByChat(
+  roleModelId: string,
+  graphUpdateData: any
+): Promise<boolean> {
+  try {
+    console.log(`[Azure OpenAI] チャットに基づく知識グラフ更新を開始: ロールモデル ${roleModelId}`);
 
-type KnowledgeGraphData = {
-  nodes: KnowledgeNodeData[];
-  edges: KnowledgeEdgeData[];
-};
+    // 更新データが有効かチェック
+    if (!graphUpdateData || typeof graphUpdateData !== 'object') {
+      console.error('[Azure OpenAI] 無効な知識グラフ更新データ:', graphUpdateData);
+      return false;
+    }
+
+    // ノードとエッジのプロパティが存在するかチェック
+    const hasNodes = graphUpdateData.nodes && Array.isArray(graphUpdateData.nodes);
+    const hasEdges = graphUpdateData.edges && Array.isArray(graphUpdateData.edges);
+
+    if (!hasNodes && !hasEdges) {
+      console.warn('[Azure OpenAI] 更新するノードまたはエッジがありません');
+      return false;
+    }
+
+    // 既存のノードを取得（名前からIDへのマッピング用）
+    const existingNodes = await storage.getKnowledgeNodesByRoleModel(roleModelId);
+    
+    // ノードの追加
+    if (hasNodes) {
+      for (const node of graphUpdateData.nodes) {
+        // 必須フィールドのチェック
+        if (!node.name) {
+          console.warn('[Azure OpenAI] ノード名が指定されていません:', node);
+          continue;
+        }
+
+        // 既存のノードと重複していないかチェック
+        const existingNode = existingNodes.find(n => n.name.toLowerCase() === node.name.toLowerCase());
+        if (existingNode) {
+          console.log(`[Azure OpenAI] 既存のノードが見つかりました: ${node.name} (${existingNode.id})`);
+          continue;
+        }
+
+        // 親ノードの処理（名前で指定されている場合はIDに変換）
+        let parentId = node.parentId || null;
+        if (parentId && typeof parentId === 'string') {
+          // 親ノードがUUIDでなく名前で指定されている場合
+          if (!isUUID(parentId)) {
+            const parentNode = existingNodes.find(n => 
+              n.name.toLowerCase() === parentId.toLowerCase()
+            );
+            
+            if (parentNode) {
+              parentId = parentNode.id;
+            } else {
+              console.warn(`[Azure OpenAI] 親ノード "${parentId}" が見つかりません。中心ノードに接続します。`);
+              // 中心ノード（level 0）を探す
+              const centralNode = existingNodes.find(n => n.level === 0);
+              parentId = centralNode ? centralNode.id : null;
+            }
+          }
+        }
+
+        // ノードの作成
+        const nodeData: InsertKnowledgeNode = {
+          name: node.name,
+          roleModelId,
+          level: node.level || 2, // デフォルトはサブカテゴリレベル
+          type: node.type || 'knowledge',
+          parentId,
+          description: node.description || null,
+          color: node.color || null
+        };
+
+        try {
+          const createdNode = await storage.createKnowledgeNode(nodeData);
+          console.log(`[Azure OpenAI] 新しいノードを作成しました: ${node.name} (${createdNode.id})`);
+          
+          // 作成したノードを既存ノードリストに追加
+          existingNodes.push(createdNode);
+
+          // 親ノードが指定されている場合は接続する
+          if (parentId) {
+            const edgeData: InsertKnowledgeEdge = {
+              sourceId: parentId,
+              targetId: createdNode.id,
+              roleModelId,
+              label: node.parentRelation || "contains",
+              strength: 3
+            };
+            
+            await storage.createKnowledgeEdge(edgeData);
+            console.log(`[Azure OpenAI] ノード間接続を作成: ${parentId} -> ${createdNode.id}`);
+          }
+        } catch (error) {
+          console.error(`[Azure OpenAI] ノード "${node.name}" の作成に失敗:`, error);
+        }
+      }
+    }
+
+    // エッジの追加
+    if (hasEdges) {
+      for (const edge of graphUpdateData.edges) {
+        // 必須フィールドのチェック
+        if (!edge.source || !edge.target) {
+          console.warn('[Azure OpenAI] エッジのsourceまたはtargetが指定されていません:', edge);
+          continue;
+        }
+
+        // ソースノードとターゲットノードのIDを解決
+        let sourceId = edge.source;
+        let targetId = edge.target;
+
+        // 名前からIDへの変換（必要な場合）
+        if (!isUUID(sourceId)) {
+          const sourceNode = existingNodes.find(n => 
+            n.name.toLowerCase() === sourceId.toLowerCase()
+          );
+          if (sourceNode) {
+            sourceId = sourceNode.id;
+          } else {
+            console.warn(`[Azure OpenAI] ソースノード "${sourceId}" が見つかりません。このエッジをスキップします。`);
+            continue;
+          }
+        }
+
+        if (!isUUID(targetId)) {
+          const targetNode = existingNodes.find(n => 
+            n.name.toLowerCase() === targetId.toLowerCase()
+          );
+          if (targetNode) {
+            targetId = targetNode.id;
+          } else {
+            console.warn(`[Azure OpenAI] ターゲットノード "${targetId}" が見つかりません。このエッジをスキップします。`);
+            continue;
+          }
+        }
+
+        // 既存のエッジをチェック
+        const existingEdges = await storage.getKnowledgeEdgesByRoleModel(roleModelId);
+        const duplicateEdge = existingEdges.find(e => 
+          e.sourceId === sourceId && e.targetId === targetId
+        );
+
+        if (duplicateEdge) {
+          console.log(`[Azure OpenAI] 既存のエッジが見つかりました: ${sourceId} -> ${targetId}`);
+          continue;
+        }
+
+        // エッジの作成
+        const edgeData: InsertKnowledgeEdge = {
+          sourceId,
+          targetId,
+          roleModelId,
+          label: edge.label || null,
+          strength: edge.strength || 2
+        };
+
+        try {
+          await storage.createKnowledgeEdge(edgeData);
+          console.log(`[Azure OpenAI] 新しいエッジを作成しました: ${sourceId} -> ${targetId}`);
+        } catch (error) {
+          console.error(`[Azure OpenAI] エッジの作成に失敗: ${sourceId} -> ${targetId}:`, error);
+        }
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('[Azure OpenAI] 知識グラフ更新エラー:', error);
+    return false;
+  }
+}
+
+// UUIDかどうかを判定する関数
+function isUUID(str: string): boolean {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(str);
+}
 
 // Function to generate a knowledge graph for a role model using Azure OpenAI
 export async function generateKnowledgeGraph(
+  roleModelId: string,
   roleName: string,
   roleDescription: string,
   industries: string[],
@@ -423,155 +667,15 @@ export async function generateKnowledgeGraph(
     }
     
     console.log(`Successfully created knowledge graph for ${roleName} with ${graphData.nodes.length} nodes and ${graphData.edges.length} edges`);
-    return true;
+    return graphData;
     
   } catch (error) {
     console.error('Error generating knowledge graph:', error);
-    return false;
+    throw error;
   }
 }
 
-// Function to update knowledge graph based on chat prompt
-export async function updateKnowledgeGraphByChat(
-  roleModelId: string,
-  prompt: string
-): Promise<boolean> {
-  try {
-    console.log(`Updating knowledge graph for role model ${roleModelId} with prompt: ${prompt}`);
-    
-    // Get existing nodes and edges
-    const existingNodes = await storage.getKnowledgeNodes(roleModelId);
-    const existingEdges = await storage.getKnowledgeEdges(roleModelId);
-    
-    if (existingNodes.length === 0) {
-      throw new Error("ナレッジグラフが存在しません。まず基本的なグラフを生成してください。");
-    }
-    
-    // Format existing data for context
-    const nodesInfo = existingNodes.map(node => 
-      `ID: ${node.id}, 名前: ${node.name}, レベル: ${node.level}, タイプ: ${node.type}, 親: ${node.parentId || 'なし'}`
-    ).join('\n');
-    
-    const edgesInfo = existingEdges.map(edge => 
-      `ID: ${edge.id}, ソース: ${edge.sourceId}, ターゲット: ${edge.targetId}, ラベル: ${edge.label || 'なし'}`
-    ).join('\n');
-    
-    // Ask OpenAI for graph updates
-    const messages = [
-      {
-        role: "system",
-        content: "あなたは知識グラフを更新する専門家です。ユーザーの指示に基づいて既存の知識グラフを拡張・修正します。\n\n現在の知識グラフ構造は以下の通りです：\n\n【ノード一覧】\n" + nodesInfo + "\n\n【エッジ（関連性）一覧】\n" + edgesInfo + "\n\nユーザーの指示に基づいて、追加・修正すべきノードとエッジを提案してください。出力は以下のJSON形式で行ってください：\n\n{\n  \"addNodes\": [\n    {\n      \"name\": \"新しいノード名\",\n      \"level\": 2,\n      \"type\": \"subcategory\",\n      \"parentId\": \"親ノードのID\",\n      \"description\": \"ノードの説明\",\n      \"color\": \"#hexcode\"\n    },\n    ...\n  ],\n  \"addEdges\": [\n    {\n      \"sourceId\": \"始点ノードのID\",\n      \"targetId\": \"終点ノードのID\",\n      \"label\": \"関係性の説明\",\n      \"strength\": 3\n    },\n    ...\n  ],\n  \"updateNodes\": [\n    {\n      \"id\": \"更新するノードのID\",\n      \"name\": \"新しい名前\",\n      \"description\": \"新しい説明\",\n      \"color\": \"新しい色\"\n    },\n    ...\n  ]\n}\n\n注意点：\n1. 新しいノードを追加する場合は、必ず既存のノード構造と整合性を保つこと\n2. エッジを追加する場合は、実在するノードIDを使用すること\n3. ノードを更新する場合は、必ず実在するノードIDを使用すること\n4. ユーザーの指示に直接応答せず、JSONデータのみを出力すること"
-      },
-      {
-        role: "user",
-        content: `以下のユーザー指示に基づいて知識グラフを更新してください：\n\n"${prompt}"`
-      }
-    ];
-    
-    const responseContent = await callAzureOpenAI(messages, 0.7, 2000);
-    const updates = JSON.parse(responseContent);
-    
-    // Process node additions
-    if (updates.addNodes && Array.isArray(updates.addNodes)) {
-      for (const node of updates.addNodes) {
-        // Find parent ID if specified by name instead of ID
-        let parentId = node.parentId;
-        if (parentId && !existingNodes.some(n => n.id === parentId)) {
-          // This might be a node name, not an ID
-          const parentNode = existingNodes.find(n => n.name === parentId);
-          if (parentNode) {
-            parentId = parentNode.id;
-          } else {
-            parentId = null;
-          }
-        }
-        
-        const nodeData: InsertKnowledgeNode = {
-          name: node.name,
-          roleModelId,
-          level: node.level || 2,
-          type: node.type || 'keyword',
-          parentId: parentId,
-          description: node.description || null,
-          color: node.color || null
-        };
-        
-        const createdNode = await storage.createKnowledgeNode(nodeData);
-        
-        // Connect to parent if exists
-        if (parentId) {
-          const edgeData: InsertKnowledgeEdge = {
-            sourceId: parentId,
-            targetId: createdNode.id,
-            roleModelId,
-            label: "contains",
-            strength: 3
-          };
-          
-          await storage.createKnowledgeEdge(edgeData);
-        }
-        
-        console.log(`Created new node: ${node.name} -> ${createdNode.id}`);
-      }
-    }
-    
-    // Process edge additions
-    if (updates.addEdges && Array.isArray(updates.addEdges)) {
-      for (const edge of updates.addEdges) {
-        // Ensure source and target nodes exist
-        let sourceId = edge.sourceId;
-        let targetId = edge.targetId;
-        
-        // Check if IDs are actually node names
-        if (sourceId && !existingNodes.some(n => n.id === sourceId)) {
-          const sourceNode = existingNodes.find(n => n.name === sourceId);
-          if (sourceNode) sourceId = sourceNode.id;
-        }
-        
-        if (targetId && !existingNodes.some(n => n.id === targetId)) {
-          const targetNode = existingNodes.find(n => n.name === targetId);
-          if (targetNode) targetId = targetNode.id;
-        }
-        
-        if (!sourceId || !targetId) {
-          console.warn(`Cannot create edge: Invalid source or target ID`);
-          continue;
-        }
-        
-        const edgeData: InsertKnowledgeEdge = {
-          sourceId,
-          targetId,
-          roleModelId,
-          label: edge.label || null,
-          strength: edge.strength || 2
-        };
-        
-        const createdEdge = await storage.createKnowledgeEdge(edgeData);
-        console.log(`Created new edge: ${sourceId} -> ${targetId}`);
-      }
-    }
-    
-    // Process node updates
-    if (updates.updateNodes && Array.isArray(updates.updateNodes)) {
-      for (const nodeUpdate of updates.updateNodes) {
-        if (!nodeUpdate.id) continue;
-        
-        const updateData: Partial<InsertKnowledgeNode> = {};
-        if (nodeUpdate.name) updateData.name = nodeUpdate.name;
-        if (nodeUpdate.description) updateData.description = nodeUpdate.description;
-        if (nodeUpdate.color) updateData.color = nodeUpdate.color;
-        
-        await storage.updateKnowledgeNode(nodeUpdate.id, updateData);
-        console.log(`Updated node: ${nodeUpdate.id}`);
-      }
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error updating knowledge graph by chat:', error);
-    return false;
-  }
-}
+// 廃止した古い関数のコードを削除（重複関数）
 
 // Function to generate knowledge graph for a specific node
 export async function generateKnowledgeGraphForNode(
@@ -703,15 +807,14 @@ export async function generateKnowledgeGraphForNode(
 
 // Template function for business architect role
 function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
-  return {
-    nodes: [
-      {
-        name: "ビジネスアーキテクト",
-        level: 0,
-        type: "central",
-        color: "#4A90E2",
-        description: "ビジネス戦略と技術をつなぐ役割を担う専門家"
-      },
+  const nodes: KnowledgeNodeData[] = [
+    {
+      name: "ビジネスアーキテクト",
+      level: 0,
+      type: "central",
+      color: "#4A90E2",
+      description: "ビジネス戦略と技術をつなぐ役割を担う専門家"
+    },
       {
         name: "情報収集目的",
         level: 1,
@@ -937,8 +1040,7 @@ function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
 
 // Template function for generic role
 function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGraphData {
-  return {
-    nodes: [
+  const nodes: KnowledgeNodeData[] = [
       {
         name: roleName,
         level: 0,

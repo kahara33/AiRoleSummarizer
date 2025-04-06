@@ -222,7 +222,12 @@ export function sendToUser(userId: string, message: any): void {
  * @param roleModelId ロールモデルID
  */
 export function sendMessageToRoleModelViewers(type: string, payload: any, roleModelId: string): void {
-  console.log(`Sending ${type} message to roleModel ${roleModelId} subscribers:`, payload);
+  console.log(`[WebSocket] ${type} メッセージをロールモデル ${roleModelId} の購読者に送信:`, {
+    type,
+    contentPreview: payload.thoughts || payload.message || payload.content || '(内容なし)',
+    timestamp: new Date().toISOString(),
+    payloadKeys: Object.keys(payload)
+  });
   
   // メッセージ形式を修正（payloadにネストして送信）
   const message = {
@@ -237,17 +242,21 @@ export function sendMessageToRoleModelViewers(type: string, payload: any, roleMo
   if (roleModelSubscriptions.has(roleModelId)) {
     const subscribers = roleModelSubscriptions.get(roleModelId);
     if (subscribers) {
-      console.log(`Sending to ${subscribers.size} subscribers`);
+      console.log(`[WebSocket] ロールモデル ${roleModelId} の購読者 (${subscribers.size}人) にメッセージを送信します`);
       
+      let sentCount = 0;
       subscribers.forEach((socket) => {
         if (socket.readyState === WebSocket.OPEN) {
           try {
             socket.send(JSON.stringify(message));
+            sentCount++;
           } catch (err) {
-            console.error('WebSocket送信エラー:', err);
+            console.error('[WebSocket] メッセージ送信エラー:', err);
           }
         }
       });
+      
+      console.log(`[WebSocket] ${sentCount}/${subscribers.size} の購読者に正常に送信されました`);
     }
   } else {
     console.log(`No subscribers found for roleModel ${roleModelId}`);
@@ -433,8 +442,120 @@ async function handleAgentChatMessage(userId: string, roleModelId: string, messa
       timestamp: new Date().toISOString()
     }, roleModelId);
     
-    // 必要に応じて知識グラフの更新処理を実行
-    // （メッセージ内容に応じて知識グラフを更新する処理をここに追加）
+    // メッセージ内容に応じて知識グラフを更新する処理
+    // AIの応答から知識グラフ更新の意図を検出し処理する
+    try {
+      const graphUpdateIntentPattern = /(知識|ナレッジ|グラフ).*(追加|更新|変更|修正)/;
+      const graphAddNodePattern = /(ノード|項目|要素|カテゴリ).*(追加|新規|作成)/;
+      
+      // 知識グラフの更新意図が含まれているか確認
+      if (graphUpdateIntentPattern.test(response) || graphAddNodePattern.test(response)) {
+        console.log('[WebSocket] AIの応答から知識グラフ更新の意図を検出しました');
+        
+        // 処理中であることを通知
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'グラフ更新エージェント',
+          agentType: 'knowledge-graph',
+          thoughts: 'メッセージから知識グラフ更新の意図を検出しました。更新処理を開始します...',
+          stage: 'graph-update-detected',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+        
+        // Azure OpenAIを使用して知識グラフ更新内容を取得
+        const updateMessages = [
+          {
+            role: 'system',
+            content: '知識グラフの更新ヘルパーです。ユーザーの意図を分析して、知識グラフに追加すべきノードとエッジの情報を抽出してください。出力はJSON形式で返してください。'
+          },
+          {
+            role: 'user',
+            content: `以下のやり取りから知識グラフに追加または更新すべき情報を抽出してください。\n\nユーザーの質問: ${message}\n\nAIの応答: ${response}\n\n抽出した情報をJSON形式で返してください。ノードとエッジの配列を含めてください。ノードには name, level, type, parentId, description, color などの属性を含めることができます。エッジには source, target, label, strength などの属性を含めることができます。`
+          }
+        ];
+        
+        // 知識グラフ更新のための追加質問を送信
+        sendMessageToRoleModelViewers('agent_thoughts', {
+          agentName: 'グラフ更新エージェント',
+          agentType: 'knowledge-graph',
+          thoughts: 'Azure OpenAIに知識グラフ更新内容の分析をリクエスト中...',
+          stage: 'graph-update-analysis',
+          timestamp: new Date().toISOString()
+        }, roleModelId);
+        
+        try {
+          // Azure OpenAIを使用して知識グラフ更新内容を分析
+          const { callAzureOpenAI } = await import('./azure-openai');
+          const updateResponse = await callAzureOpenAI(updateMessages, 0.5, 2000);
+          
+          // JSONデータの抽出と処理
+          let updateData;
+          try {
+            // JSONデータを抽出
+            const jsonMatch = updateResponse.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const jsonStr = jsonMatch[0];
+              updateData = JSON.parse(jsonStr);
+              
+              // 知識グラフ更新の成功を通知
+              sendMessageToRoleModelViewers('agent_thoughts', {
+                agentName: 'グラフ更新エージェント',
+                agentType: 'knowledge-graph',
+                thoughts: '知識グラフ更新内容の分析に成功しました。更新を実行します...',
+                stage: 'graph-update-extracted',
+                timestamp: new Date().toISOString()
+              }, roleModelId);
+              
+              // 知識グラフ更新処理を実行（実際のDB更新）
+              if (updateData && updateData.nodes && updateData.nodes.length > 0) {
+                // 更新処理の実行（実際のDB操作）
+                const { updateKnowledgeGraphByChat } = await import('./azure-openai');
+                const updateResult = await updateKnowledgeGraphByChat(roleModelId, updateData);
+                
+                if (updateResult) {
+                  // 更新成功を通知
+                  sendMessageToRoleModelViewers('agent_thoughts', {
+                    agentName: 'グラフ更新エージェント',
+                    agentType: 'knowledge-graph',
+                    thoughts: `知識グラフを更新しました: ${updateData.nodes.length}個のノードと${updateData.edges?.length || 0}個のエッジを処理しました`,
+                    stage: 'graph-update-completed',
+                    timestamp: new Date().toISOString()
+                  }, roleModelId);
+                  
+                  // グラフ更新イベントを送信
+                  sendMessageToRoleModelViewers('graph_update', {
+                    message: `知識グラフが更新されました: ${updateData.nodes.length}個のノードと${updateData.edges?.length || 0}個のエッジを処理しました`,
+                    timestamp: new Date().toISOString(),
+                    updateType: 'chat-based-update'
+                  }, roleModelId);
+                }
+              }
+            }
+          } catch (parseError) {
+            console.error('知識グラフ更新データの解析エラー:', parseError);
+            // エラーを通知
+            sendMessageToRoleModelViewers('agent_thoughts', {
+              agentName: 'グラフ更新エージェント',
+              agentType: 'knowledge-graph',
+              thoughts: `知識グラフ更新データの解析に失敗しました: ${parseError.message}`,
+              stage: 'graph-update-error',
+              timestamp: new Date().toISOString()
+            }, roleModelId);
+          }
+        } catch (aiError) {
+          console.error('知識グラフ更新分析エラー:', aiError);
+          // エラーを通知
+          sendMessageToRoleModelViewers('agent_thoughts', {
+            agentName: 'グラフ更新エージェント',
+            agentType: 'knowledge-graph',
+            thoughts: `知識グラフ更新分析に失敗しました: ${aiError.message}`,
+            stage: 'graph-update-error',
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+        }
+      }
+    } catch (graphError) {
+      console.error('知識グラフ更新処理エラー:', graphError);
+    }
     
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
