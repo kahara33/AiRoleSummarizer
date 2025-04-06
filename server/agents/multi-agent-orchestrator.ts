@@ -48,17 +48,132 @@ export async function processRoleModel(
       description: input.description || `${input.roleName}の役割`
     };
     
-    sendAgentThoughts('Industry Analysis Agent', '業界分析を開始します...', input.roleModelId);
+    // 業界分析の詳細な進捗情報を初期化
+    type ProgressStatus = 'pending' | 'processing' | 'completed' | 'error';
+    
+    const industryProgressSteps = [
+      { step: '業界データ収集', progress: 0, status: 'pending' as ProgressStatus, message: '' },
+      { step: 'トレンド分析', progress: 0, status: 'pending' as ProgressStatus, message: '' },
+      { step: '重要キーワード特定', progress: 0, status: 'pending' as ProgressStatus, message: '' },
+      { step: '業界レポート生成', progress: 0, status: 'pending' as ProgressStatus, message: '' }
+    ];
+    
+    // 詳細な進捗情報付きで初期進捗を送信
+    sendProgressUpdate('業界分析を開始します', 0, input.roleModelId, {
+      stage: 'industry_analysis',
+      subStage: 'preparation',
+      detailedProgress: industryProgressSteps
+    });
+    
+    // 詳細な思考プロセス情報を初期化
+    const industryThinkingSteps = [
+      {
+        step: '準備',
+        content: `${input.roleName}の役割に関連する業界分析を開始します。対象業界: ${input.industries.join(', ')}`,
+        timestamp: new Date().toISOString()
+      }
+    ];
+    
+    // 詳細な思考プロセス情報付きで初期思考を送信
+    sendAgentThoughts('Industry Analysis Agent', '業界分析を開始します...', input.roleModelId, {
+      agentType: 'industry-analysis',
+      stage: 'industry_analysis',
+      thinking: industryThinkingSteps,
+      context: {
+        roleName: input.roleName,
+        industries: input.industries,
+        keywords: input.keywords
+      }
+    });
+    
+    // 進捗ステップを更新
+    industryProgressSteps[0].status = 'processing';
+    industryProgressSteps[0].progress = 30;
+    sendProgressUpdate('業界データを収集中...', 5, input.roleModelId, {
+      stage: 'industry_analysis',
+      subStage: 'data_collection',
+      detailedProgress: industryProgressSteps
+    });
+    
+    // 業界分析エージェントを実行
     const industryResult = await analyzeIndustries(industryAnalysisInput);
     
     if (industryResult.success) {
-      sendAgentThoughts('Industry Analysis Agent', '業界分析が完了しました', input.roleModelId);
-      sendProgressUpdate('業界分析が完了しました', 25, input.roleModelId);
+      // 進捗更新
+      industryProgressSteps[0].status = 'completed';
+      industryProgressSteps[0].progress = 100;
+      industryProgressSteps[1].status = 'completed';
+      industryProgressSteps[1].progress = 100;
+      industryProgressSteps[2].status = 'completed';
+      industryProgressSteps[2].progress = 100;
+      industryProgressSteps[3].status = 'completed';
+      industryProgressSteps[3].progress = 100;
+      
+      // 詳細な思考プロセスを追加
+      industryThinkingSteps.push({
+        step: 'データ収集完了',
+        content: `${input.industries.length}つの業界に関する情報を収集しました`,
+        timestamp: new Date().toISOString()
+      });
+      
+      industryThinkingSteps.push({
+        step: '分析完了',
+        content: `${industryResult.data.keywords.length}つの重要キーワードを特定しました`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // 詳細な思考プロセス情報付きで完了メッセージを送信
+      sendAgentThoughts('Industry Analysis Agent', '業界分析が完了しました', input.roleModelId, {
+        agentType: 'industry-analysis',
+        stage: 'industry_analysis',
+        thinking: industryThinkingSteps,
+        reasoning: `${input.roleName}の役割に最適な業界情報とキーワードを特定するために分析を行いました。`,
+        decision: `${industryResult.data.keywords.length}個の重要キーワードを特定し、次のステップに進みます。`,
+        outputData: {
+          keywordCount: industryResult.data.keywords.length,
+          topKeywords: industryResult.data.keywords.slice(0, 5)
+        }
+      });
+      
+      sendProgressUpdate('業界分析が完了しました', 25, input.roleModelId, {
+        stage: 'industry_analysis',
+        subStage: 'completed',
+        detailedProgress: industryProgressSteps
+      });
+      
       console.log('業界分析結果:', industryResult.data);
     } else {
       const errorMessage = getErrorMessage(industryResult.error);
-      sendAgentThoughts('Industry Analysis Agent', `エラー: ${errorMessage}`, input.roleModelId);
-      sendProgressUpdate(`業界分析エラー: ${errorMessage}`, 10, input.roleModelId);
+      
+      // エラー状態を更新
+      const errorIndex = industryProgressSteps.findIndex(step => step.status === 'processing');
+      if (errorIndex >= 0) {
+        industryProgressSteps[errorIndex].status = 'error';
+        industryProgressSteps[errorIndex].message = errorMessage;
+      }
+      
+      // 詳細な思考プロセスにエラー情報を追加
+      industryThinkingSteps.push({
+        step: 'エラー発生',
+        content: `業界分析中にエラーが発生しました: ${errorMessage}`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // エラー情報付きでメッセージを送信
+      sendAgentThoughts('Industry Analysis Agent', `エラー: ${errorMessage}`, input.roleModelId, {
+        agentType: 'industry-analysis',
+        stage: 'industry_analysis',
+        thinking: industryThinkingSteps,
+        reasoning: '業界データの分析中に問題が発生しました。',
+        decision: 'プロセスを中止し、エラーを報告します。'
+      });
+      
+      sendProgressUpdate(`業界分析エラー: ${errorMessage}`, 10, input.roleModelId, {
+        stage: 'industry_analysis',
+        subStage: 'error',
+        detailedProgress: industryProgressSteps
+      });
+      
       return {
         success: false,
         error: `業界分析エラー: ${errorMessage}`,
@@ -67,7 +182,21 @@ export async function processRoleModel(
     }
     
     // ステップ2: キーワード拡張エージェントを実行
-    sendProgressUpdate('キーワード拡張を開始します', 25, input.roleModelId);
+    
+    // キーワード拡張の詳細な進捗情報を初期化
+    const keywordProgressSteps = [
+      { step: '基本キーワード分析', progress: 0, status: 'pending' as ProgressStatus, message: '' },
+      { step: '関連キーワード生成', progress: 0, status: 'pending' as ProgressStatus, message: '' },
+      { step: 'キーワード関係マッピング', progress: 0, status: 'pending' as ProgressStatus, message: '' },
+      { step: '最終キーワードセット生成', progress: 0, status: 'pending' as ProgressStatus, message: '' }
+    ];
+    
+    // 詳細な進捗情報付きで初期進捗を送信
+    sendProgressUpdate('キーワード拡張を開始します', 25, input.roleModelId, {
+      stage: 'keyword_expansion',
+      subStage: 'preparation',
+      detailedProgress: keywordProgressSteps
+    });
     
     const keywordExpansionInput: KeywordExpansionInput = {
       ...input,
@@ -75,17 +204,115 @@ export async function processRoleModel(
       keywords: industryResult.data.keywords
     };
     
-    sendAgentThoughts('Keyword Expansion Agent', 'キーワード拡張を開始します...', input.roleModelId);
+    // 詳細な思考プロセス情報を初期化
+    const keywordThinkingSteps = [
+      {
+        step: '準備',
+        content: `業界分析から得られたキーワード (${industryResult.data.keywords.length}個) を元に拡張を開始します`,
+        timestamp: new Date().toISOString()
+      }
+    ];
+    
+    // 詳細な思考プロセス情報付きで初期思考を送信
+    sendAgentThoughts('Keyword Expansion Agent', 'キーワード拡張を開始します...', input.roleModelId, {
+      agentType: 'keyword-expansion',
+      stage: 'keyword_expansion',
+      thinking: keywordThinkingSteps,
+      context: {
+        baseKeywords: industryResult.data.keywords.slice(0, 5),
+        industries: industryResult.data.industries
+      }
+    });
+    
+    // 進捗ステップを更新
+    keywordProgressSteps[0].status = 'processing';
+    keywordProgressSteps[0].progress = 50;
+    sendProgressUpdate('基本キーワードを分析中...', 30, input.roleModelId, {
+      stage: 'keyword_expansion',
+      subStage: 'keyword_analysis',
+      detailedProgress: keywordProgressSteps
+    });
+    
+    // キーワード拡張エージェントを実行
     const keywordResult = await expandKeywords(keywordExpansionInput);
     
     if (keywordResult.success) {
-      sendAgentThoughts('Keyword Expansion Agent', 'キーワード拡張が完了しました', input.roleModelId);
-      sendProgressUpdate('キーワード拡張が完了しました', 50, input.roleModelId);
+      // 進捗更新
+      keywordProgressSteps[0].status = 'completed';
+      keywordProgressSteps[0].progress = 100;
+      keywordProgressSteps[1].status = 'completed';
+      keywordProgressSteps[1].progress = 100;
+      keywordProgressSteps[2].status = 'completed';
+      keywordProgressSteps[2].progress = 100;
+      keywordProgressSteps[3].status = 'completed';
+      keywordProgressSteps[3].progress = 100;
+      
+      // 詳細な思考プロセスを追加
+      keywordThinkingSteps.push({
+        step: '拡張完了',
+        content: `元の${industryResult.data.keywords.length}個のキーワードから${keywordResult.data.expandedKeywords.length}個の拡張キーワードを生成しました`,
+        timestamp: new Date().toISOString()
+      });
+      
+      keywordThinkingSteps.push({
+        step: '関係マッピング',
+        content: `${keywordResult.data.keywordRelations.length}個のキーワード関係を特定しました`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // 詳細な思考プロセス情報付きで完了メッセージを送信
+      sendAgentThoughts('Keyword Expansion Agent', 'キーワード拡張が完了しました', input.roleModelId, {
+        agentType: 'keyword-expansion',
+        stage: 'keyword_expansion',
+        thinking: keywordThinkingSteps,
+        reasoning: `${input.roleName}の役割に関連するキーワードをより広範囲に特定するために、業界分析結果をもとに拡張を行いました。`,
+        decision: `${keywordResult.data.expandedKeywords.length}個の拡張キーワードと${keywordResult.data.keywordRelations.length}個の関係を特定し、次のステップに進みます。`,
+        outputData: {
+          expandedKeywordCount: keywordResult.data.expandedKeywords.length,
+          relationCount: keywordResult.data.keywordRelations.length,
+          topExpandedKeywords: keywordResult.data.expandedKeywords.slice(0, 5)
+        }
+      });
+      
+      sendProgressUpdate('キーワード拡張が完了しました', 50, input.roleModelId, {
+        stage: 'keyword_expansion',
+        subStage: 'completed',
+        detailedProgress: keywordProgressSteps
+      });
+      
       console.log('キーワード拡張結果:', keywordResult.data);
     } else {
       const errorMessage = getErrorMessage(keywordResult.error);
-      sendAgentThoughts('Keyword Expansion Agent', `エラー: ${errorMessage}`, input.roleModelId);
-      sendProgressUpdate(`キーワード拡張エラー: ${errorMessage}`, 30, input.roleModelId);
+      
+      // エラー状態を更新
+      const errorIndex = keywordProgressSteps.findIndex(step => step.status === 'processing');
+      if (errorIndex >= 0) {
+        keywordProgressSteps[errorIndex].status = 'error';
+        keywordProgressSteps[errorIndex].message = errorMessage;
+      }
+      
+      // 詳細な思考プロセスにエラー情報を追加
+      keywordThinkingSteps.push({
+        step: 'エラー発生',
+        content: `キーワード拡張中にエラーが発生しました: ${errorMessage}`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // エラー情報付きでメッセージを送信
+      sendAgentThoughts('Keyword Expansion Agent', `エラー: ${errorMessage}`, input.roleModelId, {
+        agentType: 'keyword-expansion',
+        stage: 'keyword_expansion',
+        thinking: keywordThinkingSteps,
+        reasoning: 'キーワード拡張処理中に問題が発生しました。',
+        decision: 'プロセスを中止し、エラーを報告します。'
+      });
+      
+      sendProgressUpdate(`キーワード拡張エラー: ${errorMessage}`, 30, input.roleModelId, {
+        stage: 'keyword_expansion',
+        subStage: 'error',
+        detailedProgress: keywordProgressSteps
+      });
+      
       return {
         success: false,
         error: `キーワード拡張エラー: ${errorMessage}`,

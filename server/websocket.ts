@@ -80,7 +80,7 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
           }
           
           roleModelId = requestedRoleModelId;
-          console.log(`WebSocket: ユーザー ${userId} がロールモデル ${roleModelId} を購読しました`);
+          console.log(`WebSocket: ユーザー ${userId || 'anonymous'} がロールモデル ${roleModelId} を購読しました`);
           
           if (!roleModelSubscriptions.has(roleModelId)) {
             roleModelSubscriptions.set(roleModelId, new Set());
@@ -182,13 +182,66 @@ export function sendMessageToRoleModelViewers(type: string, payload: any, roleMo
   }
 }
 
-export function sendAgentThoughts(agentName: string, thoughts: string, roleModelId?: string): void {
+/**
+ * エージェントの思考プロセスを送信する拡張関数
+ * @param agentName エージェント名
+ * @param thoughts 思考内容
+ * @param roleModelId ロールモデルID
+ * @param additionalData 追加データ (詳細な思考プロセス、推論、決定事項など)
+ */
+export function sendAgentThoughts(
+  agentName: string, 
+  thoughts: string, 
+  roleModelId?: string,
+  additionalData?: {
+    agentType?: string;
+    stage?: string;
+    thinking?: Array<{
+      step: string;
+      content: string;
+      timestamp: string;
+    }>;
+    reasoning?: string;
+    decision?: string;
+    context?: any;
+    inputData?: any;
+    outputData?: any;
+  }
+): void {
   console.log(`エージェント思考: ${agentName} - ${thoughts.substring(0, 50)}...`);
   
   if (roleModelId && isValidUUID(roleModelId)) {
+    // 標準的なエージェントタイプを特定する
+    const standardizedAgentType = 
+      (additionalData?.agentType || agentName || "")
+        .toLowerCase()
+        .includes("industry") ? "industry-analysis" :
+      (additionalData?.agentType || agentName || "")
+        .toLowerCase()
+        .includes("keyword") ? "keyword-expansion" :
+      (additionalData?.agentType || agentName || "")
+        .toLowerCase()
+        .includes("structur") ? "structuring" :
+      (additionalData?.agentType || agentName || "")
+        .toLowerCase()
+        .includes("graph") ? "knowledge-graph" :
+      (additionalData?.agentType || agentName || "")
+        .toLowerCase()
+        .includes("orchestr") ? "orchestrator" : "agent";
+    
     const payload = {
       agentName,
-      thoughts
+      thoughts,
+      // 追加データがある場合はマージする
+      ...additionalData,
+      // エージェントタイプが指定されていない場合は標準化したタイプを使用
+      agentType: additionalData?.agentType || standardizedAgentType,
+      // 詳細な思考プロセスがない場合、基本的な思考ステップを生成
+      thinking: additionalData?.thinking || [{
+        step: "思考プロセス",
+        content: thoughts,
+        timestamp: new Date().toISOString()
+      }]
     };
     
     sendMessageToRoleModelViewers('agent_thoughts', payload, roleModelId);
@@ -197,13 +250,36 @@ export function sendAgentThoughts(agentName: string, thoughts: string, roleModel
   }
 }
 
-export function sendProgressUpdate(message: string, progress: number, roleModelId: string): void {
+/**
+ * 進捗更新情報を送信する拡張関数
+ * @param message メッセージ
+ * @param progress 進捗率 (0-100)
+ * @param roleModelId ロールモデルID
+ * @param additionalData 追加データ (詳細な進捗情報など)
+ */
+export function sendProgressUpdate(
+  message: string, 
+  progress: number, 
+  roleModelId: string,
+  additionalData?: {
+    stage?: string;
+    subStage?: string;
+    detailedProgress?: Array<{
+      step: string;
+      progress: number;
+      status: 'pending' | 'processing' | 'completed' | 'error';
+      message?: string;
+    }>;
+  }
+): void {
   console.log(`進捗更新: ${message} (${progress}%) - ロールモデル ${roleModelId}`);
   
   if (isValidUUID(roleModelId)) {
     const payload = {
       message,
-      progress
+      progress,
+      // 追加データがある場合はマージする
+      ...additionalData
     };
     
     sendMessageToRoleModelViewers('progress', payload, roleModelId);
