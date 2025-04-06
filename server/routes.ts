@@ -31,6 +31,7 @@ import {
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
+import { generateKnowledgeGraphWithCrewAI } from './agents';
 import { randomUUID } from 'crypto';
 
 // UUIDの検証関数
@@ -710,6 +711,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('知識グラフ生成リクエストエラー:', error);
       res.status(500).json({ error: '知識グラフの生成に失敗しました' });
+    }
+  });
+  
+  // CrewAI を使用した知識グラフの生成エンドポイント
+  app.post('/api/knowledge-graph/generate-with-crewai/:roleModelId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      
+      // UUID形式でない場合はエラー
+      if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
+        console.error(`無効なUUID形式: ${roleModelId}`);
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
+      const user = req.user;
+
+      // 権限チェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+        with: {
+          industries: {
+            with: {
+              industry: true,
+            },
+          },
+          keywords: {
+            with: {
+              keyword: true,
+            },
+          },
+        },
+      });
+
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+
+      // 自分のロールモデルのみ編集可能
+      if (roleModel.userId !== user!.id && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
+      }
+
+      // 産業と業界名を抽出
+      const industries = roleModel.industries.map(rel => rel.industry.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword.name);
+
+      // 非同期処理を開始し、すぐにレスポンスを返す
+      res.json({ 
+        success: true, 
+        message: 'CrewAIを使用した知識グラフの生成を開始しました',
+        roleModelId
+      });
+
+      // ロールモデル入力データを作成
+      const input = {
+        roleModelId,
+        roleName: roleModel.name,
+        description: roleModel.description || '',
+        industries,
+        keywords,
+        userId: roleModel.userId
+      };
+
+      // バックグラウンドで処理を継続
+      generateKnowledgeGraphWithCrewAI(input)
+        .then(async (result) => {
+          if (result.success) {
+            // 正常に生成された場合、知識グラフデータをデータベースに保存
+            try {
+              // 既存のノードとエッジを削除
+              await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
+              await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+              
+              // ノードとエッジを保存
+              for (const node of result.data.nodes) {
+                await db.insert(knowledgeNodes).values({
+                  id: node.id,
+                  name: node.name,
+                  description: node.description || null,
+                  level: node.level,
+                  type: node.type || 'default',
+                  parentId: node.parentId || null,
+                  roleModelId,
+                  color: node.color || null
+                });
+                
+                // Neo4jにも保存
+                await createNodeInNeo4j({
+                  id: node.id,
+                  name: node.name,
+                  type: node.type || 'default',
+                  level: node.level,
+                  parentId: node.parentId || null,
+                  roleModelId,
+                  description: node.description || null,
+                  color: node.color || null
+                });
+              }
+              
+              for (const edge of result.data.edges) {
+                await db.insert(knowledgeEdges).values({
+                  id: randomUUID(),
+                  source: edge.source,
+                  target: edge.target,
+                  label: edge.label || null,
+                  roleModelId,
+                  strength: edge.strength || 0.5
+                });
+                
+                // Neo4jにも保存
+                await createEdgeInNeo4j({
+                  source: edge.source,
+                  target: edge.target,
+                  label: edge.label || null,
+                  roleModelId,
+                  strength: edge.strength || 0.5
+                });
+              }
+              
+              sendProgressUpdate('知識グラフの生成と保存が完了しました', 100, roleModelId, {
+                stage: 'completed',
+                subStage: 'save_to_database'
+              });
+              
+              // WebSocketで接続中のクライアントに通知
+              sendMessageToRoleModelViewers(roleModelId, {
+                type: 'knowledge_graph_update',
+                message: '知識グラフが更新されました',
+                roleModelId
+              });
+              
+            } catch (dbError) {
+              console.error('知識グラフ保存エラー:', dbError);
+              sendProgressUpdate(`データベース保存エラー: ${dbError.message}`, 100, roleModelId, {
+                stage: 'error',
+                error: dbError.message
+              });
+            }
+          } else {
+            // エラーがあった場合
+            console.error('CrewAI知識グラフ生成エラー:', result.error);
+            sendProgressUpdate(`エラーが発生しました: ${result.error}`, 100, roleModelId, {
+              stage: 'error',
+              error: result.error
+            });
+          }
+        })
+        .catch(err => {
+          console.error('CrewAI知識グラフ生成エラー:', err);
+          sendProgressUpdate(`エラーが発生しました: ${err.message}`, 100, roleModelId, {
+            stage: 'error',
+            error: err.message
+          });
+        });
+    } catch (error) {
+      console.error('CrewAI知識グラフ生成リクエストエラー:', error);
+      res.status(500).json({ error: 'CrewAIを使用した知識グラフの生成に失敗しました' });
     }
   });
 

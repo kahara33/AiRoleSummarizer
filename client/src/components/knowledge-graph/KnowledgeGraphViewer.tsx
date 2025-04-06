@@ -27,6 +27,7 @@ import DataFlowEdge from '@/components/edges/DataFlowEdge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Loader2, ZapIcon } from 'lucide-react';
+import { CrewAIButton } from './CrewAIButton';
 
 interface KnowledgeGraphViewerProps {
   roleModelId: string;
@@ -445,28 +446,40 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       <div className="flex justify-between items-center mb-2 px-4 py-2 bg-muted/50 rounded-lg">
         <h3 className="text-lg font-semibold">知識グラフビューワー</h3>
         {!generating && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2">
-                <ZapIcon className="w-4 h-4" />
-                AIで生成
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>知識グラフの自動生成</AlertDialogTitle>
-                <AlertDialogDescription>
-                  AIを使用して知識グラフを自動的に生成します。ロールモデル、業界、キーワードから情報を分析し、階層的な知識グラフを生成します。
-                  <br /><br />
-                  この処理には数分かかることがあります。進捗はリアルタイムで表示されます。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                <AlertDialogAction onClick={generateKnowledgeGraph}>生成開始</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <div className="flex gap-2">
+            <CrewAIButton 
+              roleModelId={roleModelId}
+              onStart={() => {
+                setGenerating(true);
+                setProgress(0);
+                setProgressMessage('CrewAIでマルチエージェント処理を開始しています...');
+                setAgentMessages([]);
+              }}
+              onComplete={() => fetchGraphData()}
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <ZapIcon className="w-4 h-4" />
+                  AIで生成
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>知識グラフの自動生成</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    AIを使用して知識グラフを自動的に生成します。ロールモデル、業界、キーワードから情報を分析し、階層的な知識グラフを生成します。
+                    <br /><br />
+                    この処理には数分かかることがあります。進捗はリアルタイムで表示されます。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                  <AlertDialogAction onClick={generateKnowledgeGraph}>生成開始</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         )}
       </div>
       

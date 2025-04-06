@@ -3,7 +3,6 @@
  * 初期キーワードをもとに関連キーワードを拡張し、関連性を評価するAIエージェント
  */
 
-export { KeywordExpansionInput, KeywordExpansionData } from './types';
 import { AgentResult, KeywordExpansionInput, KeywordExpansionData } from './types';
 import { callAzureOpenAI } from '../azure-openai';
 import { sendAgentThoughts } from '../websocket';

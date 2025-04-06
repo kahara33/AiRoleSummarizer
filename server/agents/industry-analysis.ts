@@ -3,7 +3,6 @@
  * 特定の役割に関連する業界情報と初期キーワードを分析するAIエージェント
  */
 
-export { IndustryAnalysisInput, IndustryAnalysisData } from './types';
 import { AgentResult, IndustryAnalysisInput, IndustryAnalysisData } from './types';
 import { callAzureOpenAI } from '../azure-openai';
 import { sendAgentThoughts } from '../websocket';
