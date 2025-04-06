@@ -289,7 +289,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     
     // グラフ更新のイベントハンドラ
     const handleGraphUpdate = (data: any) => {
-      console.log('知識グラフ更新を受信:', data);
+      console.log('ナレッジグラフ更新を受信:', data);
       // roleModelIdが一致するか、data.roleModelIdがundefinedの場合（後方互換性のため）
       if (!data.roleModelId || data.roleModelId === roleModelId) {
         console.log('グラフデータの再取得をトリガー');
@@ -393,7 +393,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     try {
       setGenerating(true);
       setProgress(0);
-      setProgressMessage('知識グラフの生成を開始しています...');
+      setProgressMessage('ナレッジグラフの生成を開始しています...');
       setAgentMessages([]);
       
       // 生成リクエストを送信
@@ -405,13 +405,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       });
       
       if (!response.ok) {
-        throw new Error(`知識グラフの生成リクエストに失敗しました: ${response.statusText}`);
+        throw new Error(`ナレッジグラフの生成リクエストに失敗しました: ${response.statusText}`);
       }
       
       // WebSocketで進捗が通知されるので、レスポンスは特に処理しない
       
     } catch (err) {
-      console.error('知識グラフ生成エラー:', err);
+      console.error('ナレッジグラフ生成エラー:', err);
       setProgressMessage(err instanceof Error ? err.message : '不明なエラーが発生しました');
       setGenerating(false);
     }
@@ -481,7 +481,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   return (
     <div className="flex flex-col w-full" style={{ height }}>
       <div className="flex justify-between items-center mb-2 px-4 py-2 bg-muted/50 rounded-lg">
-        <h3 className="text-lg font-semibold">知識グラフビューワー</h3>
+        <h3 className="text-lg font-semibold">ナレッジグラフビューワー</h3>
         {!generating && (
           <div className="flex gap-2">
             <CrewAIButton 

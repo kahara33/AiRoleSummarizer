@@ -48,7 +48,7 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
     <div className="flex flex-col h-screen">
       <div className="bg-white border-b px-4 py-2 flex justify-between items-center">
         <h1 className="text-xl font-semibold">
-          ナレッジグラフビューア
+          ナレッジグラフビューアー
           {selectedNode && (
             <span className="ml-2 text-sm text-gray-500">
               - {selectedNode.name}を選択中
