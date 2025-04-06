@@ -816,8 +816,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 await db.insert(knowledgeEdges).values({
                   id: randomUUID(),
-                  source: edge.source,
-                  target: edge.target,
+                  sourceId: edge.source,
+                  targetId: edge.target,
                   label: edge.label || null,
                   roleModelId,
                   strength: strengthValue
@@ -825,8 +825,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 // Neo4jにも保存
                 await createEdgeInNeo4j({
-                  source: edge.source,
-                  target: edge.target,
+                  sourceId: edge.source,
+                  targetId: edge.target,
                   label: edge.label || null,
                   roleModelId,
                   strength: strengthValue
