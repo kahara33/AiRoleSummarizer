@@ -261,21 +261,72 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
   // WebSocketリスナーのセットアップ
   useEffect(() => {
+    if (!roleModelId || roleModelId === 'default') {
+      console.log('有効なロールモデルIDがないため、WebSocketリスナーをセットアップしません');
+      return;
+    }
+    
+    console.log(`WebSocketリスナーをセットアップ: roleModelId=${roleModelId}`);
     const socket = initSocket();
     
     // グラフ更新のイベントハンドラ
     const handleGraphUpdate = (data: any) => {
-      if (data.roleModelId === roleModelId) {
+      console.log('知識グラフ更新を受信:', data);
+      // roleModelIdが一致するか、data.roleModelIdがundefinedの場合（後方互換性のため）
+      if (!data.roleModelId || data.roleModelId === roleModelId) {
+        console.log('グラフデータの再取得をトリガー');
         fetchGraphData();
       }
     };
     
+    // WebSocketの接続状態を確認する関数
+    const subscribeToRoleModel = () => {
+      if (socket.readyState === WebSocket.OPEN) {
+        console.log(`ロールモデル ${roleModelId} を購読`);
+        
+        // 現在の日時を含めて、キャッシュバスティングを行う
+        const timestamp = new Date().getTime();
+        sendSocketMessage('subscribe', { 
+          roleModelId,
+          timestamp,
+          clientId: `client-${Math.random().toString(36).substring(2, 9)}`
+        });
+      } else {
+        console.log('WebSocketが開いていません。接続待機中...');
+      }
+    };
+    
+    // ソケットの状態に応じて購読を試みる
+    if (socket.readyState === WebSocket.OPEN) {
+      subscribeToRoleModel();
+    }
+    
+    // 接続イベントのハンドラ
+    const handleSocketOpen = () => {
+      console.log('WebSocket接続が確立されました。ロールモデルを購読します。');
+      subscribeToRoleModel();
+    };
+    
     // イベントリスナーの登録
+    socket.addEventListener('open', handleSocketOpen);
     addSocketListener('knowledge-graph-update', handleGraphUpdate);
+    
+    // 定期的な再接続と購読の確認（5秒ごと）
+    const intervalId = setInterval(() => {
+      if (socket.readyState !== WebSocket.OPEN) {
+        console.log('WebSocket接続が閉じられています。再接続を試みます。');
+        initSocket(); // 再接続
+      } else {
+        // 接続中に購読状態を確認
+        subscribeToRoleModel();
+      }
+    }, 5000);
     
     return () => {
       // イベントリスナーの解除
+      socket.removeEventListener('open', handleSocketOpen);
       removeSocketListener('knowledge-graph-update', handleGraphUpdate);
+      clearInterval(intervalId);
     };
   }, [roleModelId, fetchGraphData]);
 
@@ -348,69 +399,27 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     }
   }, [roleModelId]);
 
-  // WebSocketから進捗と結果を受信
+  // WebSocketから進捗と結果を受信（AI生成中の進捗表示用）
   useEffect(() => {
-    if (!roleModelId) return;
+    if (!roleModelId || !generating) return;
     
-    console.log(`[KnowledgeGraphViewer] WebSocketリスナーをセットアップ: roleModelId=${roleModelId}`);
-    const socket = initSocket();
-    
-    // セットアップ関数 - 接続時とリトライ時に実行
-    const setupSubscription = () => {
-      if (!roleModelId || roleModelId === 'default') {
-        console.warn('有効なロールモデルIDがありません。WebSocket購読をスキップします。');
-        return;
-      }
-      
-      // UUID形式かどうか検証
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidPattern.test(roleModelId)) {
-        console.warn('無効なUUID形式です:', roleModelId);
-        return;
-      }
-      
-      console.log(`[KnowledgeGraphViewer] このロールモデルをWebSocketで購読: ${roleModelId}`);
-      
-      // 現在の日時を含めて、キャッシュバスティングを行う
-      const timestamp = new Date().getTime();
-      sendSocketMessage('subscribe', { 
-        roleModelId,
-        timestamp,
-        clientId: `client-${Math.random().toString(36).substring(2, 9)}`
-      });
-      
-      console.log(`[KnowledgeGraphViewer] 購読メッセージを送信しました: ${roleModelId}`);
-    };
-    
-    // 即時実行とソケットオープン時の実行
-    if (socket.readyState === WebSocket.OPEN) {
-      setupSubscription();
-    } else {
-      console.log('[KnowledgeGraphViewer] WebSocketが開いていません、接続待機中...');
-      
-      // ソケットが開くのを待つ
-      const handleOpen = () => {
-        console.log('[KnowledgeGraphViewer] WebSocketが開きました、購読設定中...');
-        setupSubscription();
-      };
-      
-      socket.addEventListener('open', handleOpen);
-      
-      // クリーンアップ関数でイベントリスナーを削除
-      return () => {
-        socket.removeEventListener('open', handleOpen);
-      };
-    }
+    console.log(`[KnowledgeGraphViewer] 進捗リスナーをセットアップ: roleModelId=${roleModelId}`);
     
     // 進捗更新リスナー
     const handleProgress = (data: any) => {
       console.log('Progress update received:', data);
-      if (data.roleModelId === roleModelId) {
-        setProgress(data.progress);
-        setProgressMessage(data.message);
+      
+      // roleModelIdが一致する場合、またはdata.roleModelIdがundefinedの場合
+      const matchesRoleModel = !data.roleModelId || data.roleModelId === roleModelId;
+      
+      if (matchesRoleModel) {
+        console.log(`Progress update for ${roleModelId}:`, data);
+        setProgress(data.progress || 0);
+        setProgressMessage(data.message || 'Processing...');
         
         // 完了時
         if (data.progress >= 100) {
+          console.log('Progress complete, fetching updated graph data');
           setTimeout(() => {
             setGenerating(false);
             fetchGraphData();
@@ -422,13 +431,18 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     // エージェント思考リスナー
     const handleAgentThoughts = (data: any) => {
       console.log('Agent thoughts received:', data);
-      if (data.roleModelId === roleModelId) {
+      
+      // roleModelIdが一致する場合、またはdata.roleModelIdがundefinedの場合
+      const matchesRoleModel = !data.roleModelId || data.roleModelId === roleModelId;
+      
+      if (matchesRoleModel) {
+        console.log(`Agent thoughts for ${roleModelId}:`, data);
         setAgentMessages(prev => [
           ...prev, 
           {
-            agent: data.agentName, 
-            message: data.thoughts,
-            timestamp: data.timestamp
+            agent: data.agentName || 'Agent', 
+            message: data.thoughts || data.message || 'Working...',
+            timestamp: data.timestamp || new Date().toISOString()
           }
         ]);
       }
@@ -438,18 +452,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     addSocketListener('progress', handleProgress);
     addSocketListener('agent_thoughts', handleAgentThoughts);
     
-    // 接続イベントリスナー
-    const handleConnected = (data: any) => {
-      console.log('WebSocket connected:', data);
-    }
-    addSocketListener('connected', handleConnected);
-    
     return () => {
       // イベントリスナーの解除
       removeSocketListener('progress', handleProgress);
       removeSocketListener('agent_thoughts', handleAgentThoughts);
+      console.log('Removed progress and agent_thoughts listeners');
     };
-  }, [roleModelId, fetchGraphData]);
+  }, [roleModelId, fetchGraphData, generating]);
 
   return (
     <div className="flex flex-col w-full" style={{ height }}>
