@@ -47,11 +47,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     // エージェントの思考プロセス
     const handleAgentThoughts = (data: any) => {
       console.log('Agent thoughts received in ChatPanel:', data);
+      
+      // データのログを詳細に出力して問題を特定
+      console.log('Agent thoughts data details:', {
+        agent: data.agent,
+        agentName: data.agentName,
+        thoughts: data.thoughts,
+        timestamp: data.timestamp,
+        roleModelId: data.roleModelId
+      });
+      
+      // JSONデータ構造に合わせて処理
       setMessages(msgs => [...msgs, {
         id: `thought-${Date.now()}`,
         type: 'thought',
         agentId: data.agentId || 'unknown',
-        agentName: data.agentName || data.agent,
+        agentName: data.agentName || data.agent || 'Agent',
         agentType: data.agentType || 'system',
         content: data.thoughts || 'No thoughts content',
         timestamp: data.timestamp || new Date().toISOString(),
@@ -80,6 +91,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     // 処理進捗状況
     const handleProgressUpdate = (data: any) => {
       console.log('Progress update received in ChatPanel:', data);
+      
+      // データのログを詳細に出力して問題を特定
+      console.log('Progress update data details:', {
+        message: data.message,
+        progress: data.progress,
+        timestamp: data.timestamp,
+        roleModelId: data.roleModelId
+      });
+      
       setMessages(msgs => [...msgs, {
         id: `progress-${Date.now()}`,
         type: 'progress',

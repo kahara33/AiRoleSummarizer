@@ -200,16 +200,29 @@ export function getHierarchicalLayout(
   });
   
   Object.entries(levelGroups).forEach(([level, nodesInLevel]) => {
-    const levelWidth = nodesInLevel.length * (nodeWidth + 40);
+    const levelWidth = nodesInLevel.length * (nodeWidth + 120);
     const startX = -levelWidth / 2;
     
     nodesInLevel.forEach((node, index) => {
-      node.position.x = startX + index * (nodeWidth + 40);
+      // より大きな間隔を空ける
+      node.position.x = startX + index * (nodeWidth + 120);
+      
+      // 各レベルにランダムな変位を加えてより自然なレイアウトにする
+      const jitterX = Math.random() * 50 - 25;
+      const jitterY = Math.random() * 50 - 25;
+      node.position.x += jitterX;
+      node.position.y += jitterY;
     });
   });
   
-  // 最終的なレイアウト計算
-  return getLayoutedElements(layoutedNodes, edges, { direction: 'TB', nodesep: 80, ranksep: 150 });
+  // 最終的なレイアウト計算 - より広い間隔を取る
+  return getLayoutedElements(layoutedNodes, edges, { 
+    direction: 'TB', 
+    nodesep: 150,    // ノード間の水平距離を広げる
+    ranksep: 200,    // レベル間の垂直距離を広げる
+    marginx: 50,     // 余白を追加
+    marginy: 50 
+  });
 }
 
 /**

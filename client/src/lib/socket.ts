@@ -36,9 +36,51 @@ export function initSocket(): WebSocket {
       const data = JSON.parse(event.data);
       console.log('WebSocketメッセージ受信:', data);
       
+      // 受信データの詳細ログを出力して問題を特定
+      if (data.type) {
+        console.log(`WebSocketメッセージ詳細 (${data.type}):`, {
+          type: data.type,
+          payload: data.payload,
+          timestamp: new Date().toISOString(),
+          hasListeners: Boolean(listeners[data.type]),
+          listenersCount: listeners[data.type]?.length || 0
+        });
+      }
+      
+      // イベントタイプに基づいたデータ処理（特殊ケース）
+      if (data.type === 'agent_thoughts') {
+        console.log('Agent thoughts処理前:', data.payload || data);
+        // ペイロードがある場合はそれを、なければデータをそのまま送信
+        const messageData = data.payload || data;
+        if (listeners[data.type]) {
+          listeners[data.type].forEach(callback => callback(messageData));
+        }
+        return; // 以降の処理はスキップ
+      }
+      
+      // 通信イベントの特殊処理
+      if (data.type === 'agent-communication') {
+        console.log('Agent communication処理前:', data.payload || data);
+        const messageData = data.payload || data;
+        if (listeners[data.type]) {
+          listeners[data.type].forEach(callback => callback(messageData));
+        }
+        return; // 以降の処理はスキップ
+      }
+      
+      // 進捗イベントの特殊処理
+      if (data.type === 'progress') {
+        console.log('Progress update処理前:', data.payload || data);
+        const messageData = data.payload || data;
+        if (listeners[data.type]) {
+          listeners[data.type].forEach(callback => callback(messageData));
+        }
+        return; // 以降の処理はスキップ
+      }
+      
       // イベントタイプに基づいてリスナーを呼び出す
       if (data.type && listeners[data.type]) {
-        listeners[data.type].forEach(callback => callback(data));
+        listeners[data.type].forEach(callback => callback(data.payload || data));
       }
       
       // すべてのリスナーに対してメッセージを送信
