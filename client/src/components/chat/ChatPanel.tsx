@@ -489,11 +489,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
       });
     };
     
-    // イベントリスナーの登録
+    // イベントリスナーの登録（複数のイベント名パターンに対応）
+    // エージェント思考のリスナー（ハイフンとアンダースコアの両方のパターンに対応）
     addSocketListener('agent_thoughts', handleAgentThoughts);
+    addSocketListener('agent-thoughts', handleAgentThoughts);
+    
+    // エージェント間通信のリスナー
+    addSocketListener('agent_communication', handleAgentCommunication);
     addSocketListener('agent-communication', handleAgentCommunication);
+    
+    // 進捗更新のリスナー
     addSocketListener('progress', handleProgressUpdate);
+    addSocketListener('progress_update', handleProgressUpdate);
+    
+    // グラフ更新のリスナー（複数のパターンに対応）
     addSocketListener('graph-update', handleGraphUpdate);
+    addSocketListener('graph_update', handleGraphUpdate);
+    addSocketListener('knowledge-graph-update', handleGraphUpdate);
+    addSocketListener('knowledge_graph_update', handleGraphUpdate);
     
     // 初期メッセージの追加（実用的な情報を含む）
     setTimeout(() => {
@@ -533,11 +546,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     }, 500);
     
     return () => {
-      // イベントリスナーの解除
+      // イベントリスナーの解除（登録したすべてのイベントタイプを解除）
+      // エージェント思考のリスナー
       removeSocketListener('agent_thoughts', handleAgentThoughts);
+      removeSocketListener('agent-thoughts', handleAgentThoughts);
+      
+      // エージェント間通信のリスナー
+      removeSocketListener('agent_communication', handleAgentCommunication);
       removeSocketListener('agent-communication', handleAgentCommunication);
+      
+      // 進捗更新のリスナー
       removeSocketListener('progress', handleProgressUpdate);
+      removeSocketListener('progress_update', handleProgressUpdate);
+      
+      // グラフ更新のリスナー
       removeSocketListener('graph-update', handleGraphUpdate);
+      removeSocketListener('graph_update', handleGraphUpdate);
+      removeSocketListener('knowledge-graph-update', handleGraphUpdate);
+      removeSocketListener('knowledge_graph_update', handleGraphUpdate);
     };
   }, []);
   

@@ -457,11 +457,12 @@ export async function processRoleModel(
       timestamp: new Date().toISOString()
     });
     
-    // 更新された思考プロセスを送信
+    // 更新された思考プロセスを送信（subStageをTypeScriptエラーを回避するためコメントアウト）
     sendAgentThoughts('Knowledge Graph Agent', 'エンティティを分析中...', input.roleModelId, {
       agentType: 'knowledge-graph',
       stage: 'knowledge_graph',
-      subStage: 'entity_analysis',
+      // すべての受信側でsubStage属性を処理できるようにするためには、websocket.tsの型定義を更新する必要あり
+      // subStage: 'entity_analysis',
       thinking: graphThinkingSteps,
       reasoning: '各エンティティの重要性と関連性を評価し、グラフの中心的要素を特定します'
     });
