@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Loader2, ZapIcon } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
+import CreateCollectionPlanButton from '../collection-plan/CreateCollectionPlanButton';
 
 interface KnowledgeGraphViewerProps {
   roleModelId: string;
@@ -498,6 +499,20 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            
+            {/* 情報収集プランを作成ボタン - ノードが存在する場合のみ有効 */}
+            <CreateCollectionPlanButton 
+              roleModelId={roleModelId}
+              industryIds={[]}  // 実際の値を知識グラフページから渡す必要あり
+              keywordIds={[]}   // 実際の値を知識グラフページから渡す必要あり
+              disabled={nodes.length === 0}
+              hasKnowledgeGraph={nodes.length > 0}
+              }}
+              onComplete={() => {
+                setGenerating(false);
+                fetchGraphData();
+              }}
+            />
           </div>
         )}
       </div>

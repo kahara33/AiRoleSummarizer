@@ -4,14 +4,19 @@ import {
   KnowledgeNode, InsertKnowledgeNode,
   KnowledgeEdge, InsertKnowledgeEdge,
   Keyword, InsertKeyword,
-  Industry,
+  Industry, IndustrySubcategory,
   roleModels,
   users,
   knowledgeNodes,
   knowledgeEdges, 
   keywords,
   industries,
-  RoleModelWithIndustriesAndKeywords
+  industrySubcategories,
+  RoleModelWithIndustriesAndKeywords,
+  SubscriptionPlan, InsertSubscriptionPlan,
+  subscriptionPlans,
+  InformationCollectionPlan, InsertInformationCollectionPlan,
+  informationCollectionPlans
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -32,6 +37,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserSubscription(userId: string, planName: string, expiresAt?: Date): Promise<User>;
   
   // Knowledge Node operations
   getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]>;
@@ -50,6 +56,16 @@ export interface IStorage {
   getSharedRoleModels(companyId: string): Promise<RoleModel[]>;
   getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined>;
 
+  // Subscription operations
+  getSubscriptionPlans(): Promise<SubscriptionPlan[]>;
+  getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined>;
+  createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan>;
+
+  // Information Collection Plan operations
+  getInformationCollectionPlan(roleModelId: string): Promise<InformationCollectionPlan | undefined>;
+  createInformationCollectionPlan(plan: InsertInformationCollectionPlan): Promise<InformationCollectionPlan>;
+  updateInformationCollectionPlan(id: string, planData: string, updatedBy: string): Promise<InformationCollectionPlan>;
+
   // Session store
   sessionStore: any; // session.SessionStore
 }
@@ -62,6 +78,8 @@ export class MemStorage implements IStorage {
   private knowledgeEdges: Map<string, KnowledgeEdge>;
   private keywords: Map<string, Keyword>;
   private industries: Map<string, Industry>;
+  private subscriptionPlans: Map<string, SubscriptionPlan>;
+  private informationCollectionPlans: Map<string, InformationCollectionPlan>;
   sessionStore: any; // session.SessionStore
 
   constructor() {
@@ -71,6 +89,8 @@ export class MemStorage implements IStorage {
     this.knowledgeEdges = new Map();
     this.keywords = new Map();
     this.industries = new Map();
+    this.subscriptionPlans = new Map();
+    this.informationCollectionPlans = new Map();
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     });
@@ -94,10 +114,28 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       role: insertUser.role || 'individual_user',
-      companyId: insertUser.companyId || null
+      companyId: insertUser.companyId || null,
+      subscriptionPlan: 'Lite',
+      subscriptionExpiresAt: null
     };
     this.users.set(id, user);
     return user;
+  }
+  
+  async updateUserSubscription(userId: string, planName: string, expiresAt?: Date): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    const updatedUser = {
+      ...user,
+      subscriptionPlan: planName,
+      subscriptionExpiresAt: expiresAt || null
+    };
+    
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
   
   // Role model methods
@@ -219,6 +257,72 @@ export class MemStorage implements IStorage {
     
     console.log(`Deleted ${edgeIdsToDelete.length} knowledge edges for role model ID: ${roleModelId}`);
   }
+  
+  // 購読プラン関連メソッド
+  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    return Array.from(this.subscriptionPlans.values());
+  }
+  
+  async getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined> {
+    return this.subscriptionPlans.get(id);
+  }
+  
+  async createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    
+    const newPlan: SubscriptionPlan = {
+      ...plan,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      description: plan.description || null,
+      features: plan.features || null
+    };
+    
+    this.subscriptionPlans.set(id, newPlan);
+    return newPlan;
+  }
+  
+  // 情報収集プラン関連メソッド
+  async getInformationCollectionPlan(roleModelId: string): Promise<InformationCollectionPlan | undefined> {
+    return Array.from(this.informationCollectionPlans.values()).find(
+      plan => plan.roleModelId === roleModelId
+    );
+  }
+  
+  async createInformationCollectionPlan(plan: InsertInformationCollectionPlan): Promise<InformationCollectionPlan> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    
+    const newPlan: InformationCollectionPlan = {
+      ...plan,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      updatedBy: plan.updatedBy || null
+    };
+    
+    this.informationCollectionPlans.set(id, newPlan);
+    return newPlan;
+  }
+  
+  async updateInformationCollectionPlan(id: string, planData: string, updatedBy: string): Promise<InformationCollectionPlan> {
+    const existingPlan = this.informationCollectionPlans.get(id);
+    if (!existingPlan) {
+      throw new Error(`Information collection plan with ID ${id} not found`);
+    }
+    
+    const updatedPlan: InformationCollectionPlan = {
+      ...existingPlan,
+      planData,
+      updatedBy,
+      updatedAt: new Date()
+    };
+    
+    this.informationCollectionPlans.set(id, updatedPlan);
+    return updatedPlan;
+  }
 }
 
 // PostgresStorage implementation
@@ -255,10 +359,34 @@ export class PostgresStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     try {
-      const [newUser] = await db.insert(users).values(user).returning();
+      const [newUser] = await db.insert(users).values({
+        ...user,
+        subscriptionPlan: 'Lite'
+      }).returning();
       return newUser;
     } catch (error) {
       console.error("Error in createUser:", error);
+      throw error;
+    }
+  }
+  
+  async updateUserSubscription(userId: string, planName: string, expiresAt?: Date): Promise<User> {
+    try {
+      const [updatedUser] = await db.update(users)
+        .set({ 
+          subscriptionPlan: planName,
+          subscriptionExpiresAt: expiresAt || null
+        })
+        .where(eq(users.id, userId))
+        .returning();
+      
+      if (!updatedUser) {
+        throw new Error(`User with ID ${userId} not found`);
+      }
+      
+      return updatedUser;
+    } catch (error) {
+      console.error("Error in updateUserSubscription:", error);
       throw error;
     }
   }
@@ -416,9 +544,9 @@ export class PostgresStorage implements IStorage {
   }
 
   // ロールモデルに関連する業界データを取得
-  private async getRoleModelIndustriesData(roleModelId: string): Promise<Industry[]> {
+  private async getRoleModelIndustriesData(roleModelId: string): Promise<IndustrySubcategory[]> {
     try {
-      // ロールモデルに関連する業界IDを取得
+      // ロールモデルに関連する業界サブカテゴリーIDを取得
       const industryMappings = await db
         .select()
         .from(sql`role_model_industries`)
@@ -428,16 +556,16 @@ export class PostgresStorage implements IStorage {
         return [];
       }
       
-      // 業界IDリスト
-      const industryIds = industryMappings.map((mapping: any) => mapping.industry_id);
+      // 業界サブカテゴリーIDリスト
+      const subcategoryIds = industryMappings.map((mapping: any) => mapping.industry_id);
       
-      // 業界データ取得
-      const industryData = await db
+      // 業界サブカテゴリーデータ取得
+      const subcategoryData = await db
         .select()
-        .from(industries)
-        .where(inArray(industries.id, industryIds));
+        .from(industrySubcategories)
+        .where(inArray(industrySubcategories.id, subcategoryIds));
       
-      return industryData;
+      return subcategoryData;
     } catch (error) {
       console.error("Error in getRoleModelIndustriesData:", error);
       return [];
@@ -466,10 +594,108 @@ export class PostgresStorage implements IStorage {
         .from(keywords)
         .where(inArray(keywords.id, keywordIds));
       
-      return keywordData;
+      // 必要なプロパティを持つKeyword型の配列に変換
+      return keywordData.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        status: item.status || null,
+        parentId: item.parentId || null,
+        isCommon: item.isCommon || null,
+        createdBy: item.createdBy || null,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      }));
     } catch (error) {
       console.error("Error in getRoleModelKeywordsData:", error);
       return [];
+    }
+  }
+  
+  // 購読プラン操作
+  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    try {
+      return await db.select().from(subscriptionPlans);
+    } catch (error) {
+      console.error("Error in getSubscriptionPlans:", error);
+      return [];
+    }
+  }
+  
+  async getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined> {
+    try {
+      const [plan] = await db.select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, id));
+      return plan;
+    } catch (error) {
+      console.error("Error in getSubscriptionPlan:", error);
+      return undefined;
+    }
+  }
+  
+  async createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
+    try {
+      const [newPlan] = await db.insert(subscriptionPlans)
+        .values({
+          ...plan,
+          features: plan.features || null
+        })
+        .returning();
+      return newPlan;
+    } catch (error) {
+      console.error("Error in createSubscriptionPlan:", error);
+      throw error;
+    }
+  }
+  
+  // 情報収集プラン操作
+  async getInformationCollectionPlan(roleModelId: string): Promise<InformationCollectionPlan | undefined> {
+    try {
+      const [plan] = await db.select()
+        .from(informationCollectionPlans)
+        .where(eq(informationCollectionPlans.roleModelId, roleModelId));
+      return plan;
+    } catch (error) {
+      console.error("Error in getInformationCollectionPlan:", error);
+      return undefined;
+    }
+  }
+  
+  async createInformationCollectionPlan(plan: InsertInformationCollectionPlan): Promise<InformationCollectionPlan> {
+    try {
+      const [newPlan] = await db.insert(informationCollectionPlans)
+        .values({
+          ...plan,
+          updatedBy: plan.updatedBy || null
+        })
+        .returning();
+      return newPlan;
+    } catch (error) {
+      console.error("Error in createInformationCollectionPlan:", error);
+      throw error;
+    }
+  }
+  
+  async updateInformationCollectionPlan(id: string, planData: string, updatedBy: string): Promise<InformationCollectionPlan> {
+    try {
+      const [updatedPlan] = await db.update(informationCollectionPlans)
+        .set({
+          planData,
+          updatedBy,
+          updatedAt: new Date()
+        })
+        .where(eq(informationCollectionPlans.id, id))
+        .returning();
+      
+      if (!updatedPlan) {
+        throw new Error(`Information collection plan with ID ${id} not found`);
+      }
+      
+      return updatedPlan;
+    } catch (error) {
+      console.error("Error in updateInformationCollectionPlan:", error);
+      throw error;
     }
   }
 }

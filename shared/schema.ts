@@ -49,6 +49,9 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   password: text('password').notNull(),
   role: text('role').default('viewer').notNull(),
+  // 購読プラン関連フィールド
+  subscriptionPlan: text('subscription_plan').default('Lite'),
+  subscriptionExpiresAt: timestamp('subscription_expires_at'),
 });
 
 // ユーザーリレーション定義
@@ -439,6 +442,11 @@ export type ProgressUpdate = {
   subStage?: string;
   error?: boolean;
   errorMessage?: string;
+  steps?: {
+    name: string;
+    progress: number;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+  }[];
   detailedProgress?: {
     step: string;
     progress: number;
@@ -446,3 +454,85 @@ export type ProgressUpdate = {
     message?: string;
   }[];
 };
+
+// 購読プランテーブル
+export const subscriptionPlans = pgTable('subscription_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  price: integer('price').notNull(),
+  features: text('features'), // JSON形式の機能リスト
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// 購読プランリレーション定義
+export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
+  userSubscriptions: many(userSubscriptions),
+}));
+
+// ユーザーサブスクリプションテーブル
+export const userSubscriptions = pgTable('user_subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  planId: uuid('plan_id').notNull().references(() => subscriptionPlans.id),
+  startDate: timestamp('start_date').defaultNow().notNull(),
+  endDate: timestamp('end_date'),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ユーザーサブスクリプションリレーション定義
+export const userSubscriptionsRelations = relations(userSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [userSubscriptions.userId],
+    references: [users.id],
+  }),
+  plan: one(subscriptionPlans, {
+    fields: [userSubscriptions.planId],
+    references: [subscriptionPlans.id],
+  }),
+}));
+
+// 情報収集プランテーブル
+export const informationCollectionPlans = pgTable('information_collection_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roleModelId: uuid('role_model_id')
+    .notNull()
+    .references(() => roleModels.id, { onDelete: 'cascade' }),
+  planData: text('plan_data').notNull(), // JSON形式のプランデータ
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// 購読プランスキーマ
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans, {
+  name: z.string().min(1),
+  description: z.string().nullable().optional(),
+  price: z.number().min(0),
+  features: z.string().nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+
+// ユーザーサブスクリプションスキーマ
+export const insertUserSubscriptionSchema = createInsertSchema(userSubscriptions, {
+  userId: z.string().uuid(),
+  planId: z.string().uuid(),
+  status: z.string().default('active'),
+  startDate: z.date().default(() => new Date()),
+  endDate: z.date().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+
+// 情報収集プランスキーマ
+export const insertInformationCollectionPlanSchema = createInsertSchema(informationCollectionPlans, {
+  roleModelId: z.string().uuid(),
+  planData: z.string(),
+  updatedBy: z.string().uuid().nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertInformationCollectionPlan = z.infer<typeof insertInformationCollectionPlanSchema>;
+export type InformationCollectionPlan = typeof informationCollectionPlans.$inferSelect;

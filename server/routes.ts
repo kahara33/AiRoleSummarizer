@@ -1,15 +1,17 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { Server, createServer } from 'http';
 import { 
-  setupWebSocketServer, 
-  sendProgressUpdate,
-  sendAgentThoughts,
-  sendMessageToRoleModelViewers
+  initWebSocket,
+  sendProgressUpdate
 } from './websocket';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
 import { eq, and, or, not, sql } from 'drizzle-orm';
+import { 
+  createInformationCollectionPlan,
+  getInformationCollectionPlan
+} from './controllers/information-collection-controller';
 import { 
   insertKnowledgeNodeSchema, 
   insertKnowledgeEdgeSchema,
@@ -56,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   
   // WebSocketサーバーのセットアップ
-  setupWebSocketServer(httpServer);
+  initWebSocket(httpServer);
   
   // API エンドポイントの設定
   // システム状態の確認
@@ -1722,6 +1724,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'キーワード関連付けの削除に失敗しました' });
     }
   });
+
+  // ==================
+  // 情報収集プラン関連
+  // ==================
+  
+  // 情報収集プラン作成API
+  app.post('/api/role-models/:roleModelId/information-collection-plans', isAuthenticated, createInformationCollectionPlan);
+  
+  // 情報収集プラン一覧取得API
+  app.get('/api/role-models/:roleModelId/information-collection-plans', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      const { roleModelId } = req.params;
+      
+      // ロールモデルIDで最新の情報収集プランを取得
+      const plans = await db.query.informationCollectionPlans.findMany({
+        where: eq(informationCollectionPlans.roleModelId, roleModelId),
+        orderBy: (informationCollectionPlans, { desc }) => [desc(informationCollectionPlans.createdAt)]
+      });
+      
+      return res.status(200).json(plans);
+    } catch (error) {
+      console.error('情報収集プラン一覧取得エラー:', error);
+      return res.status(500).json({ error: `サーバーエラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}` });
+    }
+  });
+  
+  // 特定の情報収集プラン取得API
+  app.get('/api/information-collection-plans/:planId', isAuthenticated, getInformationCollectionPlan);
 
   return httpServer;
 }

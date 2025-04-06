@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import ChatPanel from '@/components/chat/ChatPanel';
+import { CreateCollectionPlanButton } from '@/components/collection-plan/CreateCollectionPlanButton';
 import { KnowledgeNode, Keyword, KnowledgeEdge } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -124,6 +125,16 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
             {isGenerating && <Loader2 className="h-3 w-3 animate-spin" />}
             {isGenerating ? 'AI生成中...' : 'AIで知識グラフ生成'}
           </button>
+          
+          {roleModelId !== 'default' && (
+            <div className="w-48">
+              <CreateCollectionPlanButton 
+                roleModelId={roleModelId} 
+                disabled={isGenerating} 
+              />
+            </div>
+          )}
+          
           <button
             onClick={togglePanel}
             className={`px-3 py-1 rounded text-sm ${
