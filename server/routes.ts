@@ -798,16 +798,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 
                 // Neo4jにも保存
-                await createNodeInNeo4j({
-                  id: node.id,
-                  name: node.name,
-                  type: node.type || 'default',
-                  level: node.level,
-                  parentId: node.parentId || null,
-                  roleModelId,
-                  description: node.description || null,
-                  color: node.color || null
-                });
+                try {
+                  await createNodeInNeo4j({
+                    id: node.id,
+                    name: node.name,
+                    type: node.type || 'default',
+                    level: node.level,
+                    parentId: node.parentId || null,
+                    roleModelId,
+                    description: node.description || null,
+                    color: node.color || null
+                  });
+                } catch (neo4jError) {
+                  console.error('Neo4jノード作成エラー (無視して続行):', neo4jError);
+                }
               }
               
               for (const edge of result.data.edges) {
@@ -824,13 +828,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 
                 // Neo4jにも保存
-                await createEdgeInNeo4j({
-                  sourceId: edge.source,
-                  targetId: edge.target,
-                  label: edge.label || null,
-                  roleModelId,
-                  strength: strengthValue
-                });
+                try {
+                  await createEdgeInNeo4j({
+                    sourceId: edge.source,
+                    targetId: edge.target,
+                    label: edge.label || null,
+                    roleModelId,
+                    strength: strengthValue
+                  });
+                } catch (neo4jError) {
+                  console.error('CrewAI生成時のNeo4jエッジ作成エラー (無視して続行):', neo4jError);
+                }
               }
               
               sendProgressUpdate('知識グラフの生成と保存が完了しました', 100, roleModelId, {
@@ -1135,7 +1143,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.insert(knowledgeNodes).values(validatedData).returning();
       
       // Neo4jにも同じノードを保存
-      await createNodeInNeo4j(result[0]);
+      try {
+        await createNodeInNeo4j(result[0]);
+      } catch (neo4jError) {
+        console.error('Neo4jノード作成エラー (無視して続行):', neo4jError);
+      }
       
       res.status(201).json(result[0]);
     } catch (error) {
@@ -1171,7 +1183,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.insert(knowledgeEdges).values(validatedData).returning();
       
       // Neo4jにも同じエッジを保存
-      await createEdgeInNeo4j(result[0]);
+      try {
+        await createEdgeInNeo4j(result[0]);
+      } catch (neo4jError) {
+        console.error('Neo4jエッジ作成エラー (無視して続行):', neo4jError);
+      }
       
       res.status(201).json(result[0]);
     } catch (error) {
@@ -1721,27 +1737,27 @@ async function createNodeInNeo4j(node: any) {
   }
   
   try {
-    import('./neo4j').then(async (neo4j) => {
-      // Neo4jにノード作成
-      await neo4j.createNode(
-        type || 'Concept',
-        {
-          id,
-          name,
-          level: level || 0,
-          parentId,
-          description,
-          color,
-          type,
-        },
-        roleModelId.toString()
-      );
-      
-      console.log(`Neo4jにノード作成: ${id}`);
-    });
+    const neo4j = await import('./neo4j');
+    // Neo4jにノード作成
+    await neo4j.createNode(
+      type || 'Concept',
+      {
+        id,
+        name,
+        level: level || 0,
+        parentId,
+        description,
+        color,
+        type,
+      },
+      roleModelId.toString()
+    );
+    
+    console.log(`Neo4jにノード作成: ${id}`);
   } catch (error) {
     console.error('Neo4jノード作成エラー:', error);
     // エラーは無視して処理を続行
+    throw error; // エラーを上位に伝播させて処理できるようにする
   }
 }
 
@@ -1756,23 +1772,23 @@ async function createEdgeInNeo4j(edge: any) {
   }
   
   try {
-    import('./neo4j').then(async (neo4j) => {
-      // Neo4jに関係作成
-      await neo4j.createRelationship(
-        sourceId,
-        targetId,
-        'RELATED_TO',
-        {
-          label,
-          strength: strength || 1,
-        },
-        roleModelId.toString()
-      );
-      
-      console.log(`Neo4jに関係作成: ${sourceId} -> ${targetId}`);
-    });
+    const neo4j = await import('./neo4j');
+    // Neo4jに関係作成
+    await neo4j.createRelationship(
+      sourceId,
+      targetId,
+      'RELATED_TO',
+      {
+        label,
+        strength: strength || 1,
+      },
+      roleModelId.toString()
+    );
+    
+    console.log(`Neo4jに関係作成: ${sourceId} -> ${targetId}`);
   } catch (error) {
     console.error('Neo4j関係作成エラー:', error);
     // エラーは無視して処理を続行
+    throw error; // エラーを上位に伝播させて処理できるようにする
   }
 }
