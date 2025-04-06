@@ -52,12 +52,30 @@ export function initSocket(): WebSocket {
         // agent_thoughtsイベントをエージェント思考メッセージへ標準化
         const payloadData = data.payload || data;
         
+        console.log('元のエージェント思考データ:', payloadData);
+        console.log('thinking属性:', payloadData.thinking);
+        console.log('reasoning属性:', payloadData.reasoning);
+        console.log('decision属性:', payloadData.decision);
+        
         // リスナーに配信する前にデータ形式を標準化
         const standardizedData = {
           ...payloadData,
           agentName: payloadData.agentName || payloadData.agent || 'エージェント',
           agentType: payloadData.agentType || payloadData.agent_type || 'unknown',
           thoughts: payloadData.thoughts || payloadData.message || payloadData.content || '',
+          // 思考プロセスの詳細を確保
+          thinking: payloadData.thinking || [{
+            step: 'default',
+            content: payloadData.thoughts || payloadData.message || payloadData.content || '',
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          }],
+          // 推論と決定を確保
+          reasoning: payloadData.reasoning,
+          decision: payloadData.decision,
+          // コンテキストと入出力データを確保
+          context: payloadData.context,
+          inputData: payloadData.inputData,
+          outputData: payloadData.outputData,
           timestamp: payloadData.timestamp || new Date().toISOString()
         };
         

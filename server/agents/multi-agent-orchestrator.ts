@@ -320,7 +320,21 @@ export async function processRoleModel(
     }
     
     // ステップ3: 構造化エージェントを実行
-    sendProgressUpdate('情報構造化を開始します', 50, input.roleModelId);
+    
+    // 構造化の詳細な進捗情報を初期化
+    const structuringProgressSteps: ProgressStep[] = [
+      { step: 'キーワード分類', progress: 0, status: 'pending', message: '' },
+      { step: 'カテゴリ作成', progress: 0, status: 'pending', message: '' },
+      { step: '階層構造生成', progress: 0, status: 'pending', message: '' },
+      { step: '関係性マッピング', progress: 0, status: 'pending', message: '' }
+    ];
+    
+    // 詳細な進捗情報付きで初期進捗を送信
+    sendProgressUpdate('情報構造化を開始します', 50, input.roleModelId, {
+      stage: 'structuring',
+      subStage: 'preparation',
+      detailedProgress: structuringProgressSteps
+    });
     
     const structuringInput: StructuringInput = {
       ...input,
@@ -330,7 +344,37 @@ export async function processRoleModel(
       keywordRelations: keywordResult.data.keywordRelations
     };
     
-    sendAgentThoughts('Structuring Agent', '情報構造化を開始します...', input.roleModelId);
+    // 詳細な思考プロセス情報を初期化
+    const structuringThinkingSteps = [
+      {
+        step: '準備',
+        content: `${keywordResult.data.expandedKeywords.length}個のキーワードと${keywordResult.data.keywordRelations.length}個の関係性に基づいた構造化を開始します`,
+        timestamp: new Date().toISOString()
+      }
+    ];
+    
+    // 詳細な思考プロセス情報付きで初期思考を送信
+    sendAgentThoughts('Structuring Agent', '情報構造化を開始します...', input.roleModelId, {
+      agentType: 'structuring',
+      stage: 'structuring',
+      thinking: structuringThinkingSteps,
+      context: {
+        keywordCount: keywordResult.data.expandedKeywords.length,
+        relationCount: keywordResult.data.keywordRelations.length,
+        industries: industryResult.data.industries
+      }
+    });
+    
+    // 進捗ステップを更新
+    structuringProgressSteps[0].status = 'processing';
+    structuringProgressSteps[0].progress = 30;
+    sendProgressUpdate('キーワードを分類中...', 55, input.roleModelId, {
+      stage: 'structuring',
+      subStage: 'keyword_classification',
+      detailedProgress: structuringProgressSteps
+    });
+    
+    // 構造化エージェントを実行
     const structureResult = await structureContent(structuringInput);
     
     if (structureResult.success) {
@@ -349,7 +393,21 @@ export async function processRoleModel(
     }
     
     // ステップ4: 知識グラフ生成エージェントを実行
-    sendProgressUpdate('知識グラフ生成を開始します', 75, input.roleModelId);
+    
+    // 知識グラフ生成の詳細な進捗情報を初期化
+    const graphProgressSteps: ProgressStep[] = [
+      { step: 'エンティティ準備', progress: 0, status: 'pending', message: '' },
+      { step: 'ノード生成', progress: 0, status: 'pending', message: '' },
+      { step: 'エッジ生成', progress: 0, status: 'pending', message: '' },
+      { step: 'グラフ最適化', progress: 0, status: 'pending', message: '' }
+    ];
+    
+    // 詳細な進捗情報付きで初期進捗を送信
+    sendProgressUpdate('知識グラフ生成を開始します', 75, input.roleModelId, {
+      stage: 'knowledge_graph',
+      subStage: 'preparation',
+      detailedProgress: graphProgressSteps
+    });
     
     const graphInput: KnowledgeGraphInput = {
       ...input,
@@ -362,7 +420,53 @@ export async function processRoleModel(
       relationships: structureResult.data.relationships
     };
     
-    sendAgentThoughts('Knowledge Graph Agent', '知識グラフ生成を開始します...', input.roleModelId);
+    // 詳細な思考プロセス情報を初期化
+    const graphThinkingSteps = [
+      {
+        step: '準備',
+        content: `構造化された${structureResult.data.entities?.length || 0}個のエンティティと${structureResult.data.relationships?.length || 0}個の関係性に基づいた知識グラフ生成を開始します`,
+        timestamp: new Date().toISOString()
+      }
+    ];
+    
+    // 詳細な思考プロセス情報付きで初期思考を送信
+    sendAgentThoughts('Knowledge Graph Agent', '知識グラフ生成を開始します...', input.roleModelId, {
+      agentType: 'knowledge-graph',
+      stage: 'knowledge_graph',
+      thinking: graphThinkingSteps,
+      context: {
+        entityCount: structureResult.data.entities?.length || 0,
+        relationshipCount: structureResult.data.relationships?.length || 0,
+        keywords: keywordResult.data.expandedKeywords.length
+      }
+    });
+    
+    // 進捗ステップを更新
+    graphProgressSteps[0].status = 'processing';
+    graphProgressSteps[0].progress = 40;
+    sendProgressUpdate('エンティティ情報を準備中...', 80, input.roleModelId, {
+      stage: 'knowledge_graph',
+      subStage: 'entity_preparation',
+      detailedProgress: graphProgressSteps
+    });
+    
+    // もう1つの思考ステップを追加
+    graphThinkingSteps.push({
+      step: 'エンティティ分析',
+      content: '役割モデルに関連する主要エンティティを分析し、知識グラフのノードとして適切な構造を特定します',
+      timestamp: new Date().toISOString()
+    });
+    
+    // 更新された思考プロセスを送信
+    sendAgentThoughts('Knowledge Graph Agent', 'エンティティを分析中...', input.roleModelId, {
+      agentType: 'knowledge-graph',
+      stage: 'knowledge_graph',
+      subStage: 'entity_analysis',
+      thinking: graphThinkingSteps,
+      reasoning: '各エンティティの重要性と関連性を評価し、グラフの中心的要素を特定します'
+    });
+    
+    // 知識グラフエージェントを実行
     const graphResult = await generateKnowledgeGraph(graphInput);
     
     if (graphResult.success) {

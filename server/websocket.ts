@@ -212,6 +212,7 @@ export function sendAgentThoughts(
   additionalData?: {
     agentType?: string;
     stage?: string;
+    subStage?: string;
     thinking?: Array<{
       step: string;
       content: string;
@@ -222,9 +223,26 @@ export function sendAgentThoughts(
     context?: any;
     inputData?: any;
     outputData?: any;
+    timestamp?: string;
   }
 ): void {
   console.log(`エージェント思考: ${agentName} - ${thoughts.substring(0, 50)}...`);
+  
+  // 思考内容の詳細ログを出力（デバッグ用）
+  if (additionalData) {
+    console.log('送信する詳細な思考情報:', {
+      agentName,
+      hasThinkinList: Boolean(additionalData.thinking),
+      thinkingStepsCount: additionalData.thinking?.length || 0,
+      hasReasoning: Boolean(additionalData.reasoning),
+      hasDecision: Boolean(additionalData.decision),
+      hasContext: Boolean(additionalData.context),
+      hasInputData: Boolean(additionalData.inputData),
+      hasOutputData: Boolean(additionalData.outputData),
+      stage: additionalData.stage,
+      agentType: additionalData.agentType
+    });
+  }
   
   if (roleModelId && isValidUUID(roleModelId)) {
     // 標準的なエージェントタイプを特定する
@@ -245,6 +263,16 @@ export function sendAgentThoughts(
         .toLowerCase()
         .includes("orchestr") ? "orchestrator" : "agent";
     
+    // thinking属性が必ず配列として渡されるように前処理
+    let thinkingSteps = additionalData?.thinking;
+    if (!thinkingSteps || !Array.isArray(thinkingSteps) || thinkingSteps.length === 0) {
+      thinkingSteps = [{
+        step: "思考プロセス",
+        content: thoughts,
+        timestamp: new Date().toISOString()
+      }];
+    }
+    
     const payload = {
       agentName,
       thoughts,
@@ -252,12 +280,10 @@ export function sendAgentThoughts(
       ...additionalData,
       // エージェントタイプが指定されていない場合は標準化したタイプを使用
       agentType: additionalData?.agentType || standardizedAgentType,
-      // 詳細な思考プロセスがない場合、基本的な思考ステップを生成
-      thinking: additionalData?.thinking || [{
-        step: "思考プロセス",
-        content: thoughts,
-        timestamp: new Date().toISOString()
-      }]
+      // 詳細な思考プロセスを必ず配列として設定
+      thinking: thinkingSteps,
+      // タイムスタンプを確保
+      timestamp: additionalData?.timestamp || new Date().toISOString()
     };
     
     sendMessageToRoleModelViewers('agent_thoughts', payload, roleModelId);
