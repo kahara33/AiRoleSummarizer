@@ -807,14 +807,16 @@ export async function generateKnowledgeGraphForNode(
 
 // Template function for business architect role
 function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
-  const nodes: KnowledgeNodeData[] = [
-    {
-      name: "ビジネスアーキテクト",
-      level: 0,
-      type: "central",
-      color: "#4A90E2",
-      description: "ビジネス戦略と技術をつなぐ役割を担う専門家"
-    },
+  // ノードとエッジを直接定義
+  const graph: KnowledgeGraphData = {
+    nodes: [
+      {
+        name: "ビジネスアーキテクト",
+        level: 0,
+        type: "central",
+        color: "#4A90E2",
+        description: "ビジネス戦略と技術をつなぐ役割を担う専門家"
+      },
       {
         name: "情報収集目的",
         level: 1,
@@ -950,97 +952,147 @@ function getBusinessArchitectGraph(roleModelId: string): KnowledgeGraphData {
         description: "組織全体のIT構造と業務プロセスの設計"
       }
     ],
-    edges: []
-  };
-  
-  // エッジを自動的に生成
-  const edges: KnowledgeEdgeData[] = [];
-  
-  // 中心ノードからレベル1のカテゴリへのエッジ
-  const centralNode = "ビジネスアーキテクト";
-  const level1Nodes = [
-    "情報収集目的",
-    "情報源と技術リソース",
-    "業界専門知識",
-    "トレンド分析",
-    "実践応用分野"
-  ];
-  
-  // 中心からレベル1へのエッジ
-  level1Nodes.forEach(targetNode => {
-    edges.push({
-      source: centralNode,
-      target: targetNode,
-      label: "必要とする",
-      strength: 5
-    });
-  });
-  
-  // レベル1からレベル2へのエッジ
-  const level2Mapping: {[key: string]: string[]} = {
-    "情報収集目的": [
-      "ビジネス戦略策定",
-      "意思決定支援",
-      "イノベーション促進",
-      "リスク管理"
-    ],
-    "情報源と技術リソース": [
-      "業界レポート",
-      "テクノロジーブログ",
-      "オンライン学習プラットフォーム",
-      "ネットワーキングイベント"
-    ],
-    "業界専門知識": [
-      "デジタルトランスフォーメーション",
-      "クラウドコンピューティング",
-      "データアナリティクス",
-      "エンタープライズアーキテクチャ"
+    edges: [
+      // 中心からレベル1へのエッジ
+      {
+        source: "ビジネスアーキテクト",
+        target: "情報収集目的",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: "ビジネスアーキテクト",
+        target: "情報源と技術リソース",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: "ビジネスアーキテクト",
+        target: "業界専門知識",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: "ビジネスアーキテクト",
+        target: "トレンド分析",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: "ビジネスアーキテクト",
+        target: "実践応用分野",
+        label: "必要とする",
+        strength: 5
+      },
+      
+      // 情報収集目的からのエッジ
+      {
+        source: "情報収集目的",
+        target: "ビジネス戦略策定",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報収集目的",
+        target: "意思決定支援",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報収集目的",
+        target: "イノベーション促進",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報収集目的",
+        target: "リスク管理",
+        label: "含む",
+        strength: 4
+      },
+      
+      // 情報源と技術リソースからのエッジ
+      {
+        source: "情報源と技術リソース",
+        target: "業界レポート",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報源と技術リソース",
+        target: "テクノロジーブログ",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報源と技術リソース",
+        target: "オンライン学習プラットフォーム",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報源と技術リソース",
+        target: "ネットワーキングイベント",
+        label: "含む",
+        strength: 4
+      },
+      
+      // 業界専門知識からのエッジ
+      {
+        source: "業界専門知識",
+        target: "デジタルトランスフォーメーション",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "業界専門知識",
+        target: "クラウドコンピューティング",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "業界専門知識",
+        target: "データアナリティクス",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "業界専門知識",
+        target: "エンタープライズアーキテクチャ",
+        label: "含む",
+        strength: 4
+      },
+      
+      // 関連するノード間のエッジ
+      {
+        source: "ビジネス戦略策定",
+        target: "デジタルトランスフォーメーション",
+        label: "活用する",
+        strength: 3
+      },
+      {
+        source: "データアナリティクス",
+        target: "意思決定支援",
+        label: "促進する",
+        strength: 4
+      },
+      {
+        source: "クラウドコンピューティング",
+        target: "デジタルトランスフォーメーション",
+        label: "支援する",
+        strength: 3
+      }
     ]
   };
   
-  // レベル1からレベル2へのエッジを追加
-  Object.entries(level2Mapping).forEach(([source, targets]) => {
-    targets.forEach(target => {
-      edges.push({
-        source,
-        target,
-        label: "含む",
-        strength: 4
-      });
-    });
-  });
-  
-  // 関連するノード間のエッジ
-  edges.push(
-    {
-      source: "ビジネス戦略策定",
-      target: "デジタルトランスフォーメーション",
-      label: "活用する",
-      strength: 3
-    },
-    {
-      source: "データアナリティクス",
-      target: "意思決定支援",
-      label: "促進する",
-      strength: 4
-    },
-    {
-      source: "クラウドコンピューティング",
-      target: "デジタルトランスフォーメーション",
-      label: "支援する",
-      strength: 3
-    }
-  );
-  
-  return {
-    nodes,
-    edges
-  };
+  return graph;
 }
 
 // Template function for generic role
 function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGraphData {
-  const nodes: KnowledgeNodeData[] = [
+  // ノードとエッジを直接定義
+  const graph: KnowledgeGraphData = {
+    nodes: [
       {
         name: roleName,
         level: 0,
@@ -1159,81 +1211,114 @@ function getGenericRoleGraph(roleModelId: string, roleName: string): KnowledgeGr
         description: "現在の問題点と将来的な成長機会"
       }
     ],
-    edges: []
-  };
-  
-  // エッジを自動的に生成
-  const edges: KnowledgeEdgeData[] = [];
-  
-  // 中心ノードからレベル1のカテゴリへのエッジ
-  const centralNode = roleName;
-  const level1Nodes = [
-    "情報収集目的",
-    "情報源と技術リソース",
-    "業界専門知識",
-    "トレンド分析",
-    "実践応用分野"
-  ];
-  
-  // 中心からレベル1へのエッジ
-  level1Nodes.forEach(targetNode => {
-    edges.push({
-      source: centralNode,
-      target: targetNode,
-      label: "必要とする",
-      strength: 5
-    });
-  });
-  
-  // レベル1からレベル2へのエッジ
-  const level2Mapping: {[key: string]: string[]} = {
-    "情報収集目的": [
-      "専門知識の向上",
-      "業界動向の把握",
-      "問題解決能力の強化"
-    ],
-    "情報源と技術リソース": [
-      "専門誌と書籍",
-      "オンラインコミュニティ",
-      "データ分析ツール"
-    ],
-    "業界専門知識": [
-      "基礎理論と概念",
-      "最新技術の動向",
-      "業界の課題と機会"
+    edges: [
+      // 中心からレベル1へのエッジ
+      {
+        source: roleName,
+        target: "情報収集目的",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: roleName,
+        target: "情報源と技術リソース",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: roleName,
+        target: "業界専門知識",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: roleName,
+        target: "トレンド分析",
+        label: "必要とする",
+        strength: 5
+      },
+      {
+        source: roleName,
+        target: "実践応用分野",
+        label: "必要とする",
+        strength: 5
+      },
+      
+      // 情報収集目的からのエッジ
+      {
+        source: "情報収集目的",
+        target: "専門知識の向上",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報収集目的",
+        target: "業界動向の把握",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報収集目的",
+        target: "問題解決能力の強化",
+        label: "含む",
+        strength: 4
+      },
+      
+      // 情報源と技術リソースからのエッジ
+      {
+        source: "情報源と技術リソース",
+        target: "専門誌と書籍",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報源と技術リソース",
+        target: "オンラインコミュニティ",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "情報源と技術リソース",
+        target: "データ分析ツール",
+        label: "含む",
+        strength: 4
+      },
+      
+      // 業界専門知識からのエッジ
+      {
+        source: "業界専門知識",
+        target: "基礎理論と概念",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "業界専門知識",
+        target: "最新技術の動向",
+        label: "含む",
+        strength: 4
+      },
+      {
+        source: "業界専門知識",
+        target: "業界の課題と機会",
+        label: "含む",
+        strength: 4
+      },
+      
+      // 関連するノード間のエッジ
+      {
+        source: "業界動向の把握",
+        target: "最新技術の動向",
+        label: "関連する",
+        strength: 3
+      },
+      {
+        source: "データ分析ツール",
+        target: "問題解決能力の強化",
+        label: "支援する",
+        strength: 3
+      }
     ]
   };
   
-  // レベル1からレベル2へのエッジを追加
-  Object.entries(level2Mapping).forEach(([source, targets]) => {
-    targets.forEach(target => {
-      edges.push({
-        source,
-        target,
-        label: "含む",
-        strength: 4
-      });
-    });
-  });
-  
-  // 関連するノード間のエッジ
-  edges.push(
-    {
-      source: "業界動向の把握",
-      target: "最新技術の動向",
-      label: "関連する",
-      strength: 3
-    },
-    {
-      source: "データ分析ツール",
-      target: "問題解決能力の強化",
-      label: "支援する",
-      strength: 3
-    }
-  );
-  
-  return {
-    nodes,
-    edges
-  };
+  return graph;
 }
