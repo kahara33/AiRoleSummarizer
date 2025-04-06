@@ -175,13 +175,20 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       });
       
       // ReactFlowエッジへの変換
-      const flowEdges: Edge[] = validEdges.map((edge: any) => {
+      // edgeのIDを一意に保つため、マップを使用して重複を排除
+      const edgeMap = new Map();
+      
+      validEdges.forEach((edge: any) => {
         // sourceIdとtargetIdの優先的な使用 (PostgreSQLから取得した場合)
         const source = edge.sourceId || edge.source;
         const target = edge.targetId || edge.target;
         
-        return {
-          id: `${source}-${target}`,
+        // 重複チェック用のキー
+        const edgeKey = `${source}-${target}`;
+        
+        // 重複がない場合だけ追加（後から来たエッジで上書き）
+        edgeMap.set(edgeKey, {
+          id: edge.id || edgeKey + '-' + Math.random().toString(36).substr(2, 9), // 一意のIDを生成
           source,
           target,
           type: 'dataFlow',
@@ -190,8 +197,11 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           data: {
             strength: edge.strength || 1,
           },
-        };
+        });
       });
+      
+      // マップから配列に変換
+      const flowEdges: Edge[] = Array.from(edgeMap.values());
       
       console.log('Created flow edges:', flowEdges);
       
