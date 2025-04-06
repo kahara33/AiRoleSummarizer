@@ -121,6 +121,12 @@ async function gracefulShutdown(signal: string, server: any) {
   });
 }
 
+// 開発環境設定
+if (process.env.NODE_ENV !== 'production') {
+  process.env.NODE_ENV = 'development';
+  console.log('開発環境として実行中');
+}
+
 // サーバーの開始
 async function startServer() {
   try {

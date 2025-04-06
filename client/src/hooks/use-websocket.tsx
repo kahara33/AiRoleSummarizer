@@ -79,6 +79,7 @@ export function useWebSocket(
           // メッセージタイプに基づいて適切なハンドラを呼び出す
           switch (parsed.type) {
             case 'progress_update':
+            case 'progress':
               events?.onProgressUpdate?.(parsed);
               break;
             case 'error':
@@ -87,12 +88,23 @@ export function useWebSocket(
             case 'completion':
               events?.onCompletion?.(parsed);
               break;
+            case 'connection':
+              console.log('WebSocket接続確認:', parsed);
+              break;
+            case 'agent-thoughts':
+              // エージェントの思考プロセスメッセージはデフォルトハンドラで処理
+              events?.onMessage?.({
+                data: event.data,
+                type: parsed.type,
+                target: parsed.roleModelId
+              });
+              break;
             default:
               // デフォルトのメッセージハンドラ
               events?.onMessage?.({
                 data: event.data,
                 type: parsed.type || 'unknown',
-                target: parsed.target
+                target: parsed.target || parsed.roleModelId
               });
           }
         } catch (e) {

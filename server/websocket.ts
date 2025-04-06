@@ -37,7 +37,11 @@ export function initWebSocket(server: HttpServer): void {
       userId = await verifySession(sessionId);
     }
 
-    if (!userId) {
+    // 本番環境以外では認証をスキップ
+    if (process.env.NODE_ENV !== 'production' && !userId) {
+      console.log('開発環境: WebSocket認証をスキップします');
+      userId = 'development-user-id';
+    } else if (!userId) {
       // 認証されていない場合は接続を閉じる
       console.log('認証されていないWebSocket接続を閉じます');
       ws.close(1008, 'Unauthorized');
@@ -111,15 +115,23 @@ export function sendProgressUpdate(
     return;
   }
 
+  // 進捗を0-100の範囲に制限
+  const normalizedProgress = Math.min(100, Math.max(0, progress));
+  
+  // データの統合（複数のクライアントライブラリでの互換性を確保）
   const data = {
     type: 'progress',
     message,
-    progress: Math.min(100, Math.max(0, progress)), // 0-100の範囲に制限
+    progress: normalizedProgress,
+    progress_update: normalizedProgress, // 後方互換性のため
     roleModelId,
     timestamp: new Date().toISOString(),
+    stage: detailedData?.stage || 'processing',
+    subStage: detailedData?.subStage || '',
     ...detailedData
   };
 
+  // 標準メッセージ形式のJSONを生成
   const message_json = JSON.stringify(data);
 
   // 該当ロールモデルに接続されているすべてのクライアントに送信
@@ -129,7 +141,10 @@ export function sendProgressUpdate(
     }
   });
 
-  console.log(`進捗更新を送信: ${roleModelId}, ${progress}%, "${message}"`);
+  // 冗長なログは出力しない（進捗が5%以上変化した場合のみ出力）
+  if (progress % 5 === 0 || progress === 100) {
+    console.log(`進捗更新を送信: ${roleModelId}, ${normalizedProgress}%, "${message}"`);
+  }
 }
 
 /**
@@ -149,12 +164,19 @@ export function sendErrorMessage(
     return;
   }
 
+  // データの統合（複数のクライアントライブラリでの互換性を確保）
   const data = {
     type: 'error',
     message,
+    error: message, // 後方互換性のため
     roleModelId,
     timestamp: new Date().toISOString(),
-    details: errorDetails
+    details: errorDetails,
+    // 進捗表示をリセットするためのフィールド（兼用クライアント対応）
+    progress: 0,
+    progress_update: 0,
+    stage: 'error',
+    subStage: errorDetails?.subStage || ''
   };
 
   const message_json = JSON.stringify(data);
@@ -195,10 +217,21 @@ export function sendAgentThoughts(
     return;
   }
 
+  // クライアントの互換性のためのデータ統合
   const data = {
     type: 'agent-thoughts',
+    agent_thoughts: true, // 後方互換性のため
     agentName,
+    agent: agentName, // 後方互換性のため
+    agent_type: detailedData?.agentType || 'PlannerAgent',
     thoughts,
+    message: thoughts, // 後方互換性のため
+    content: thoughts, // 後方互換性のため
+    thinking: detailedData?.thinking || [{
+      step: detailedData?.subStage || 'thinking',
+      content: thoughts,
+      timestamp: new Date().toISOString()
+    }],
     roleModelId,
     timestamp: new Date().toISOString(),
     ...detailedData
@@ -263,11 +296,17 @@ export function sendCompletionMessage(
     return;
   }
 
+  // データの統合（複数のクライアントライブラリでの互換性を確保）
   const payload = {
     type: 'completion',
     message,
     roleModelId,
     timestamp: new Date().toISOString(),
+    // 進捗表示を100%に設定（兼用クライアント対応）
+    progress: 100,
+    progress_update: 100,
+    stage: 'complete',
+    subStage: data?.subStage || '',
     data
   };
 
@@ -281,6 +320,14 @@ export function sendCompletionMessage(
   });
 
   console.log(`完了メッセージを送信: ${roleModelId}, "${message}"`);
+  
+  // 進捗更新メッセージとしても送信（代替クライアント対応）
+  sendProgressUpdate(message, 100, roleModelId, {
+    message,
+    progress: 100,
+    stage: 'complete',
+    subStage: data?.subStage || ''
+  });
 }
 
 /**

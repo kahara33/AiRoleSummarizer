@@ -1,4 +1,4 @@
-import { sendProgressUpdate, sendAgentThoughts } from '../websocket';
+import { sendProgressUpdate, sendAgentThoughts, sendErrorMessage, sendCompletionMessage } from '../websocket';
 import { callAzureOpenAI } from '../azure-openai';
 import { getUserSubscriptionTools } from '../subscription-tools';
 import { IndustryAnalysisAgent } from './industry-analysis-agent';
@@ -37,6 +37,9 @@ export class PlannerAgent {
     knowledgeNodes: KnowledgeNode[]
   ): Promise<any> {
     try {
+      console.log(`情報収集プラン作成開始 - RoleModelID: ${this.roleModelId}, UserID: ${this.userId}`);
+      console.log(`入力データ - 業界: ${industries.length}件, キーワード: ${keywords.length}件, ノード: ${knowledgeNodes.length}件`);
+      
       // 進捗状況を更新
       sendProgressUpdate(
         '情報収集プランの作成を開始',
@@ -51,7 +54,25 @@ export class PlannerAgent {
       );
 
       // ユーザーの購読プランに基づいて利用可能なツールを取得
-      this.availableTools = await getUserSubscriptionTools(this.userId);
+      try {
+        this.availableTools = await getUserSubscriptionTools(this.userId);
+        console.log(`利用可能ツール取得成功: ${this.availableTools.join(', ')}`);
+      } catch (toolError) {
+        console.error('ツール取得エラー:', toolError);
+        // エラーがあってもデフォルトのツールセットで継続
+        this.availableTools = ['google_search', 'web_scraping', 'rss_feeds'];
+        
+        // 警告メッセージを送信
+        sendAgentThoughts(
+          '情報収集プランナー',
+          `警告: ユーザーの購読情報取得中にエラーが発生しました。デフォルトのツールセットを使用します: ${this.availableTools.join(', ')}`,
+          this.roleModelId,
+          {
+            stage: 'planning',
+            subStage: 'エラー検出'
+          }
+        );
+      }
       
       // 進捗状況を更新
       sendProgressUpdate(
@@ -66,6 +87,37 @@ export class PlannerAgent {
         }
       );
 
+      // 入力データの検証
+      if (!industries || industries.length === 0) {
+        console.error('業界データが不足しています');
+        sendErrorMessage(
+          '情報収集プラン作成エラー: 業界データが不足しています',
+          this.roleModelId,
+          { stage: 'planning', subStage: 'データ検証' }
+        );
+        throw new Error('業界データが不足しています');
+      }
+
+      if (!keywords || keywords.length === 0) {
+        console.error('キーワードデータが不足しています');
+        sendErrorMessage(
+          '情報収集プラン作成エラー: キーワードデータが不足しています',
+          this.roleModelId,
+          { stage: 'planning', subStage: 'データ検証' }
+        );
+        throw new Error('キーワードデータが不足しています');
+      }
+
+      if (!knowledgeNodes || knowledgeNodes.length === 0) {
+        console.error('知識グラフノードが不足しています');
+        sendErrorMessage(
+          '情報収集プラン作成エラー: 知識グラフノードが不足しています',
+          this.roleModelId,
+          { stage: 'planning', subStage: 'データ検証' }
+        );
+        throw new Error('知識グラフノードが不足しています');
+      }
+
       // 業界分析用のノードを取得
       const industryNodes = knowledgeNodes.filter(
         node => node.type === 'Industry' || node.type === 'BusinessFunction'
@@ -75,6 +127,19 @@ export class PlannerAgent {
       const keywordNodes = knowledgeNodes.filter(
         node => node.type === 'Keyword' || node.type === 'Technology' || node.type === 'Concept'
       );
+
+      if (industryNodes.length === 0) {
+        console.warn('業界関連ノードが見つかりません');
+        sendAgentThoughts(
+          '情報収集プランナー',
+          '警告: 業界関連ノードが見つかりません。汎用的な情報収集計画を生成します。',
+          this.roleModelId,
+          {
+            stage: 'planning',
+            subStage: 'データ検証'
+          }
+        );
+      }
 
       // 進捗状況を更新
       sendProgressUpdate(
@@ -90,7 +155,19 @@ export class PlannerAgent {
       );
 
       // 情報収集プランの大枠を作成
-      const planOutline = await this.createPlanOutline(industries, keywords, knowledgeNodes);
+      let planOutline;
+      try {
+        console.log('プラン概要作成開始');
+        planOutline = await this.createPlanOutline(industries, keywords, knowledgeNodes);
+        console.log('プラン概要作成完了');
+      } catch (outlineError) {
+        console.error('プラン概要作成エラー:', outlineError);
+        sendErrorMessage(
+          `情報収集プラン概要作成エラー: ${outlineError instanceof Error ? outlineError.message : '不明なエラー'}`,
+          this.roleModelId
+        );
+        throw outlineError;
+      }
       
       // 進捗状況を更新
       sendProgressUpdate(
@@ -106,7 +183,19 @@ export class PlannerAgent {
       );
 
       // 詳細計画の作成
-      const detailedPlan = await this.createDetailedPlan(planOutline, industryNodes, keywordNodes);
+      let detailedPlan;
+      try {
+        console.log('詳細プラン作成開始');
+        detailedPlan = await this.createDetailedPlan(planOutline, industryNodes, keywordNodes);
+        console.log('詳細プラン作成完了');
+      } catch (detailError) {
+        console.error('詳細プラン作成エラー:', detailError);
+        sendErrorMessage(
+          `情報収集プラン詳細作成エラー: ${detailError instanceof Error ? detailError.message : '不明なエラー'}`,
+          this.roleModelId
+        );
+        throw detailError;
+      }
       
       // 進捗状況を更新
       sendProgressUpdate(
@@ -122,16 +211,28 @@ export class PlannerAgent {
       );
 
       // 実行計画とスケジュールの作成
-      const executionPlan = await this.createExecutionPlan(detailedPlan);
+      let executionPlan;
+      try {
+        console.log('実行プラン作成開始');
+        executionPlan = await this.createExecutionPlan(detailedPlan);
+        console.log('実行プラン作成完了');
+      } catch (execError) {
+        console.error('実行プラン作成エラー:', execError);
+        sendErrorMessage(
+          `情報収集プラン実行計画作成エラー: ${execError instanceof Error ? execError.message : '不明なエラー'}`,
+          this.roleModelId
+        );
+        throw execError;
+      }
       
       // 進捗状況を更新
       sendProgressUpdate(
         '情報収集プラン完成',
-        90,
+        95,
         this.roleModelId,
         {
           message: '情報収集プランの実行計画とスケジュールが完成しました',
-          progress: 90,
+          progress: 95,
           stage: 'planning',
           subStage: '実行計画作成'
         }
@@ -157,21 +258,34 @@ export class PlannerAgent {
         }
       );
 
+      // 完了メッセージを送信
+      sendCompletionMessage(
+        '情報収集プランが正常に作成されました',
+        this.roleModelId,
+        {
+          planSummary: {
+            industries: planOutline.industries.length,
+            keywords: planOutline.keywords.length,
+            focusAreas: planOutline.focusAreas.length,
+            sources: detailedPlan.sources.length,
+            queries: detailedPlan.queries.length
+          }
+        }
+      );
+
+      console.log('情報収集プラン作成が完了しました');
       return finalPlan;
 
     } catch (error) {
       console.error('情報収集プラン作成エラー:', error);
       
       // エラー状況を更新
-      sendProgressUpdate(
-        '情報収集プラン作成エラー',
-        0,
+      sendErrorMessage(
+        `情報収集プラン作成エラー: ${error instanceof Error ? error.message : '不明なエラー'}`,
         this.roleModelId,
         {
-          message: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
-          progress: 0,
-          stage: 'error',
-          subStage: 'プラン作成エラー'
+          details: error instanceof Error ? error.stack : '詳細不明',
+          timestamp: new Date().toISOString()
         }
       );
       
@@ -297,7 +411,13 @@ export class PlannerAgent {
    */
   private identifyClusters(nodes: KnowledgeNode[]): any[] {
     // ノードタイプによるクラスタリング (実際にはもっと複雑なアルゴリズムを使用)
-    const types = [...new Set(nodes.map(node => node.type))];
+    const typeSet = new Set<string>();
+    nodes.forEach(node => {
+      if (node.type) {
+        typeSet.add(node.type);
+      }
+    });
+    const types = Array.from(typeSet);
     
     return types.map(type => ({
       type,

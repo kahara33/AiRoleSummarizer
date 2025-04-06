@@ -4,10 +4,12 @@ const listeners: Record<string, Function[]> = {};
 
 /**
  * WebSocketの初期化
+ * @param customRoleModelId 特定のロールモデルIDを指定する場合
  * @returns WebSocketインスタンス
  */
-export function initSocket(): WebSocket {
+export function initSocket(customRoleModelId?: string): WebSocket {
   if (socket && socket.readyState === WebSocket.OPEN) {
+    console.log('既存のWebSocket接続を再利用します');
     return socket;
   }
   
@@ -21,185 +23,276 @@ export function initSocket(): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws`;
   
-  console.log('WebSocket初期化: ', wsUrl);
+  // ロールモデルIDの決定（優先順位: カスタムID > URLパラメータ > デフォルト）
+  let roleModelId = 'default';
   
-  socket = new WebSocket(wsUrl);
-  
-  // 接続イベント
-  socket.addEventListener('open', () => {
-    console.log('WebSocket接続完了');
-  });
-  
-  // メッセージ受信イベント
-  socket.addEventListener('message', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      console.log('WebSocketメッセージ受信:', data);
-      
-      // 受信データの詳細ログを出力して問題を特定
-      if (data.type) {
-        console.log(`WebSocketメッセージ詳細 (${data.type}):`, {
-          type: data.type,
-          payload: data.payload,
-          timestamp: new Date().toISOString(),
-          hasListeners: Boolean(listeners[data.type]),
-          listenersCount: listeners[data.type]?.length || 0
-        });
-      }
-      
-      // エージェント関連のメッセージ変換処理（互換性対応）
-      if (data.type === 'agent_thoughts' || data.type === 'agent-thoughts') {
-        // agent_thoughtsイベントをエージェント思考メッセージへ標準化
-        const payloadData = data.payload || data;
-        
-        console.log('元のエージェント思考データ:', payloadData);
-        console.log('thinking属性:', payloadData.thinking);
-        console.log('reasoning属性:', payloadData.reasoning);
-        console.log('decision属性:', payloadData.decision);
-        
-        // リスナーに配信する前にデータ形式を標準化
-        const standardizedData = {
-          ...payloadData,
-          agentName: payloadData.agentName || payloadData.agent || 'エージェント',
-          agentType: payloadData.agentType || payloadData.agent_type || 'unknown',
-          thoughts: payloadData.thoughts || payloadData.message || payloadData.content || '',
-          // 思考プロセスの詳細を確保
-          thinking: payloadData.thinking || [{
-            step: 'default',
-            content: payloadData.thoughts || payloadData.message || payloadData.content || '',
-            timestamp: payloadData.timestamp || new Date().toISOString()
-          }],
-          // 推論と決定を確保
-          reasoning: payloadData.reasoning,
-          decision: payloadData.decision,
-          // コンテキストと入出力データを確保
-          context: payloadData.context,
-          inputData: payloadData.inputData,
-          outputData: payloadData.outputData,
-          timestamp: payloadData.timestamp || new Date().toISOString()
-        };
-        
-        console.log('エージェント思考の標準化データ:', standardizedData);
-        
-        // リスナーに配信（両方のイベント名で配信し、互換性を確保）
-        if (listeners['agent_thoughts']) {
-          listeners['agent_thoughts'].forEach(callback => callback(standardizedData));
-        }
-        if (listeners['agent-thoughts']) {
-          listeners['agent-thoughts'].forEach(callback => callback(standardizedData));
-        }
-      }
-      // 進捗更新の変換処理
-      else if (data.type === 'progress') {
-        // progressイベントを進捗メッセージへ標準化
-        const payloadData = data.payload || data;
-        
-        // リスナーに配信する前にデータ形式を標準化
-        const standardizedData = {
-          ...payloadData,
-          message: payloadData.message || `進捗: ${payloadData.progress || 0}%`,
-          progress: payloadData.progress || 0,
-          stage: payloadData.stage || 'system',
-          timestamp: payloadData.timestamp || new Date().toISOString()
-        };
-        
-        console.log('進捗更新の標準化データ:', standardizedData);
-        
-        // リスナーに配信
-        if (listeners['progress']) {
-          listeners['progress'].forEach(callback => callback(standardizedData));
-        }
-      }
-      // 知識グラフ更新の変換処理
-      else if (data.type === 'knowledge-graph-update' || data.type === 'graph-update') {
-        // graph-updateイベントを知識グラフ更新メッセージへ標準化
-        const payloadData = data.payload || data;
-        
-        // リスナーに配信する前にデータ形式を標準化
-        const standardizedData = {
-          ...payloadData,
-          message: payloadData.message || 'グラフが更新されました',
-          timestamp: payloadData.timestamp || new Date().toISOString(),
-          type: payloadData.updateType || 'update'
-        };
-        
-        console.log('グラフ更新の標準化データ:', standardizedData);
-        
-        // リスナーに配信（両方のイベント名で配信し、互換性を確保）
-        if (listeners['knowledge-graph-update']) {
-          listeners['knowledge-graph-update'].forEach(callback => callback(standardizedData));
-        }
-        if (listeners['graph-update']) {
-          listeners['graph-update'].forEach(callback => callback(standardizedData));
-        }
-      }
-      // エージェント間通信の変換処理
-      else if (data.type === 'agent-communication') {
-        // agent-communicationイベントをエージェント間通信メッセージへ標準化
-        const payloadData = data.payload || data;
-        
-        // リスナーに配信する前にデータ形式を標準化
-        const standardizedData = {
-          ...payloadData,
-          sourceAgentName: payloadData.sourceAgentName || payloadData.sourceAgent || 'Source',
-          targetAgentName: payloadData.targetAgentName || payloadData.targetAgent || 'Target',
-          message: payloadData.message || payloadData.content || 'エージェント間通信',
-          timestamp: payloadData.timestamp || new Date().toISOString()
-        };
-        
-        console.log('エージェント通信の標準化データ:', standardizedData);
-        
-        // リスナーに配信
-        if (listeners['agent-communication']) {
-          listeners['agent-communication'].forEach(callback => callback(standardizedData));
-        }
-      }
-      // その他の標準メッセージ処理
-      else if (data.type && listeners[data.type]) {
-        // payloadが存在する場合はそれを使用、なければdata自体を使用
-        const messageData = data.payload || data;
-        // メッセージタイプに応じた詳細ログ
-        console.log(`${data.type}処理前:`, messageData);
-        // リスナーに配信
-        listeners[data.type].forEach(callback => callback(messageData));
-      }
-      
-      // すべてのリスナーに対してメッセージを送信
-      if (listeners['all']) {
-        listeners['all'].forEach(callback => callback(data));
-      }
-      
-      // 接続確認メッセージを受け取ったら、ロールモデルの購読テストを送信
-      if (data.type === 'connected') {
-        console.log('WebSocket接続確認を受信しました。');
-        // 接続確認メッセージを受信しました
-        // ここでは自動購読は行わず、コンポーネントから明示的に購読メッセージを送信します
-        // (KnowledgeGraphViewerコンポーネントなどから)
-      }
-    } catch (error) {
-      console.error('WebSocketメッセージの解析エラー:', error);
+  if (customRoleModelId) {
+    roleModelId = customRoleModelId;
+  } else {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoleModelId = urlParams.get('roleModelId');
+    if (urlRoleModelId) {
+      roleModelId = urlRoleModelId;
     }
-  });
+  }
   
-  // エラーイベント
-  socket.addEventListener('error', (error) => {
-    console.error('WebSocketエラー:', error);
-  });
+  // ロールモデルIDをクエリパラメータとして追加
+  const wsUrlWithParams = `${wsUrl}?roleModelId=${roleModelId}`;
   
-  // 切断イベント
-  socket.addEventListener('close', (event) => {
-    console.log(`WebSocket切断: コード ${event.code}, 理由: ${event.reason}`);
+  console.log(`WebSocket初期化: ${wsUrlWithParams} (${new Date().toISOString()})`);
+  
+  try {
+    // WebSocketインスタンスを作成
+    socket = new WebSocket(wsUrlWithParams);
     
-    // 再接続を試行
+    // 接続タイムアウト処理の追加（5秒）
+    const connectionTimeout = setTimeout(() => {
+      if (socket && socket.readyState !== WebSocket.OPEN) {
+        console.warn('WebSocket接続がタイムアウトしました。再接続を試みます。');
+        socket.close();
+        
+        // 再接続を試行
+        if (!reconnectTimer) {
+          reconnectTimer = setTimeout(() => {
+            console.log('WebSocket再接続を試行中...');
+            initSocket(customRoleModelId);
+          }, 3000);
+        }
+      }
+    }, 5000);
+  
+    // 接続イベント
+    socket.addEventListener('open', () => {
+      // 接続タイムアウトをクリア
+      clearTimeout(connectionTimeout);
+      console.log('WebSocket接続完了');
+    });
+  
+    // メッセージ受信イベント
+    socket.addEventListener('message', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('WebSocketメッセージ受信:', data);
+        
+        // 受信データの詳細ログを出力して問題を特定
+        if (data.type) {
+          console.log(`WebSocketメッセージ詳細 (${data.type}):`, {
+            type: data.type,
+            payload: data.payload,
+            timestamp: new Date().toISOString(),
+            hasListeners: Boolean(listeners[data.type]),
+            listenersCount: listeners[data.type]?.length || 0
+          });
+        }
+        
+        // エージェント関連のメッセージ変換処理（互換性対応）
+        if (data.type === 'agent_thoughts' || data.type === 'agent-thoughts') {
+          // agent_thoughtsイベントをエージェント思考メッセージへ標準化
+          const payloadData = data.payload || data;
+          
+          console.log('元のエージェント思考データ:', payloadData);
+          console.log('thinking属性:', payloadData.thinking);
+          console.log('reasoning属性:', payloadData.reasoning);
+          console.log('decision属性:', payloadData.decision);
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            agentName: payloadData.agentName || payloadData.agent || 'エージェント',
+            agentType: payloadData.agentType || payloadData.agent_type || 'unknown',
+            thoughts: payloadData.thoughts || payloadData.message || payloadData.content || '',
+            // 思考プロセスの詳細を確保
+            thinking: payloadData.thinking || [{
+              step: 'default',
+              content: payloadData.thoughts || payloadData.message || payloadData.content || '',
+              timestamp: payloadData.timestamp || new Date().toISOString()
+            }],
+            // 推論と決定を確保
+            reasoning: payloadData.reasoning,
+            decision: payloadData.decision,
+            // コンテキストと入出力データを確保
+            context: payloadData.context,
+            inputData: payloadData.inputData,
+            outputData: payloadData.outputData,
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          };
+          
+          console.log('エージェント思考の標準化データ:', standardizedData);
+          
+          // リスナーに配信（両方のイベント名で配信し、互換性を確保）
+          if (listeners['agent_thoughts']) {
+            listeners['agent_thoughts'].forEach(callback => callback(standardizedData));
+          }
+          if (listeners['agent-thoughts']) {
+            listeners['agent-thoughts'].forEach(callback => callback(standardizedData));
+          }
+        }
+        // 進捗更新の変換処理
+        else if (data.type === 'progress') {
+          // progressイベントを進捗メッセージへ標準化
+          const payloadData = data.payload || data;
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            message: payloadData.message || `進捗: ${payloadData.progress || 0}%`,
+            progress: payloadData.progress || 0,
+            stage: payloadData.stage || 'system',
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          };
+          
+          console.log('進捗更新の標準化データ:', standardizedData);
+          
+          // リスナーに配信
+          if (listeners['progress']) {
+            listeners['progress'].forEach(callback => callback(standardizedData));
+          }
+        }
+        // エラーメッセージの変換処理
+        else if (data.type === 'error') {
+          // errorイベントをエラーメッセージへ標準化
+          const payloadData = data.payload || data;
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            message: payloadData.message || payloadData.error || 'エラーが発生しました',
+            details: payloadData.details || payloadData.errorDetails || {},
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          };
+          
+          console.error('エラーメッセージの標準化データ:', standardizedData);
+          
+          // リスナーに配信
+          if (listeners['error']) {
+            listeners['error'].forEach(callback => callback(standardizedData));
+          }
+        }
+        // 完了メッセージの変換処理
+        else if (data.type === 'completion') {
+          // completionイベントを完了メッセージへ標準化
+          const payloadData = data.payload || data;
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            message: payloadData.message || '処理が完了しました',
+            data: payloadData.data || {},
+            progress: 100, // 完了メッセージの場合は進捗を100%に設定
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          };
+          
+          console.log('完了メッセージの標準化データ:', standardizedData);
+          
+          // リスナーに配信
+          if (listeners['completion']) {
+            listeners['completion'].forEach(callback => callback(standardizedData));
+          }
+        }
+        // 知識グラフ更新の変換処理
+        else if (data.type === 'knowledge-graph-update' || data.type === 'graph-update') {
+          // graph-updateイベントを知識グラフ更新メッセージへ標準化
+          const payloadData = data.payload || data;
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            message: payloadData.message || 'グラフが更新されました',
+            timestamp: payloadData.timestamp || new Date().toISOString(),
+            type: payloadData.updateType || 'update'
+          };
+          
+          console.log('グラフ更新の標準化データ:', standardizedData);
+          
+          // リスナーに配信（両方のイベント名で配信し、互換性を確保）
+          if (listeners['knowledge-graph-update']) {
+            listeners['knowledge-graph-update'].forEach(callback => callback(standardizedData));
+          }
+          if (listeners['graph-update']) {
+            listeners['graph-update'].forEach(callback => callback(standardizedData));
+          }
+        }
+        // エージェント間通信の変換処理
+        else if (data.type === 'agent-communication') {
+          // agent-communicationイベントをエージェント間通信メッセージへ標準化
+          const payloadData = data.payload || data;
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            sourceAgentName: payloadData.sourceAgentName || payloadData.sourceAgent || 'Source',
+            targetAgentName: payloadData.targetAgentName || payloadData.targetAgent || 'Target',
+            message: payloadData.message || payloadData.content || 'エージェント間通信',
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          };
+          
+          console.log('エージェント通信の標準化データ:', standardizedData);
+          
+          // リスナーに配信
+          if (listeners['agent-communication']) {
+            listeners['agent-communication'].forEach(callback => callback(standardizedData));
+          }
+        }
+        // その他の標準メッセージ処理
+        else if (data.type && listeners[data.type]) {
+          // payloadが存在する場合はそれを使用、なければdata自体を使用
+          const messageData = data.payload || data;
+          // メッセージタイプに応じた詳細ログ
+          console.log(`${data.type}処理前:`, messageData);
+          // リスナーに配信
+          listeners[data.type].forEach(callback => callback(messageData));
+        }
+        
+        // すべてのリスナーに対してメッセージを送信
+        if (listeners['all']) {
+          listeners['all'].forEach(callback => callback(data));
+        }
+        
+        // 接続確認メッセージを受け取ったら、ロールモデルの購読テストを送信
+        if (data.type === 'connected') {
+          console.log('WebSocket接続確認を受信しました。');
+          // 接続確認メッセージを受信しました
+          // ここでは自動購読は行わず、コンポーネントから明示的に購読メッセージを送信します
+          // (KnowledgeGraphViewerコンポーネントなどから)
+        }
+      } catch (error) {
+        console.error('WebSocketメッセージの解析エラー:', error);
+      }
+    });
+    
+    // エラーイベント
+    socket.addEventListener('error', (error) => {
+      console.error('WebSocketエラー:', error);
+    });
+    
+    // 切断イベント
+    socket.addEventListener('close', (event) => {
+      console.log(`WebSocket切断: コード ${event.code}, 理由: ${event.reason}`);
+      
+      // 再接続を試行
+      if (!reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+          console.log('WebSocket再接続を試行中...');
+          initSocket(customRoleModelId);
+        }, 5000);
+      }
+    });
+    
+    return socket;
+  } catch (error) {
+    console.error('WebSocket初期化エラー:', error);
+    
+    // エラー時に再接続を試行
     if (!reconnectTimer) {
       reconnectTimer = setTimeout(() => {
         console.log('WebSocket再接続を試行中...');
-        initSocket();
+        initSocket(customRoleModelId);
       }, 5000);
     }
-  });
-  
-  return socket;
+    
+    // エラー時でもダミーインスタンスを返し、アプリケーションのクラッシュを防止
+    return new WebSocket('wss://dummy-for-error-prevention');
+  }
 }
 
 /**
@@ -289,4 +382,86 @@ export function sendAgentChatMessage(roleModelId: string, message: string): void
   });
   
   console.log(`エージェントチャットメッセージを送信しました - ロールモデル: ${roleModelId}, メッセージ: ${message.substring(0, 30)}...`);
+}
+
+/**
+ * エラーメッセージを送信
+ * @param roleModelId ロールモデルID
+ * @param message エラーメッセージ
+ * @param details エラー詳細（オプション）
+ */
+export function sendErrorMessage(roleModelId: string, message: string, details: Record<string, any> = {}): void {
+  if (!roleModelId || !message.trim()) {
+    console.error('無効なパラメータ: roleModelIdまたはmessageが空です');
+    return;
+  }
+  
+  // WebSocketでエラーメッセージを送信
+  sendSocketMessage('error', {
+    roleModelId,
+    message,
+    details,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.error(`エラーメッセージを送信しました - ロールモデル: ${roleModelId}, メッセージ: ${message}`);
+}
+
+/**
+ * 完了メッセージを送信
+ * @param roleModelId ロールモデルID
+ * @param message 完了メッセージ
+ * @param data 追加データ（オプション）
+ */
+export function sendCompletionMessage(roleModelId: string, message: string, data: Record<string, any> = {}): void {
+  if (!roleModelId || !message.trim()) {
+    console.error('無効なパラメータ: roleModelIdまたはmessageが空です');
+    return;
+  }
+  
+  // WebSocketで完了メッセージを送信
+  sendSocketMessage('completion', {
+    roleModelId,
+    message,
+    data,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.log(`完了メッセージを送信しました - ロールモデル: ${roleModelId}, メッセージ: ${message}`);
+}
+
+/**
+ * 進捗更新メッセージを送信
+ * @param roleModelId ロールモデルID
+ * @param progress 進捗率（0〜100）
+ * @param message メッセージ内容
+ * @param stage 進捗ステージ
+ * @param subStage サブステージ
+ */
+export function sendProgressUpdate(
+  roleModelId: string, 
+  progress: number, 
+  message: string, 
+  stage: string = 'processing',
+  subStage: string = ''
+): void {
+  if (!roleModelId) {
+    console.error('無効なパラメータ: roleModelIdが空です');
+    return;
+  }
+  
+  // 進捗率を0〜100の範囲に制限
+  const normalizedProgress = Math.max(0, Math.min(100, progress));
+  
+  // WebSocketで進捗更新メッセージを送信
+  sendSocketMessage('progress', {
+    roleModelId,
+    progress: normalizedProgress,
+    message: message || `進捗: ${normalizedProgress}%`,
+    stage,
+    subStage,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.log(`進捗更新メッセージを送信しました - ロールモデル: ${roleModelId}, 進捗: ${normalizedProgress}%, メッセージ: ${message}`);
 }

@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useWebSocket } from '../../hooks/use-websocket';
 import { useToast } from '@/hooks/use-toast';
+import { initSocket, addSocketListener, removeSocketListener } from '@/lib/socket';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ export default function CreateCollectionPlanButton({
 }: CreateCollectionPlanButtonProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
+  const [progress, setProgress] = useState(0);
   const { toast } = useToast();
 
   // WebSocketのURL生成関数
@@ -48,8 +50,20 @@ export default function CreateCollectionPlanButton({
   // WebSocketフックの使用
   const { isConnected, connect, disconnect } = useWebSocket(socketUrl, {
     onProgressUpdate: (data: Record<string, any>) => {
-      // 進捗状況はChatPanelで表示されるのでここでは何もしない
       console.log('プラン作成進捗:', data);
+      if (typeof data.progress === 'number') {
+        setProgress(data.progress);
+      }
+      
+      // 進捗が100%に達したら完了とみなす
+      if (data.progress >= 100) {
+        toast({
+          title: '完了',
+          description: '情報収集プランが正常に作成されました',
+        });
+        setIsCreating(false);
+        setTimeout(() => disconnect(), 1000);
+      }
     },
     onError: (data: Record<string, any>) => {
       toast({
@@ -72,6 +86,66 @@ export default function CreateCollectionPlanButton({
     },
   });
 
+  // 直接WebSocketライブラリでイベントを監視
+  useEffect(() => {
+    if (!isCreating || !roleModelId) return;
+
+    // プログレス更新ハンドラ
+    const handleProgress = (data: any) => {
+      console.log('Socket.ts経由の進捗更新:', data);
+      if (data.roleModelId === roleModelId && typeof data.progress === 'number') {
+        setProgress(data.progress);
+        
+        // 進捗が100%に達したら完了とみなす
+        if (data.progress >= 100) {
+          toast({
+            title: '完了',
+            description: '情報収集プランが正常に作成されました',
+          });
+          setIsCreating(false);
+        }
+      }
+    };
+
+    // エラーハンドラ
+    const handleError = (data: any) => {
+      console.log('Socket.ts経由のエラー:', data);
+      if (data.roleModelId === roleModelId) {
+        toast({
+          title: 'エラー',
+          description: data.message || 'プラン作成中にエラーが発生しました',
+          variant: 'destructive',
+        });
+        setIsCreating(false);
+      }
+    };
+
+    // 完了ハンドラ
+    const handleCompletion = (data: any) => {
+      console.log('Socket.ts経由の完了:', data);
+      if (data.roleModelId === roleModelId) {
+        toast({
+          title: '完了',
+          description: '情報収集プランが正常に作成されました',
+        });
+        setIsCreating(false);
+      }
+    };
+
+    // socket.tsのWebSocketにリスナーを追加
+    initSocket(roleModelId);
+    addSocketListener('progress', handleProgress);
+    addSocketListener('error', handleError);
+    addSocketListener('completion', handleCompletion);
+
+    return () => {
+      // クリーンアップ
+      removeSocketListener('progress', handleProgress);
+      removeSocketListener('error', handleError);
+      removeSocketListener('completion', handleCompletion);
+    };
+  }, [isCreating, roleModelId, toast]);
+
   // プラン作成の開始
   const handleCreatePlan = useCallback(async () => {
     if (!roleModelId || !industryIds.length || !keywordIds.length) {
@@ -86,9 +160,11 @@ export default function CreateCollectionPlanButton({
     try {
       setIsCreating(true);
       setOpenConfirm(false);
+      setProgress(0);
       
-      // WebSocket接続
+      // WebSocketの両方の方法で接続を確保
       connect();
+      initSocket(roleModelId);
       
       // プラン作成開始のトースト表示
       toast({
@@ -139,11 +215,16 @@ export default function CreateCollectionPlanButton({
         variant={hasKnowledgeGraph ? "default" : "outline"}
       >
         {isCreating ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {progress > 0 ? `${Math.round(progress)}%` : '処理中...'}
+          </>
         ) : (
-          <FileText className="h-4 w-4" />
+          <>
+            <FileText className="h-4 w-4" />
+            情報収集プラン作成
+          </>
         )}
-        情報収集プラン作成
       </Button>
 
       {/* 確認ダイアログ */}

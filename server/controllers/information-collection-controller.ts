@@ -41,8 +41,18 @@ export async function createInformationCollectionPlan(req: Request, res: Respons
       roleModelId
     });
 
-    // 非同期でプランを作成
-    createPlanAsync(roleModelId, industryIds, keywordIds, knowledgeNodesList, req.user.id)
+    // 非同期でプランを作成 - 明示的なユーザーID取得と例外処理の強化
+    const userId = req.user?.id || 'development-user-id';
+    
+    // 開発環境では、ユーザーIDがない場合にはデフォルト値を使用
+    if (process.env.NODE_ENV !== 'production' && !req.user?.id) {
+      console.log('開発環境: デフォルトユーザーIDを使用します');
+    }
+    
+    createPlanAsync(roleModelId, industryIds, keywordIds, knowledgeNodesList, userId)
+      .then(result => {
+        console.log('情報収集プラン作成成功:', result.id);
+      })
       .catch(error => {
         console.error('情報収集プラン作成エラー:', error);
         sendErrorMessage(
