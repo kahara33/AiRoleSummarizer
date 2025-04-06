@@ -507,11 +507,6 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               keywordIds={[]}   // 実際の値を知識グラフページから渡す必要あり
               disabled={nodes.length === 0}
               hasKnowledgeGraph={nodes.length > 0}
-              }}
-              onComplete={() => {
-                setGenerating(false);
-                fetchGraphData();
-              }}
             />
           </div>
         )}

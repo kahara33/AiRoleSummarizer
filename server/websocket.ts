@@ -175,6 +175,83 @@ export function sendErrorMessage(
  * @param roleModelId ロールモデルID
  * @param data 追加データ
  */
+
+/**
+ * エージェントの思考プロセスを送信する関数
+ * @param agentName エージェント名
+ * @param thoughts 思考内容
+ * @param roleModelId ロールモデルID
+ * @param detailedData 詳細なデータ
+ */
+export function sendAgentThoughts(
+  agentName: string,
+  thoughts: string,
+  roleModelId: string,
+  detailedData?: any
+): void {
+  const clientSet = clients.get(roleModelId);
+  if (!clientSet || clientSet.size === 0) {
+    console.log(`ロールモデル ${roleModelId} に接続されたクライアントはありません`);
+    return;
+  }
+
+  const data = {
+    type: 'agent_thoughts',
+    agentName,
+    thoughts,
+    roleModelId,
+    timestamp: new Date().toISOString(),
+    ...detailedData
+  };
+
+  const message_json = JSON.stringify(data);
+
+  // 該当ロールモデルに接続されているすべてのクライアントに送信
+  clientSet.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message_json);
+    }
+  });
+
+  console.log(`エージェント思考を送信: ${roleModelId}, ${agentName}, "${thoughts.substring(0, 50)}..."`);
+}
+
+/**
+ * 全てのロールモデルクライアントに対してメッセージを送信する関数
+ * @param message メッセージ
+ * @param type メッセージタイプ
+ * @param data 追加データ
+ */
+export function sendMessageToRoleModelViewers(
+  message: string,
+  type: string = 'info',
+  data?: any
+): void {
+  // すべてのロールモデルクライアントを取得
+  clients.forEach((clientSet, roleModelId) => {
+    if (clientSet.size === 0) return;
+
+    const payload = {
+      type,
+      message,
+      roleModelId,
+      timestamp: new Date().toISOString(),
+      ...data
+    };
+
+    const message_json = JSON.stringify(payload);
+
+    // クライアントに送信
+    clientSet.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message_json);
+      }
+    });
+  });
+
+  console.log(`全クライアントにメッセージを送信: "${message}"`);
+}
+
 export function sendCompletionMessage(
   message: string,
   roleModelId: string,

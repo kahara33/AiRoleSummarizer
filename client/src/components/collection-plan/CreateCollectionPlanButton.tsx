@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
-import { useWebSocket } from '@/hooks/use-websocket';
+import { useWebSocket } from '../../hooks/use-websocket';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -64,7 +64,7 @@ export default function CreateCollectionPlanButton({
 
   // WebSocketフックの使用
   const { isConnected, connect, disconnect } = useWebSocket(socketUrl, {
-    onProgressUpdate: (data) => {
+    onProgressUpdate: (data: Record<string, any>) => {
       setProgressState({
         message: data.message || '処理中...',
         progress: data.progress || 0,
@@ -72,7 +72,7 @@ export default function CreateCollectionPlanButton({
         subStage: data.subStage,
       });
     },
-    onError: (data) => {
+    onError: (data: Record<string, any>) => {
       setProgressState(prev => ({
         ...prev,
         error: true,
@@ -91,7 +91,7 @@ export default function CreateCollectionPlanButton({
         disconnect();
       }, 3000);
     },
-    onCompletion: (data) => {
+    onCompletion: (data: Record<string, any>) => {
       setProgressState(prev => ({
         ...prev,
         progress: 100,

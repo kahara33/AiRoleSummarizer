@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import ChatPanel from '@/components/chat/ChatPanel';
-import { CreateCollectionPlanButton } from '@/components/collection-plan/CreateCollectionPlanButton';
+import CreateCollectionPlanButton from '@/components/collection-plan/CreateCollectionPlanButton';
 import { KnowledgeNode, Keyword, KnowledgeEdge } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -129,8 +129,11 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
           {roleModelId !== 'default' && (
             <div className="w-48">
               <CreateCollectionPlanButton 
-                roleModelId={roleModelId} 
-                disabled={isGenerating} 
+                roleModelId={roleModelId}
+                industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
+                keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
+                disabled={isGenerating}
+                hasKnowledgeGraph={true}
               />
             </div>
           )}

@@ -2,7 +2,9 @@ import { Express, Request, Response, NextFunction } from 'express';
 import { Server, createServer } from 'http';
 import { 
   initWebSocket,
-  sendProgressUpdate
+  sendProgressUpdate,
+  sendAgentThoughts,
+  sendMessageToRoleModelViewers
 } from './websocket';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
@@ -30,6 +32,7 @@ import {
   roleModelIndustries,
   roleModelKeywords,
   insertKeywordSchema,
+  informationCollectionPlans,
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
@@ -1743,8 +1746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // ロールモデルIDで最新の情報収集プランを取得
       const plans = await db.query.informationCollectionPlans.findMany({
-        where: eq(informationCollectionPlans.roleModelId, roleModelId),
-        orderBy: (informationCollectionPlans, { desc }) => [desc(informationCollectionPlans.createdAt)]
+        where: eq(informationCollectionPlans.roleModelId, roleModelId)
       });
       
       return res.status(200).json(plans);
