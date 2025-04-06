@@ -67,9 +67,10 @@ const AgentNode: React.FC<NodeProps> = ({ data, isConnectable }) => {
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg shadow-md border ${border} ${bg} relative`}
+      className={`px-4 py-3 rounded-lg shadow-md border ${border} ${bg} relative overflow-hidden`}
       style={{
-        width: 180,
+        width: 230,
+        minHeight: '80px',
         transition: 'all 0.3s ease',
       }}
     >
@@ -83,8 +84,8 @@ const AgentNode: React.FC<NodeProps> = ({ data, isConnectable }) => {
       />
       
       <div className="flex items-center">
-        <div className="p-1.5 rounded-full bg-white mr-2">{icon}</div>
-        <div className="font-semibold text-sm" title={data.label}>
+        <div className="p-1.5 rounded-full bg-white mr-2 flex-shrink-0">{icon}</div>
+        <div className="font-semibold text-sm truncate" title={data.label}>
           {data.label}
         </div>
       </div>

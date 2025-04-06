@@ -195,19 +195,28 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       console.log('Created flow edges:', flowEdges);
       
       // グラフの種類に応じてレイアウト方法を選択
-      // ノード数が少ない場合はそのままのレイアウトと重なり防止メカニズムを使用
-      const useDirectLayout = flowNodes.length <= 20;
+      // 階層情報の分析
+      const hasHierarchy = flowNodes.some(node => node.data && typeof node.data.level === 'number');
+      const hasMultipleLevels = new Set(flowNodes.map(node => node.data?.level || 0)).size > 1;
+      const isComplex = flowNodes.length > 15 || flowEdges.length > 20;
       
-      if (useDirectLayout) {
-        // 直接レイアウトを使用するが、重なり防止処理も適用
-        console.log('Using direct layout with overlap prevention for small graph');
+      // レイアウト選択のロジック
+      const useHierarchicalLayout = hasHierarchy && (hasMultipleLevels || isComplex);
+      
+      console.log(`Graph analysis: nodes=${flowNodes.length}, edges=${flowEdges.length}, hasHierarchy=${hasHierarchy}, hasMultipleLevels=${hasMultipleLevels}, isComplex=${isComplex}`);
+      
+      if (!useHierarchicalLayout) {
+        // シンプルなグラフや階層が単一の場合は改良された基本レイアウトを使用
+        console.log('Using improved standard layout for simple graph');
         const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedLayoutedElements(
           flowNodes,
           flowEdges,
           { 
             direction: 'TB',
-            nodesep: 120,
-            ranksep: 150
+            nodesep: 180, // より広いスペース
+            ranksep: 200, // より広いスペース
+            marginx: 50,
+            marginy: 80
           }
         );
         setNodes(layoutedNodes);
@@ -216,8 +225,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         return;
       }
       
-      // 大きなグラフの場合は改良されたヒエラルキーレイアウトを使用
-      console.log('Using improved hierarchical layout for large graph');
+      // 複雑なグラフや明確な階層構造がある場合は最適化された階層レイアウトを使用
+      console.log('Using enhanced hierarchical layout for complex/hierarchical graph');
       const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
         flowNodes,
         flowEdges

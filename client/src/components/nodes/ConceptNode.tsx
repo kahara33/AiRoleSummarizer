@@ -54,11 +54,12 @@ const ConceptNode: React.FC<NodeProps> = ({ data, isConnectable }) => {
 
   return (
     <div
-      className={`px-4 py-2 rounded-lg shadow-md border ${border} ${bg}`}
+      className={`px-4 py-2.5 rounded-lg shadow-md border ${border} ${bg} overflow-hidden`}
       style={{
-        width: 180,
+        width: 230,
         opacity,
         transition: 'all 0.3s ease',
+        minHeight: '80px',
       }}
     >
       <Handle
@@ -68,13 +69,13 @@ const ConceptNode: React.FC<NodeProps> = ({ data, isConnectable }) => {
         className="w-2 h-2 bg-blue-400"
       />
       <div className="flex items-center">
-        <div className="p-1.5 rounded-full bg-white mr-2">{icon}</div>
+        <div className="p-1.5 rounded-full bg-white mr-2 flex-shrink-0">{icon}</div>
         <div className="font-semibold text-sm truncate" title={data.label}>
           {data.label}
         </div>
       </div>
       {data.description && (
-        <div className="mt-1 text-xs text-gray-500 line-clamp-2" title={data.description}>
+        <div className="mt-1.5 text-xs text-gray-600 line-clamp-2 max-h-10 overflow-hidden" title={data.description}>
           {data.description}
         </div>
       )}
