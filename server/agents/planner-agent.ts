@@ -1,4 +1,4 @@
-import { sendProgressUpdate } from '../websocket';
+import { sendProgressUpdate, sendAgentThoughts } from '../websocket';
 import { callAzureOpenAI } from '../azure-openai';
 import { getUserSubscriptionTools } from '../subscription-tools';
 import { IndustryAnalysisAgent } from './industry-analysis-agent';
@@ -145,6 +145,17 @@ export class PlannerAgent {
         createdAt: new Date().toISOString(),
         tools: this.availableTools,
       };
+      
+      // 最終的な思考メッセージを送信
+      sendAgentThoughts(
+        '情報収集プランナー',
+        `情報収集プランの作成が完了しました。役割モデルに関連する情報を効率的に収集するための包括的なプランを策定しました。このプランには焦点領域の特定、最適な情報源の選択、詳細なクエリ生成、および効果的な実行計画が含まれています。`,
+        this.roleModelId,
+        {
+          stage: 'planning',
+          subStage: 'プラン完成'
+        }
+      );
 
       return finalPlan;
 
@@ -176,6 +187,17 @@ export class PlannerAgent {
     keywords: string[],
     knowledgeNodes: KnowledgeNode[]
   ): Promise<any> {
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      '業界分析を開始します。選択された業界に関する詳細情報を収集し、主要なトレンドと市場構造を特定します。',
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: '業界分析開始'
+      }
+    );
+    
     // 業界分析エージェントの初期化と実行
     const industryAgent = new IndustryAnalysisAgent(this.roleModelId);
     const industryAnalysis = await industryAgent.analyzeIndustries(industries);
@@ -193,6 +215,17 @@ export class PlannerAgent {
       }
     );
     
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      `業界分析が完了しました。${industries.length}つの業界について詳細な市場情報を取得しました。次にキーワード拡張を開始します。`,
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: '業界分析完了'
+      }
+    );
+    
     // キーワード拡張エージェントの初期化と実行
     const keywordAgent = new KeywordExpansionAgent(this.roleModelId);
     const expandedKeywords = await keywordAgent.expandKeywords(keywords, industryAnalysis);
@@ -207,6 +240,17 @@ export class PlannerAgent {
         progress: 30,
         stage: 'planning',
         subStage: 'キーワード拡張'
+      }
+    );
+    
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      `キーワード拡張が完了しました。${expandedKeywords.length}個の関連キーワードを特定しました。次に情報収集の戦略を立案します。`,
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: 'キーワード拡張完了'
       }
     );
 
@@ -305,6 +349,17 @@ export class PlannerAgent {
    * 詳細計画を作成する
    */
   private async createDetailedPlan(planOutline: any, industryNodes: KnowledgeNode[], keywordNodes: KnowledgeNode[]): Promise<any> {
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      '情報収集の詳細計画を策定します。まず、利用可能なツールを基に最適な情報源を選択します。',
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: '詳細計画開始'
+      }
+    );
+    
     // 利用可能なツールに基づいて情報源を選択
     const sources = this.selectInformationSources(planOutline.focusAreas);
     
@@ -318,6 +373,17 @@ export class PlannerAgent {
         progress: 50,
         stage: 'planning',
         subStage: '情報源選択'
+      }
+    );
+    
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      `情報源の選択が完了しました。利用可能なツールから${sources.length}種類の情報源を特定しました。次に効果的な検索クエリと戦略を策定します。`,
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: '情報源選択完了'
       }
     );
     
@@ -339,6 +405,17 @@ export class PlannerAgent {
         progress: 60,
         stage: 'planning',
         subStage: 'クエリ作成'
+      }
+    );
+    
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      `検索クエリの作成が完了しました。${queries.length}個の効果的な検索クエリを生成し、それぞれ最適な情報源と紐づけました。`,
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: 'クエリ作成完了'
       }
     );
     
@@ -563,6 +640,17 @@ ${keywordNodes.map(node => node.name).join(', ')}
    * 実行計画とスケジュールを作成する
    */
   private async createExecutionPlan(detailedPlan: any): Promise<any> {
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      '情報収集の実行計画とスケジュールを策定します。収集すべき情報の優先順位とタイムラインを設定します。',
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: '実行計画開始'
+      }
+    );
+    
     // 実行計画の作成
     const executionSteps = [
       {
@@ -628,6 +716,17 @@ ${keywordNodes.map(node => node.name).join(', ')}
         '情報源の多様性 (少なくとも3種類以上の情報源を活用)'
       ]
     };
+    
+    // エージェントの思考プロセスを送信
+    sendAgentThoughts(
+      '情報収集プランナー',
+      `情報収集の実行計画とスケジュールが完成しました。${executionSteps.length}段階の収集ステップと${executionPlan.toolUsageStrategy.length}種類のツール戦略を策定しました。`,
+      this.roleModelId,
+      {
+        stage: 'planning',
+        subStage: '実行計画完了'
+      }
+    );
     
     return executionPlan;
   }
