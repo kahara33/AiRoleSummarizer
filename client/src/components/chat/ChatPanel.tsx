@@ -18,10 +18,26 @@ interface ChatMessage {
   targetAgentName?: string;
   targetAgentType?: string;
   stage?: string;
+  subStage?: string;  // 詳細な処理ステージ
   progress?: number;
   relatedNodes?: string[];
   thoughts?: string; // 互換性のため
   message?: string; // 互換性のため
+  thinking?: {  // 思考プロセスの詳細
+    step: string;
+    content: string;
+    timestamp: string;
+  }[];
+  reasoning?: string; // 推論プロセス
+  decision?: string; // 決定事項
+  context?: string; // 現在の文脈情報
+  inputData?: any; // 入力データ情報
+  outputData?: any; // 出力データ情報
+  detailedProgress?: { // 詳細な進捗情報
+    step: string;
+    progress: number;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+  }[];
 }
 
 interface ChatPanelProps {
@@ -57,6 +73,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
         thoughts: data.thoughts || data.content || data.message,
         timestamp: data.timestamp,
         roleModelId: data.roleModelId,
+        step: data.step || data.phase || data.stage,
+        reason: data.reasoning || data.reason,
+        decision: data.decision,
+        context: data.context,
         dataKeys: Object.keys(data)
       });
       
@@ -73,6 +93,51 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
       const agentName = data.agentName || data.agent || 'エージェント';
       const rawAgentType = data.agentType || data.type || 'system';
       const agentType = mapAgentType(rawAgentType);
+      
+      // 思考ステップと副ステージの取得
+      const step = data.step || data.phase || '';
+      const subStage = data.subStage || '';
+      
+      // 思考の詳細情報を構築
+      const thinkingStep = {
+        step: step,
+        content: messageContent,
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+      
+      // 拡張情報を含むメッセージ本文を作成
+      let enhancedContent = messageContent;
+      
+      // 推論プロセスがある場合は追加
+      if (data.reasoning || data.reason) {
+        enhancedContent += `\n\n【推論】${data.reasoning || data.reason}`;
+      }
+      
+      // 決定事項がある場合は追加
+      if (data.decision) {
+        enhancedContent += `\n\n【決定】${data.decision}`;
+      }
+      
+      // 文脈情報がある場合は追加
+      if (data.context) {
+        enhancedContent += `\n\n【文脈】${data.context}`;
+      }
+      
+      // 入力データの情報がある場合は追加
+      if (data.inputData) {
+        const inputSummary = typeof data.inputData === 'object' 
+          ? JSON.stringify(data.inputData).substring(0, 100) + '...'
+          : String(data.inputData);
+        enhancedContent += `\n\n【入力データ】${inputSummary}`;
+      }
+      
+      // 出力データの情報がある場合は追加
+      if (data.outputData) {
+        const outputSummary = typeof data.outputData === 'object' 
+          ? JSON.stringify(data.outputData).substring(0, 100) + '...'
+          : String(data.outputData);
+        enhancedContent += `\n\n【出力データ】${outputSummary}`;
+      }
       
       // 重複メッセージ防止のための高度なチェック
       setMessages(currentMessages => {
@@ -117,9 +182,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
           agentId: data.agentId || 'unknown',
           agentName: agentName,
           agentType: agentType,
-          content: messageContent,
+          content: enhancedContent, // 拡張された内容
           timestamp: data.timestamp || new Date().toISOString(),
           relatedNodes: [data.agentId || 'unknown'],
+          stage: data.stage || '',
+          subStage: subStage,
+          thinking: [thinkingStep], // 思考ステップを追加
+          reasoning: data.reasoning || data.reason,
+          decision: data.decision,
+          context: data.context,
+          inputData: data.inputData,
+          outputData: data.outputData,
           thoughts: messageContent, // 互換性のため
           message: messageContent // 互換性のため
         }];
@@ -221,6 +294,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
         message: data.message || data.content,
         progress: data.progress || data.percent,
         stage: data.stage || data.phase,
+        subStage: data.subStage,
+        steps: data.steps || data.detailedSteps,
         timestamp: data.timestamp,
         roleModelId: data.roleModelId,
         dataKeys: Object.keys(data)
@@ -241,11 +316,63 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
       const stage = data.stage || data.phase || 'system';
       const stageLabel = getStageLabel(stage);
       
+      // サブステージ情報があれば取得
+      const subStage = data.subStage || '';
+      const subStageText = subStage ? ` (${subStage})` : '';
+      
       // メッセージ内容
       const message = data.message || data.content || data.description || '';
       
-      // 最終的なメッセージ内容
-      const messageContent = `${stageLabel} - ${finalProgress}%: ${message}`;
+      // 詳細な進捗情報の構築
+      const detailedProgressSteps: { step: string; progress: number; status: 'pending' | 'processing' | 'completed' | 'error' }[] = [];
+      
+      // ステップ情報があれば詳細に追加
+      if (data.steps || data.detailedSteps) {
+        const steps = data.steps || data.detailedSteps;
+        if (Array.isArray(steps)) {
+          steps.forEach((step: any) => {
+            detailedProgressSteps.push({
+              step: step.name || step.step || step.title || 'ステップ',
+              progress: step.progress || step.percent || 0,
+              status: step.status || 'pending'
+            });
+          });
+        } else if (typeof steps === 'object') {
+          // オブジェクト形式の場合もサポート
+          Object.entries(steps).forEach(([key, value]: [string, any]) => {
+            detailedProgressSteps.push({
+              step: key,
+              progress: value.progress || value.percent || (typeof value === 'number' ? value : 0),
+              status: value.status || 'pending'
+            });
+          });
+        }
+      }
+      
+      // 詳細ステップ情報を含むメッセージを構築
+      let enhancedMessage = `${stageLabel}${subStageText} - ${finalProgress}%: ${message}`;
+      
+      // 詳細な進捗情報があれば追加
+      if (detailedProgressSteps.length > 0) {
+        enhancedMessage += '\n\n【詳細進捗】';
+        detailedProgressSteps.forEach(step => {
+          const statusEmoji = 
+            step.status === 'completed' ? '✅' :
+            step.status === 'processing' ? '🔄' :
+            step.status === 'error' ? '❌' : '⏳';
+          
+          enhancedMessage += `\n${statusEmoji} ${step.step}: ${step.progress}%`;
+        });
+      }
+      
+      // 追加情報がある場合は表示
+      if (data.details) {
+        if (typeof data.details === 'string') {
+          enhancedMessage += `\n\n【追加情報】\n${data.details}`;
+        } else if (typeof data.details === 'object') {
+          enhancedMessage += `\n\n【追加情報】\n${JSON.stringify(data.details, null, 2)}`;
+        }
+      }
       
       // 重複メッセージ防止のためのより高度なチェック
       setMessages(currentMessages => {
@@ -266,13 +393,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
               }
               
               // メッセージに類似性があるか（共通の単語が一定数以上含まれているか）
-              const mWords = m.content.split(/\s+/).filter(w => w.length > 3);
-              const newWords = message.split(/\s+/).filter(w => w.length > 3);
+              const mWords = m.content.split(/\s+/).filter((w: string) => w.length > 3);
+              const newWords = message.split(/\s+/).filter((w: string) => w.length > 3);
               
               // 共通の単語をカウント
               let commonWords = 0;
               for (const word of newWords) {
-                if (mWords.some(w => w.includes(word) || word.includes(w))) {
+                if (mWords.some((w: string) => w.includes(word) || word.includes(w))) {
                   commonWords++;
                 }
               }
@@ -295,10 +422,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
           id: `progress-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           type: 'progress',
           stage: stage,
+          subStage: subStage,
           progress: finalProgress,
-          content: messageContent,
+          content: enhancedMessage,
           timestamp: data.timestamp || new Date().toISOString(),
-          relatedNodes: [stage]
+          relatedNodes: [stage],
+          detailedProgress: detailedProgressSteps
         }];
       });
     };
@@ -634,23 +763,93 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
                 </div>
               </div>
               
-              <div className={`mt-2 text-sm ${
+              <div className={`mt-2 text-sm whitespace-pre-wrap ${
                 expandedMessage === message.id ? '' : 'line-clamp-2'
               }`}>
                 {message.content}
               </div>
               
+              {/* 進捗情報の表示 */}
               {expandedMessage === message.id && message.type === 'progress' && message.progress !== undefined && (
-                <div className="mt-2">
-                  <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div className="mt-3">
+                  <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-teal-500 rounded-full"
+                      className="h-full bg-teal-500 rounded-full transition-all duration-500 ease-in-out"
                       style={{ width: `${message.progress}%` }}
                     ></div>
                   </div>
                   <div className="text-right text-xs mt-1 text-gray-500">
                     {message.progress}%
                   </div>
+                  
+                  {/* 詳細な進捗情報 */}
+                  {message.detailedProgress && message.detailedProgress.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {message.detailedProgress.map((step, index) => (
+                        <div key={`step-${index}`} className="flex items-center">
+                          <div className="flex-shrink-0 w-6 text-center">
+                            {step.status === 'completed' ? '✅' :
+                             step.status === 'processing' ? '🔄' :
+                             step.status === 'error' ? '❌' : '⏳'}
+                          </div>
+                          <div className="ml-2 flex-grow">
+                            <div className="flex justify-between items-center text-xs">
+                              <div className="font-medium">{step.step}</div>
+                              <div className="text-gray-500">{step.progress}%</div>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-200 mt-1 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full ${
+                                  step.status === 'completed' ? 'bg-green-500' :
+                                  step.status === 'processing' ? 'bg-blue-500' :
+                                  step.status === 'error' ? 'bg-red-500' : 'bg-gray-400'
+                                }`}
+                                style={{ width: `${step.progress}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* 思考プロセスの詳細情報 */}
+              {expandedMessage === message.id && message.type === 'thought' && message.thinking && message.thinking.length > 0 && (
+                <div className="mt-3 border-t pt-2 text-sm">
+                  <div className="text-xs font-medium mb-1 text-gray-500">詳細思考プロセス</div>
+                  <div className="space-y-1.5">
+                    {message.thinking.map((step, index) => (
+                      <div key={`thinking-${index}`} className="flex">
+                        <div className="flex-shrink-0 w-20 text-xs text-gray-500">
+                          {new Date(step.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                        <div className="ml-2 flex-grow">
+                          <div className="text-xs font-medium">{step.step}</div>
+                          <div className="text-sm">{step.content}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* 推論と決定事項 */}
+              {expandedMessage === message.id && message.type === 'thought' && (message.reasoning || message.decision) && (
+                <div className="mt-3 border-t pt-2 space-y-2 text-sm">
+                  {message.reasoning && (
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">推論プロセス</div>
+                      <div className="mt-1">{message.reasoning}</div>
+                    </div>
+                  )}
+                  {message.decision && (
+                    <div>
+                      <div className="text-xs font-medium text-gray-500">決定事項</div>
+                      <div className="mt-1">{message.decision}</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
