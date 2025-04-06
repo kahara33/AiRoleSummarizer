@@ -38,6 +38,7 @@ interface ChatMessage {
     progress: number;
     status: 'pending' | 'processing' | 'completed' | 'error';
   }[];
+  roleModelId?: string; // ロールモデルID
 }
 
 interface ChatPanelProps {
@@ -707,6 +708,37 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
     }
   };
   
+  // パラメータからroleModelIdを取得または未指定の場合は"default"を使用
+  const getRoleModelId = (): string => {
+    if (selectedNode && selectedNode.roleModelId) {
+      return selectedNode.roleModelId;
+    }
+    
+    // 最近のメッセージからroleModelIdを探す
+    const recentMsg = messages.slice().reverse().find(msg => msg.roleModelId);
+    if (recentMsg && recentMsg.roleModelId) {
+      return recentMsg.roleModelId;
+    }
+    
+    return "default";
+  };
+  
+  // ユーザーがエージェントにメッセージを送信した時の処理
+  const handleSendMessage = (message: string) => {
+    // 送信したメッセージをローカルのメッセージリストに追加
+    setMessages(currentMessages => [...currentMessages, {
+      id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      type: 'thought',
+      agentId: 'user',
+      agentName: 'ユーザー',
+      agentType: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+      relatedNodes: [],
+      roleModelId: getRoleModelId()
+    }]);
+  };
+
   return (
     <div className="flex flex-col border rounded-md overflow-hidden h-full" style={{ maxHeight: height }}>
       <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
@@ -895,8 +927,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ selectedNode, height = 500 }) => 
         )}
         <div ref={messagesEndRef} />
       </div>
+      
+      {/* AIエージェントとのチャット入力フォーム */}
+      <AgentChatInput 
+        roleModelId={getRoleModelId()} 
+        onSend={handleSendMessage}
+      />
     </div>
   );
 };
+
+// AgentChatInputコンポーネントのインポート
+import AgentChatInput from './AgentChatInput';
 
 export default ChatPanel;

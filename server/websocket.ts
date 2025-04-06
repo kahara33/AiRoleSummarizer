@@ -69,8 +69,46 @@ export function setupWebSocketServer(httpServer: HttpServer): void {
       try {
         const data = JSON.parse(message);
         
+        // AIエージェントとのチャットメッセージ処理
+        if (data.type === 'agent_chat') {
+          const payload = data.payload || data;
+          const roleModelId = payload.roleModelId;
+          const userMessage = payload.message;
+          
+          console.log(`WebSocket: ユーザー ${userId} がエージェントにチャットメッセージを送信しました:`, {
+            userId,
+            roleModelId,
+            message: userMessage.substring(0, 100) + (userMessage.length > 100 ? '...' : ''),
+            timestamp: payload.timestamp || new Date().toISOString(),
+            clientId: payload.clientId || 'unknown'
+          });
+          
+          // AIエージェントへの質問をまず確認メッセージとして送信
+          sendMessageToRoleModelViewers('agent_thoughts', {
+            agentName: 'システム',
+            agentType: 'system',
+            thoughts: `ユーザーからのメッセージを受信しました: ${userMessage}`,
+            stage: 'user-input',
+            timestamp: new Date().toISOString()
+          }, roleModelId);
+          
+          // Azure OpenAIにメッセージを送信して処理（非同期で実行）
+          handleAgentChatMessage(userId, roleModelId, userMessage).catch((error: unknown) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('エージェントチャットメッセージ処理エラー:', errorMessage);
+            
+            // エラーメッセージをクライアントに返す
+            sendMessageToRoleModelViewers('agent_thoughts', {
+              agentName: 'システム',
+              agentType: 'system',
+              thoughts: `メッセージの処理中にエラーが発生しました: ${errorMessage}`,
+              stage: 'error',
+              timestamp: new Date().toISOString()
+            }, roleModelId);
+          });
+        }
         // ロールモデルの購読
-        if (data.type === 'subscribe' && data.payload && data.payload.roleModelId) {
+        else if (data.type === 'subscribe' && data.payload && data.payload.roleModelId) {
           const requestedRoleModelId = data.payload.roleModelId;
           
           // UUIDが有効かどうかを検証する
@@ -336,5 +374,79 @@ export function sendProgressUpdate(
     sendMessageToRoleModelViewers('progress', payload, roleModelId);
   } else {
     console.error(`無効なUUID形式のロールモデルID: ${roleModelId}`);
+  }
+}
+
+/**
+ * ユーザーからのチャットメッセージを処理
+ * Azure OpenAIを使用して応答を生成
+ * @param userId ユーザーID
+ * @param roleModelId ロールモデルID
+ * @param message ユーザーからのメッセージ
+ */
+async function handleAgentChatMessage(userId: string, roleModelId: string, message: string): Promise<void> {
+  try {
+    // ロールモデルの情報を取得（実装に応じて）
+    
+    // 処理中メッセージを送信
+    sendMessageToRoleModelViewers('agent_thoughts', {
+      agentName: 'AIアシスタント',
+      agentType: 'assistant',
+      thoughts: '入力メッセージを分析中...',
+      stage: 'processing',
+      timestamp: new Date().toISOString()
+    }, roleModelId);
+    
+    // Azure OpenAIを使用して応答を生成
+    const { callAzureOpenAI } = await import('./azure-openai');
+    
+    // ユーザーの入力と役割に応じたシステムメッセージを設定
+    const messages = [
+      {
+        role: 'system',
+        content: 'あなたは自律型情報収集サービスのAIアシスタントです。ユーザーのロールに関する質問や知識グラフへの追加・変更依頼に対応してください。応答は簡潔かつ親切に行ってください。'
+      },
+      {
+        role: 'user',
+        content: message
+      }
+    ];
+    
+    // 処理中であることを通知
+    sendMessageToRoleModelViewers('agent_thoughts', {
+      agentName: 'AIアシスタント',
+      agentType: 'assistant',
+      thoughts: 'Azure OpenAIに応答をリクエスト中...',
+      stage: 'api-request',
+      timestamp: new Date().toISOString()
+    }, roleModelId);
+    
+    // Azure OpenAIを呼び出して応答を取得
+    const response = await callAzureOpenAI(messages);
+    
+    // AIの応答を送信
+    sendMessageToRoleModelViewers('agent_thoughts', {
+      agentName: 'AIアシスタント',
+      agentType: 'assistant',
+      thoughts: response,
+      stage: 'response',
+      timestamp: new Date().toISOString()
+    }, roleModelId);
+    
+    // 必要に応じて知識グラフの更新処理を実行
+    // （メッセージ内容に応じて知識グラフを更新する処理をここに追加）
+    
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('AIエージェントチャットメッセージ処理エラー:', errorMessage);
+    
+    // エラーメッセージを送信
+    sendMessageToRoleModelViewers('agent_thoughts', {
+      agentName: 'AIアシスタント',
+      agentType: 'system',
+      thoughts: `エラーが発生しました: ${errorMessage}`,
+      stage: 'error',
+      timestamp: new Date().toISOString()
+    }, roleModelId);
   }
 }

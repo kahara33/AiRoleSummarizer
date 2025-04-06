@@ -268,3 +268,25 @@ export function closeSocket(): void {
     reconnectTimer = null;
   }
 }
+
+/**
+ * エージェントチャットメッセージを送信
+ * @param roleModelId ロールモデルID
+ * @param message メッセージ内容
+ */
+export function sendAgentChatMessage(roleModelId: string, message: string): void {
+  if (!roleModelId || !message.trim()) {
+    console.error('無効なパラメータ: roleModelIdまたはmessageが空です');
+    return;
+  }
+  
+  // WebSocketでメッセージを送信
+  sendSocketMessage('agent_chat', {
+    roleModelId,
+    message,
+    timestamp: new Date().toISOString(),
+    clientId: `client-${Date.now()}`
+  });
+  
+  console.log(`エージェントチャットメッセージを送信しました - ロールモデル: ${roleModelId}, メッセージ: ${message.substring(0, 30)}...`);
+}
