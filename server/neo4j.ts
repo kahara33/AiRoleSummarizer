@@ -4,6 +4,7 @@ let driver: Driver;
 
 /**
  * Neo4jドライバーの初期化
+ * 非同期で実行され、接続に失敗しても他の機能に影響しない
  */
 export async function initNeo4j(): Promise<Driver | null> {
   // すでにドライバーが初期化されている場合は、そのドライバーを返す
@@ -19,43 +20,123 @@ export async function initNeo4j(): Promise<Driver | null> {
     return null;
   }
 
-  try {
-    const uri = process.env.NEO4J_URI;
-    const user = process.env.NEO4J_USER;
-    const password = process.env.NEO4J_PASSWORD;
+  const connectWithTimeout = async (timeout: number): Promise<Driver | null> => {
+    return new Promise((resolve) => {
+      // タイムアウト設定
+      const timeoutId = setTimeout(() => {
+        console.error(`Neo4j接続がタイムアウトしました (${timeout}ms)`);
+        resolve(null);
+      }, timeout);
 
-    driver = neo4j.driver(uri, neo4j.auth.basic(user, password), {
-      maxTransactionRetryTime: 30000,
+      try {
+        const uri = process.env.NEO4J_URI;
+        const user = process.env.NEO4J_USER;
+        const password = process.env.NEO4J_PASSWORD;
+
+        // 環境変数が未設定の場合は処理を中断
+        if (!uri || !user || !password) {
+          clearTimeout(timeoutId);
+          console.error('Neo4j環境変数が不足しています');
+          resolve(null);
+          return;
+        }
+
+        // ドライバーの作成
+        const newDriver = neo4j.driver(
+          uri as string, 
+          neo4j.auth.basic(user as string, password as string), 
+          {
+            maxTransactionRetryTime: 30000,
+            connectionTimeout: 15000, // 接続タイムアウトを15秒に設定
+          }
+        );
+
+        // 接続テスト
+        newDriver.verifyConnectivity()
+          .then(() => {
+            clearTimeout(timeoutId);
+            driver = newDriver;
+            console.log('Neo4j接続に成功しました');
+            resolve(driver);
+          })
+          .catch((error) => {
+            clearTimeout(timeoutId);
+            console.error('Neo4j接続に失敗しました:', error);
+            // ドライバーをクローズ
+            newDriver.close().catch(e => console.error('ドライバークローズエラー:', e));
+            resolve(null);
+          });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Neo4jドライバー作成エラー:', error);
+        resolve(null);
+      }
     });
+  };
 
-    // 接続テスト
-    await driver.verifyConnectivity();
-    console.log('Neo4j接続に成功しました');
-
-    return driver;
-  } catch (error) {
-    console.error('Neo4j接続に失敗しました:', error);
-    // エラーをスローせず、nullを返す
-    return null;
-  }
+  // タイムアウト30秒で接続試行
+  return await connectWithTimeout(30000);
 }
 
 /**
  * Neo4jセッションの取得
+ * タイムアウト機構付きで、一定時間内に接続できない場合はnullを返す
  */
 export async function getSession(): Promise<Session | null> {
-  if (!driver) {
-    const result = await initNeo4j();
-    if (!result) {
-      return null;
-    }
-  }
-  
-  if (!driver) {
-    return null;
-  }
-  
-  return driver.session();
+  // タイムアウト付きでセッション取得を試みる
+  const getSessionWithTimeout = async (timeout: number): Promise<Session | null> => {
+    return new Promise((resolve) => {
+      // タイムアウト設定
+      const timeoutId = setTimeout(() => {
+        console.error(`Neo4jセッション取得がタイムアウトしました (${timeout}ms)`);
+        resolve(null);
+      }, timeout);
+
+      try {
+        if (!driver) {
+          // まだドライバーが初期化されていない場合、初期化を試みる
+          initNeo4j().then(newDriver => {
+            clearTimeout(timeoutId);
+            
+            if (!newDriver) {
+              resolve(null);
+              return;
+            }
+            
+            try {
+              const session = newDriver.session();
+              resolve(session);
+            } catch (error) {
+              console.error('Neo4jセッション作成エラー:', error);
+              resolve(null);
+            }
+          }).catch(error => {
+            clearTimeout(timeoutId);
+            console.error('Neo4j初期化エラー:', error);
+            resolve(null);
+          });
+        } else {
+          // すでにドライバーが初期化されている場合
+          try {
+            const session = driver.session();
+            clearTimeout(timeoutId);
+            resolve(session);
+          } catch (error) {
+            clearTimeout(timeoutId);
+            console.error('Neo4jセッション作成エラー:', error);
+            resolve(null);
+          }
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Neo4jセッション取得中の予期せぬエラー:', error);
+        resolve(null);
+      }
+    });
+  };
+
+  // 5秒のタイムアウトでセッション取得を試みる
+  return await getSessionWithTimeout(5000);
 }
 
 /**

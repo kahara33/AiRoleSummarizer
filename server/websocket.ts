@@ -22,78 +22,181 @@ export type ProgressUpdateData = {
  * @param server HTTPサーバーインスタンス
  */
 export function initWebSocket(server: HttpServer): void {
-  // WebSocketServerの作成
-  wss = new WebSocketServer({ server, path: '/ws' });
+  try {
+    // WebSocketServerの作成
+    wss = new WebSocketServer({ 
+      server, 
+      path: '/ws',
+      clientTracking: true, // クライアントを追跡
+      perMessageDeflate: { // パフォーマンス向上のための圧縮設定
+        zlibDeflateOptions: {
+          chunkSize: 1024,
+          memLevel: 7,
+          level: 3
+        },
+        zlibInflateOptions: {
+          chunkSize: 10 * 1024
+        },
+        threshold: 1024 // 1KB以上のメッセージのみ圧縮
+      }
+    });
 
-  // 接続イベントのハンドリング
-  wss.on('connection', async (ws, req) => {
-    // セッションの検証
-    const cookies = parseCookie(req.headers.cookie || '');
-    const sessionId = cookies['connect.sid'] || '';
-    
-    let userId: string | null = null;
-    
-    if (sessionId) {
-      userId = await verifySession(sessionId);
-    }
+    // サーバーエラーイベントのハンドリング
+    wss.on('error', (error) => {
+      console.error('WebSocketサーバーエラー:', error);
+      // サーバー全体はクラッシュさせず、ログだけ出力
+    });
 
-    // 本番環境以外では認証をスキップ
-    if (process.env.NODE_ENV !== 'production' && !userId) {
-      console.log('開発環境: WebSocket認証をスキップします');
-      userId = 'development-user-id';
-    } else if (!userId) {
-      // 認証されていない場合は接続を閉じる
-      console.log('認証されていないWebSocket接続を閉じます');
-      ws.close(1008, 'Unauthorized');
-      return;
-    }
+    // サーバーのヘッダー検証エラーイベントのハンドリング
+    wss.on('headers', (headers, request) => {
+      // ヘッダー処理のデバッグログ（必要に応じてコメントアウト）
+      // console.log('WebSocket接続ヘッダー:', headers);
+    });
 
-    // URLパラメータからロールモデルIDを取得
-    const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
-    const roleModelId = urlParams.get('roleModelId');
+    // 接続イベントのハンドリング
+    wss.on('connection', async (ws, req) => {
+      // 接続のタイムアウト設定（30秒）
+      ws.on('pong', () => {
+        (ws as any).isAlive = true; // 生存確認
+      });
 
-    if (!roleModelId) {
-      // ロールモデルIDが指定されていない場合は接続を閉じる
-      console.log('ロールモデルIDが指定されていないWebSocket接続を閉じます');
-      ws.close(1008, 'Missing roleModelId');
-      return;
-    }
+      // セッションの検証
+      try {
+        const cookies = parseCookie(req.headers.cookie || '');
+        const sessionId = cookies['connect.sid'] || '';
+        
+        let userId: string | null = null;
+        
+        if (sessionId) {
+          userId = await verifySession(sessionId);
+        }
 
-    // ロールモデルIDに対応するクライアント集合を取得または作成
-    if (!clients.has(roleModelId)) {
-      clients.set(roleModelId, new Set());
-    }
-    clients.get(roleModelId)?.add(ws);
+        // 本番環境以外では認証をスキップ
+        if (process.env.NODE_ENV !== 'production' && !userId) {
+          console.log('開発環境: WebSocket認証をスキップします');
+          userId = 'development-user-id';
+        } else if (!userId) {
+          // 認証されていない場合は接続を閉じる
+          console.log('認証されていないWebSocket接続を閉じます');
+          ws.close(1008, 'Unauthorized');
+          return;
+        }
 
-    console.log(`WebSocket接続完了: ユーザーID=${userId}, ロールモデルID=${roleModelId}`);
+        // URLパラメータからロールモデルIDを取得
+        const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
+        const roleModelId = urlParams.get('roleModelId');
 
-    // 接続確認メッセージを送信
-    ws.send(JSON.stringify({
-      type: 'connection',
-      message: '接続が確立されました',
-      roleModelId
-    }));
+        if (!roleModelId) {
+          // ロールモデルIDが指定されていない場合は接続を閉じる
+          console.log('ロールモデルIDが指定されていないWebSocket接続を閉じます');
+          ws.close(1008, 'Missing roleModelId');
+          return;
+        }
 
-    // クライアント切断時の処理
-    ws.on('close', () => {
-      const clientSet = clients.get(roleModelId);
-      if (clientSet) {
-        clientSet.delete(ws);
-        // クライアント集合が空になった場合、Mapからエントリを削除
-        if (clientSet.size === 0) {
-          clients.delete(roleModelId);
+        // ロールモデルIDに対応するクライアント集合を取得または作成
+        if (!clients.has(roleModelId)) {
+          clients.set(roleModelId, new Set());
+        }
+        clients.get(roleModelId)?.add(ws);
+
+        // カスタムプロパティを追加（TypeScriptでの型対応のためany型を使用）
+        (ws as any).userId = userId;
+        (ws as any).roleModelId = roleModelId;
+        (ws as any).isAlive = true;
+        (ws as any).connectionTime = new Date();
+
+        console.log(`WebSocket接続完了: ユーザーID=${userId}, ロールモデルID=${roleModelId}`);
+
+        // 接続確認メッセージを送信
+        try {
+          ws.send(JSON.stringify({
+            type: 'connection',
+            message: '接続が確立されました',
+            roleModelId,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (sendError) {
+          console.error(`接続確認メッセージ送信エラー: ${sendError}`);
+        }
+
+        // クライアント切断時の処理
+        ws.on('close', (code, reason) => {
+          try {
+            const clientSet = clients.get(roleModelId);
+            if (clientSet) {
+              clientSet.delete(ws);
+              // クライアント集合が空になった場合、Mapからエントリを削除
+              if (clientSet.size === 0) {
+                clients.delete(roleModelId);
+              }
+            }
+            console.log(`WebSocket接続終了: ユーザーID=${userId}, ロールモデルID=${roleModelId}, コード=${code}, 理由=${reason}`);
+          } catch (cleanupError) {
+            console.error(`WebSocket切断処理エラー: ${cleanupError}`);
+          }
+        });
+
+        // メッセージイベントのハンドリング
+        ws.on('message', (message) => {
+          try {
+            // クライアントからのメッセージ処理
+            // 必要に応じて実装（現在はpingのみ対応）
+            const msgStr = message.toString();
+            if (msgStr === 'ping') {
+              ws.send('pong');
+            }
+          } catch (messageError) {
+            console.error(`WebSocketメッセージ処理エラー: ${messageError}`);
+          }
+        });
+
+        // エラー処理
+        ws.on('error', (error) => {
+          console.error(`WebSocketクライアントエラー: ユーザーID=${userId}, ロールモデルID=${roleModelId}, エラー=${error.message}`);
+          // エラーが発生しても接続は自動的に閉じない（クライアント側で処理させる）
+        });
+      } catch (connectionError) {
+        console.error(`WebSocket接続処理エラー: ${connectionError}`);
+        try {
+          ws.close(1011, 'Server error during connection setup');
+        } catch (closeError) {
+          console.error(`WebSocket切断エラー: ${closeError}`);
         }
       }
-      console.log(`WebSocket接続終了: ユーザーID=${userId}, ロールモデルID=${roleModelId}`);
     });
 
-    // エラー処理
-    ws.on('error', (error) => {
-      console.error(`WebSocketエラー: ${error.message}`);
-    });
-  });
+    // 定期的なクライアント生存確認
+    const interval = setInterval(() => {
+      try {
+        wss.clients.forEach((ws) => {
+          const wsExt = ws as any;
+          if (wsExt.isAlive === false) {
+            // 前回のping時点で応答がなかった場合、切断
+            console.log(`非応答WebSocketを終了: ${wsExt.userId || 'unknown'}`);
+            return ws.terminate();
+          }
+          
+          // 生存確認をfalseに設定（pongで更新される）
+          wsExt.isAlive = false;
+          // ping送信
+          ws.ping();
+        });
+      } catch (pingError) {
+        console.error(`WebSocket ping処理エラー: ${pingError}`);
+      }
+    }, 30000); // 30秒ごとに実行
 
-  console.log('WebSocketサーバーが初期化されました');
+    // サーバーが閉じたらintervalをクリア
+    wss.on('close', () => {
+      clearInterval(interval);
+      console.log('WebSocketサーバーの生存確認がクリアされました');
+    });
+
+    console.log('WebSocketサーバーが初期化されました');
+  } catch (initError) {
+    console.error('WebSocketサーバー初期化エラー:', initError);
+    // サーバー全体はクラッシュさせず、WebSocket機能だけ無効化
+  }
 }
 
 /**
