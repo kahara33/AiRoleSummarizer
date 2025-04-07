@@ -14,6 +14,11 @@ import {
   createInformationCollectionPlan,
   getInformationCollectionPlan
 } from './controllers/information-collection-controller';
+import {
+  generateWithCrewAI,
+  enhanceKnowledgeGraph,
+  notifyGraphGenerationProgress
+} from './controllers/multi-agent-controller';
 import { 
   insertKnowledgeNodeSchema, 
   insertKnowledgeEdgeSchema,
