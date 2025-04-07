@@ -454,20 +454,20 @@ export default function MultiAgentChatPanel({
   return (
     <div className="flex flex-col h-full">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between p-3 border-b">
+      <div className="flex items-center justify-between p-2 border-b">
         <div className="flex items-center">
-          <Network className="h-5 w-5 mr-2 text-primary" />
-          <span className="font-medium">マルチAIエージェント思考</span>
+          <Network className="h-4 w-4 mr-1 text-primary" />
+          <span className="font-medium text-sm">マルチAIエージェント思考</span>
         </div>
         <Tabs 
           defaultValue="chat" 
           value={currentTab} 
           onValueChange={handleTabChange}
-          className="w-[300px]"
+          className="w-[260px]"
         >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="chat">チャット</TabsTrigger>
-            <TabsTrigger value="process">エージェント処理</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 h-7">
+            <TabsTrigger value="chat" className="text-xs">チャット</TabsTrigger>
+            <TabsTrigger value="process" className="text-xs">エージェント処理</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="flex">
@@ -475,28 +475,30 @@ export default function MultiAgentChatPanel({
             <Button
               variant="ghost"
               size="icon"
+              className="h-6 w-6"
               onClick={handleClearConversation}
               disabled={messages.length === 0 || isGenerating}
               title="会話をクリア"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3 w-3" />
             </Button>
           ) : (
             <Button
               variant="ghost"
               size="icon"
+              className="h-6 w-6"
               onClick={handleClearProcesses}
               disabled={processes.length === 0}
               title="プロセス履歴をクリア"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3 w-3" />
             </Button>
           )}
         </div>
       </div>
 
       {/* タブコンテンツ */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden flex flex-col">
         <div className={`h-full ${currentTab === 'chat' ? 'block' : 'hidden'}`}>
           <div className="h-full overflow-y-auto p-4 space-y-4">
             {messages.length === 0 ? (
@@ -599,14 +601,14 @@ export default function MultiAgentChatPanel({
       </div>
 
       {/* 入力エリア */}
-      <div className="border-t p-3">
+      <div className="border-t p-2">
         <div className="flex items-end gap-2">
           <Textarea
             placeholder="メッセージを入力..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[60px] resize-none"
+            className="min-h-[40px] max-h-[80px] resize-none text-sm"
             disabled={isGenerating}
           />
           <Button

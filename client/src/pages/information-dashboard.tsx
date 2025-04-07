@@ -145,9 +145,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <div className="bg-white border-b px-4 py-2 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">
+    <div className="flex flex-col h-screen overflow-hidden">
+      <div className="bg-white border-b px-4 py-1 flex justify-between items-center">
+        <h1 className="text-lg font-semibold">
           情報整理ダッシュボード（{roleModel?.name || 'ロール定義名'}）
         </h1>
         <div className="flex items-center gap-2">
@@ -396,14 +396,14 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <KnowledgeGraphViewer
                   roleModelId={roleModelId}
                   width="100%"
-                  height="calc(100vh - 87px)"
+                  height="calc(100vh - 70px)"
                   onGraphDataChange={setHasKnowledgeGraph}
                 />
               </TabsContent>
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="h-[calc(100vh-87px)] overflow-auto">
+                <div className="h-[calc(100vh-70px)] overflow-auto">
                   <div className="text-center text-gray-500 mt-20">
                     <p>要約結果は現在開発中です</p>
                     <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
@@ -413,7 +413,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
-                <div className="h-[calc(100vh-87px)] overflow-auto">
+                <div className="h-[calc(100vh-70px)] overflow-auto">
                   <div className="text-center text-gray-500 mt-20">
                     <p>メモ機能は現在開発中です</p>
                     <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
@@ -454,27 +454,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 className="border-l relative z-10"
               >
                 <div className="h-full flex flex-col bg-gray-50">
-                  <div className="p-3 border-b bg-white flex justify-between items-center">
-                    <div className="flex items-center">
-                      <BrainCircuit className="h-4 w-4 mr-2 text-purple-600" />
-                      <h2 className="font-semibold">マルチAIエージェント思考</h2>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-6 w-6 p-0" 
-                      onClick={() => {
-                        setShowAgentPanel(false);
-                        toast({
-                          title: "パネルを最小化",
-                          description: "AIエージェント思考パネルを最小化しました"
-                        });
-                      }}
-                      title="パネルを最小化"
-                    >
-                      <Minimize2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
                   
                   <div className="flex-1 overflow-auto">
                     <MultiAgentChatPanel 
