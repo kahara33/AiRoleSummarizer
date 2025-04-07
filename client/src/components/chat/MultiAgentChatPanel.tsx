@@ -452,7 +452,7 @@ export default function MultiAgentChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full max-h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-2 border-b">
         <div className="flex items-center">
@@ -601,14 +601,14 @@ export default function MultiAgentChatPanel({
       </div>
 
       {/* 入力エリア */}
-      <div className="border-t p-2">
+      <div className="border-t p-1">
         <div className="flex items-end gap-2">
           <Textarea
             placeholder="メッセージを入力..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[40px] max-h-[80px] resize-none text-sm"
+            className="min-h-[36px] max-h-[60px] resize-none text-sm"
             disabled={isGenerating}
           />
           <Button

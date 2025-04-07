@@ -146,8 +146,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <div className="bg-white border-b px-4 py-1 flex justify-between items-center">
-        <h1 className="text-lg font-semibold">
+      <div className="bg-white border-b px-4 py-0.5 flex justify-between items-center">
+        <h1 className="text-base font-semibold">
           情報整理ダッシュボード（{roleModel?.name || 'ロール定義名'}）
         </h1>
         <div className="flex items-center gap-2">
@@ -236,12 +236,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             collapsible={true}
           >
             <div className="h-full overflow-hidden flex flex-col bg-gray-50">
-              <div className="p-3 border-b bg-white flex justify-between items-center">
-                <h2 className="font-semibold">情報収集プラン</h2>
+              <div className="p-2 border-b bg-white flex justify-between items-center">
+                <h2 className="font-semibold text-sm">情報収集プラン</h2>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0" 
+                  className="h-5 w-5 p-0" 
                   onClick={() => {
                     setLeftPanelCollapsed(!leftPanelCollapsed);
                     if (!leftPanelCollapsed) {
@@ -266,9 +266,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="text-left px-2 py-1 font-medium">プラン名</th>
-                      <th className="text-left px-2 py-1 font-medium">作成日</th>
-                      <th className="text-left px-2 py-1 font-medium">更新日</th>
+                      <th className="text-left px-2 py-0.5 font-medium text-xs">プラン名</th>
+                      <th className="text-left px-2 py-0.5 font-medium text-xs">作成日</th>
+                      <th className="text-left px-2 py-0.5 font-medium text-xs">更新日</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -278,9 +278,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
                         onClick={() => setSelectedPlan(plan.id)}
                       >
-                        <td className="px-2 py-1.5 border-t border-gray-200">プラン{plan.id.replace('plan', '')}</td>
-                        <td className="px-2 py-1.5 border-t border-gray-200">{plan.createdAt}</td>
-                        <td className="px-2 py-1.5 border-t border-gray-200">{plan.updatedAt}</td>
+                        <td className="px-2 py-0.5 border-t border-gray-200 text-xs">プラン{plan.id.replace('plan', '')}</td>
+                        <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.createdAt}</td>
+                        <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.updatedAt}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -288,10 +288,10 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               </div>
 
               <div className="border-t mt-4 overflow-auto">
-                <div className="p-3 bg-white">
-                  <h2 className="font-semibold">プラン詳細</h2>
+                <div className="p-2 bg-white">
+                  <h2 className="font-semibold text-sm">プラン詳細</h2>
                 </div>
-                <div className="p-3 space-y-2">
+                <div className="p-2 space-y-2">
                   <div>
                     <h3 className="text-sm font-medium">収集プラン</h3>
                     <p className="text-sm">{mockPlanDetails.name}</p>
@@ -321,18 +321,18 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       <table className="w-full text-xs mt-1 border-collapse border">
                         <thead>
                           <tr className="bg-gray-100">
-                            <th className="text-left px-2 py-1 font-medium">ソース</th>
-                            <th className="text-left px-1 py-1 font-medium w-10 text-center">詳細</th>
+                            <th className="text-left px-2 py-0.5 font-medium text-xs">ソース</th>
+                            <th className="text-left px-1 py-0.5 font-medium w-10 text-center text-xs">詳細</th>
                           </tr>
                         </thead>
                         <tbody>
                           {mockPlanDetails.sources.map((source) => (
                             <tr key={source.id} className="border-t">
-                              <td className="px-2 py-1 truncate" style={{ maxWidth: "120px" }}>
+                              <td className="px-2 py-0.5 truncate text-xs" style={{ maxWidth: "120px" }}>
                                 メディア https://
                               </td>
                               <td className="px-1 py-0.5 text-center">
-                                <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                                <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
                                   <ExternalLink className="h-3 w-3" />
                                 </Button>
                               </td>
@@ -361,8 +361,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             className={`flex flex-col z-10 ${mainPanelMaximized ? 'flex-grow' : ''}`}
           >
             <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="border-b bg-white flex justify-between items-center">
-                <TabsList className="h-10 border-b-0 bg-transparent">
+              <div className="border-b bg-white flex justify-between items-center py-0">
+                <TabsList className="h-8 border-b-0 bg-transparent">
                   <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
                     ナレッジグラフ
                   </TabsTrigger>
@@ -396,14 +396,14 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <KnowledgeGraphViewer
                   roleModelId={roleModelId}
                   width="100%"
-                  height="calc(100vh - 60px)"
+                  height="calc(100vh - 120px)"
                   onGraphDataChange={setHasKnowledgeGraph}
                 />
               </TabsContent>
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="h-[calc(100vh-60px)] overflow-auto">
+                <div className="h-[calc(100vh-120px)] overflow-auto">
                   <div className="text-center text-gray-500 mt-20">
                     <p>要約結果は現在開発中です</p>
                     <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
@@ -413,7 +413,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
-                <div className="h-[calc(100vh-60px)] overflow-auto">
+                <div className="h-[calc(100vh-120px)] overflow-auto">
                   <div className="text-center text-gray-500 mt-20">
                     <p>メモ機能は現在開発中です</p>
                     <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
