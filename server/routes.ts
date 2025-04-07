@@ -499,14 +499,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 自分のロールモデルと共有されているロールモデルを取得
       // SQL文を直接実行して、カラム名の問題を回避
-      const roleModelsData = await db.execute(
-        `SELECT * FROM role_models 
-         WHERE user_id = $1 
-         OR is_shared = 1
-         ${user.organizationId ? 'OR company_id = $2' : ''}
-         ORDER BY id DESC`,
-        user.organizationId ? [user.id, user.organizationId] : [user.id]
-      );
+      // drizzleのクエリビルダーを使用
+      const roleModelsData = await db.query.roleModels.findMany({
+        orderBy: (roleModels, { desc }) => [desc(roleModels.id)],
+        where: (roleModels, { or, eq }) => or(
+          eq(roleModels.createdBy, user.id),
+          eq(roleModels.isShared, 1),
+          user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
+        )
+      });
       
       // ロールモデルのIDs
       const roleModelIds = roleModelsData.map(model => model.id);
@@ -604,14 +605,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
       
-      // SQL文を直接実行して、カラム名の問題を回避
-      const sharedRoleModelsData = await db.execute(
-        `SELECT * FROM role_models 
-         WHERE company_id = $1 
-         AND is_shared = 1
-         ORDER BY id DESC`,
-        [user.organizationId]
-      );
+      // drizzleのクエリビルダーを使用
+      const sharedRoleModelsData = await db.query.roleModels.findMany({
+        orderBy: (roleModels, { desc }) => [desc(roleModels.id)],
+        where: (roleModels, { and, eq }) => and(
+          eq(roleModels.organizationId, user.organizationId),
+          eq(roleModels.isShared, 1)
+        )
+      });
       
       // ロールモデルのIDs
       const roleModelIds = sharedRoleModelsData.map(model => model.id);
@@ -654,8 +655,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // ロールモデルデータの整形
       const safeRoleModels = sharedRoleModelsData.map(model => {
-        // 作成者 (user_idフィールドがcreatedByとして渡される)
-        const creator = creators.find(u => u.id === model.user_id);
+        // 作成者 
+        const creator = creators.find(u => u.id === model.createdBy);
         // 組織
         const organization = orgs.find(o => o.id === model.organizationId);
         
