@@ -555,12 +555,12 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             >
               <Background color="#aaa" gap={16} />
               <Controls 
-                position="bottom-right"
-                style={{ bottom: 10, right: 10 }}
+                position="bottom-left"
+                style={{ bottom: 12, left: 12 }}
               />
               <MiniMap
-                position="bottom-left"
-                style={{ bottom: 10, left: 10 }}
+                position="bottom-right"
+                style={{ bottom: 12, right: 12 }}
                 nodeStrokeWidth={3}
                 nodeColor={(node) => {
                   return node.data?.color || '#1a192b';
