@@ -130,8 +130,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     }
   });
 
-  // ロールモデルデータは上部で取得済み
-
   // プランが選択されたときの処理
   useEffect(() => {
     if (mockCollectionPlans.length > 0 && !selectedPlan) {
@@ -147,6 +145,13 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     });
   };
 
+  // APIでロールモデルの情報を取得できたらログに出力
+  useEffect(() => {
+    if (roleModel) {
+      console.log("ロールモデルデータ取得:", roleModel);
+    }
+  }, [roleModel]);
+
   return (
     <div className="flex flex-col h-screen overflow-hidden panel-container">
       <div className="bg-white border-b px-4 py-0.5 flex justify-between items-center">
@@ -156,14 +161,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         <div className="flex items-center gap-2">
           {roleModelId !== 'default' && (
             <>
-              {/* 情報収集プラン作成ボタン */}
-              <CreateCollectionPlanButton 
-                roleModelId={roleModelId}
-                industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
-                keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
-                disabled={false}
-                hasKnowledgeGraph={hasKnowledgeGraph}
-              />
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -404,7 +401,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </TabsList>
                 
                 <div className="flex items-center gap-2">
-                  {/* CrewAIで知識グラフを生成するボタンと情報収集プラン作成ボタン */}
+                  {/* CrewAIボタンと情報収集プラン作成ボタン - 順序変更 */}
                   {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
                     <>
                       <Button
