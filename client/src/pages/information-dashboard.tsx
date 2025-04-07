@@ -407,16 +407,29 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <div className="flex items-center gap-2">
                   {/* CrewAIで知識グラフを生成するボタン */}
                   {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
-                    <Button
-                      onClick={() => generateGraphMutation.mutate()}
-                      disabled={generateGraphMutation.isPending}
-                      variant="outline"
-                      className="text-sm"
-                      size="sm"
-                    >
-                      <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                      {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => generateGraphMutation.mutate()}
+                        disabled={generateGraphMutation.isPending}
+                        variant="outline"
+                        className="text-sm"
+                        size="sm"
+                      >
+                        <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
+                        {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
+                      </Button>
+
+                      {/* 情報収集プラン作成ボタン */}
+                      {selectedIndustries && selectedKeywords && (
+                        <CreateCollectionPlanButton
+                          roleModelId={roleModelId}
+                          industryIds={selectedIndustries.map(industry => industry.id)}
+                          keywordIds={selectedKeywords.map(keyword => keyword.id)}
+                          hasKnowledgeGraph={hasKnowledgeGraph}
+                          disabled={!hasKnowledgeGraph}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               </div>
