@@ -262,7 +262,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto p-2">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
@@ -393,30 +393,36 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* ナレッジグラフタブ */}
               <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <KnowledgeGraphViewer
-                  roleModelId={roleModelId}
-                  width="100%"
-                  height="calc(100vh - 110px)"
-                  onGraphDataChange={setHasKnowledgeGraph}
-                />
+                <div className="p-3">
+                  <KnowledgeGraphViewer
+                    roleModelId={roleModelId}
+                    width="100%"
+                    height="calc(100vh - 126px)"
+                    onGraphDataChange={setHasKnowledgeGraph}
+                  />
+                </div>
               </TabsContent>
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="h-[calc(100vh-110px)] overflow-auto">
-                  <div className="text-center text-gray-500 mt-20">
-                    <p>要約結果は現在開発中です</p>
-                    <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
+                <div className="p-3">
+                  <div className="h-[calc(100vh-126px)] overflow-auto">
+                    <div className="text-center text-gray-500 mt-20">
+                      <p>要約結果は現在開発中です</p>
+                      <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
               
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
-                <div className="h-[calc(100vh-110px)] overflow-auto">
-                  <div className="text-center text-gray-500 mt-20">
-                    <p>メモ機能は現在開発中です</p>
-                    <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
+                <div className="p-3">
+                  <div className="h-[calc(100vh-126px)] overflow-auto">
+                    <div className="text-center text-gray-500 mt-20">
+                      <p>メモ機能は現在開発中です</p>
+                      <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
@@ -457,12 +463,14 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
                   
                   <div className="flex-1 overflow-hidden">
-                    <MultiAgentChatPanel 
-                      roleModelId={roleModelId} 
-                      messages={messages}
-                      agentThoughts={agentThoughts}
-                      onSendMessage={handleSendMessage}
-                    />
+                    <div className="p-1">
+                      <MultiAgentChatPanel 
+                        roleModelId={roleModelId} 
+                        messages={messages}
+                        agentThoughts={agentThoughts}
+                        onSendMessage={handleSendMessage}
+                      />
+                    </div>
                   </div>
                 </div>
               </Panel>

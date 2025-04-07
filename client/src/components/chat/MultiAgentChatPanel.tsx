@@ -452,7 +452,7 @@ export default function MultiAgentChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden p-2">
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-2 border-b">
         <div className="flex items-center">
