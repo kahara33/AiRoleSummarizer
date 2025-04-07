@@ -25,10 +25,13 @@ import { Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import IndustrySelectionContainer from "@/components/industry-selection/industry-selection-container";
 import KeywordSelectionContainer from "@/components/keyword-selection/keyword-selection-container";
 
-const formSchema = insertRoleModelSchema.extend({
-  name: z.string().min(1, "ロールモデル名を入力してください").max(50, "50文字以内で入力してください"),
-  description: z.string().max(500, "500文字以内で入力してください").optional(),
-});
+// フォームで使用するスキーマを定義
+const extendedSchema = {
+  ...insertRoleModelSchema.shape,
+  isShared: z.number().default(0).optional(),
+};
+
+const formSchema = z.object(extendedSchema);
 
 interface RoleModelFormProps {
   onSuccess?: () => void;
@@ -337,13 +340,13 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
         
         {/* 業界カテゴリ選択タブ */}
         <TabsContent value="industries">
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col" style={{ maxHeight: "70vh" }}>
             <p className="text-sm text-muted-foreground mb-4">
               このロールモデルに関連する業界カテゴリを選択してください。
               選択した業界カテゴリに基づいて情報を収集します。
             </p>
             
-            <div className="flex-grow mb-4">
+            <div className="mb-4 overflow-y-auto" style={{ maxHeight: "calc(70vh - 150px)" }}>
               <IndustrySelectionContainer
                 initialSelectedIndustries={selectedIndustries}
                 onIndustriesChange={setSelectedIndustries}
@@ -351,7 +354,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
               />
             </div>
             
-            <div className="border-t pt-4 flex justify-between items-center">
+            <div className="border-t pt-4 mt-auto sticky bottom-0 bg-white flex justify-between items-center">
               <Button 
                 variant="outline" 
                 onClick={() => setActiveTab("basic")}
@@ -372,13 +375,13 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
         
         {/* キーワード選択タブ */}
         <TabsContent value="keywords">
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col" style={{ maxHeight: "70vh" }}>
             <p className="text-sm text-muted-foreground mb-4">
               このロールモデルに関連するキーワードを入力または選択してください。
               入力したキーワードに基づいて情報を収集します。
             </p>
             
-            <div className="flex-grow mb-4">
+            <div className="mb-4 overflow-y-auto" style={{ maxHeight: "calc(70vh - 150px)" }}>
               <KeywordSelectionContainer
                 initialSelectedKeywords={selectedKeywords}
                 onKeywordsChange={setSelectedKeywords}
@@ -386,7 +389,7 @@ export default function RoleModelForm({ onSuccess, roleModel }: RoleModelFormPro
               />
             </div>
             
-            <div className="border-t pt-4 flex justify-between items-center">
+            <div className="border-t pt-4 mt-auto sticky bottom-0 bg-white flex justify-between items-center">
               <Button 
                 variant="outline" 
                 onClick={() => setActiveTab("industries")}
