@@ -485,8 +485,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
   return (
     <div className="flex flex-col w-full" style={{ height }}>
-      <div className="flex justify-between items-center mb-2 px-4 py-2 bg-muted/50 rounded-lg">
-        <h3 className="text-lg font-semibold">ナレッジグラフビューワー</h3>
+      <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
+        <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
         {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
       </div>
       

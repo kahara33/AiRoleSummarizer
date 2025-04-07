@@ -393,11 +393,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* ナレッジグラフタブ */}
               <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <div className="p-6">
+                <div className="p-2">
                   <KnowledgeGraphViewer
                     roleModelId={roleModelId}
                     width="100%"
-                    height="calc(100vh - 160px)"
+                    height="calc(100vh - 110px)"
                     onGraphDataChange={setHasKnowledgeGraph}
                   />
                 </div>
