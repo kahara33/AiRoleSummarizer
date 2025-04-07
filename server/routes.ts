@@ -718,10 +718,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       if (!user) {
         return res.status(401).json({ error: '認証が必要です' });
       }
+      
+      // UUIDの妥当性チェック
+      if (!isValidUUID(id)) {
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
+      console.log("ロールモデル詳細取得開始: ID=", id);
       
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, id),
