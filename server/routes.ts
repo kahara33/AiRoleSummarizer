@@ -1722,7 +1722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingRelation = await db.query.roleModelIndustries.findFirst({
         where: and(
           eq(roleModelIndustries.roleModelId, roleModelId),
-          eq(roleModelIndustries.industrySubcategoryId, actualIndustryId)
+          eq(roleModelIndustries.industryId, actualIndustryId)
         ),
       });
       
@@ -1733,7 +1733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 関連付けを作成
       const [newRelation] = await db.insert(roleModelIndustries).values({
         roleModelId,
-        industrySubcategoryId: actualIndustryId,
+        industryId: actualIndustryId,
       }).returning();
       
       res.status(201).json(newRelation);

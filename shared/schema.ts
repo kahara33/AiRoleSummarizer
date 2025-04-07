@@ -91,7 +91,8 @@ export const roleModelKeywords = pgTable('role_model_keywords', {
   id: uuid('id').primaryKey().defaultRandom(),
   roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
   keywordId: uuid('keyword_id').references(() => keywords.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').defaultNow()
+  // 実際のデータベースにはcreated_atカラムが存在しない
+  // createdAt: timestamp('created_at').defaultNow()
 });
 
 // 業界
@@ -106,8 +107,9 @@ export const industries = pgTable('industries', {
 export const roleModelIndustries = pgTable('role_model_industries', {
   id: uuid('id').primaryKey().defaultRandom(),
   roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
-  industryId: uuid('industry_id').references(() => industries.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').defaultNow()
+  industryId: uuid('industry_subcategory_id').references(() => industries.id, { onDelete: 'cascade' }),
+  // 実際のデータベースにはcreated_atカラムが存在しない
+  // createdAt: timestamp('created_at').defaultNow()
 });
 
 // サマリー
@@ -204,12 +206,12 @@ export const insertKeywordSchema = createInsertSchema(keywords).omit({
 
 export const insertRoleModelKeywordSchema = createInsertSchema(roleModelKeywords).omit({
   id: true,
-  createdAt: true
+  // createdAt: trueは既に存在しないので削除
 });
 
 export const insertRoleModelIndustrySchema = createInsertSchema(roleModelIndustries).omit({
   id: true,
-  createdAt: true
+  // createdAt: trueは既に存在しないので削除
 });
 
 export const insertIndustrySchema = createInsertSchema(industries).omit({
