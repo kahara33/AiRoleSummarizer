@@ -40,7 +40,10 @@ export class WSServerManager {
 
   // コンストラクタ - HTTPサーバーと関連付ける
   constructor(server: Server) {
-    this.wss = new WebSocketServer({ server });
+    this.wss = new WebSocketServer({ 
+      server,
+      path: '/ws' // WebSocket専用のパスを設定
+    });
     
     // 接続イベントの処理
     this.wss.on('connection', (socket: WebSocket, req: any) => {

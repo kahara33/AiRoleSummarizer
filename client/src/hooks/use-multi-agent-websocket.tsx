@@ -121,11 +121,17 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     // 接続先URLの構築
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
+    // Replit環境ではプロキシを介してアクセスする
     const wsUrl = `${protocol}//${host}/ws?userId=${user.id}&roleModelId=${roleModelId}`;
+    console.log('WebSocket接続URL:', wsUrl);
 
     try {
+      console.log('WebSocket接続を試みています...');
       const newSocket = new WebSocket(wsUrl);
       setCurrentRoleModelId(roleModelId);
+      
+      // 接続開始の即時ログ
+      console.log('WebSocketオブジェクトが作成されました。状態:', newSocket.readyState);
 
       // WebSocketイベントハンドラ設定
       newSocket.onopen = () => {

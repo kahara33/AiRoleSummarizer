@@ -206,6 +206,7 @@ async function startServer() {
     
     server.listen(PORT, HOST, () => {
       console.log(`サーバーが ${HOST}:${PORT} で起動しました`);
+      console.log(`Replit環境では、外部からは http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co でアクセスできます`);
     });
     
     // プロセス終了時のクリーンアップ
