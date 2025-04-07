@@ -55,6 +55,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const [showAgentPanel, setShowAgentPanel] = useState<boolean>(true); // デフォルトで表示
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState<boolean>(false);
   const [mainPanelMaximized, setMainPanelMaximized] = useState<boolean>(false);
+  const [leftPanelMinWidth, setLeftPanelMinWidth] = useState<number>(15);
   const { toast } = useToast();
 
   // WebSocketメッセージを処理
@@ -230,10 +231,20 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
           <Panel 
             defaultSize={20} 
-            minSize={leftPanelCollapsed ? 0 : 15} 
-            maxSize={leftPanelCollapsed ? 0 : 30} 
+            minSize={leftPanelCollapsed ? 0 : leftPanelMinWidth} 
+            maxSize={leftPanelCollapsed ? 0 : 30}
             className={`border-r ${leftPanelCollapsed ? 'hidden' : ''}`}
             collapsible={true}
+            onResize={(size) => {
+              // パネルのサイズがminWidthよりも小さくなったら自動的に最小化
+              if (size < 8 && !leftPanelCollapsed) {
+                setLeftPanelCollapsed(true);
+                toast({
+                  title: "パネルを最小化",
+                  description: "情報収集プランパネルを最小化しました"
+                });
+              }
+            }}
           >
             <div className="h-full overflow-hidden flex flex-col bg-gray-50">
               <div className="px-4 py-3 border-b bg-white flex justify-between items-center">
@@ -458,6 +469,16 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 defaultSize={30} 
                 minSize={20} 
                 className="border-l relative z-10"
+                onResize={(size) => {
+                  // パネルのサイズが10%以下になったら自動的に最小化
+                  if (size < 8 && showAgentPanel) {
+                    setShowAgentPanel(false);
+                    toast({
+                      title: "パネルを最小化",
+                      description: "AIエージェント思考パネルを最小化しました"
+                    });
+                  }
+                }}
               >
                 <div className="h-full flex flex-col bg-gray-50">
                   {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
