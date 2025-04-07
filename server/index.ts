@@ -43,35 +43,74 @@ async function initializeAdminUser() {
       
       // 組織の追加
       let organizationId: string;
-      const existingOrganization = await db.query.organizations.findFirst({
-        where: (organizations, { eq }) => eq(organizations.name, 'EVERYS'),
-      });
-      
-      if (existingOrganization) {
-        organizationId = existingOrganization.id;
-      } else {
-        const [organization] = await db.insert(organizations)
-          .values({
-            id: 'cab10e27-6ece-4aea-951b-c28b1db39838',  // UUID for EVERYS
-            name: 'EVERYS',
-            description: 'EVERYSは自律型情報収集サービスを提供する組織です。',
-          })
-          .returning({ id: organizations.id });
+      try {
+        // 組織テーブルのカラム構造を確認
+        const organizations_columns = await pool.query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'organizations'
+        `);
+        console.log('組織テーブルのカラム構造:', organizations_columns.rows);
         
-        organizationId = organization.id;
+        const existingOrganization = await db.query.organizations.findFirst({
+          where: (organizations, { eq }) => eq(organizations.name, 'EVERYS'),
+        });
+        
+        if (existingOrganization) {
+          organizationId = existingOrganization.id;
+        } else {
+          // 実際のテーブル構造に合わせたクエリ
+          const insertResult = await pool.query(`
+            INSERT INTO organizations (name, description) 
+            VALUES ('EVERYS', 'EVERYSは自律型情報収集サービスを提供する組織です。')
+            RETURNING id
+          `);
+          organizationId = insertResult.rows[0].id;
+        }
+      } catch (error) {
+        console.error('組織追加エラー:', error);
+        throw error;
       }
       
       // 管理者ユーザーの追加
-      const hashedPassword = await hashPassword('3Bdf902@5155');
-      
-      await db.insert(users)
-        .values({
-          name: 'K. Harada',
-          password: hashedPassword,
-          email: 'k.harada@everys.jp',
-          role: 'admin',
-          organizationId: organizationId,
-        });
+      try {
+        // ユーザーテーブルのカラム構造を確認
+        const users_columns = await pool.query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'users'
+        `);
+        console.log('ユーザーテーブルのカラム構造:', users_columns.rows);
+        
+        // 既存のユーザーを確認
+        const existingUser = await pool.query(`
+          SELECT * FROM users WHERE email = 'k.harada@everys.jp'
+        `);
+        
+        if (existingUser.rows.length > 0) {
+          console.log('管理者ユーザーは既に存在します');
+          return;
+        }
+        
+        const hashedPassword = await hashPassword('3Bdf902@5155');
+        
+        // organizationIdがUUID形式であることを確認
+        console.log('組織ID:', organizationId);
+        
+        // 実際のテーブル構造に合わせたクエリ (company_idをNULLに設定)
+        await pool.query(`
+          INSERT INTO users (name, email, password, role) 
+          VALUES ('K. Harada', 'k.harada@everys.jp', $1, 'admin')
+        `, [hashedPassword]);
+        
+        console.log('管理者ユーザーを作成しました（会社IDなし）');
+        
+        // 後でこのユーザーに正しい会社IDを設定することを推奨
+        console.log('注: 管理者ユーザーに会社IDが設定されていません。適切なUUID値で更新することを推奨します。');
+      } catch (error) {
+        console.error('管理者ユーザー追加エラー:', error);
+        throw error;
+      }
       
       console.log('初期管理者ユーザーを作成しました');
     }

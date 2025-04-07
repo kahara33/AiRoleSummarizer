@@ -70,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: req.user.id,
         name: req.user.name,
         role: req.user.role,
-        companyId: req.user.companyId,
+        organizationId: req.user.organizationId,
       } : null,
     });
   });
@@ -151,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companiesQuery = await db.query.organizations.findMany();
       } else {
         companiesQuery = await db.query.organizations.findMany({
-          where: eq(organizations.id, user.companyId),
+          where: eq(organizations.id, user.organizationId),
         });
       }
       
@@ -169,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       
       // 自分の会社か、システム管理者のみアクセス可能
-      if (user.role !== 'admin' && user.companyId !== id) {
+      if (user.role !== 'admin' && user.organizationId !== id) {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
@@ -225,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       
       // 組織管理者は自分の会社のみ更新可能
-      if (user.role === 'company_admin' && user.companyId !== id) {
+      if (user.role === 'company_admin' && user.organizationId !== id) {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
@@ -268,9 +268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         usersQuery = await db.query.users.findMany({
-          where: eq(users.companyId, user.companyId),
+          where: eq(users.organizationId, user.organizationId),
           with: {
-            company: true,
+            organization: true,
           },
           orderBy: (users, { asc }) => [asc(users.name)],
         });
@@ -298,19 +298,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const currentUser = req.user;
       
-      // 自分自身か、システム管理者か、同じ会社の組織管理者のみアクセス可能
-      if (
-        id !== currentUser.id &&
-        currentUser.role !== 'admin' &&
-        !(currentUser.role === 'company_admin' && currentUser.companyId === currentUser.companyId)
-      ) {
-        return res.status(403).json({ error: 'アクセス権限がありません' });
-      }
-      
+      // ユーザーを先に取得
       const user = await db.query.users.findFirst({
         where: eq(users.id, id),
         with: {
-          company: true,
+          organization: true,
         },
       });
       
@@ -318,14 +310,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ユーザーが見つかりません' });
       }
       
+      // 自分自身か、システム管理者か、同じ組織の組織管理者のみアクセス可能
+      if (
+        id !== currentUser?.id &&
+        currentUser?.role !== 'admin' &&
+        !(currentUser?.role === 'company_admin' && user.organizationId === currentUser?.organizationId)
+      ) {
+        return res.status(403).json({ error: 'アクセス権限がありません' });
+      }
+      
       // パスワードを除外
       const { password, ...safeUser } = user;
       
       res.json({
         ...safeUser,
-        company: user.company ? {
-          id: user.company.id,
-          name: user.company.name,
+        organization: user.organization ? {
+          id: user.organization.id,
+          name: user.organization.name,
         } : null,
       });
     } catch (error) {
@@ -373,13 +374,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const currentUser = req.user;
       
-      // 自分自身か、システム管理者か、同じ会社の組織管理者のみアクセス可能
-      if (
-        id !== currentUser.id &&
-        currentUser.role !== 'admin' &&
-        !(currentUser.role === 'company_admin' && currentUser.companyId === currentUser.companyId)
-      ) {
-        return res.status(403).json({ error: 'アクセス権限がありません' });
+      if (!currentUser) {
+        return res.status(401).json({ error: '認証が必要です' });
       }
       
       // 更新対象のユーザーを取得
@@ -389,6 +385,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!targetUser) {
         return res.status(404).json({ error: 'ユーザーが見つかりません' });
+      }
+      
+      // 自分自身か、システム管理者か、同じ組織の組織管理者のみアクセス可能
+      if (
+        id !== currentUser.id &&
+        currentUser.role !== 'admin' &&
+        !(currentUser.role === 'company_admin' && targetUser.organizationId === currentUser.organizationId)
+      ) {
+        return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
       // システム管理者以外は、システム管理者のロールを変更できない
@@ -406,9 +411,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedData.password = await hashPassword(validatedData.password);
       }
       
-      // 組織管理者は会社IDを変更できない & admin ロールに変更できない
+      // 組織管理者は組織IDを変更できない & admin ロールに変更できない
       if (currentUser.role === 'company_admin') {
-        validatedData.companyId = targetUser.companyId;
+        validatedData.organizationId = targetUser.organizationId;
         
         if (validatedData.role === 'admin' && targetUser.role !== 'admin') {
           return res.status(403).json({ error: 'ユーザーをシステム管理者に昇格させる権限がありません' });
@@ -437,6 +442,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const currentUser = req.user;
       
+      if (!currentUser) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // 自分自身は削除できない
       if (id === currentUser.id) {
         return res.status(400).json({ error: '自分自身のアカウントは削除できません' });
@@ -451,10 +460,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ユーザーが見つかりません' });
       }
       
-      // 組織管理者は自分の会社のユーザーのみ削除可能
+      // 組織管理者は自分の組織のユーザーのみ削除可能
       if (
         currentUser.role === 'company_admin' && 
-        targetUser.companyId !== currentUser.companyId
+        targetUser.organizationId !== currentUser.organizationId
       ) {
         return res.status(403).json({ error: 'このユーザーを削除する権限がありません' });
       }
@@ -483,18 +492,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // 自分のロールモデルと共有されているロールモデルを取得
       const roleModelsQuery = await db.query.roleModels.findMany({
         where: (roleModels, { or, and, eq }) => or(
-          eq(roleModels.userId, user.id),
+          eq(roleModels.createdBy, user.id),
           and(
             eq(roleModels.isShared, 1),
-            user.companyId ? eq(roleModels.companyId, user.companyId) : undefined
+            user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
           )
         ),
         with: {
           user: true,
-          company: true,
+          organization: true,
           // 業界とキーワードの関連データも取得
           industries: {
             with: {
@@ -513,13 +526,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 安全な情報のみを返す
       const safeRoleModels = roleModelsQuery.map(model => ({
         ...model,
-        user: {
-          id: model.user?.id,
-          name: model.user?.name,
-        },
-        company: model.company ? {
-          id: model.company.id,
-          name: model.company.name,
+        user: model.user ? {
+          id: model.user.id,
+          name: model.user.name,
+        } : null,
+        organization: model.organization ? {
+          id: model.organization.id,
+          name: model.organization.name,
         } : null,
         // 業界とキーワードデータを追加
         industries: model.industries?.map(rel => rel.industry) || [],
@@ -538,19 +551,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user;
       
-      // 会社IDがない場合は空の配列を返す
-      if (!user.companyId) {
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // 組織IDがない場合は空の配列を返す
+      if (!user.organizationId) {
         return res.json([]);
       }
       
       const sharedRoleModels = await db.query.roleModels.findMany({
         where: and(
-          eq(roleModels.companyId, user.companyId),
+          eq(roleModels.organizationId, user.organizationId),
           eq(roleModels.isShared, 1)
         ),
         with: {
           user: true,
-          company: true,
+          organization: true,
           industries: {
             with: {
               industry: true,
@@ -568,13 +585,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 安全な情報のみを返す
       const safeRoleModels = sharedRoleModels.map(model => ({
         ...model,
-        user: {
-          id: model.user?.id,
-          name: model.user?.name,
-        },
-        company: model.company ? {
-          id: model.company.id,
-          name: model.company.name,
+        user: model.user ? {
+          id: model.user.id,
+          name: model.user.name,
+        } : null,
+        organization: model.organization ? {
+          id: model.organization.id,
+          name: model.organization.name,
         } : null,
         // 業界とキーワードデータを追加
         industries: model.industries?.map(rel => rel.industry) || [],
@@ -594,11 +611,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, id),
         with: {
           user: true,
-          company: true,
+          organization: true,
           industries: {
             with: {
               industry: true,
@@ -618,8 +639,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // アクセス権のチェック
       if (
-        roleModel.userId !== user.id && 
-        !(roleModel.isShared === 1 && roleModel.companyId === user.companyId) &&
+        roleModel.createdBy !== user.id && 
+        !(roleModel.isShared === 1 && roleModel.organizationId === user.organizationId) &&
         user.role !== 'admin'
       ) {
         return res.status(403).json({ error: 'このロールモデルへのアクセス権限がありません' });
@@ -628,13 +649,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 安全な情報のみを返す
       const safeRoleModel = {
         ...roleModel,
-        user: {
+        user: roleModel.user ? {
           id: roleModel.user.id,
           name: roleModel.user.name,
-        },
-        company: roleModel.company ? {
-          id: roleModel.company.id,
-          name: roleModel.company.name,
+        } : null,
+        organization: roleModel.organization ? {
+          id: roleModel.organization.id,
+          name: roleModel.organization.name,
         } : null,
         industries: roleModel.industries.map(rel => rel.industry),
         keywords: roleModel.keywords.map(rel => rel.keyword),
@@ -895,14 +916,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/role-models', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       let validatedData = insertRoleModelSchema.parse(req.body);
       
-      // ユーザーIDを現在のユーザーに設定
-      validatedData.userId = user.id;
+      // 作成者IDを現在のユーザーに設定
+      validatedData.createdBy = user.id;
       
-      // 会社IDを設定 (会社に所属しているユーザーの場合)
-      if (user.companyId) {
-        validatedData.companyId = user.companyId;
+      // 組織IDを設定 (組織に所属しているユーザーの場合)
+      if (user.organizationId) {
+        validatedData.organizationId = user.organizationId;
       }
       
       const result = await db.insert(roleModels).values(validatedData).returning();
@@ -920,6 +946,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ロールモデルの存在確認
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, id),
@@ -929,22 +959,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
-      // アクセス権のチェック (作成者、システム管理者、同じ会社の組織管理者のみ更新可能)
+      // アクセス権のチェック (作成者、システム管理者、同じ組織の組織管理者のみ更新可能)
       if (
-        roleModel.userId !== user.id && 
+        roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを更新する権限がありません' });
       }
       
       const validatedData = insertRoleModelSchema.parse(req.body);
       
-      // ユーザーIDは変更不可 (作成者は固定)
-      validatedData.userId = roleModel.userId;
+      // 作成者は変更不可 (作成者は固定)
+      validatedData.createdBy = roleModel.createdBy;
       
-      // 会社IDも変更不可 (所属会社は固定)
-      validatedData.companyId = roleModel.companyId;
+      // 組織IDも変更不可 (所属組織は固定)
+      validatedData.organizationId = roleModel.organizationId;
       
       const result = await db
         .update(roleModels)
@@ -965,6 +995,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ロールモデルの存在確認
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, id),
@@ -974,11 +1008,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
-      // アクセス権のチェック (作成者、システム管理者、同じ会社の組織管理者のみ削除可能)
+      // アクセス権のチェック (作成者、システム管理者、同じ組織の組織管理者のみ削除可能)
       if (
-        roleModel.userId !== user.id && 
+        roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを削除する権限がありません' });
       }
@@ -999,6 +1033,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       const { isShared } = req.body;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       if (typeof isShared !== 'number') {
         return res.status(400).json({ error: 'isSharedは数値で指定してください (0または1)' });
       }
@@ -1012,23 +1050,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
-      // アクセス権のチェック (作成者、システム管理者、同じ会社の組織管理者のみ共有設定を変更可能)
+      // アクセス権のチェック (作成者、システム管理者、同じ組織の組織管理者のみ共有設定を変更可能)
       if (
-        roleModel.userId !== user.id && 
+        roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルの共有設定を変更する権限がありません' });
       }
       
-      // 会社に所属していないユーザーは共有できない
-      if (isShared === 1 && !roleModel.companyId) {
-        return res.status(400).json({ error: '会社に所属していないため、ロールモデルを共有できません' });
+      // 組織に所属していないユーザーは共有できない
+      if (isShared === 1 && !roleModel.organizationId) {
+        return res.status(400).json({ error: '組織に所属していないため、ロールモデルを共有できません' });
+      }
+      
+      // isSharedフィールドが実際に存在するか確認してから更新
+      const tableColumns = Object.keys(roleModels);
+      const hasIsSharedField = tableColumns.includes('isShared');
+      
+      const updateData: any = {};
+      if (hasIsSharedField) {
+        updateData.isShared = isShared;
+      } else {
+        // schemaにisSharedフィールドがない場合は代替のsharedフィールドを使用
+        updateData.shared = isShared === 1 ? true : false;
       }
       
       const result = await db
         .update(roleModels)
-        .set({ isShared: isShared })
+        .set(updateData)
         .where(eq(roleModels.id, id))
         .returning();
       
@@ -1045,6 +1095,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/knowledge-graph/:roleModelId', isAuthenticated, async (req, res) => {
     try {
       const { roleModelId } = req.params;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
       
       // UUID形式でない場合はエラー
       if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
@@ -1064,7 +1119,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // 本番環境ではアクセス権のチェック
-        const user = req.user;
         
         // アクセス権のチェック
         const roleModel = await db.query.roleModels.findFirst({
@@ -1075,10 +1129,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: 'ロールモデルが見つかりません' });
         }
         
+        // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+        const tableColumns = Object.keys(roleModels);
+        const hasIsSharedField = tableColumns.includes('isShared');
+        const hasSharedField = tableColumns.includes('shared');
+        
+        const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                         hasSharedField ? roleModel.shared === true : false;
+        
         if (
-          roleModel.userId !== user?.id && 
-          !(roleModel.isShared === 1 && roleModel.companyId === user?.companyId) &&
-          user?.role !== 'admin'
+          roleModel.createdBy !== user.id && 
+          !(isShared && roleModel.organizationId === user.organizationId) &&
+          user.role !== 'admin'
         ) {
           return res.status(403).json({ error: 'この知識グラフへのアクセス権限がありません' });
         }
@@ -1123,6 +1185,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertKnowledgeNodeSchema.parse(req.body);
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // アクセス権のチェック
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, validatedData.roleModelId),
@@ -1132,10 +1198,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(roleModels);
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                       hasSharedField ? roleModel.shared === true : false;
+      
       if (
-        roleModel.userId !== user.id && 
+        roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルに知識ノードを追加する権限がありません' });
       }
@@ -1163,6 +1237,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertKnowledgeEdgeSchema.parse(req.body);
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // アクセス権のチェック
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, validatedData.roleModelId),
@@ -1172,10 +1250,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(roleModels);
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                       hasSharedField ? roleModel.shared === true : false;
+      
       if (
-        roleModel.userId !== user.id && 
+        roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルに知識エッジを追加する権限がありません' });
       }
@@ -1203,6 +1289,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { nodeId } = req.params;
       const user = req.user;
       
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ノードの存在確認とデータ取得
       const node = await db.query.knowledgeNodes.findFirst({
         where: eq(knowledgeNodes.id, nodeId),
@@ -1216,10 +1306,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // アクセス権のチェック
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(node.roleModel);
+      const hasUserIdField = tableColumns.includes('userId');
+      const hasCreatedByField = tableColumns.includes('createdBy');
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const creatorId = hasUserIdField ? node.roleModel.userId : 
+                        hasCreatedByField ? node.roleModel.createdBy : null;
+      
+      const isShared = hasIsSharedField ? node.roleModel.isShared === 1 : 
+                       hasSharedField ? node.roleModel.shared === true : false;
+      
       if (
-        node.roleModel.userId !== user.id && 
+        creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && node.roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && node.roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このノードを展開する権限がありません' });
       }
@@ -1416,6 +1519,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'roleModelIdとindustrySubcategoryIdは必須です' });
       }
       
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ロールモデルの存在確認
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, roleModelId),
@@ -1426,11 +1535,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // アクセス権のチェック
-      const user = req.user;
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(roleModel);
+      const hasUserIdField = tableColumns.includes('userId');
+      const hasCreatedByField = tableColumns.includes('createdBy');
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const creatorId = hasUserIdField ? roleModel.userId : 
+                        hasCreatedByField ? roleModel.createdBy : null;
+      
+      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                       hasSharedField ? roleModel.shared === true : false;
+      
       if (
-        roleModel.userId !== user.id && 
+        creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
@@ -1536,6 +1657,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params; // ロールモデルID
       
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ロールモデルの存在確認
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, id),
@@ -1546,11 +1673,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // アクセス権のチェック
-      const user = req.user;
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(roleModel);
+      const hasUserIdField = tableColumns.includes('userId');
+      const hasCreatedByField = tableColumns.includes('createdBy');
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const creatorId = hasUserIdField ? roleModel.userId : 
+                        hasCreatedByField ? roleModel.createdBy : null;
+      
+      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                       hasSharedField ? roleModel.shared === true : false;
+      
       if (
-        roleModel.userId !== user.id && 
+        creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
@@ -1598,6 +1737,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'roleModelIdとkeywordIdは必須です' });
       }
       
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ロールモデルの存在確認
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, roleModelId),
@@ -1608,11 +1753,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // アクセス権のチェック
-      const user = req.user;
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(roleModel);
+      const hasUserIdField = tableColumns.includes('userId');
+      const hasCreatedByField = tableColumns.includes('createdBy');
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const creatorId = hasUserIdField ? roleModel.userId : 
+                        hasCreatedByField ? roleModel.createdBy : null;
+      
+      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                       hasSharedField ? roleModel.shared === true : false;
+      
       if (
-        roleModel.userId !== user.id && 
+        creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
@@ -1695,6 +1852,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params; // ロールモデルID
       
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
       // ロールモデルの存在確認
       const roleModel = await db.query.roleModels.findFirst({
         where: eq(roleModels.id, id),
@@ -1705,11 +1868,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // アクセス権のチェック
-      const user = req.user;
+      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
+      const tableColumns = Object.keys(roleModel);
+      const hasUserIdField = tableColumns.includes('userId');
+      const hasCreatedByField = tableColumns.includes('createdBy');
+      const hasIsSharedField = tableColumns.includes('isShared');
+      const hasSharedField = tableColumns.includes('shared');
+      
+      const creatorId = hasUserIdField ? roleModel.userId : 
+                        hasCreatedByField ? roleModel.createdBy : null;
+      
+      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
+                       hasSharedField ? roleModel.shared === true : false;
+      
       if (
-        roleModel.userId !== user.id && 
+        creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'company_admin' && roleModel.companyId === user.companyId)
+        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }

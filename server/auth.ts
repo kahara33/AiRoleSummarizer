@@ -14,9 +14,8 @@ export interface DatabaseUser {
   email: string;
   password: string;
   role: string;
-  companyId: string | null;
+  organizationId: string | null;
   username?: string; // 既存コードとの互換性のため
-  organizationId?: string; // 既存コードとの互換性のため
 }
 
 // Expressのユーザー型を拡張
@@ -28,9 +27,8 @@ declare global {
       email: string;
       password: string;
       role: string;
-      companyId: string | null;
+      organizationId: string | null;
       username?: string; 
-      organizationId?: string;
     }
   }
 }

@@ -16,9 +16,11 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   password: text('password').notNull(),
   role: text('role').default('user'),
-  companyId: uuid('company_id'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+  // 実際のデータベースでは company_id として定義されている
+  organizationId: uuid('company_id'),
+  // データベースには created_at と updated_at カラムが存在しない
+  // createdAt: timestamp('created_at').defaultNow(),
+  // updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // 組織
