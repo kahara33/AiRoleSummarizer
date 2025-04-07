@@ -18,6 +18,31 @@ const HomePage: React.FC = () => {
   } = useQuery<RoleModelWithIndustriesAndKeywords[]>({
     queryKey: ["/api/role-models"],
     enabled: !!user,
+    queryFn: async ({ queryKey }) => {
+      try {
+        console.log("ロールモデルデータ取得開始:", queryKey[0]);
+        const res = await fetch(queryKey[0] as string, {
+          credentials: "include",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+          }
+        });
+        
+        if (!res.ok) {
+          console.error("ロールモデル取得エラー:", res.status, res.statusText);
+          throw new Error(`ロールの取得に失敗しました: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        console.log("ロールモデルデータ取得成功:", data);
+        return data;
+      } catch (error) {
+        console.error("ロールモデルデータ取得エラー:", error);
+        throw error;
+      }
+    },
   });
 
   return (
@@ -51,8 +76,22 @@ const HomePage: React.FC = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : roleModelsError ? (
-            <div className="text-center py-8">
-              <p className="text-red-500">ロールの読み込みに失敗しました</p>
+            <div className="text-center py-8 bg-red-50 rounded-lg p-4">
+              <p className="text-red-500 mb-2">ロールの読み込みに失敗しました</p>
+              <p className="text-gray-600 text-sm">
+                {roleModelsError.message.includes("401") 
+                  ? "認証が必要です。ログインしてから再度お試しください。" 
+                  : roleModelsError.message}
+              </p>
+              {roleModelsError.message.includes("401") && (
+                <Button 
+                  className="mt-4" 
+                  variant="outline" 
+                  onClick={() => window.location.href = "/auth"}
+                >
+                  ログイン画面へ
+                </Button>
+              )}
             </div>
           ) : roleModels.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
