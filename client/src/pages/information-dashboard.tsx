@@ -393,7 +393,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* ナレッジグラフタブ */}
               <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <div className="p-4">
+                <div className="p-6">
                   <KnowledgeGraphViewer
                     roleModelId={roleModelId}
                     width="100%"
@@ -405,7 +405,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="p-4">
+                <div className="p-6">
                   <div className="h-[calc(100vh-128px)] overflow-auto">
                     <div className="text-center text-gray-500 mt-20">
                       <p>要約結果は現在開発中です</p>
@@ -417,7 +417,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
-                <div className="p-4">
+                <div className="p-6">
                   <div className="h-[calc(100vh-128px)] overflow-auto">
                     <div className="text-center text-gray-500 mt-20">
                       <p>メモ機能は現在開発中です</p>
@@ -462,7 +462,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <div className="h-full flex flex-col bg-gray-50">
                   {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
                   
-                  <div className="flex-1 overflow-hidden p-2">
+                  <div className="flex-1 overflow-hidden">
                     <MultiAgentChatPanel 
                       roleModelId={roleModelId} 
                       messages={messages}

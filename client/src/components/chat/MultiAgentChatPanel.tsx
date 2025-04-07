@@ -500,7 +500,7 @@ export default function MultiAgentChatPanel({
       {/* タブコンテンツ - フレックス比率を調整してスクロールエリアが常に表示されるようにする */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className={`flex-1 overflow-hidden ${currentTab === 'chat' ? 'block' : 'hidden'}`}>
-          <div className="h-full overflow-y-auto p-4 space-y-2">
+          <div className="h-full overflow-y-auto p-6 space-y-3">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                 <Network className="h-12 w-12 mb-4" />
@@ -559,7 +559,7 @@ export default function MultiAgentChatPanel({
         </div>
 
         <div className={`flex-1 overflow-hidden ${currentTab === 'process' ? 'block' : 'hidden'}`}>
-          <div className="h-full overflow-y-auto p-4 space-y-2">
+          <div className="h-full overflow-y-auto p-6 space-y-3">
             {processes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                 <Layers className="h-12 w-12 mb-4" />
@@ -601,7 +601,7 @@ export default function MultiAgentChatPanel({
       </div>
 
       {/* 入力エリア - 常に下部に表示される */}
-      <div className="chat-input-container">
+      <div className="p-4 border-t bg-white">
         <div className="flex items-end gap-2">
           <Textarea
             placeholder="メッセージを入力..."
