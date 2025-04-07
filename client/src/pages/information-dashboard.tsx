@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -8,6 +8,7 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
+import { CreateCollectionPlanWithCrewAIButton } from '@/components/knowledge-graph/CreateCollectionPlanWithCrewAIButton';
 import { 
   Plus, 
   FileText, 
@@ -137,64 +138,10 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     });
   };
 
-  // 情報収集プラン作成ボタン
-  const CreateCollectionPlanButton = () => {
-    const [isCreating, setIsCreating] = useState(false);
-    const [progress, setProgress] = useState(0);
-    const [openConfirm, setOpenConfirm] = useState(false);
-    
-    // 情報収集プラン作成開始
-    const handleCreatePlan = () => {
-      setIsCreating(true);
-      setProgress(0);
-      
-      // プログレスバーのシミュレーション
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsCreating(false);
-            toast({
-              title: "完了",
-              description: "情報収集プランが正常に作成されました"
-            });
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 500);
-      
-      // 作成開始のトースト表示
-      toast({
-        title: "情報収集プラン作成",
-        description: "情報収集プランの作成を開始しました。"
-      });
-    };
-    
-    return (
-      <Button
-        onClick={handleCreatePlan}
-        disabled={isCreating}
-        className="text-sm"
-        size="sm"
-      >
-        {isCreating ? (
-          <>
-            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            {progress > 0 ? `${Math.round(progress)}%` : '処理中...'}
-          </>
-        ) : (
-          <>
-            <FileText className="h-4 w-4 mr-1" />
-            情報収集プラン作成
-          </>
-        )}
-      </Button>
-    );
-  };
+  // エージェントパネルを表示するヘルパー関数
+  const showAgentPanelHandler = useCallback(() => {
+    setShowAgentPanel(true);
+  }, []);
   
   return (
     <div className="flex flex-col h-screen overflow-hidden panel-container">
@@ -460,7 +407,14 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       </Button>
                       
                       {/* 情報収集プラン作成ボタン - 単独コンポーネント化してここに配置 */}
-                      <CreateCollectionPlanButton />
+                      <CreateCollectionPlanWithCrewAIButton 
+                        size="sm"
+                        variant="outline"
+                        className="text-sm"
+                        onStart={showAgentPanelHandler}
+                        defaultKeywords={roleModel?.keywords || []}
+                        defaultIndustry={roleModel?.industry || ''}
+                      />
                     </>
                   )}
                 </div>
