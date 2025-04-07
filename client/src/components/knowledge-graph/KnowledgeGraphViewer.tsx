@@ -556,7 +556,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               <Background color="#aaa" gap={16} />
               <Controls 
                 position="bottom-left"
-                style={{ bottom: 28, left: 12 }}
+                style={{ bottom: 36, left: 12 }}
               />
               <MiniMap
                 position="bottom-right"
