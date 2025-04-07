@@ -1,229 +1,283 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { useAuth } from './use-auth';
+import { useToast } from '@/hooks/use-toast';
 
-// メッセージタイプの定義
-type MessageType = 
-  | 'chat_message' 
-  | 'agent_thought' 
-  | 'agent-thought'
-  | 'agent-thoughts'
-  | 'agent_thoughts'
-  | 'crewai_progress' 
-  | 'progress-update'
-  | 'progress'
-  | 'error'
-  | 'connection'
-  | 'subscription_confirmed';
+// WebSocketメッセージの型定義
+interface WSMessage {
+  type: string;
+  payload: any;
+  timestamp?: string;
+}
 
-// チャットメッセージの型定義
-interface ChatMessage {
-  id: string;
-  content: string;
-  sender: 'user' | 'ai';
-  timestamp: Date;
+// WebSocketコンテキストの状態の型定義
+interface MultiAgentWebSocketContextState {
+  isConnected: boolean;
+  connect: (roleModelId: string) => void;
+  disconnect: () => void;
+  sendMessage: (type: string, payload: any) => void;
+  sendCreateKnowledgeGraphRequest: (params: CreateKnowledgeGraphParams) => void;
+  messages: WSMessage[];
+  agentThoughts: AgentThought[];
+  progressUpdates: ProgressUpdate[];
+  clearMessages: () => void;
+}
+
+// ナレッジグラフ生成リクエストパラメータの型定義
+interface CreateKnowledgeGraphParams {
+  industry: string;
+  keywords: string[];
+  sources?: string[];
+  constraints?: string[];
+  requirements?: string[];
 }
 
 // エージェント思考の型定義
 interface AgentThought {
-  id: string;
   agentName: string;
-  agentType: string;
   thought: string;
-  timestamp: Date;
+  timestamp: string;
+  roleModelId: string;
+  step?: string;
 }
 
-// WebSocketメッセージの型定義
-interface JsonMessage {
-  type: MessageType;
-  data?: {
-    message?: string;
-    agentName?: string;
-    agentType?: string;
-    thought?: string;
-    thoughts?: string;
-    content?: string;
-    progress?: number;
-    stage?: string;
-    error?: string;
-  };
-  // サーバー形式のメッセージのためのフィールド
-  message?: string;
-  agentName?: string;
-  agentType?: string;
-  agent?: string;   // 後方互換性のため
-  agent_type?: string; // 後方互換性のため
-  thought?: string;
-  thoughts?: string;
-  content?: string;
-  progress?: number;
-  progress_update?: number; // 後方互換性のため
-  stage?: string;
-  error?: string;
+// 進捗更新の型定義
+interface ProgressUpdate {
+  message: string;
+  percent: number;
+  timestamp: string;
   roleModelId?: string;
 }
 
-export interface WebSocketHook {
-  subscribe: (roleModelId: string) => void;
-  lastJsonMessage: JsonMessage | null;
-  send: (message: string | object) => boolean;
-  isConnected: boolean;
-  isConnecting: boolean;
-  error: string | null;
-  messages: ChatMessage[];
-  agentThoughts: AgentThought[];
-}
+// デフォルト値を持つコンテキスト作成
+const MultiAgentWebSocketContext = createContext<MultiAgentWebSocketContextState>({
+  isConnected: false,
+  connect: () => {},
+  disconnect: () => {},
+  sendMessage: () => {},
+  sendCreateKnowledgeGraphRequest: () => {},
+  messages: [],
+  agentThoughts: [],
+  progressUpdates: [],
+  clearMessages: () => {}
+});
 
-export function useWebSocket(url?: string | null): WebSocketHook {
+// WebSocketプロバイダーコンポーネント
+export function MultiAgentWebSocketProvider({ children }: { children: ReactNode }) {
+  const [socket, setSocket] = useState<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastJsonMessage, setLastJsonMessage] = useState<JsonMessage | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<WSMessage[]>([]);
   const [agentThoughts, setAgentThoughts] = useState<AgentThought[]>([]);
-  
-  const socket = useRef<WebSocket | null>(null);
-  const currentRoleModelId = useRef<string | null>(null);
+  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
+  const [currentRoleModelId, setCurrentRoleModelId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  // WebSocketメッセージハンドラ
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data);
-      setLastJsonMessage(data);
-      
-      // メッセージタイプに基づいて処理
-      if (data.type === 'chat_message') {
-        const content = data.data?.message || data.message || data.content || '';
-        if (content) {
-          const newMessage: ChatMessage = {
-            id: `msg-${Date.now()}`,
-            content,
-            sender: 'ai',
-            timestamp: new Date()
-          };
-          setMessages(prev => [...prev, newMessage]);
-        }
-      } else if (['agent_thought', 'agent-thought', 'agent_thoughts', 'agent-thoughts'].includes(data.type)) {
-        const thought = data.data?.thought || data.thought || data.data?.thoughts || data.thoughts || '';
-        const agentName = data.data?.agentName || data.agentName || data.agent || 'Agent';
-        const agentType = data.data?.agentType || data.agentType || data.agent_type || 'unknown';
-        
-        if (thought) {
-          const newThought: AgentThought = {
-            id: `thought-${Date.now()}`,
-            agentName,
-            agentType,
-            thought,
-            timestamp: new Date()
-          };
-          setAgentThoughts(prev => [...prev, newThought]);
-        }
+  // WebSocketへのメッセージ送信
+  const sendMessage = useCallback((type: string, payload: any) => {
+    if (socket && isConnected) {
+      try {
+        const message = {
+          type,
+          payload,
+          timestamp: new Date().toISOString()
+        };
+        socket.send(JSON.stringify(message));
+        console.log('WebSocketメッセージを送信:', message);
+      } catch (error) {
+        console.error('WebSocketメッセージ送信エラー:', error);
+        toast({
+          title: 'エラー',
+          description: 'メッセージの送信に失敗しました',
+          variant: 'destructive'
+        });
       }
-    } catch (e) {
-      console.error('WebSocketメッセージのパースに失敗:', e);
+    } else {
+      console.warn('WebSocketが接続されていないため、メッセージを送信できません');
+      toast({
+        title: '警告',
+        description: 'サーバーに接続されていません。再接続してください。',
+        variant: 'destructive'
+      });
     }
-  }, []);
+  }, [socket, isConnected, toast]);
 
-  // WebSocketエラーハンドラ
-  const handleError = useCallback((event: Event) => {
-    console.error('WebSocketエラー:', event);
-    setError('WebSocket接続エラーが発生しました');
-    setIsConnected(false);
-    setIsConnecting(false);
-  }, []);
+  // ナレッジグラフ生成リクエスト
+  const sendCreateKnowledgeGraphRequest = useCallback((params: CreateKnowledgeGraphParams) => {
+    sendMessage('create_knowledge_graph', params);
+  }, [sendMessage]);
 
-  // WebSocket接続ハンドラ
-  const handleOpen = useCallback(() => {
-    console.log('WebSocket接続が確立されました');
-    setIsConnected(true);
-    setIsConnecting(false);
-    setError(null);
-
-    // ロールモデルを購読
-    if (currentRoleModelId.current && socket.current) {
-      socket.current.send(JSON.stringify({
-        type: 'subscribe',
-        payload: { roleModelId: currentRoleModelId.current }
-      }));
-      console.log(`ロールモデルID ${currentRoleModelId.current} を購読しました`);
-    }
-  }, []);
-
-  // WebSocket切断ハンドラ
-  const handleClose = useCallback(() => {
-    console.log('WebSocket接続が閉じられました');
-    setIsConnected(false);
-    setIsConnecting(false);
-  }, []);
-
-  // ロールモデルを購読する関数
-  const subscribe = useCallback((roleModelId: string) => {
-    if (!roleModelId) return;
-
-    // 既に同じロールモデルを購読している場合は何もしない
-    if (currentRoleModelId.current === roleModelId && socket.current && socket.current.readyState === WebSocket.OPEN) {
+  // WebSocket接続関数
+  const connect = useCallback((roleModelId: string) => {
+    if (!user) {
+      console.warn('ユーザーがログインしていないため、WebSocket接続を確立できません');
       return;
     }
 
-    currentRoleModelId.current = roleModelId;
-
-    // 既存の接続があれば閉じる
-    if (socket.current) {
-      socket.current.close();
+    // 既存の接続を閉じる
+    if (socket) {
+      socket.close();
     }
 
-    // 新しい接続を作成
-    try {
-      setIsConnecting(true);
-      // WebSocket APIのURLを構築
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws?roleModelId=${roleModelId}`;
-      
-      socket.current = new WebSocket(wsUrl);
-      socket.current.onmessage = handleMessage;
-      socket.current.onerror = handleError;
-      socket.current.onopen = handleOpen;
-      socket.current.onclose = handleClose;
-    } catch (err) {
-      console.error('WebSocket初期化エラー:', err);
-      setError(`WebSocket接続を確立できませんでした: ${err instanceof Error ? err.message : String(err)}`);
-      setIsConnecting(false);
-    }
-  }, [handleMessage, handleError, handleOpen, handleClose]);
-
-  // メッセージ送信関数
-  const send = useCallback((data: string | object): boolean => {
-    if (!socket.current || socket.current.readyState !== WebSocket.OPEN) {
-      setError('WebSocketが接続されていません');
-      return false;
-    }
+    // 接続先URLの構築
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/ws?userId=${user.id}&roleModelId=${roleModelId}`;
 
     try {
-      const message = typeof data === 'string' ? data : JSON.stringify(data);
-      socket.current.send(message);
-      return true;
-    } catch (err) {
-      setError(`メッセージ送信エラー: ${err instanceof Error ? err.message : String(err)}`);
-      return false;
+      const newSocket = new WebSocket(wsUrl);
+      setCurrentRoleModelId(roleModelId);
+
+      // WebSocketイベントハンドラ設定
+      newSocket.onopen = () => {
+        console.log('WebSocket接続が確立されました');
+        setIsConnected(true);
+        toast({
+          title: '接続成功',
+          description: 'リアルタイム更新が有効になりました',
+          variant: 'default'
+        });
+      };
+
+      newSocket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WSMessage;
+          console.log('WebSocketメッセージを受信:', message);
+
+          // メッセージタイプに応じた処理
+          switch (message.type) {
+            case 'agent_thought':
+              if (message.payload) {
+                const thought: AgentThought = {
+                  agentName: message.payload.agentName,
+                  thought: message.payload.thought,
+                  roleModelId: message.payload.roleModelId,
+                  timestamp: message.timestamp || new Date().toISOString(),
+                  step: message.payload.step
+                };
+                setAgentThoughts(prev => [...prev, thought]);
+              }
+              break;
+
+            case 'progress-update':
+              if (message.payload) {
+                const update: ProgressUpdate = {
+                  message: message.payload.message,
+                  percent: message.payload.percent,
+                  timestamp: message.timestamp || new Date().toISOString(),
+                  roleModelId: message.payload.roleModelId || currentRoleModelId || undefined
+                };
+                setProgressUpdates(prev => [...prev, update]);
+              }
+              break;
+
+            case 'chat_message':
+              setMessages(prev => [...prev, message]);
+              break;
+
+            case 'crewai_error':
+              toast({
+                title: 'エラー',
+                description: message.payload.message || 'ナレッジグラフの生成中にエラーが発生しました',
+                variant: 'destructive'
+              });
+              break;
+
+            default:
+              // その他のメッセージはそのまま保存
+              setMessages(prev => [...prev, message]);
+              break;
+          }
+        } catch (error) {
+          console.error('WebSocketメッセージの解析エラー:', error);
+        }
+      };
+
+      newSocket.onclose = (event) => {
+        console.log('WebSocket接続が閉じられました', event.code, event.reason);
+        setIsConnected(false);
+
+        // 正常な切断でない場合は再接続を試みる
+        if (event.code !== 1000) {
+          console.log('5秒後に再接続を試みます...');
+          setTimeout(() => {
+            if (currentRoleModelId) {
+              connect(currentRoleModelId);
+            }
+          }, 5000);
+        }
+      };
+
+      newSocket.onerror = (error) => {
+        console.error('WebSocketエラー:', error);
+        toast({
+          title: '接続エラー',
+          description: 'サーバーへの接続中にエラーが発生しました。しばらくしてから再試行してください。',
+          variant: 'destructive'
+        });
+      };
+
+      setSocket(newSocket);
+    } catch (error) {
+      console.error('WebSocket接続エラー:', error);
+      toast({
+        title: '接続エラー',
+        description: 'サーバーへの接続に失敗しました',
+        variant: 'destructive'
+      });
     }
+  }, [user, socket, toast, currentRoleModelId]);
+
+  // WebSocket切断関数
+  const disconnect = useCallback(() => {
+    if (socket) {
+      socket.close(1000, 'クライアントからの切断');
+      setSocket(null);
+      setIsConnected(false);
+      setCurrentRoleModelId(null);
+    }
+  }, [socket]);
+
+  // メッセージクリア関数
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setAgentThoughts([]);
+    setProgressUpdates([]);
   }, []);
 
-  // コンポーネントのクリーンアップ
+  // コンポーネントのアンマウント時に接続をクリーンアップ
   useEffect(() => {
     return () => {
-      if (socket.current) {
-        socket.current.close();
-        socket.current = null;
+      if (socket) {
+        socket.close(1000, 'コンポーネントがアンマウントされました');
       }
     };
-  }, []);
+  }, [socket]);
 
-  return {
-    subscribe,
-    lastJsonMessage,
-    send,
+  // コンテキスト値の構築
+  const value = {
     isConnected,
-    isConnecting,
-    error,
+    connect,
+    disconnect,
+    sendMessage,
+    sendCreateKnowledgeGraphRequest,
     messages,
-    agentThoughts
+    agentThoughts,
+    progressUpdates,
+    clearMessages
   };
+
+  return (
+    <MultiAgentWebSocketContext.Provider value={value}>
+      {children}
+    </MultiAgentWebSocketContext.Provider>
+  );
+}
+
+// カスタムフック
+export function useMultiAgentWebSocket() {
+  const context = useContext(MultiAgentWebSocketContext);
+  if (context === undefined) {
+    throw new Error('useMultiAgentWebSocketはMultiAgentWebSocketProviderの中で使用する必要があります');
+  }
+  return context;
 }

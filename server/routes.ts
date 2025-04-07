@@ -49,9 +49,9 @@ function isValidUUID(str: string): boolean {
 }
 
 // ルートの登録
-export async function registerRoutes(app: Express): Promise<Server> {
-  // HTTPサーバーの作成
-  const httpServer = createServer(app);
+export async function registerRoutes(app: Express, server?: Server): Promise<Server> {
+  // HTTPサーバーを受け取るか作成
+  const httpServer = server || createServer(app);
   
   // 認証のセットアップ
   setupAuth(app);
@@ -65,7 +65,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // WebSocketサーバーのセットアップ
-  initWebSocket(httpServer);
+  // 注: メインのWebSocketサーバーは外部でセットアップされるため、こちらは旧実装との互換性のために残す
+  if (!server) {
+    initWebSocket(httpServer);
+  }
   
   // API エンドポイントの設定
   

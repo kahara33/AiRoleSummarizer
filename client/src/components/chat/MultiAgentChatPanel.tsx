@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
-import { useWebSocket } from '@/hooks/use-multi-agent-websocket';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 
 interface MultiAgentChatPanelProps {
   roleModelId: string;
@@ -63,14 +63,14 @@ export default function MultiAgentChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { subscribe, lastJsonMessage } = useWebSocket();
+  const { isConnected, connect, sendMessage, messages: wsMessages, agentThoughts: wsThoughts } = useMultiAgentWebSocket();
 
-  // ロールモデルIDが変更されたらWebSocketを購読
+  // ロールモデルIDが変更されたらWebSocketを接続
   useEffect(() => {
     if (roleModelId) {
-      subscribe(roleModelId);
+      connect(roleModelId);
     }
-  }, [roleModelId, subscribe]);
+  }, [roleModelId, connect]);
   
   // 外部から渡されたメッセージを処理
   useEffect(() => {
@@ -121,19 +121,23 @@ export default function MultiAgentChatPanel({
 
   // WebSocketからのメッセージを処理
   useEffect(() => {
-    if (!lastJsonMessage) return;
+    if (!wsMessages || wsMessages.length === 0) return;
+
+    // 最後のメッセージを取得
+    const lastMessage = wsMessages[wsMessages.length - 1];
+    if (!lastMessage || !lastMessage.type) return;
     
     try {
-      console.log('WebSocketメッセージ受信:', lastJsonMessage.type, lastJsonMessage);
+      console.log('WebSocketメッセージ受信:', lastMessage.type, lastMessage);
       
       // チャットメッセージの処理
-      if (lastJsonMessage.type === 'chat_message') {
+      if (lastMessage.type === 'chat_message') {
         // データソースを安全に取得
         const messageContent: string = 
-          (lastJsonMessage.data && typeof lastJsonMessage.data.message === 'string') 
-            ? lastJsonMessage.data.message 
-            : (typeof lastJsonMessage.message === 'string')
-              ? lastJsonMessage.message
+          (lastMessage.payload && typeof lastMessage.payload.message === 'string') 
+            ? lastMessage.payload.message 
+            : (typeof lastMessage.payload === 'string')
+              ? lastMessage.payload
               : '';
               
         if (!messageContent) return;
@@ -150,60 +154,50 @@ export default function MultiAgentChatPanel({
       } 
       // エージェント思考の処理 (複数のメッセージタイプに対応)
       else if (
-        lastJsonMessage.type === 'agent_thought' || 
-        lastJsonMessage.type === 'agent-thought' ||
-        lastJsonMessage.type === 'agent_thoughts' || 
-        lastJsonMessage.type === 'agent-thoughts'
+        lastMessage.type === 'agent_thought' || 
+        lastMessage.type === 'agent-thought' ||
+        lastMessage.type === 'agent_thoughts' || 
+        lastMessage.type === 'agent-thoughts'
       ) {
         // データソースを安全に取得
         const agentName: string = 
-          (lastJsonMessage.data && typeof lastJsonMessage.data.agentName === 'string')
-            ? lastJsonMessage.data.agentName
-            : (typeof lastJsonMessage.agentName === 'string')
-              ? lastJsonMessage.agentName
-              : (typeof lastJsonMessage.agent === 'string')
-                ? lastJsonMessage.agent
-                : '不明なエージェント';
+          (lastMessage.payload && typeof lastMessage.payload.agentName === 'string')
+            ? lastMessage.payload.agentName
+            : (typeof lastMessage.payload.agent === 'string')
+              ? lastMessage.payload.agent
+              : '不明なエージェント';
               
         const agentType: string = 
-          (lastJsonMessage.data && typeof lastJsonMessage.data.agentType === 'string')
-            ? lastJsonMessage.data.agentType
-            : (typeof lastJsonMessage.agentType === 'string')
-              ? lastJsonMessage.agentType
-              : (typeof lastJsonMessage.agent_type === 'string')
-                ? lastJsonMessage.agent_type
-                : 'generic';
+          (lastMessage.payload && typeof lastMessage.payload.agentType === 'string')
+            ? lastMessage.payload.agentType
+            : (typeof lastMessage.payload.agent_type === 'string')
+              ? lastMessage.payload.agent_type
+              : 'generic';
         
         // メッセージの優先順位で内容を取得
         let content: string = '';
-        // data内のフィールドをチェック
-        if (lastJsonMessage.data) {
-          if (typeof lastJsonMessage.data.message === 'string') {
-            content = lastJsonMessage.data.message;
-          } else if (typeof lastJsonMessage.data.thought === 'string') {
-            content = lastJsonMessage.data.thought;
-          } else if (typeof lastJsonMessage.data.thoughts === 'string') {
-            content = lastJsonMessage.data.thoughts;
-          } else if (typeof lastJsonMessage.data.content === 'string') {
-            content = lastJsonMessage.data.content;
+        // payload内のフィールドをチェック
+        if (lastMessage.payload) {
+          if (typeof lastMessage.payload.message === 'string') {
+            content = lastMessage.payload.message;
+          } else if (typeof lastMessage.payload.thought === 'string') {
+            content = lastMessage.payload.thought;
+          } else if (typeof lastMessage.payload.thoughts === 'string') {
+            content = lastMessage.payload.thoughts;
+          } else if (typeof lastMessage.payload.content === 'string') {
+            content = lastMessage.payload.content;
           }
         }
         
         // ルートレベルのフィールドをチェック
         if (!content) {
-          if (typeof lastJsonMessage.message === 'string') {
-            content = lastJsonMessage.message;
-          } else if (typeof lastJsonMessage.thought === 'string') {
-            content = lastJsonMessage.thought;
-          } else if (typeof lastJsonMessage.thoughts === 'string') {
-            content = lastJsonMessage.thoughts;
-          } else if (typeof lastJsonMessage.content === 'string') {
-            content = lastJsonMessage.content;
+          if (typeof lastMessage.payload === 'string') {
+            content = lastMessage.payload;
           }
         }
         
         if (!content) {
-          console.log('エージェント思考メッセージのコンテンツが見つかりません', lastJsonMessage);
+          console.log('エージェント思考メッセージのコンテンツが見つかりません', lastMessage);
           return;
         }
         
@@ -225,44 +219,40 @@ export default function MultiAgentChatPanel({
       } 
       // 進捗更新の処理 (複数のメッセージタイプに対応)
       else if (
-        lastJsonMessage.type === 'crewai_progress' || 
-        lastJsonMessage.type === 'progress-update' ||
-        lastJsonMessage.type === 'progress'
+        lastMessage.type === 'crewai_progress' || 
+        lastMessage.type === 'progress-update' ||
+        lastMessage.type === 'progress'
       ) {
         // データソースを安全に取得
         let message: string = '';
         
         // メッセージの優先順位で進捗メッセージを取得
-        if (lastJsonMessage.data) {
-          if (typeof lastJsonMessage.data.message === 'string') {
-            message = lastJsonMessage.data.message;
-          } else if (typeof lastJsonMessage.data.stage === 'string') {
-            message = lastJsonMessage.data.stage;
+        if (lastMessage.payload) {
+          if (typeof lastMessage.payload.message === 'string') {
+            message = lastMessage.payload.message;
+          } else if (typeof lastMessage.payload.stage === 'string') {
+            message = lastMessage.payload.stage;
           }
         }
         
         if (!message) {
-          if (typeof lastJsonMessage.message === 'string') {
-            message = lastJsonMessage.message;
-          } else if (typeof lastJsonMessage.stage === 'string') {
-            message = lastJsonMessage.stage;
+          if (typeof lastMessage.payload === 'string') {
+            message = lastMessage.payload;
           }
         }
         
         if (!message) {
-          console.log('進捗メッセージのコンテンツが見つかりません', lastJsonMessage);
+          console.log('進捗メッセージのコンテンツが見つかりません', lastMessage);
           return;
         }
         
         // 進捗情報の取得
         const progress: number = 
-          (lastJsonMessage.data && typeof lastJsonMessage.data.progress === 'number')
-            ? lastJsonMessage.data.progress
-            : (typeof lastJsonMessage.progress === 'number')
-              ? lastJsonMessage.progress
-              : (typeof lastJsonMessage.progress_update === 'number')
-                ? lastJsonMessage.progress_update
-                : 0;
+          (lastMessage.payload && typeof lastMessage.payload.progress === 'number')
+            ? lastMessage.payload.progress
+            : (typeof lastMessage.payload === 'object' && typeof lastMessage.payload.progress_update === 'number')
+              ? lastMessage.payload.progress_update
+              : 0;
         
         const progressMessage = `${message} (${progress}%)`;
         
@@ -283,16 +273,16 @@ export default function MultiAgentChatPanel({
         }
       }
       // エラーメッセージの処理
-      else if (lastJsonMessage.type === 'error') {
+      else if (lastMessage.type === 'error') {
         // エラーメッセージの取得
         let errorMessage: string = '';
         
-        if (lastJsonMessage.data && typeof lastJsonMessage.data.error === 'string') {
-          errorMessage = lastJsonMessage.data.error;
-        } else if (typeof lastJsonMessage.error === 'string') {
-          errorMessage = lastJsonMessage.error;
-        } else if (typeof lastJsonMessage.message === 'string') {
-          errorMessage = lastJsonMessage.message;
+        if (lastMessage.payload && typeof lastMessage.payload.error === 'string') {
+          errorMessage = lastMessage.payload.error;
+        } else if (typeof lastMessage.payload === 'object' && typeof lastMessage.payload.message === 'string') {
+          errorMessage = lastMessage.payload.message;
+        } else if (typeof lastMessage.payload === 'string') {
+          errorMessage = lastMessage.payload;
         } else {
           errorMessage = 'エラーが発生しました';
         }
@@ -316,17 +306,17 @@ export default function MultiAgentChatPanel({
         setIsGenerating(false);
       }
       // 接続または購読確認メッセージ
-      else if (lastJsonMessage.type === 'connection' || lastJsonMessage.type === 'subscription_confirmed') {
-        console.log('WebSocket接続状態メッセージ:', lastJsonMessage.type, lastJsonMessage.message);
+      else if (lastMessage.type === 'connection' || lastMessage.type === 'subscription_confirmed') {
+        console.log('WebSocket接続状態メッセージ:', lastMessage.type, lastMessage.payload);
       }
       // 処理されないメッセージタイプ
       else {
-        console.log('未処理のメッセージタイプ:', lastJsonMessage.type, lastJsonMessage);
+        console.log('未処理のメッセージタイプ:', lastMessage.type, lastMessage);
       }
     } catch (error) {
       console.error('WebSocketメッセージの処理中にエラーが発生しました:', error);
     }
-  }, [lastJsonMessage, currentTab, toast]);
+  }, [wsMessages, currentTab, toast]);
 
   // チャットミューテーション
   const sendMessageMutation = useMutation({

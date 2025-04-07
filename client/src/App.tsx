@@ -16,6 +16,7 @@ import RoleModelDetailPage from '@/pages/role-model-detail';
 import SettingsPage from '@/pages/settings';
 import NotebookPage from '@/pages/notebook-page';
 import { ComponentProps } from '@/lib/types';
+import { MultiAgentWebSocketProvider } from '@/hooks/use-multi-agent-websocket';
 
 // QueryClientの設定
 const queryClient = new QueryClient({
@@ -91,8 +92,10 @@ const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRoutes />
-        <Toaster />
+        <MultiAgentWebSocketProvider>
+          <AppRoutes />
+          <Toaster />
+        </MultiAgentWebSocketProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

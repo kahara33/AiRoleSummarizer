@@ -8,6 +8,7 @@ import { hashPassword } from './auth';
 import { closeNeo4j } from './neo4j';
 import { eq, or } from 'drizzle-orm';
 import { setupVite } from './vite';
+import { setupWebSocketServer } from './websocket/ws-server-setup';
 
 // Express アプリケーションの初期化
 const app = express();
@@ -180,8 +181,11 @@ async function startServer() {
       console.log('アプリケーションは続行しますが、データベース機能が制限される可能性があります');
     }
     
+    // WebSocketサーバーのセットアップ
+    const httpServer = setupWebSocketServer(app);
+    
     // ルートの登録
-    const server = await registerRoutes(app);
+    const server = await registerRoutes(app, httpServer);
     
     // 開発環境でViteのセットアップ
     if (process.env.NODE_ENV !== 'production') {

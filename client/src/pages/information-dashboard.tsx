@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
-import { useWebSocket } from '@/hooks/use-multi-agent-websocket';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 import { 
   Plus, 
   FileText, 
@@ -61,7 +61,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   });
   
   // WebSocketメッセージを処理
-  const { messages, agentThoughts, isConnected, send } = useWebSocket(roleModelId);
+  const { messages, agentThoughts, isConnected, sendMessage: send } = useMultiAgentWebSocket();
   
   // エージェントの思考が届いたらパネルを表示
   useEffect(() => {
@@ -95,12 +95,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   // メッセージ送信関数
   const handleSendMessage = (message: string) => {
     // チャットメッセージを送信
-    send({
-      type: 'chat_message',
-      payload: {
-        roleModelId,
-        message
-      }
+    send('chat_message', {
+      roleModelId,
+      message
     });
   };
   
@@ -558,8 +555,21 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   <div className="flex-1 overflow-hidden">
                     <MultiAgentChatPanel 
                       roleModelId={roleModelId} 
-                      messages={messages}
-                      agentThoughts={agentThoughts}
+                      messages={messages.map(msg => ({
+                        id: crypto.randomUUID(),
+                        content: typeof msg.payload === 'string' ? msg.payload : 
+                               typeof msg.payload?.message === 'string' ? msg.payload.message : 
+                               JSON.stringify(msg.payload),
+                        sender: msg.type === 'chat_message' && msg.payload?.roleModelId ? 'ai' : 'user',
+                        timestamp: new Date(msg.timestamp || Date.now())
+                      }))}
+                      agentThoughts={agentThoughts.map(thought => ({
+                        id: crypto.randomUUID(),
+                        agentName: thought.agentName || 'Agent',
+                        agentType: 'agent',
+                        thought: thought.thought || '',
+                        timestamp: new Date(thought.timestamp || Date.now())
+                      }))}
                       onSendMessage={handleSendMessage}
                     />
                   </div>
