@@ -165,10 +165,26 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 variant="ghost" 
                 size="sm" 
                 className="px-2"
-                onClick={() => setShowAgentPanel(!showAgentPanel)}
-                title={showAgentPanel ? "AIエージェントパネルを非表示" : "AIエージェントパネルを表示"}
+                onClick={() => {
+                  setShowAgentPanel(!showAgentPanel);
+                  if (showAgentPanel) {
+                    toast({
+                      title: "パネルを最小化",
+                      description: "AIエージェント思考パネルを最小化しました"
+                    });
+                  } else {
+                    toast({
+                      title: "パネルを表示",
+                      description: "AIエージェント思考パネルを表示しました"
+                    });
+                  }
+                }}
+                title={showAgentPanel ? "AIエージェントパネルを最小化" : "AIエージェントパネルを表示"}
               >
-                <BrainCircuit className={`h-4 w-4 ${showAgentPanel ? 'text-purple-600' : ''}`} />
+                {showAgentPanel ? 
+                  <BrainCircuit className="h-4 w-4 text-purple-600" /> : 
+                  <BrainCircuit className="h-4 w-4" />
+                }
               </Button>
             </>
           )}
@@ -198,6 +214,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       toast({
                         title: "パネルを最小化",
                         description: "情報収集プランパネルを最小化しました"
+                      });
+                    } else {
+                      toast({
+                        title: "パネルを展開",
+                        description: "情報収集プランパネルを展開しました"
                       });
                     }
                   }}
@@ -333,33 +354,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
                     </Button>
                   )}
-                  
-                  {/* 最大化/最小化ボタン */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 w-7 p-0 mr-2" 
-                    onClick={() => {
-                      setMainPanelMaximized(!mainPanelMaximized);
-                      if (!mainPanelMaximized) {
-                        setLeftPanelCollapsed(true);
-                        setShowAgentPanel(false);
-                        toast({
-                          title: "コンテンツを最大化",
-                          description: "ナレッジグラフを全画面表示にしました"
-                        });
-                      } else {
-                        setLeftPanelCollapsed(false);
-                        toast({
-                          title: "通常表示に戻す",
-                          description: "レイアウトを元に戻しました"
-                        });
-                      }
-                    }}
-                    title={mainPanelMaximized ? "通常表示に戻す" : "最大化して表示"}
-                  >
-                    {mainPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                  </Button>
                 </div>
               </div>
               
@@ -414,9 +408,16 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       variant="ghost" 
                       size="sm" 
                       className="h-6 w-6 p-0" 
-                      onClick={() => setShowAgentPanel(false)}
+                      onClick={() => {
+                        setShowAgentPanel(false);
+                        toast({
+                          title: "パネルを最小化",
+                          description: "AIエージェント思考パネルを最小化しました"
+                        });
+                      }}
+                      title="パネルを最小化"
                     >
-                      &times;
+                      <Minimize2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   
