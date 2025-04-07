@@ -422,7 +422,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           industryIds={roleModel.industries.map((industry: any) => industry.id)}
                           keywordIds={roleModel.keywords.map((keyword: any) => keyword.id)}
                           hasKnowledgeGraph={hasKnowledgeGraph}
-                          disabled={!hasKnowledgeGraph}
+                          disabled={false}
                         />
                       )}
                     </>

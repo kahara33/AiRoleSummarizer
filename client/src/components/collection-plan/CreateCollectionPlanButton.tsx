@@ -203,16 +203,17 @@ export default function CreateCollectionPlanButton({
     }
   }, [roleModelId, industryIds, keywordIds, connect, disconnect, toast]);
 
-  // ボタンが無効かどうかの判定
-  const buttonDisabled = disabled || !hasKnowledgeGraph || isCreating || !roleModelId || industryIds.length === 0 || keywordIds.length === 0;
+  // ボタンが無効かどうかの判定（hasKnowledgeGraph条件を削除して常に表示するように）
+  const buttonDisabled = disabled || isCreating || !roleModelId || industryIds.length === 0 || keywordIds.length === 0;
 
   return (
     <>
       <Button
         onClick={() => setOpenConfirm(true)}
         disabled={buttonDisabled}
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 text-sm"
         variant={hasKnowledgeGraph ? "default" : "outline"}
+        size="sm"
       >
         {isCreating ? (
           <>
@@ -221,7 +222,7 @@ export default function CreateCollectionPlanButton({
           </>
         ) : (
           <>
-            <FileText className="h-4 w-4" />
+            <FileText className="h-4 w-4 mr-1" />
             情報収集プラン作成
           </>
         )}
