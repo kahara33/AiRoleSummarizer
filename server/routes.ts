@@ -26,6 +26,8 @@ import {
   insertRoleModelSchema,
   insertOrganizationSchema, // 組織スキーマに修正
   industries,
+  industryCategories,
+  industrySubcategories,
   roleModelIndustries,
   roleModelKeywords,
   keywords,
@@ -540,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 業界データの取得
       const industriesData = industryIds.length ? 
-        await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
+        await db.select().from(industrySubcategories).where(inArray(industrySubcategories.id, industryIds)) : 
         [];
       
       // ロールモデルデータの整形
@@ -654,8 +656,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const keywordIds = keywordRelations.map(rel => rel.keywordId).filter(Boolean);
       
       // 業界データの取得
-      const industriesData = industryIds.length ? await db.query.industries.findMany({
-        where: (industries, { inArray }) => inArray(industries.id, industryIds)
+      const industriesData = industryIds.length ? await db.query.industrySubcategories.findMany({
+        where: (industrySubcategories, { inArray }) => inArray(industrySubcategories.id, industryIds)
       }) : [];
         
       // キーワードデータの取得

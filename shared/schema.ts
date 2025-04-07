@@ -95,19 +95,39 @@ export const roleModelKeywords = pgTable('role_model_keywords', {
   // createdAt: timestamp('created_at').defaultNow()
 });
 
-// 業界
-export const industries = pgTable('industries', {
+// 業界カテゴリ
+export const industryCategories = pgTable('industry_categories', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   description: text('description'),
+  displayOrder: integer('display_order'),
   createdAt: timestamp('created_at').defaultNow()
+});
+
+// 業界サブカテゴリ
+export const industrySubcategories = pgTable('industry_subcategories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  categoryId: uuid('category_id').references(() => industryCategories.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  displayOrder: integer('display_order'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// 業界 (従来のテーブル)
+export const industries = pgTable('industries', {
+  id: integer('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // ロールモデルと業界の関連付け
 export const roleModelIndustries = pgTable('role_model_industries', {
   id: uuid('id').primaryKey().defaultRandom(),
   roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
-  industryId: uuid('industry_subcategory_id').references(() => industries.id, { onDelete: 'cascade' }),
+  industryId: uuid('industry_subcategory_id').references(() => industrySubcategories.id, { onDelete: 'cascade' }),
   // 実際のデータベースにはcreated_atカラムが存在しない
   // createdAt: timestamp('created_at').defaultNow()
 });
@@ -214,6 +234,16 @@ export const insertRoleModelIndustrySchema = createInsertSchema(roleModelIndustr
   // createdAt: trueは既に存在しないので削除
 });
 
+export const insertIndustryCategorySchema = createInsertSchema(industryCategories).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertIndustrySubcategorySchema = createInsertSchema(industrySubcategories).omit({
+  id: true,
+  createdAt: true
+});
+
 export const insertIndustrySchema = createInsertSchema(industries).omit({
   id: true,
   createdAt: true
@@ -250,6 +280,8 @@ export type InsertKnowledgeEdge = z.infer<typeof insertKnowledgeEdgeSchema>;
 export type InsertKeyword = z.infer<typeof insertKeywordSchema>;
 export type InsertRoleModelKeyword = z.infer<typeof insertRoleModelKeywordSchema>;
 export type InsertRoleModelIndustry = z.infer<typeof insertRoleModelIndustrySchema>;
+export type InsertIndustryCategory = z.infer<typeof insertIndustryCategorySchema>;
+export type InsertIndustrySubcategory = z.infer<typeof insertIndustrySubcategorySchema>;
 export type InsertIndustry = z.infer<typeof insertIndustrySchema>;
 export type InsertSummary = z.infer<typeof insertSummarySchema>;
 
@@ -267,6 +299,8 @@ export type KnowledgeEdge = typeof knowledgeEdges.$inferSelect;
 export type Keyword = typeof keywords.$inferSelect;
 export type RoleModelKeyword = typeof roleModelKeywords.$inferSelect;
 export type RoleModelIndustry = typeof roleModelIndustries.$inferSelect;
+export type IndustryCategory = typeof industryCategories.$inferSelect;
+export type IndustrySubcategory = typeof industrySubcategories.$inferSelect;
 export type Industry = typeof industries.$inferSelect;
 export type Summary = typeof summaries.$inferSelect;
 
