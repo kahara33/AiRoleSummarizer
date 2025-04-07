@@ -15,9 +15,12 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   password: text('password').notNull(),
-  role: text('role').default('user'),
+  role: text('role').default('individual_user'),
   // 実際のデータベースでは company_id として定義されている
-  organizationId: uuid('company_id'),
+  companyId: uuid('company_id').references(() => companies.id, { onDelete: 'set null' }),
+  // プランや有効期限フィールドがDBに存在
+  subscriptionPlan: text('subscription_plan'),
+  subscriptionExpiresAt: timestamp('subscription_expires_at', { withTimezone: true }),
   // データベースには created_at と updated_at カラムが存在しない
   // createdAt: timestamp('created_at').defaultNow(),
   // updatedAt: timestamp('updated_at').defaultNow()
@@ -25,10 +28,18 @@ export const users = pgTable('users', {
 
 // 組織
 export const organizations = pgTable('organizations', {
+  id: integer('id').primaryKey(), // 実際のデータベースではinteger型、シリアル
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// 会社テーブル
+export const companies = pgTable('companies', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+  description: text('description'),
 });
 
 // ロールモデル
@@ -39,7 +50,7 @@ export const roleModels = pgTable('role_models', {
   // 実際のデータベースでは user_id として定義されている
   createdBy: uuid('user_id').references(() => users.id),
   // 実際のデータベースでは company_id として定義されている
-  organizationId: uuid('company_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  companyId: uuid('company_id').references(() => companies.id, { onDelete: 'set null' }),
   // 共有設定フラグ
   isShared: integer('is_shared').default(0),
   createdAt: timestamp('created_at').defaultNow(),
@@ -348,9 +359,17 @@ export const usersRelations = relations(users, ({ many }) => ({
   roleModels: many(roleModels),
 }));
 
-// 組織とユーザー、ロールモデルの関係
+// 会社とユーザー、ロールモデルの関係
+export const companiesRelations = relations(companies, ({ many }) => ({
+  users: many(users, { fields: [companies.id], references: [users.companyId] }),
+  roleModels: many(roleModels, { fields: [companies.id], references: [roleModels.companyId] }),
+}));
+
+// 組織とユーザー、ロールモデルの関係（旧データモデル互換性維持用）
 export const organizationsRelations = relations(organizations, ({ many }) => ({
+  // 注意: 実際にはorganizationsとusersの間には直接のリレーションはありません
   users: many(users),
+  // 注意: 実際にはorganizationsとroleModelsの間には直接のリレーションはありません
   roleModels: many(roleModels),
 }));
 
@@ -360,9 +379,9 @@ export const roleModelsRelations = relations(roleModels, ({ one, many }) => ({
     fields: [roleModels.createdBy],
     references: [users.id],
   }),
-  organization: one(organizations, {
-    fields: [roleModels.organizationId],
-    references: [organizations.id],
+  company: one(companies, {
+    fields: [roleModels.companyId],
+    references: [companies.id],
   }),
   keywords: many(roleModelKeywords),
   industries: many(roleModelIndustries),

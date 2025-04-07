@@ -21,7 +21,7 @@ import {
   knowledgeNodes,
   knowledgeEdges,
   users,
-  organizations,
+  companies,
   roleModels,
   insertRoleModelSchema,
   insertOrganizationSchema, // 組織スキーマに修正
@@ -73,7 +73,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: req.user.id,
         name: req.user.name,
         role: req.user.role,
-        organizationId: req.user.organizationId,
+        companyId: req.user.companyId,
       } : null,
     });
   });
@@ -151,10 +151,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let companiesQuery;
       
       if (user.role === 'admin') {
-        companiesQuery = await db.query.organizations.findMany();
+        companiesQuery = await db.query.companies.findMany();
       } else {
-        companiesQuery = await db.query.organizations.findMany({
-          where: eq(organizations.id, user.organizationId),
+        companiesQuery = await db.query.companies.findMany({
+          where: eq(companies.id, user.companyId),
         });
       }
       
@@ -172,12 +172,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       
       // 自分の会社か、システム管理者のみアクセス可能
-      if (user.role !== 'admin' && user.organizationId !== id) {
+      if (user.role !== 'admin' && user.companyId !== id) {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
-      const company = await db.query.organizations.findFirst({
-        where: eq(organizations.id, id),
+      const company = await db.query.companies.findFirst({
+        where: eq(companies.id, id),
         with: {
           users: {
             orderBy: (users, { asc }) => [asc(users.name)],
@@ -212,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertOrganizationSchema.parse(req.body);
       
-      const result = await db.insert(organizations).values(validatedData).returning();
+      const result = await db.insert(companies).values(validatedData).returning();
       
       res.status(201).json(result[0]);
     } catch (error) {
@@ -228,16 +228,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       
       // 組織管理者は自分の会社のみ更新可能
-      if (user.role === 'company_admin' && user.organizationId !== id) {
+      if (user.role === 'company_admin' && user.companyId !== id) {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
       const validatedData = insertOrganizationSchema.parse(req.body);
       
       const result = await db
-        .update(organizations)
+        .update(companies)
         .set(validatedData)
-        .where(eq(organizations.id, id))
+        .where(eq(companies.id, id))
         .returning();
       
       if (result.length === 0) {
@@ -271,7 +271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         usersQuery = await db.query.users.findMany({
-          where: eq(users.organizationId, user.organizationId),
+          where: eq(users.companyId, user.companyId),
           with: {
             organization: true,
           },
@@ -317,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         id !== currentUser?.id &&
         currentUser?.role !== 'admin' &&
-        !(currentUser?.role === 'company_admin' && user.organizationId === currentUser?.organizationId)
+        !(currentUser?.role === 'company_admin' && user.companyId === currentUser?.companyId)
       ) {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
@@ -394,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         id !== currentUser.id &&
         currentUser.role !== 'admin' &&
-        !(currentUser.role === 'company_admin' && targetUser.organizationId === currentUser.organizationId)
+        !(currentUser.role === 'company_admin' && targetUser.companyId === currentUser.companyId)
       ) {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
@@ -416,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 組織管理者は組織IDを変更できない & admin ロールに変更できない
       if (currentUser.role === 'company_admin') {
-        validatedData.organizationId = targetUser.organizationId;
+        validatedData.companyId = targetUser.companyId;
         
         if (validatedData.role === 'admin' && targetUser.role !== 'admin') {
           return res.status(403).json({ error: 'ユーザーをシステム管理者に昇格させる権限がありません' });
@@ -466,7 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 組織管理者は自分の組織のユーザーのみ削除可能
       if (
         currentUser.role === 'company_admin' && 
-        targetUser.organizationId !== currentUser.organizationId
+        targetUser.companyId !== currentUser.companyId
       ) {
         return res.status(403).json({ error: 'このユーザーを削除する権限がありません' });
       }
@@ -507,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where: (roleModels, { or, eq }) => or(
           eq(roleModels.createdBy, user.id),
           eq(roleModels.isShared, 1),
-          user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
+          user.companyId ? eq(roleModels.companyId, user.companyId) : undefined
         )
       });
       
@@ -516,13 +516,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 関連するユーザーとorganizationを取得
       const creatorIds = roleModelsData.map(model => model.createdBy).filter(Boolean);
-      const orgIds = roleModelsData.map(model => model.organizationId).filter(Boolean);
+      const orgIds = roleModelsData.map(model => model.companyId).filter(Boolean);
       
       const [creators, orgs, keywordRelations, industryRelations] = await Promise.all([
         // ユーザーの取得
         creatorIds.length ? db.select().from(users).where(inArray(users.id, creatorIds)) : Promise.resolve([]),
         // 組織の取得
-        orgIds.length ? db.select().from(organizations).where(inArray(organizations.id, orgIds)) : Promise.resolve([]),
+        orgIds.length ? db.select().from(companies).where(inArray(companies.id, orgIds)) : Promise.resolve([]),
         // キーワードの取得
         roleModelIds.length ? db.select().from(roleModelKeywords).where(inArray(roleModelKeywords.roleModelId, roleModelIds)) : Promise.resolve([]),
         // ロールモデルと業界のリレーション取得
@@ -550,7 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 作成者
         const creator = creators.find(u => u.id === model.createdBy);
         // 組織
-        const organization = orgs.find(o => o.id === model.organizationId);
+        const organization = orgs.find(o => o.id === model.companyId);
         
         // このロールモデルのキーワード
         const modelKeywordIds = keywordRelations
@@ -603,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 組織IDがない場合は空の配列を返す
-      if (!user.organizationId) {
+      if (!user.companyId) {
         return res.json([]);
       }
       
@@ -611,7 +611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sharedRoleModelsData = await db.query.roleModels.findMany({
         orderBy: (roleModels, { desc }) => [desc(roleModels.id)],
         where: (roleModels, { and, eq }) => and(
-          eq(roleModels.organizationId, user.organizationId),
+          eq(roleModels.companyId, user.companyId),
           eq(roleModels.isShared, 1)
         )
       });
@@ -626,7 +626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 関連するユーザーとorganizationを取得 - createdByを使用
       const creatorIds = sharedRoleModelsData.map(model => model.createdBy).filter(Boolean);
-      const orgIds = sharedRoleModelsData.map(model => model.organizationId).filter(Boolean);
+      const orgIds = sharedRoleModelsData.map(model => model.companyId).filter(Boolean);
       
       // 以下、Drizzleの修正されたクエリビルダーAPIを使用
       // ユーザーの取得
@@ -635,8 +635,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }) : [];
       
       // 組織の取得
-      const orgs = orgIds.length ? await db.query.organizations.findMany({
-        where: (organizations, { inArray }) => inArray(organizations.id, orgIds)
+      const orgs = orgIds.length ? await db.query.companies.findMany({
+        where: (companies, { inArray }) => inArray(companies.id, orgIds)
       }) : [];
       
       // キーワードの取得
@@ -670,7 +670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 作成者 - createdByを使用
         const creator = creators.find(u => u.id === model.createdBy);
         // 組織
-        const organization = orgs.find(o => o.id === model.organizationId);
+        const organization = orgs.find(o => o.id === model.companyId);
         
         // このロールモデルのキーワード
         const modelKeywordIds = keywordRelations
@@ -734,7 +734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where: eq(roleModels.id, id),
         with: {
           user: true,
-          organization: true,
+          company: true,
           industries: {
             with: {
               industry: true,
@@ -755,7 +755,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       if (
         roleModel.createdBy !== user.id && 
-        !(roleModel.isShared === 1 && roleModel.organizationId === user.organizationId) &&
+        !(roleModel.isShared === 1 && roleModel.companyId === user.companyId) &&
         user.role !== 'admin'
       ) {
         return res.status(403).json({ error: 'このロールモデルへのアクセス権限がありません' });
@@ -768,12 +768,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: roleModel.user.id,
           name: roleModel.user.name,
         } : null,
-        organization: roleModel.organization ? {
-          id: roleModel.organization.id,
-          name: roleModel.organization.name,
+        company: roleModel.company ? {
+          id: roleModel.company.id,
+          name: roleModel.company.name,
         } : null,
-        industries: roleModel.industries.map(rel => rel.industry),
-        keywords: roleModel.keywords.map(rel => rel.keywordId),
+        industries: roleModel.industries?.map(rel => rel.industry) || [],
+        keywords: roleModel.keywords?.map(rel => rel.keyword ? rel.keyword : rel.keywordId) || [],
       };
       
       res.json(safeRoleModel);
@@ -825,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 産業と業界名を抽出
       const industries = roleModel.industries.map(rel => rel.industry.name);
-      const keywords = roleModel.keywords.map(rel => rel.keywordId.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword ? rel.keyword.name : (rel.keywordId && typeof rel.keywordId === 'object' ? rel.keywordId.name : ''));
 
       // 非同期処理を開始し、すぐにレスポンスを返す
       res.json({ 
@@ -892,7 +892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 産業と業界名を抽出
       const industries = roleModel.industries.map(rel => rel.industry.name);
-      const keywords = roleModel.keywords.map(rel => rel.keywordId.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword ? rel.keyword.name : (rel.keywordId && typeof rel.keywordId === 'object' ? rel.keywordId.name : ''));
 
       // 非同期処理を開始し、すぐにレスポンスを返す
       res.json({ 
@@ -1042,8 +1042,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       validatedData.createdBy = user.id;
       
       // 組織IDを設定 (組織に所属しているユーザーの場合)
-      if (user.organizationId) {
-        validatedData.organizationId = user.organizationId;
+      if (user.companyId) {
+        validatedData.companyId = user.companyId;
       }
       
       const result = await db.insert(roleModels).values(validatedData).returning();
@@ -1078,7 +1078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを更新する権限がありません' });
       }
@@ -1089,7 +1089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       validatedData.createdBy = roleModel.createdBy;
       
       // 組織IDも変更不可 (所属組織は固定)
-      validatedData.organizationId = roleModel.organizationId;
+      validatedData.companyId = roleModel.companyId;
       
       const result = await db
         .update(roleModels)
@@ -1127,7 +1127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを削除する権限がありません' });
       }
@@ -1169,13 +1169,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルの共有設定を変更する権限がありません' });
       }
       
       // 組織に所属していないユーザーは共有できない
-      if (isShared === 1 && !roleModel.organizationId) {
+      if (isShared === 1 && !roleModel.companyId) {
         return res.status(400).json({ error: '組織に所属していないため、ロールモデルを共有できません' });
       }
       
@@ -1249,7 +1249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (
           roleModel.createdBy !== user.id && 
-          !(isShared && roleModel.organizationId === user.organizationId) &&
+          !(isShared && roleModel.companyId === user.companyId) &&
           user.role !== 'admin'
         ) {
           return res.status(403).json({ error: 'この知識グラフへのアクセス権限がありません' });
@@ -1314,7 +1314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルに知識ノードを追加する権限がありません' });
       }
@@ -1361,7 +1361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         roleModel.createdBy !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルに知識エッジを追加する権限がありません' });
       }
@@ -1422,7 +1422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && node.roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && node.roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このノードを展開する権限がありません' });
       }
@@ -1651,7 +1651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
@@ -1789,7 +1789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
@@ -1869,7 +1869,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
@@ -1984,7 +1984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (
         creatorId !== user.id && 
         user.role !== 'admin' && 
-        !(user.role === 'organization_admin' && roleModel.organizationId === user.organizationId)
+        !(user.role === 'organization_admin' && roleModel.companyId === user.companyId)
       ) {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }

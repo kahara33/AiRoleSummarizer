@@ -14,7 +14,7 @@ export interface DatabaseUser {
   email: string;
   password: string;
   role: string;
-  organizationId: string | null;
+  companyId: string | null;
   username?: string; // 既存コードとの互換性のため
 }
 
@@ -27,7 +27,7 @@ declare global {
       email: string;
       password: string;
       role: string;
-      organizationId: string | null;
+      companyId: string | null;
       username?: string; 
     }
   }
@@ -142,7 +142,7 @@ export function setupAuth(app: Express): void {
           username: user.username,
           email: user.email,
           role: user.role,
-          organizationId: user.organizationId,
+          companyId: user.companyId,
         });
       });
     })(req, res, next);
@@ -169,7 +169,7 @@ export function setupAuth(app: Express): void {
       username: user.username,
       email: user.email,
       role: user.role,
-      organizationId: user.organizationId,
+      companyId: user.companyId,
     });
   });
 }
