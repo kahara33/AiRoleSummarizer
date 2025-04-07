@@ -9,6 +9,7 @@ import CreateCollectionPlanButton from '@/components/collection-plan/CreateColle
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useWebSocket } from '@/hooks/use-multi-agent-websocket';
+import { RoleModel } from "@shared/schema";
 import { 
   Plus, 
   FileText, 
@@ -58,6 +59,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const [leftPanelMinWidth, setLeftPanelMinWidth] = useState<number>(15);
   const { toast } = useToast();
 
+  // ロールモデルデータを取得
+  const { data: roleModel } = useQuery<RoleModel>({
+    queryKey: [`/api/role-models/${roleModelId}`],
+    enabled: roleModelId !== 'default',
+  });
+  
   // WebSocketメッセージを処理
   const { messages, agentThoughts, isConnected, send } = useWebSocket(roleModelId);
   
@@ -123,15 +130,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     }
   });
 
-  // ロールモデルデータのフェッチ
-  const { data: roleModel } = useQuery({
-    queryKey: [`/api/role-models/${roleModelId}`],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/role-models/${roleModelId}`);
-      return await res.json();
-    },
-    enabled: !!roleModelId && roleModelId !== 'default'
-  });
+  // ロールモデルデータは上部で取得済み
 
   // プランが選択されたときの処理
   useEffect(() => {
@@ -420,11 +419,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       </Button>
 
                       {/* 情報収集プラン作成ボタン */}
-                      {selectedIndustries && selectedKeywords && (
+                      {roleModel?.industries && roleModel?.keywords && (
                         <CreateCollectionPlanButton
                           roleModelId={roleModelId}
-                          industryIds={selectedIndustries.map(industry => industry.id)}
-                          keywordIds={selectedKeywords.map(keyword => keyword.id)}
+                          industryIds={roleModel.industries.map(industry => industry.id)}
+                          keywordIds={roleModel.keywords.map(keyword => keyword.id)}
                           hasKnowledgeGraph={hasKnowledgeGraph}
                           disabled={!hasKnowledgeGraph}
                         />
