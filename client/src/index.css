@@ -7,6 +7,13 @@
     @apply border-border;
   }
 
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
@@ -16,6 +23,13 @@
 [data-panel] {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  max-height: 100vh;
+}
+
+.panel-container {
+  height: 100%;
+  max-height: 100vh;
   overflow: hidden;
 }
 

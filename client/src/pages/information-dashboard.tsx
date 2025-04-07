@@ -145,7 +145,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden panel-container">
       <div className="bg-white border-b px-4 py-0.5 flex justify-between items-center">
         <h1 className="text-base font-semibold">
           情報整理ダッシュボード（{roleModel?.name || 'ロール定義名'}）
@@ -204,7 +204,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden panel-container">
         <PanelGroup direction="horizontal" className="relative">
           {/* 左側パネルが最小化されているときのアイコン */}
           {leftPanelCollapsed && (
@@ -396,14 +396,14 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <KnowledgeGraphViewer
                   roleModelId={roleModelId}
                   width="100%"
-                  height="calc(100vh - 120px)"
+                  height="calc(100vh - 110px)"
                   onGraphDataChange={setHasKnowledgeGraph}
                 />
               </TabsContent>
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="h-[calc(100vh-120px)] overflow-auto">
+                <div className="h-[calc(100vh-110px)] overflow-auto">
                   <div className="text-center text-gray-500 mt-20">
                     <p>要約結果は現在開発中です</p>
                     <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
@@ -413,7 +413,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
-                <div className="h-[calc(100vh-120px)] overflow-auto">
+                <div className="h-[calc(100vh-110px)] overflow-auto">
                   <div className="text-center text-gray-500 mt-20">
                     <p>メモ機能は現在開発中です</p>
                     <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
