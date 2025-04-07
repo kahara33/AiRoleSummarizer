@@ -78,7 +78,7 @@ export default function MultiAgentChatPanel({
       // 外部メッセージをMessage型に変換
       const convertedMessages = externalMessages.map(msg => ({
         id: msg.id,
-        role: msg.sender === 'user' ? 'user' : 'assistant',
+        role: msg.sender === 'user' ? 'user' : 'assistant' as 'user' | 'assistant' | 'agent',
         content: msg.content,
         timestamp: msg.timestamp
       }));
@@ -87,7 +87,7 @@ export default function MultiAgentChatPanel({
         // すでに存在するIDのメッセージを除外して追加
         const existingIds = new Set(prevMessages.map(m => m.id));
         const newMessages = convertedMessages.filter(m => !existingIds.has(m.id));
-        return [...prevMessages, ...newMessages];
+        return [...prevMessages, ...newMessages] as Message[];
       });
     }
   }, [externalMessages]);
@@ -114,7 +114,7 @@ export default function MultiAgentChatPanel({
           setCurrentTab('process');
         }
         
-        return [...prevProcesses, ...newProcesses];
+        return [...prevProcesses, ...newProcesses] as AgentProcess[];
       });
     }
   }, [externalThoughts, currentTab]);

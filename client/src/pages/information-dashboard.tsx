@@ -47,7 +47,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const [activeTab, setActiveTab] = useState<string>('knowledgeGraph');
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
-  const [showAgentPanel, setShowAgentPanel] = useState<boolean>(false);
+  const [showAgentPanel, setShowAgentPanel] = useState<boolean>(true); // デフォルトで表示
   const { toast } = useToast();
 
   // WebSocketメッセージを処理
@@ -126,6 +126,15 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 }}
               >
                 <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="px-2"
+                onClick={() => setShowAgentPanel(!showAgentPanel)}
+                title={showAgentPanel ? "AIエージェントパネルを非表示" : "AIエージェントパネルを表示"}
+              >
+                <BrainCircuit className={`h-4 w-4 ${showAgentPanel ? 'text-purple-600' : ''}`} />
               </Button>
             </>
           )}
