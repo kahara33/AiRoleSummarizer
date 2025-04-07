@@ -16,7 +16,7 @@
 [data-panel] {
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
 }
 
 [data-panel-resize-handle][data-panel-group-direction='horizontal'] {

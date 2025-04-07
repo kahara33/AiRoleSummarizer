@@ -145,7 +145,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen overflow-hidden">
       <div className="bg-white border-b px-4 py-1 flex justify-between items-center">
         <h1 className="text-lg font-semibold">
           情報整理ダッシュボード（{roleModel?.name || 'ロール定義名'}）
@@ -235,7 +235,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             className={`border-r ${leftPanelCollapsed ? 'hidden' : ''}`}
             collapsible={true}
           >
-            <div className="h-full overflow-auto flex flex-col bg-gray-50">
+            <div className="h-full overflow-hidden flex flex-col bg-gray-50">
               <div className="p-3 border-b bg-white flex justify-between items-center">
                 <h2 className="font-semibold">情報収集プラン</h2>
                 <Button 
@@ -262,7 +262,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </Button>
               </div>
 
-              <div className="overflow-auto">
+              <div className="flex-1 overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
@@ -287,7 +287,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </table>
               </div>
 
-              <div className="border-t mt-4">
+              <div className="border-t mt-4 overflow-auto">
                 <div className="p-3 bg-white">
                   <h2 className="font-semibold">プラン詳細</h2>
                 </div>
@@ -456,7 +456,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <div className="h-full flex flex-col bg-gray-50">
                   {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
                   
-                  <div className="flex-1 overflow-auto">
+                  <div className="flex-1 overflow-hidden">
                     <MultiAgentChatPanel 
                       roleModelId={roleModelId} 
                       messages={messages}
