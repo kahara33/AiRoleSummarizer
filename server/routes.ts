@@ -498,15 +498,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 自分のロールモデルと共有されているロールモデルを取得
-      // リレーションを使用せずにシンプルなクエリに変更
-      const roleModelsData = await db.select().from(roleModels).where(
-        or(
-          eq(roleModels.createdBy, user.id),
-          // is_shared = 1 の場合も表示
-          eq(roleModels.isShared, 1),
-          user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
-        )
-      ).orderBy(desc(roleModels.createdAt));
+      // SQL文を直接実行して、カラム名の問題を回避
+      const roleModelsData = await db.execute(
+        `SELECT * FROM role_models 
+         WHERE user_id = $1 
+         OR is_shared = 1
+         ${user.organizationId ? 'OR company_id = $2' : ''}
+         ORDER BY id DESC`,
+        user.organizationId ? [user.id, user.organizationId] : [user.id]
+      );
       
       // ロールモデルのIDs
       const roleModelIds = roleModelsData.map(model => model.id);
@@ -604,13 +604,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
       
-      // リレーションを使用せずにシンプルなクエリに変更
-      const sharedRoleModelsData = await db.select().from(roleModels).where(
-        and(
-          eq(roleModels.organizationId, user.organizationId),
-          eq(roleModels.isShared, 1)
-        )
-      ).orderBy(desc(roleModels.createdAt));
+      // SQL文を直接実行して、カラム名の問題を回避
+      const sharedRoleModelsData = await db.execute(
+        `SELECT * FROM role_models 
+         WHERE company_id = $1 
+         AND is_shared = 1
+         ORDER BY id DESC`,
+        [user.organizationId]
+      );
       
       // ロールモデルのIDs
       const roleModelIds = sharedRoleModelsData.map(model => model.id);
@@ -638,15 +639,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 業界IDsの抽出
       const industryIds = industryRelations.map(rel => rel.industryId);
       
+      // キーワードIDsの抽出
+      const keywordIds = keywordRelations.map(rel => rel.keywordId).filter(Boolean);
+      
       // 業界データの取得
       const industriesData = industryIds.length ? 
         await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
         [];
+        
+      // キーワードデータの取得
+      const keywordsData = keywordIds.length ? 
+        await db.select().from(keywords).where(inArray(keywords.id, keywordIds)) : 
+        [];
       
       // ロールモデルデータの整形
       const safeRoleModels = sharedRoleModelsData.map(model => {
-        // 作成者
-        const creator = creators.find(u => u.id === model.createdBy);
+        // 作成者 (user_idフィールドがcreatedByとして渡される)
+        const creator = creators.find(u => u.id === model.user_id);
         // 組織
         const organization = orgs.find(o => o.id === model.organizationId);
         
@@ -790,7 +799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 自分のロールモデルのみ編集可能
-      if (roleModel.userId !== user!.id && user!.role !== 'admin') {
+      if (roleModel.createdBy !== user!.id && user!.role !== 'admin') {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
 
@@ -857,7 +866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 自分のロールモデルのみ編集可能
-      if (roleModel.userId !== user!.id && user!.role !== 'admin') {
+      if (roleModel.createdBy !== user!.id && user!.role !== 'admin') {
         return res.status(403).json({ error: 'このロールモデルを編集する権限がありません' });
       }
 
@@ -879,7 +888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: roleModel.description || '',
         industries,
         keywords,
-        userId: roleModel.userId || 'anonymous'
+        userId: roleModel.createdBy || 'anonymous'
       };
 
       // バックグラウンドで処理を継続
@@ -1379,12 +1388,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
       const tableColumns = Object.keys(node.roleModel);
-      const hasUserIdField = tableColumns.includes('userId');
+      const hasUserIdField = tableColumns.includes("user_id");
       const hasCreatedByField = tableColumns.includes('createdBy');
       const hasIsSharedField = tableColumns.includes('isShared');
       const hasSharedField = tableColumns.includes('shared');
       
-      const creatorId = hasUserIdField ? node.roleModel.userId : 
+      const creatorId = hasUserIdField ? node.roleModel.user_id : 
                         hasCreatedByField ? node.roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? node.roleModel.isShared === 1 : 
@@ -1608,12 +1617,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
       const tableColumns = Object.keys(roleModel);
-      const hasUserIdField = tableColumns.includes('userId');
+      const hasUserIdField = tableColumns.includes("user_id");
       const hasCreatedByField = tableColumns.includes('createdBy');
       const hasIsSharedField = tableColumns.includes('isShared');
       const hasSharedField = tableColumns.includes('shared');
       
-      const creatorId = hasUserIdField ? roleModel.userId : 
+      const creatorId = hasUserIdField ? roleModel.user_id : 
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
@@ -1746,12 +1755,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
       const tableColumns = Object.keys(roleModel);
-      const hasUserIdField = tableColumns.includes('userId');
+      const hasUserIdField = tableColumns.includes("user_id");
       const hasCreatedByField = tableColumns.includes('createdBy');
       const hasIsSharedField = tableColumns.includes('isShared');
       const hasSharedField = tableColumns.includes('shared');
       
-      const creatorId = hasUserIdField ? roleModel.userId : 
+      const creatorId = hasUserIdField ? roleModel.user_id : 
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
@@ -1826,12 +1835,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
       const tableColumns = Object.keys(roleModel);
-      const hasUserIdField = tableColumns.includes('userId');
+      const hasUserIdField = tableColumns.includes("user_id");
       const hasCreatedByField = tableColumns.includes('createdBy');
       const hasIsSharedField = tableColumns.includes('isShared');
       const hasSharedField = tableColumns.includes('shared');
       
-      const creatorId = hasUserIdField ? roleModel.userId : 
+      const creatorId = hasUserIdField ? roleModel.user_id : 
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
@@ -1941,12 +1950,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
       const tableColumns = Object.keys(roleModel);
-      const hasUserIdField = tableColumns.includes('userId');
+      const hasUserIdField = tableColumns.includes("user_id");
       const hasCreatedByField = tableColumns.includes('createdBy');
       const hasIsSharedField = tableColumns.includes('isShared');
       const hasSharedField = tableColumns.includes('shared');
       
-      const creatorId = hasUserIdField ? roleModel.userId : 
+      const creatorId = hasUserIdField ? roleModel.user_id : 
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
