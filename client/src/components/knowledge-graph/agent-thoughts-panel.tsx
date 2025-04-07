@@ -35,10 +35,9 @@ interface AgentThoughtsPanelProps {
   thoughts?: AgentMessage[];
   progress?: ProgressUpdate;
   isProcessing?: boolean;
-  onProgressUpdate?: (progress: ProgressUpdate) => void;
 }
 
-export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts = [], progress, isProcessing = false, onProgressUpdate }: AgentThoughtsPanelProps) {
+export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts = [], progress, isProcessing = false }: AgentThoughtsPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [filteredThoughts, setFilteredThoughts] = useState<AgentMessage[]>([]);
   const [localThoughts, setLocalThoughts] = useState<AgentMessage[]>([]);
@@ -201,27 +200,20 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
           // メッセージタイプに応じた処理
           switch (data.type) {
             case 'agent_thoughts':
-            case 'agent-thoughts':
-              // データ形式の違いに対応するための処理
-              let payloadData = data.payload;
-              
-              // 直接データが含まれている場合もある
-              if (!payloadData) {
-                console.log('No explicit payload, using data object directly');
-                payloadData = data;
+              if (!data.payload) {
+                console.error('Missing payload in agent_thoughts message');
+                return;
               }
               
-              console.log('Agent thought received in detail:', payloadData);
+              console.log('Agent thought received in detail:', data.payload);
               
-              // 新しい思考オブジェクトを作成 (複数のフィールド名に対応)
+              // 新しい思考オブジェクトを作成
               const newThought: AgentMessage = {
-                timestamp: payloadData.timestamp || Date.now(),
-                agentName: payloadData.agentName || payloadData.agent || 'Unknown',
-                message: payloadData.message || payloadData.thoughts || payloadData.content || '',
-                type: payloadData.type || 'thinking'
+                timestamp: data.payload.timestamp || Date.now(),
+                agentName: data.payload.agentName || 'Unknown',
+                message: data.payload.message || '',
+                type: data.payload.type || 'info'
               };
-              
-              console.log('Processed thought:', newThought);
               
               // React の状態更新を安全に行う
               if (isComponentMountedRef.current) {
@@ -252,20 +244,13 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
             case 'progress':
               console.log('Progress update received:', data);
               
-              // プログレスデータを抽出（異なる形式に対応）
+              // プログレスデータを抽出
               const progressData = data.payload || data;
               
               if (progressData && typeof progressData === 'object') {
-                // 外部から与えられたprogress stateがある場合は更新しない
-                if (!progress && onProgressUpdate && typeof onProgressUpdate === 'function') {
-                  const normalizedProgress: ProgressUpdate = {
-                    stage: progressData.stage || 'processing',
-                    progress: progressData.progress || 0,
-                    message: progressData.message || '',
-                    details: progressData
-                  };
-                  onProgressUpdate(normalizedProgress);
-                }
+                console.log('Progress data received:', progressData);
+                // このバージョンでは進捗状況は外部から受け取るだけ
+                // 独自の進捗更新ロジックはこのコンポーネントには含まれていない
               }
               break;
               
@@ -338,7 +323,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose, thoughts =
         console.error('Error during WebSocket cleanup:', e);
       }
     };
-  }, [roleModelId, isVisible, progress, onProgressUpdate]); // 依存配列を修正
+  }, [roleModelId, isVisible, progress]); // 依存配列を修正
   
   // このアプローチは重要: 通常の変数としてレンダリング時に直接計算する
   // useStateやuseEffectに依存しないため、更新深度の問題を回避

@@ -8,7 +8,6 @@ import { SourcesList } from '@/components/collection-plan/sources-list';
 import { CollectionPlanPanel } from '@/components/collection-plan/collection-plan-panel';
 import { CollectionPlanDialog } from '@/components/collection-plan/collection-plan-dialog';
 import { SummaryPanel } from '@/components/summary/summary-panel';
-import { SummaryDetailView } from '@/components/summary/summary-detail-view';
 
 interface NotebookPageProps {
   roleModelId: string;
@@ -129,21 +128,14 @@ export default function NotebookPage({ roleModelId }: NotebookPageProps) {
               value="summaries" 
               className="flex-1 overflow-hidden"
             >
-              {selectedSummaryId ? (
-                <SummaryDetailView 
-                  summaryId={selectedSummaryId}
-                  onBack={() => setSelectedSummaryId(null)}
+              <div className="p-4 h-full overflow-auto">
+                <SummaryPanel 
+                  planId={selectedPlanId}
+                  onSelectSummary={setSelectedSummaryId}
+                  selectedSummaryId={selectedSummaryId}
+                  onViewExecution={setCurrentExecutionId}
                 />
-              ) : (
-                <div className="p-4 h-full overflow-auto">
-                  <SummaryPanel 
-                    planId={selectedPlanId}
-                    onSelectSummary={setSelectedSummaryId}
-                    selectedSummaryId={selectedSummaryId}
-                    onViewExecution={setCurrentExecutionId}
-                  />
-                </div>
-              )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>

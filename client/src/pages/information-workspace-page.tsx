@@ -26,8 +26,8 @@ export default function InformationWorkspacePage() {
   // 実行ID
   const [currentExecutionId, setCurrentExecutionId] = useState<string | null>(null);
 
-  // 左パネルのアクティブタブ
-  const [leftPanelTab, setLeftPanelTab] = useState<'plans' | 'sources'>('plans');
+  // 左パネルのタブは元のコミットでは存在しなかった
+  // const [leftPanelTab, setLeftPanelTab] = useState<'plans' | 'sources'>('plans');
 
   // ロールモデルの取得
   const { data: roleModel } = useQuery<{ name: string }>({
@@ -78,60 +78,11 @@ export default function InformationWorkspacePage() {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-2 border-b">
-              <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger 
-                  value="plans" 
-                  className={leftPanelTab === 'plans' ? 'data-[state=active]:bg-primary' : ''}
-                  onClick={() => setLeftPanelTab('plans')}
-                >
-                  <FolderOpenDot className="h-4 w-4 mr-2" />
-                  収集プラン
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="sources" 
-                  className={leftPanelTab === 'sources' ? 'data-[state=active]:bg-primary' : ''}
-                  onClick={() => setLeftPanelTab('sources')}
-                >
-                  <List className="h-4 w-4 mr-2" />
-                  ソース一覧
-                </TabsTrigger>
-              </TabsList>
-            </div>
             <div className="flex-1 overflow-auto">
-              {leftPanelTab === 'plans' ? (
-                <CollectionPlanPanel 
-                  onSelectPlan={(planId) => {
-                    setSelectedPlanId(planId);
-                    // プランが選択されたらソースタブに自動で切り替え
-                    if (planId) setLeftPanelTab('sources');
-                  }}
-                  selectedPlanId={selectedPlanId}
-                />
-              ) : (
-                <div className="p-3">
-                  <h3 className="font-medium text-sm mb-2">情報ソース一覧</h3>
-                  {selectedPlanId ? (
-                    <SourcesList 
-                      planId={selectedPlanId} 
-                      executionId={currentExecutionId || undefined}
-                      compact={true}
-                    />
-                  ) : (
-                    <div className="py-6 text-center text-muted-foreground text-sm">
-                      <p>収集プランを選択してください</p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="mt-2"
-                        onClick={() => setLeftPanelTab('plans')}
-                      >
-                        プラン一覧を表示
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
+              <CollectionPlanPanel 
+                onSelectPlan={setSelectedPlanId}
+                selectedPlanId={selectedPlanId}
+              />
             </div>
           </div>
         )}
