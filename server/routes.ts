@@ -9,7 +9,7 @@ import {
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
-import { eq, and, or, not, sql } from 'drizzle-orm';
+import { eq, and, or, not, sql, inArray } from 'drizzle-orm';
 import { 
   createInformationCollectionPlan,
   getInformationCollectionPlan
@@ -497,47 +497,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 自分のロールモデルと共有されているロールモデルを取得
-      const roleModelsQuery = await db.query.roleModels.findMany({
-        where: (roleModels, { or, and, eq }) => or(
+      // リレーションを使用せずにシンプルなクエリに変更
+      const roleModelsData = await db.select().from(roleModels).where(
+        or(
           eq(roleModels.createdBy, user.id),
-          and(
-            eq(roleModels.isShared, 1),
-            user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
-          )
-        ),
-        with: {
-          user: true,
-          organization: true,
-          // 業界とキーワードの関連データも取得
-          industries: {
-            with: {
-              industry: true,
-            },
-          },
-          keywords: {
-            with: {
-              keyword: true,
-            },
-          },
-        },
-        orderBy: (roleModels, { desc }) => [desc(roleModels.createdAt)],
-      });
+          user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
+        )
+      ).orderBy(desc(roleModels.createdAt));
       
-      // 安全な情報のみを返す
-      const safeRoleModels = roleModelsQuery.map(model => ({
-        ...model,
-        user: model.user ? {
-          id: model.user.id,
-          name: model.user.name,
-        } : null,
-        organization: model.organization ? {
-          id: model.organization.id,
-          name: model.organization.name,
-        } : null,
-        // 業界とキーワードデータを追加
-        industries: model.industries?.map(rel => rel.industry) || [],
-        keywords: model.keywords?.map(rel => rel.keyword) || [],
-      }));
+      // ロールモデルのIDs
+      const roleModelIds = roleModelsData.map(model => model.id);
+      
+      // 関連するユーザーとorganizationを取得
+      const creatorIds = roleModelsData.map(model => model.createdBy).filter(Boolean);
+      const orgIds = roleModelsData.map(model => model.organizationId).filter(Boolean);
+      
+      const [creators, orgs, keywordRelations, industryRelations] = await Promise.all([
+        // ユーザーの取得
+        creatorIds.length ? db.select().from(users).where(inArray(users.id, creatorIds)) : Promise.resolve([]),
+        // 組織の取得
+        orgIds.length ? db.select().from(organizations).where(inArray(organizations.id, orgIds)) : Promise.resolve([]),
+        // キーワードの取得
+        roleModelIds.length ? db.select().from(roleModelKeywords).where(inArray(roleModelKeywords.roleModelId, roleModelIds)) : Promise.resolve([]),
+        // ロールモデルと業界のリレーション取得
+        roleModelIds.length ? db.select().from(roleModelIndustries).where(inArray(roleModelIndustries.roleModelId, roleModelIds)) : Promise.resolve([])
+      ]);
+      
+      // 業界IDsの抽出
+      const industryIds = industryRelations.map(rel => rel.industryId);
+      
+      // 業界データの取得
+      const industriesData = industryIds.length ? 
+        await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
+        [];
+      
+      // ロールモデルデータの整形
+      const safeRoleModels = roleModelsData.map(model => {
+        // 作成者
+        const creator = creators.find(u => u.id === model.createdBy);
+        // 組織
+        const organization = orgs.find(o => o.id === model.organizationId);
+        
+        // このロールモデルのキーワード
+        const keywords = keywordRelations
+          .filter(rel => rel.roleModelId === model.id)
+          .map(rel => rel.keyword);
+        
+        // このロールモデルの業界リレーション
+        const modelIndustryRels = industryRelations.filter(rel => rel.roleModelId === model.id);
+        // 関連業界データ
+        const modelIndustries = modelIndustryRels
+          .map(rel => industriesData.find(ind => ind.id === rel.industryId))
+          .filter(Boolean);
+        
+        return {
+          ...model,
+          user: creator ? {
+            id: creator.id,
+            name: creator.name
+          } : null,
+          organization: organization ? {
+            id: organization.id,
+            name: organization.name
+          } : null,
+          industries: modelIndustries,
+          keywords: keywords
+        };
+      });
       
       res.json(safeRoleModels);
     } catch (error) {
@@ -560,43 +586,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
       
-      const sharedRoleModels = await db.query.roleModels.findMany({
-        where: and(
+      // リレーションを使用せずにシンプルなクエリに変更
+      const sharedRoleModelsData = await db.select().from(roleModels).where(
+        and(
           eq(roleModels.organizationId, user.organizationId),
-          eq(roleModels.isShared, 1)
-        ),
-        with: {
-          user: true,
-          organization: true,
-          industries: {
-            with: {
-              industry: true,
-            },
-          },
-          keywords: {
-            with: {
-              keyword: true,
-            },
-          },
-        },
-        orderBy: (roleModels, { desc }) => [desc(roleModels.createdAt)],
-      });
+          eq(roleModels.isShared, true)
+        )
+      ).orderBy(desc(roleModels.createdAt));
       
-      // 安全な情報のみを返す
-      const safeRoleModels = sharedRoleModels.map(model => ({
-        ...model,
-        user: model.user ? {
-          id: model.user.id,
-          name: model.user.name,
-        } : null,
-        organization: model.organization ? {
-          id: model.organization.id,
-          name: model.organization.name,
-        } : null,
-        // 業界とキーワードデータを追加
-        industries: model.industries?.map(rel => rel.industry) || [],
-        keywords: model.keywords?.map(rel => rel.keyword) || [],
-      }));
+      // ロールモデルのIDs
+      const roleModelIds = sharedRoleModelsData.map(model => model.id);
+      
+      // 何もなければ空の配列を返す
+      if (roleModelIds.length === 0) {
+        return res.json([]);
+      }
+      
+      // 関連するユーザーとorganizationを取得
+      const creatorIds = sharedRoleModelsData.map(model => model.createdBy).filter(Boolean);
+      const orgIds = sharedRoleModelsData.map(model => model.organizationId).filter(Boolean);
+      
+      const [creators, orgs, keywordRelations, industryRelations] = await Promise.all([
+        // ユーザーの取得
+        creatorIds.length ? db.select().from(users).where(inArray(users.id, creatorIds)) : Promise.resolve([]),
+        // 組織の取得
+        orgIds.length ? db.select().from(organizations).where(inArray(organizations.id, orgIds)) : Promise.resolve([]),
+        // キーワードの取得
+        roleModelIds.length ? db.select().from(roleModelKeywords).where(inArray(roleModelKeywords.roleModelId, roleModelIds)) : Promise.resolve([]),
+        // ロールモデルと業界のリレーション取得
+        roleModelIds.length ? db.select().from(roleModelIndustries).where(inArray(roleModelIndustries.roleModelId, roleModelIds)) : Promise.resolve([])
+      ]);
+      
+      // 業界IDsの抽出
+      const industryIds = industryRelations.map(rel => rel.industryId);
+      
+      // 業界データの取得
+      const industriesData = industryIds.length ? 
+        await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
+        [];
+      
+      // ロールモデルデータの整形
+      const safeRoleModels = sharedRoleModelsData.map(model => {
+        // 作成者
+        const creator = creators.find(u => u.id === model.createdBy);
+        // 組織
+        const organization = orgs.find(o => o.id === model.organizationId);
+        
+        // このロールモデルのキーワード
+        const keywords = keywordRelations
+          .filter(rel => rel.roleModelId === model.id)
+          .map(rel => rel.keyword);
+        
+        // このロールモデルの業界リレーション
+        const modelIndustryRels = industryRelations.filter(rel => rel.roleModelId === model.id);
+        // 関連業界データ
+        const modelIndustries = modelIndustryRels
+          .map(rel => industriesData.find(ind => ind.id === rel.industryId))
+          .filter(Boolean);
+        
+        return {
+          ...model,
+          user: creator ? {
+            id: creator.id,
+            name: creator.name
+          } : null,
+          organization: organization ? {
+            id: organization.id,
+            name: organization.name
+          } : null,
+          industries: modelIndustries,
+          keywords: keywords
+        };
+      });
       
       res.json(safeRoleModels);
     } catch (error) {

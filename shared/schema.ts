@@ -278,6 +278,8 @@ export type DeliveryStatus = {
   deliveryErrors?: string[];
 };
 
+// リレーションの定義は必要な時に再追加
+
 // 知識グラフ関連の型定義
 export type KnowledgeGraphData = {
   nodes: KnowledgeNodeData[];
