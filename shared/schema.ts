@@ -49,7 +49,7 @@ export const knowledgeNodes = pgTable('knowledge_nodes', {
   name: text('name').notNull(),
   level: integer('level').notNull(),
   type: text('type').default('keyword'),
-  parentId: uuid('parent_id').references(() => knowledgeNodes.id),
+  parentId: uuid('parent_id'), // 自己参照を避けるため、後でreferencesを追加
   description: text('description'),
   color: text('color'),
   createdAt: timestamp('created_at').defaultNow(),
@@ -76,19 +76,19 @@ export const roleModelKeywords = pgTable('role_model_keywords', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
-// ロールモデルと業界の関連付け
-export const roleModelIndustries = pgTable('role_model_industries', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
-  industryId: uuid('industry_id').references(() => industries.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').defaultNow()
-});
-
 // 業界
 export const industries = pgTable('industries', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   description: text('description'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// ロールモデルと業界の関連付け
+export const roleModelIndustries = pgTable('role_model_industries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
+  industryId: uuid('industry_id').references(() => industries.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow()
 });
 
@@ -115,8 +115,8 @@ export const collectionPlans = pgTable('collection_plans', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   frequency: text('frequency').default('daily'),
-  toolsConfig: jsonb('tools_config').$type<ToolsConfig>().default({}),
-  deliveryConfig: jsonb('delivery_config').$type<DeliveryConfig>().default({}),
+  toolsConfig: jsonb('tools_config').$type<ToolsConfig>().default({ enabledTools: [] }),
+  deliveryConfig: jsonb('delivery_config').$type<DeliveryConfig>().default({ emailEnabled: false, webhookEnabled: false }),
 });
 
 // 情報ソース
@@ -146,14 +146,12 @@ export const collectionSummaries = pgTable('collection_summaries', {
   sourceIds: jsonb('source_ids').$type<string[]>().default([]), // collectionSources の ID 配列
   generatedAt: timestamp('generated_at').defaultNow(),
   aiProcessLog: text('ai_process_log'),
-  deliveryStatus: jsonb('delivery_status').$type<DeliveryStatus>().default({}),
+  deliveryStatus: jsonb('delivery_status').$type<DeliveryStatus>().default({ emailDelivered: false, webhookDelivered: false }),
 });
 
 // インサートスキーマ
 export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
+  id: true
 });
 
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
