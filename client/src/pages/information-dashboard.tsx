@@ -109,8 +109,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     },
     onSuccess: () => {
       toast({
-        title: "知識グラフ生成開始",
-        description: "CrewAIによる知識グラフの生成を開始しました。しばらくお待ちください。"
+        title: "プロセス開始",
+        description: "CrewAIによるナレッジグラフと情報収集プランの生成を開始しました。しばらくお待ちください。"
       });
       setShowAgentPanel(true); // エージェントパネルを表示
     },
@@ -403,7 +403,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         size="sm"
                       >
                         <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                        {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフを生成"}
+                        {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフと情報収集プランを生成"}
                       </Button>
                       
                       {/* 情報収集プラン作成ボタン - 単独コンポーネント化してここに配置 */}

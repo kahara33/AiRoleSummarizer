@@ -43,8 +43,8 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
       });
       
       toast({
-        title: 'ナレッジグラフの生成を開始しました',
-        description: 'マルチエージェントがナレッジグラフを生成しています...',
+        title: 'プロセス開始',
+        description: 'マルチエージェントがナレッジグラフと情報収集プランを生成しています...',
       });
       
     } catch (error) {
@@ -72,7 +72,7 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
         </>
       ) : (
         <>
-          CrewAIでナレッジグラフを生成
+          CrewAIでナレッジグラフと情報収集プランを生成
         </>
       )}
     </Button>
