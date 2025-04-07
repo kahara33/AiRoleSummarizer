@@ -236,7 +236,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             collapsible={true}
           >
             <div className="h-full overflow-hidden flex flex-col bg-gray-50">
-              <div className="p-2 border-b bg-white flex justify-between items-center">
+              <div className="px-4 py-3 border-b bg-white flex justify-between items-center">
                 <h2 className="font-semibold text-sm">情報収集プラン</h2>
                 <Button 
                   variant="ghost" 
@@ -262,7 +262,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-auto p-2">
+              <div className="flex-1 overflow-auto p-4">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
@@ -287,11 +287,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </table>
               </div>
 
-              <div className="border-t mt-4 overflow-auto">
-                <div className="p-2 bg-white">
+              <div className="border-t mt-2 overflow-auto">
+                <div className="px-4 py-3 bg-white">
                   <h2 className="font-semibold text-sm">プラン詳細</h2>
                 </div>
-                <div className="p-2 space-y-2">
+                <div className="p-4 space-y-2">
                   <div>
                     <h3 className="text-sm font-medium">収集プラン</h3>
                     <p className="text-sm">{mockPlanDetails.name}</p>
@@ -361,7 +361,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             className={`flex flex-col z-10 ${mainPanelMaximized ? 'flex-grow' : ''}`}
           >
             <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="border-b bg-white flex justify-between items-center py-0">
+              <div className="border-b bg-white flex justify-between items-center px-4 py-3">
                 <TabsList className="h-8 border-b-0 bg-transparent">
                   <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
                     ナレッジグラフ

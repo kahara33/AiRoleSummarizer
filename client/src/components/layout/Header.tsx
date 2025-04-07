@@ -29,7 +29,7 @@ const Header: React.FC = () => {
   return (
     <header className="bg-white border-b shadow-sm sticky top-0 z-50">
       <div className="w-full px-4">
-        <div className="flex justify-between h-14">
+        <div className="flex justify-between h-16">
           {/* ロゴ */}
           <div className="flex items-center">
             <Link to="/">
