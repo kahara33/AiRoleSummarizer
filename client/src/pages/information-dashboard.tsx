@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import CreateCollectionPlanButton from '@/components/collection-plan/CreateCollectionPlanButton';
 import { useToast } from "@/hooks/use-toast";
+import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
+import { useWebSocket } from '@/hooks/use-multi-agent-websocket';
 import { 
   Plus, 
   FileText, 
   ExternalLink, 
-  RefreshCw
+  RefreshCw,
+  BrainCircuit
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -44,7 +47,30 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const [activeTab, setActiveTab] = useState<string>('knowledgeGraph');
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
+  const [showAgentPanel, setShowAgentPanel] = useState<boolean>(false);
   const { toast } = useToast();
+
+  // WebSocketメッセージを処理
+  const { messages, agentThoughts, isConnected, send } = useWebSocket(roleModelId);
+  
+  // エージェントの思考が届いたらパネルを表示
+  useEffect(() => {
+    if (agentThoughts.length > 0) {
+      setShowAgentPanel(true);
+    }
+  }, [agentThoughts]);
+  
+  // メッセージ送信関数
+  const handleSendMessage = (message: string) => {
+    // チャットメッセージを送信
+    send({
+      type: 'chat_message',
+      payload: {
+        roleModelId,
+        message
+      }
+    });
+  };
 
   // ロールモデルデータのフェッチ
   const { data: roleModel } = useQuery({
@@ -251,6 +277,35 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* 右側パネル: マルチAIエージェント思考パネル */}
+        {showAgentPanel && (
+          <div className="w-72 border-l flex flex-col bg-gray-50">
+            <div className="p-3 border-b bg-white flex justify-between items-center">
+              <div className="flex items-center">
+                <BrainCircuit className="h-4 w-4 mr-2 text-purple-600" />
+                <h2 className="font-semibold">マルチAIエージェント思考</h2>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 w-6 p-0" 
+                onClick={() => setShowAgentPanel(false)}
+              >
+                &times;
+              </Button>
+            </div>
+            
+            <div className="flex-1 overflow-auto">
+              <MultiAgentChatPanel 
+                roleModelId={roleModelId} 
+                messages={messages}
+                agentThoughts={agentThoughts}
+                onSendMessage={handleSendMessage}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,6 +14,23 @@ type MessageType =
   | 'connection'
   | 'subscription_confirmed';
 
+// チャットメッセージの型定義
+interface ChatMessage {
+  id: string;
+  content: string;
+  sender: 'user' | 'ai';
+  timestamp: Date;
+}
+
+// エージェント思考の型定義
+interface AgentThought {
+  id: string;
+  agentName: string;
+  agentType: string;
+  thought: string;
+  timestamp: Date;
+}
+
 // WebSocketメッセージの型定義
 interface JsonMessage {
   type: MessageType;
@@ -51,6 +68,8 @@ export interface WebSocketHook {
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
+  messages: ChatMessage[];
+  agentThoughts: AgentThought[];
 }
 
 export function useWebSocket(url?: string | null): WebSocketHook {
@@ -58,6 +77,8 @@ export function useWebSocket(url?: string | null): WebSocketHook {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastJsonMessage, setLastJsonMessage] = useState<JsonMessage | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [agentThoughts, setAgentThoughts] = useState<AgentThought[]>([]);
   
   const socket = useRef<WebSocket | null>(null);
   const currentRoleModelId = useRef<string | null>(null);
@@ -67,6 +88,35 @@ export function useWebSocket(url?: string | null): WebSocketHook {
     try {
       const data = JSON.parse(event.data);
       setLastJsonMessage(data);
+      
+      // メッセージタイプに基づいて処理
+      if (data.type === 'chat_message') {
+        const content = data.data?.message || data.message || data.content || '';
+        if (content) {
+          const newMessage: ChatMessage = {
+            id: `msg-${Date.now()}`,
+            content,
+            sender: 'ai',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, newMessage]);
+        }
+      } else if (['agent_thought', 'agent-thought', 'agent_thoughts', 'agent-thoughts'].includes(data.type)) {
+        const thought = data.data?.thought || data.thought || data.data?.thoughts || data.thoughts || '';
+        const agentName = data.data?.agentName || data.agentName || data.agent || 'Agent';
+        const agentType = data.data?.agentType || data.agentType || data.agent_type || 'unknown';
+        
+        if (thought) {
+          const newThought: AgentThought = {
+            id: `thought-${Date.now()}`,
+            agentName,
+            agentType,
+            thought,
+            timestamp: new Date()
+          };
+          setAgentThoughts(prev => [...prev, newThought]);
+        }
+      }
     } catch (e) {
       console.error('WebSocketメッセージのパースに失敗:', e);
     }
@@ -172,6 +222,8 @@ export function useWebSocket(url?: string | null): WebSocketHook {
     send,
     isConnected,
     isConnecting,
-    error
+    error,
+    messages,
+    agentThoughts
   };
 }

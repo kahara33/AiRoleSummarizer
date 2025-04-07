@@ -131,7 +131,7 @@ const HomePage: React.FC = () => {
                   </div>
                   
                   {/* カードコンテンツ（クリック可能） */}
-                  <Link to={`/knowledge-graph/${roleModel.id}`}>
+                  <Link to={`/information-dashboard/${roleModel.id}`}>
                     <div className="p-6 cursor-pointer hover:bg-gray-50 transition-colors">
                       <div className="flex items-center justify-center h-14 w-14 bg-primary-100 rounded-lg mb-4">
                         <User className="h-8 w-8 text-primary-700" />

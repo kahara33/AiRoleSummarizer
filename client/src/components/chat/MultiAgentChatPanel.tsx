@@ -14,6 +14,20 @@ import { useWebSocket } from '@/hooks/use-multi-agent-websocket';
 
 interface MultiAgentChatPanelProps {
   roleModelId: string;
+  messages?: {
+    id: string;
+    content: string;
+    sender: 'user' | 'ai';
+    timestamp: Date;
+  }[];
+  agentThoughts?: {
+    id: string;
+    agentName: string;
+    agentType: string;
+    thought: string;
+    timestamp: Date;
+  }[];
+  onSendMessage?: (message: string) => void;
 }
 
 // メッセージタイプ
@@ -35,7 +49,12 @@ interface AgentProcess {
   timestamp: Date;
 }
 
-export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanelProps) {
+export default function MultiAgentChatPanel({ 
+  roleModelId, 
+  messages: externalMessages, 
+  agentThoughts: externalThoughts,
+  onSendMessage
+}: MultiAgentChatPanelProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [processes, setProcesses] = useState<AgentProcess[]>([]);
@@ -46,11 +65,59 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
   const { toast } = useToast();
   const { subscribe, lastJsonMessage } = useWebSocket();
 
+  // ロールモデルIDが変更されたらWebSocketを購読
   useEffect(() => {
     if (roleModelId) {
       subscribe(roleModelId);
     }
   }, [roleModelId, subscribe]);
+  
+  // 外部から渡されたメッセージを処理
+  useEffect(() => {
+    if (externalMessages && externalMessages.length > 0) {
+      // 外部メッセージをMessage型に変換
+      const convertedMessages = externalMessages.map(msg => ({
+        id: msg.id,
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+        timestamp: msg.timestamp
+      }));
+      
+      setMessages(prevMessages => {
+        // すでに存在するIDのメッセージを除外して追加
+        const existingIds = new Set(prevMessages.map(m => m.id));
+        const newMessages = convertedMessages.filter(m => !existingIds.has(m.id));
+        return [...prevMessages, ...newMessages];
+      });
+    }
+  }, [externalMessages]);
+  
+  // 外部から渡されたエージェント思考を処理
+  useEffect(() => {
+    if (externalThoughts && externalThoughts.length > 0) {
+      // 外部エージェント思考をAgentProcess型に変換
+      const convertedProcesses = externalThoughts.map(thought => ({
+        id: thought.id,
+        agentName: thought.agentName,
+        agentType: thought.agentType,
+        content: thought.thought,
+        timestamp: thought.timestamp
+      }));
+      
+      setProcesses(prevProcesses => {
+        // すでに存在するIDのプロセスを除外して追加
+        const existingIds = new Set(prevProcesses.map(p => p.id));
+        const newProcesses = convertedProcesses.filter(p => !existingIds.has(p.id));
+        
+        // 新しいプロセスがある場合はプロセスタブに切り替え
+        if (newProcesses.length > 0 && currentTab !== 'process') {
+          setCurrentTab('process');
+        }
+        
+        return [...prevProcesses, ...newProcesses];
+      });
+    }
+  }, [externalThoughts, currentTab]);
 
   // WebSocketからのメッセージを処理
   useEffect(() => {
@@ -295,15 +362,21 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
     setMessages(prevMessages => [...prevMessages, newMessage]);
     setInput('');
     
-    // API経由でメッセージを送信
-    try {
-      sendMessageMutation.mutate(input);
-    } catch (error) {
-      toast({
-        title: 'エラー',
-        description: 'メッセージの送信に失敗しました。',
-        variant: 'destructive',
-      });
+    // 親コンポーネントから渡されたメッセージ送信関数があれば使用
+    if (onSendMessage) {
+      onSendMessage(input);
+      setIsGenerating(true);
+    } else {
+      // 従来のAPI経由でのメッセージ送信をフォールバックとして使用
+      try {
+        sendMessageMutation.mutate(input);
+      } catch (error) {
+        toast({
+          title: 'エラー',
+          description: 'メッセージの送信に失敗しました。',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
