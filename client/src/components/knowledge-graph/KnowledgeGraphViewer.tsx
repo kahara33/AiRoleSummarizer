@@ -560,7 +560,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               />
               <MiniMap
                 position="bottom-right"
-                style={{ bottom: 12, right: 12 }}
+                style={{ bottom: 28, right: 12 }}
                 nodeStrokeWidth={3}
                 nodeColor={(node) => {
                   return node.data?.color || '#1a192b';
