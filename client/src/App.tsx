@@ -67,6 +67,7 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute path="/" component={HomePageComponent} />
             <ProtectedRoute path="/organizations" component={OrganizationsPageComponent} />
             <ProtectedRoute path="/role-models" component={RoleModelsPageComponent} />
+            <ProtectedRoute path="/role-models/new" component={RoleModelsPageComponent} />
             <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPageComponent} />
             <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
             <ProtectedRoute path="/notebook/:id" component={NotebookPageComponent} />

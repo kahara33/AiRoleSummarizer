@@ -62,12 +62,20 @@ const HomePage: React.FC = () => {
         <div className="mb-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold">ロールモデル一覧</h2>
-            <Button asChild>
-              <Link to="/role-models">
-                <Plus className="h-4 w-4 mr-1" />
-                新規作成
-              </Link>
-            </Button>
+            <div className="flex space-x-2">
+              <Button asChild variant="outline">
+                <Link to="/role-models">
+                  <Settings className="h-4 w-4 mr-1" />
+                  ロールモデル管理
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link to="/role-models/new">
+                  <Plus className="h-4 w-4 mr-1" />
+                  新規作成
+                </Link>
+              </Button>
+            </div>
           </div>
 
           {/* ロールモデル一覧 */}
@@ -103,7 +111,7 @@ const HomePage: React.FC = () => {
                 「新規作成」ボタンをクリックして、最初のロールを作成しましょう
               </p>
               <Button asChild>
-                <Link to="/role-models">
+                <Link to="/role-models/new">
                   <Plus className="h-4 w-4 mr-1" />
                   ロールを作成する
                 </Link>
