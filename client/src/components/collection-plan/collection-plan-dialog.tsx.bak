@@ -221,8 +221,8 @@ export function CollectionPlanDialog({
                   <FormLabel>ロールモデル</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value || undefined}
-                    value={field.value || undefined}
+                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -250,8 +250,8 @@ export function CollectionPlanDialog({
                   <FormLabel>情報収集頻度</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value || undefined}
-                    value={field.value || undefined}
+                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -461,9 +461,9 @@ export function CollectionPlanDialog({
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
-                            defaultValue={field.value || undefined}
+                            defaultValue={field.value}
                             className="flex flex-row space-x-4"
-                            value={field.value || undefined}
+                            value={field.value}
                           >
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="slack" id="slack" />
