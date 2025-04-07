@@ -340,7 +340,105 @@ export type DeliveryStatus = {
   deliveryErrors?: string[];
 };
 
-// リレーションの定義は必要な時に再追加
+// リレーションの定義
+import { relations } from 'drizzle-orm';
+
+// ユーザーとロールモデルの関係
+export const usersRelations = relations(users, ({ many }) => ({
+  roleModels: many(roleModels),
+}));
+
+// 組織とユーザー、ロールモデルの関係
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  users: many(users),
+  roleModels: many(roleModels),
+}));
+
+// ロールモデルとユーザー、組織、キーワード、業界の関係
+export const roleModelsRelations = relations(roleModels, ({ one, many }) => ({
+  user: one(users, {
+    fields: [roleModels.createdBy],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [roleModels.organizationId],
+    references: [organizations.id],
+  }),
+  keywords: many(roleModelKeywords),
+  industries: many(roleModelIndustries),
+  knowledgeNodes: many(knowledgeNodes),
+}));
+
+// 知識ノードの関係
+export const knowledgeNodesRelations = relations(knowledgeNodes, ({ one, many }) => ({
+  roleModel: one(roleModels, {
+    fields: [knowledgeNodes.roleModelId],
+    references: [roleModels.id],
+  }),
+  parent: one(knowledgeNodes, {
+    fields: [knowledgeNodes.parentId],
+    references: [knowledgeNodes.id],
+  }),
+  outgoingEdges: many(knowledgeEdges, { relationName: 'source' }),
+  incomingEdges: many(knowledgeEdges, { relationName: 'target' }),
+}));
+
+// 知識エッジの関係
+export const knowledgeEdgesRelations = relations(knowledgeEdges, ({ one }) => ({
+  source: one(knowledgeNodes, {
+    fields: [knowledgeEdges.sourceId],
+    references: [knowledgeNodes.id],
+    relationName: 'source',
+  }),
+  target: one(knowledgeNodes, {
+    fields: [knowledgeEdges.targetId],
+    references: [knowledgeNodes.id],
+    relationName: 'target',
+  }),
+}));
+
+// キーワードとロールモデルの関係
+export const keywordsRelations = relations(keywords, ({ many }) => ({
+  roleModelKeywords: many(roleModelKeywords),
+}));
+
+// ロールモデルキーワードの関係
+export const roleModelKeywordsRelations = relations(roleModelKeywords, ({ one }) => ({
+  roleModel: one(roleModels, {
+    fields: [roleModelKeywords.roleModelId],
+    references: [roleModels.id],
+  }),
+  keyword: one(keywords, {
+    fields: [roleModelKeywords.keywordId],
+    references: [keywords.id],
+  }),
+}));
+
+// 業界カテゴリと業界サブカテゴリの関係
+export const industryCategoriesRelations = relations(industryCategories, ({ many }) => ({
+  subcategories: many(industrySubcategories),
+}));
+
+// 業界サブカテゴリと業界カテゴリ、ロールモデル業界の関係
+export const industrySubcategoriesRelations = relations(industrySubcategories, ({ one, many }) => ({
+  category: one(industryCategories, {
+    fields: [industrySubcategories.categoryId],
+    references: [industryCategories.id],
+  }),
+  roleModelIndustries: many(roleModelIndustries),
+}));
+
+// ロールモデル業界の関係
+export const roleModelIndustriesRelations = relations(roleModelIndustries, ({ one }) => ({
+  roleModel: one(roleModels, {
+    fields: [roleModelIndustries.roleModelId],
+    references: [roleModels.id],
+  }),
+  industry: one(industrySubcategories, {
+    fields: [roleModelIndustries.industryId],
+    references: [industrySubcategories.id],
+  }),
+}));
 
 // 知識グラフ関連の型定義
 export type KnowledgeGraphData = {
