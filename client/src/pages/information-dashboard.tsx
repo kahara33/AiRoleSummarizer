@@ -9,7 +9,7 @@ import CreateCollectionPlanButton from '@/components/collection-plan/CreateColle
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useWebSocket } from '@/hooks/use-multi-agent-websocket';
-import { RoleModel } from "@shared/schema";
+import { RoleModel, RoleModelWithIndustriesAndKeywords } from "@shared/schema";
 import { 
   Plus, 
   FileText, 
@@ -60,7 +60,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const { toast } = useToast();
 
   // ロールモデルデータを取得
-  const { data: roleModel } = useQuery<RoleModel>({
+  const { data: roleModel } = useQuery<RoleModelWithIndustriesAndKeywords>({
     queryKey: [`/api/role-models/${roleModelId}`],
     enabled: roleModelId !== 'default',
   });
@@ -404,9 +404,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </TabsList>
                 
                 <div className="flex items-center gap-2">
-                  {/* CrewAIで知識グラフを生成するボタン */}
+                  {/* CrewAIで知識グラフを生成するボタンと情報収集プラン作成ボタン */}
                   {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
-                    <>
+                    <div className="flex items-center gap-2">
                       <Button
                         onClick={() => generateGraphMutation.mutate()}
                         disabled={generateGraphMutation.isPending}
@@ -422,13 +422,13 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       {roleModel?.industries && roleModel?.keywords && (
                         <CreateCollectionPlanButton
                           roleModelId={roleModelId}
-                          industryIds={roleModel.industries.map(industry => industry.id)}
-                          keywordIds={roleModel.keywords.map(keyword => keyword.id)}
+                          industryIds={roleModel.industries.map((industry: any) => industry.id)}
+                          keywordIds={roleModel.keywords.map((keyword: any) => keyword.id)}
                           hasKnowledgeGraph={hasKnowledgeGraph}
                           disabled={!hasKnowledgeGraph}
                         />
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
