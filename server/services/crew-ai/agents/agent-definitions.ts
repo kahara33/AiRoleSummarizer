@@ -3,7 +3,7 @@
  * 各専門エージェントの役割と特性を定義
  */
 import { Agent } from 'crewai-js';
-import { OpenAI } from '@langchain/openai';
+import { ChatOpenAI } from '@langchain/openai';
 
 // 各エージェントのツール
 import { DomainAnalystTools } from './tools/domain-analyst-tools';
@@ -13,7 +13,7 @@ import { PlanStrategistTools } from './tools/plan-strategist-tools';
 import { CriticalThinkerTools } from './tools/critical-thinker-tools';
 
 // OpenAIモデルのインスタンス
-const model = new OpenAI({
+const model = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
 }) as any; // 型の互換性問題を一時的に回避

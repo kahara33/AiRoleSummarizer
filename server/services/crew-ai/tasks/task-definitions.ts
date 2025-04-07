@@ -67,22 +67,6 @@ export const EvaluateSourcesTask = new Task({
     - トレンド予測レポート
   `,
   agent: TrendResearcherAgent as any // 型の互換性問題を一時的に回避
-    {
-      "evaluatedSources": [
-        {"name": "情報源1", "url": "URL", "qualityScore": 0.9, "strengths": ["..."], "weaknesses": ["..."]},
-        ...
-      ],
-      "dataCollectionMethods": [
-        {"source": "情報源1", "method": "収集方法", "frequency": "頻度", "format": "データ形式"}
-      ],
-      "trendPredictions": {
-        "shortTerm": ["予測1", ...],
-        "midTerm": ["予測1", ...],
-        "longTerm": ["予測1", ...],
-        "emergingConcepts": ["概念1", ...]
-      }
-    }
-  `
 });
 
 /**
@@ -110,28 +94,7 @@ export const DesignGraphStructureTask = new Task({
     - クラスター構造の提案
     - 視覚化のための最適化推奨事項
   `,
-  agent: ContextMapperAgent,
-  expected_output: `
-    {
-      "nodes": [
-        {"id": "node1", "label": "ラベル", "category": "カテゴリ", "importance": 0.8},
-        ...
-      ],
-      "edges": [
-        {"source": "node1", "target": "node2", "type": "関係タイプ", "strength": 0.7},
-        ...
-      ],
-      "clusters": [
-        {"name": "クラスタ1", "nodes": ["node1", "node2", ...], "centralConcept": "中心概念"},
-        ...
-      ],
-      "visualizationRecommendations": {
-        "centralNodes": ["node1", ...],
-        "suggestedLayout": "レイアウト方式",
-        "colorMapping": {"カテゴリ1": "色コード", ...}
-      }
-    }
-  `
+  agent: ContextMapperAgent as any // 型の互換性問題を一時的に回避
 });
 
 /**
@@ -160,31 +123,7 @@ export const DevelopCollectionPlanTask = new Task({
     - 実装スケジュール
     - 成功指標と評価基準
   `,
-  agent: PlanStrategistAgent,
-  expected_output: `
-    {
-      "collectionPlan": {
-        "name": "プラン名",
-        "description": "プラン概要",
-        "objectives": ["目標1", ...],
-        "keyAreas": ["重点領域1", ...]
-      },
-      "prioritization": {
-        "keywordPriorities": [{"keyword": "キーワード", "priority": 0.9, "reason": "理由"}, ...],
-        "sourcePriorities": [{"source": "情報源", "priority": 0.8, "reason": "理由"}, ...]
-      },
-      "schedule": {
-        "overview": "スケジュール概要",
-        "frequencyRecommendations": {"source1": "頻度", ...},
-        "timeline": ["ステップ1", ...]
-      },
-      "successMetrics": {
-        "kpis": ["指標1", ...],
-        "evaluationProcess": "評価プロセス",
-        "feedbackLoop": "フィードバックループ"
-      }
-    }
-  `
+  agent: PlanStrategistAgent as any // 型の互換性問題を一時的に回避
 });
 
 /**
@@ -213,31 +152,7 @@ export const EvaluateQualityTask = new Task({
     - 対処すべき盲点のリスト
     - 改訂版のグラフ構造と収集プラン
   `,
-  agent: CriticalThinkerAgent,
-  expected_output: `
-    {
-      "qualityAssessment": {
-        "overallScore": 0.85,
-        "consistencyScore": 0.9,
-        "completenessScore": 0.8,
-        "coherenceScore": 0.85
-      },
-      "identifiedIssues": [
-        {"area": "問題領域", "description": "問題の説明", "severity": "高/中/低", "impact": "影響"}
-      ],
-      "blindSpots": [
-        {"description": "見落とし", "recommendedAction": "推奨アクション"}
-      ],
-      "improvements": {
-        "graphStructure": ["改善点1", ...],
-        "collectionPlan": ["改善点1", ...]
-      },
-      "revisedRecommendations": {
-        "graphNodes": [...],
-        "planPriorities": [...]
-      }
-    }
-  `
+  agent: CriticalThinkerAgent as any // 型の互換性問題を一時的に回避
 });
 
 /**
@@ -267,25 +182,5 @@ export const IntegrateAndDocumentTask = new Task({
     - 実装ガイダンス
     - エグゼクティブサマリー
   `,
-  agent: CriticalThinkerAgent, // 最終統合はクリティカルシンカーが担当
-  expected_output: `
-    {
-      "knowledgeGraph": {
-        "finalNodes": [...],
-        "finalEdges": [...],
-        "visualizationGuidance": {...}
-      },
-      "informationCollectionPlan": {
-        "finalPlan": {...},
-        "implementation": {...},
-        "evaluation": {...}
-      },
-      "executiveSummary": "要約...",
-      "implementationGuidance": {
-        "steps": ["ステップ1", ...],
-        "timelines": {...},
-        "resources": [...]
-      }
-    }
-  `
+  agent: CriticalThinkerAgent as any // 型の互換性問題を一時的に回避
 });

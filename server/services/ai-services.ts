@@ -2,14 +2,14 @@
  * AI/LLMサービスの実装
  * 各エージェントのツールが利用する関数群
  */
-import { OpenAI } from '@langchain/openai';
+import { ChatOpenAI } from '@langchain/openai';
 import { CacheClient } from './cache-client';
 
 // キャッシュクライアントのインスタンス
 const cacheClient = new CacheClient();
 
 // OpenAIモデルの初期化
-const model = new OpenAI({
+const model = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
 });
@@ -23,22 +23,64 @@ async function processPrompt(prompt: string, temperature: number = 0.7) {
       return JSON.parse(cachedResult);
     }
 
-    const modelResponse = await model.predict(prompt);
-    let result;
+    // モデルにプロンプトを送信し、応答を取得
+    const response = await model.invoke(prompt);
     
+    // ChatOpenAIの応答からテキスト部分を抽出
+    let responseText = '';
+    
+    // ChatOpenAIからの応答を文字列に変換
+    if (typeof response === 'string') {
+      responseText = response;
+    } else if (response && typeof response === 'object') {
+      // 'content'プロパティが存在する場合（ChatOpenAIの新しいバージョン）
+      if ('content' in response) {
+        const content = response.content;
+        if (typeof content === 'string') {
+          responseText = content;
+        } else if (Array.isArray(content)) {
+          // 各要素を安全に文字列に変換して結合
+          responseText = content
+            .map(item => {
+              if (typeof item === 'string') return item;
+              // オブジェクトの場合はJSONに変換して返す
+              if (item && typeof item === 'object') {
+                if ('text' in item && typeof item.text === 'string') {
+                  return item.text;
+                }
+                // いずれにも当てはまらない場合は空文字を返す
+                return JSON.stringify(item);
+              }
+              return '';
+            })
+            .join('');
+        }
+      } else if ('text' in response && typeof response.text === 'string') {
+        // 'text'プロパティが存在する場合（古いバージョン）
+        responseText = response.text;
+      } else {
+        // その他の場合はオブジェクト全体を文字列化
+        responseText = JSON.stringify(response);
+      }
+    } else {
+      // それ以外の場合は空文字列
+      responseText = '';
+    }
+    
+    let result;
     try {
       // JSON形式の場合はパース
-      result = JSON.parse(modelResponse);
+      result = JSON.parse(responseText);
     } catch (e) {
       // テキスト形式の場合はそのまま使用
-      result = { text: modelResponse };
+      result = { text: responseText };
     }
     
     // 結果をキャッシュに保存
     await cacheClient.set(prompt, JSON.stringify(result));
     
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('AIサービス呼び出しエラー:', error);
     throw new Error(`モデル呼び出し中にエラーが発生しました: ${error.message}`);
   }

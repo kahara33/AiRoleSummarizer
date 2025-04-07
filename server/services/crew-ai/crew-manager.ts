@@ -71,7 +71,7 @@ export class CrewManager extends EventEmitter {
    */
   private setupAgentEventListeners() {
     // 各エージェントの思考プロセスをモニタリング
-    this.crew.on('agentThinking', (data) => {
+    this.crew.on('agentThinking', (data: any) => {
       this.emit('agentThought', {
         agentName: data.agentName,
         taskName: data.taskName,
@@ -81,7 +81,7 @@ export class CrewManager extends EventEmitter {
     });
     
     // タスク完了イベント
-    this.crew.on('taskCompleted', (data) => {
+    this.crew.on('taskCompleted', (data: any) => {
       this.emit('taskCompleted', {
         taskName: data.taskName,
         result: data.result,
@@ -90,7 +90,7 @@ export class CrewManager extends EventEmitter {
     });
     
     // エラーイベント
-    this.crew.on('error', (error) => {
+    this.crew.on('error', (error: any) => {
       this.emit('error', {
         message: error.message,
         stack: error.stack,
@@ -137,7 +137,7 @@ export class CrewManager extends EventEmitter {
         EvaluateSourcesTask,
         {
           industry: this.industry,
-          key_keywords: industryAnalysis.expandedKeywords.map(k => k.keyword).join(', '),
+          key_keywords: industryAnalysis.expandedKeywords.map((k: any) => k.keyword).join(', '),
           potential_sources: this.potentialSources.join(', ')
         }
       );
@@ -162,8 +162,8 @@ export class CrewManager extends EventEmitter {
         {
           evaluated_sources: JSON.stringify(sourceEvaluation.evaluatedSources),
           priority_keywords: industryAnalysis.expandedKeywords
-            .filter(k => k.relevanceScore > 0.7)
-            .map(k => k.keyword)
+            .filter((k: any) => k.relevanceScore > 0.7)
+            .map((k: any) => k.keyword)
             .join(', '),
           resource_constraints: this.resourceConstraints.join(', '),
           trend_predictions: JSON.stringify(sourceEvaluation.trendPredictions)
@@ -202,7 +202,7 @@ export class CrewManager extends EventEmitter {
       // 最終結果を返す
       return finalResult;
       
-    } catch (error) {
+    } catch (error: any) {
       this.emit('error', {
         message: error.message,
         stack: error.stack,
