@@ -393,11 +393,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* ナレッジグラフタブ */}
               <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <div className="p-3">
+                <div className="p-4">
                   <KnowledgeGraphViewer
                     roleModelId={roleModelId}
                     width="100%"
-                    height="calc(100vh - 126px)"
+                    height="calc(100vh - 128px)"
                     onGraphDataChange={setHasKnowledgeGraph}
                   />
                 </div>
@@ -405,8 +405,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="p-3">
-                  <div className="h-[calc(100vh-126px)] overflow-auto">
+                <div className="p-4">
+                  <div className="h-[calc(100vh-128px)] overflow-auto">
                     <div className="text-center text-gray-500 mt-20">
                       <p>要約結果は現在開発中です</p>
                       <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
@@ -417,8 +417,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
-                <div className="p-3">
-                  <div className="h-[calc(100vh-126px)] overflow-auto">
+                <div className="p-4">
+                  <div className="h-[calc(100vh-128px)] overflow-auto">
                     <div className="text-center text-gray-500 mt-20">
                       <p>メモ機能は現在開発中です</p>
                       <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
