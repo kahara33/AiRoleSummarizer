@@ -55,7 +55,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const { toast } = useToast();
 
   // ロールモデルデータを取得
-  const { data: roleModel } = useQuery({
+  const { data: roleModel } = useQuery<any>({
     queryKey: [`/api/role-models/${roleModelId}`],
     enabled: roleModelId !== 'default',
   });
@@ -459,7 +459,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         size="sm"
                       >
                         <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                        {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
+                        {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフを生成"}
                       </Button>
                       
                       {/* 情報収集プラン作成ボタン - 単独コンポーネント化してここに配置 */}
