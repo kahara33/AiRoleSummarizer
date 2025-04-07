@@ -397,7 +397,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   <KnowledgeGraphViewer
                     roleModelId={roleModelId}
                     width="100%"
-                    height="calc(100vh - 110px)"
+                    height="calc(100vh - 130px)"
                     onGraphDataChange={setHasKnowledgeGraph}
                   />
                 </div>
