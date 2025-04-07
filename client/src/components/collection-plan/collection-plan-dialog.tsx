@@ -1,0 +1,546 @@
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { insertCollectionPlanSchema } from '@shared/schema';
+import { queryClient, apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+
+// フォームスキーマの拡張
+const collectionPlanFormSchema = insertCollectionPlanSchema.extend({
+  enabledTools: z.array(z.string()).min(1, {
+    message: '少なくとも1つのツールを選択してください',
+  }),
+  customSites: z.string().optional(),
+  customRssUrls: z.string().optional(),
+  emailEnabled: z.boolean().default(false),
+  emailAddresses: z.string().optional(),
+  webhookEnabled: z.boolean().default(false),
+  webhookUrls: z.string().optional(),
+  webhookType: z.enum(['slack', 'teams']).optional(),
+});
+
+type FormValues = z.infer<typeof collectionPlanFormSchema>;
+
+interface CollectionPlanDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  planId: string | null;
+}
+
+export function CollectionPlanDialog({
+  open,
+  onOpenChange,
+  planId,
+}: CollectionPlanDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  // プラン詳細の取得
+  const { data: planDetails, isLoading } = useQuery({
+    queryKey: ['/api/collection-plans', planId],
+    queryFn: async () => {
+      if (!planId) return null;
+      const res = await apiRequest('GET', `/api/collection-plans/${planId}`);
+      return await res.json();
+    },
+    enabled: !!planId && open,
+  });
+
+  // ロールモデル一覧の取得
+  const { data: roleModels } = useQuery({
+    queryKey: ['/api/role-models'],
+    enabled: open,
+  });
+
+  // フォーム設定
+  const form = useForm<FormValues>({
+    resolver: zodResolver(collectionPlanFormSchema),
+    defaultValues: {
+      title: '',
+      roleModelId: '',
+      frequency: 'daily',
+      enabledTools: ['google_search'],
+      customSites: '',
+      customRssUrls: '',
+      emailEnabled: false,
+      emailAddresses: '',
+      webhookEnabled: false,
+      webhookUrls: '',
+      webhookType: 'slack',
+    },
+  });
+
+  // プラン詳細が取得できたらフォームの初期値を設定
+  useEffect(() => {
+    if (planDetails) {
+      form.reset({
+        title: planDetails.title,
+        roleModelId: planDetails.roleModelId,
+        frequency: planDetails.frequency,
+        enabledTools: planDetails.toolsConfig?.enabledTools || ['google_search'],
+        customSites: planDetails.toolsConfig?.customSites?.join('\n') || '',
+        customRssUrls: planDetails.toolsConfig?.customRssUrls?.join('\n') || '',
+        emailEnabled: planDetails.deliveryConfig?.emailEnabled || false,
+        emailAddresses: planDetails.deliveryConfig?.emailAddresses?.join('\n') || '',
+        webhookEnabled: planDetails.deliveryConfig?.webhookEnabled || false,
+        webhookUrls: planDetails.deliveryConfig?.webhookUrls?.join('\n') || '',
+        webhookType: planDetails.deliveryConfig?.webhookType || 'slack',
+      });
+    } else if (open) {
+      form.reset({
+        title: '',
+        roleModelId: '',
+        frequency: 'daily',
+        enabledTools: ['google_search'],
+        customSites: '',
+        customRssUrls: '',
+        emailEnabled: false,
+        emailAddresses: '',
+        webhookEnabled: false,
+        webhookUrls: '',
+        webhookType: 'slack',
+      });
+    }
+  }, [planDetails, open, form]);
+
+  // プラン作成/更新のミューテーション
+  const mutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      // フォームデータをAPIの期待する形式に変換
+      const payload = {
+        title: values.title,
+        roleModelId: values.roleModelId,
+        frequency: values.frequency,
+        toolsConfig: {
+          enabledTools: values.enabledTools,
+          customSites: values.customSites ? values.customSites.split('\n').filter(Boolean) : [],
+          customRssUrls: values.customRssUrls ? values.customRssUrls.split('\n').filter(Boolean) : [],
+        },
+        deliveryConfig: {
+          emailEnabled: values.emailEnabled,
+          emailAddresses: values.emailAddresses ? values.emailAddresses.split('\n').filter(Boolean) : [],
+          webhookEnabled: values.webhookEnabled,
+          webhookUrls: values.webhookUrls ? values.webhookUrls.split('\n').filter(Boolean) : [],
+          webhookType: values.webhookType,
+        },
+      };
+
+      if (planId) {
+        // 更新
+        const res = await apiRequest('PATCH', `/api/collection-plans/${planId}`, payload);
+        return await res.json();
+      } else {
+        // 作成
+        const res = await apiRequest('POST', '/api/collection-plans', payload);
+        return await res.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/collection-plans'] });
+      onOpenChange(false);
+      toast({
+        title: planId ? 'プランを更新しました' : 'プランを作成しました',
+        description: planId ? '情報収集プランが更新されました。' : '新しい情報収集プランが作成されました。',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'エラー',
+        description: 'プランの保存に失敗しました。',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // フォーム送信ハンドラ
+  const onSubmit = async (values: FormValues) => {
+    setLoading(true);
+    try {
+      await mutation.mutateAsync(values);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{planId ? 'プランの編集' : '新規プランの作成'}</DialogTitle>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* 基本情報 */}
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>プランタイトル</FormLabel>
+                  <FormControl>
+                    <Input placeholder="日次情報収集プラン" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="roleModelId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ロールモデル</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="ロールモデルを選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {roleModels?.map((roleModel) => (
+                        <SelectItem key={roleModel.id} value={roleModel.id}>
+                          {roleModel.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="frequency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>情報収集頻度</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="頻度を選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="daily">1日1回</SelectItem>
+                      <SelectItem value="weekly">週1回</SelectItem>
+                      <SelectItem value="monthly">月1回</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* ツール設定 */}
+            <div className="space-y-4 border p-4 rounded-md">
+              <h3 className="font-medium">収集ツール設定</h3>
+
+              <FormField
+                control={form.control}
+                name="enabledTools"
+                render={() => (
+                  <FormItem>
+                    <div className="mb-2">
+                      <FormLabel>使用ツール</FormLabel>
+                      <FormDescription>
+                        情報収集に使用するツールを選択してください
+                      </FormDescription>
+                    </div>
+                    <div className="flex flex-col space-y-2">
+                      <FormField
+                        control={form.control}
+                        name="enabledTools"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes('google_search')}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    field.onChange([...field.value, 'google_search']);
+                                  } else {
+                                    field.onChange(
+                                      field.value?.filter((value) => value !== 'google_search')
+                                    );
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              Google検索
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="enabledTools"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes('rss_feed')}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    field.onChange([...field.value, 'rss_feed']);
+                                  } else {
+                                    field.onChange(
+                                      field.value?.filter((value) => value !== 'rss_feed')
+                                    );
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              RSSフィード
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="customSites"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>カスタムサイト（1行に1つずつ）</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="https://example.com"
+                        className="min-h-20"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      特定のウェブサイトを指定すると、そのサイトからも情報を収集します
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="customRssUrls"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>カスタムRSSフィードURL（1行に1つずつ）</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="https://example.com/feed.xml"
+                        className="min-h-20"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      特定のRSSフィードを指定すると、そのフィードから情報を収集します
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* 配信設定 */}
+            <div className="space-y-4 border p-4 rounded-md">
+              <h3 className="font-medium">配信設定</h3>
+
+              <FormField
+                control={form.control}
+                name="emailEnabled"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>メール配信</FormLabel>
+                      <FormDescription>
+                        要約結果をメールで受け取る
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {form.watch('emailEnabled') && (
+                <FormField
+                  control={form.control}
+                  name="emailAddresses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>メールアドレス（1行に1つずつ）</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="user@example.com"
+                          className="min-h-20"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name="webhookEnabled"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Webhook配信</FormLabel>
+                      <FormDescription>
+                        要約結果をSlackやTeamsに送信する
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {form.watch('webhookEnabled') && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="webhookType"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel>Webhookタイプ</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex flex-row space-x-4"
+                            value={field.value}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="slack" id="slack" />
+                              <Label htmlFor="slack">Slack</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="teams" id="teams" />
+                              <Label htmlFor="teams">Teams</Label>
+                            </div>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="webhookUrls"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Webhook URL（1行に1つずつ）</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="https://hooks.slack.com/services/..."
+                            className="min-h-20"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                キャンセル
+              </Button>
+              <Button type="submit" disabled={loading || isLoading}>
+                {loading ? (
+                  <>
+                    <span className="mr-2">
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    </span>
+                    保存中...
+                  </>
+                ) : planId ? '更新' : '作成'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,704 +1,550 @@
-import { 
-  User, InsertUser, 
-  RoleModel, InsertRoleModel, 
-  KnowledgeNode, InsertKnowledgeNode,
-  KnowledgeEdge, InsertKnowledgeEdge,
-  Keyword, InsertKeyword,
-  Industry, IndustrySubcategory,
-  roleModels,
+import { db } from './db';
+import { initNeo4j } from './neo4j';
+import { eq, and, desc } from 'drizzle-orm';
+import {
   users,
+  organizations,
+  roleModels,
   knowledgeNodes,
-  knowledgeEdges, 
-  keywords,
+  knowledgeEdges,
+  roleModelKeywords,
+  roleModelIndustries,
   industries,
-  industrySubcategories,
-  RoleModelWithIndustriesAndKeywords,
-  SubscriptionPlan, InsertSubscriptionPlan,
-  subscriptionPlans,
-  InformationCollectionPlan, InsertInformationCollectionPlan,
-  informationCollectionPlans
-} from "@shared/schema";
-import session from "express-session";
-import createMemoryStore from "memorystore";
-import crypto from "crypto";
-import { sql, eq, and, inArray } from "drizzle-orm";
-import connectPg from "connect-pg-simple";
-import { db, pool } from "./db";
+  summaries,
+  collectionPlans,
+  collectionSources,
+  collectionSummaries,
+  User,
+  Organization,
+  RoleModel,
+  KnowledgeNode,
+  KnowledgeEdge,
+  RoleModelKeyword,
+  RoleModelIndustry,
+  Industry,
+  Summary,
+  InsertUser,
+  InsertOrganization,
+  InsertRoleModel,
+  InsertKnowledgeNode,
+  InsertKnowledgeEdge,
+  InsertRoleModelKeyword,
+  InsertRoleModelIndustry,
+  InsertIndustry,
+  InsertSummary,
+  CollectionPlan,
+  CollectionSource,
+  CollectionSummary,
+  InsertCollectionPlan,
+  InsertCollectionSource,
+  InsertCollectionSummary,
+  RoleModelWithIndustriesAndKeywords
+} from '@shared/schema';
+import connectPg from 'connect-pg-simple';
+import session from 'express-session';
+import { pool } from './db';
 
-// メモリストア（開発用）
-const MemoryStore = createMemoryStore(session);
-
-// PostgreSQLセッションストア
 const PostgresSessionStore = connectPg(session);
 
-// Storage interface
 export interface IStorage {
-  // User operations
+  // ユーザー関連
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUserSubscription(userId: string, planName: string, expiresAt?: Date): Promise<User>;
-  
-  // Knowledge Node operations
-  getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]>;
-  getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined>;
-  createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode>;
-  deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<void>;
-  
-  // Knowledge Edge operations
-  getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]>;
-  getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined>;
-  createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge>;
-  deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<void>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
 
-  // Role Model operations
-  getRoleModels(userId: string): Promise<RoleModel[]>;
-  getSharedRoleModels(companyId: string): Promise<RoleModel[]>;
+  // 組織関連
+  getOrganization(id: string): Promise<Organization | undefined>;
+  getOrganizationByName(name: string): Promise<Organization | undefined>;
+  createOrganization(organization: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: string, organization: Partial<InsertOrganization>): Promise<Organization | undefined>;
+  deleteOrganization(id: string): Promise<boolean>;
+
+  // ロールモデル関連
+  getRoleModel(id: string): Promise<RoleModel | undefined>;
+  getRoleModelsByOrganizationId(organizationId: string): Promise<RoleModel[]>;
+  getRoleModelsByUserId(userId: string): Promise<RoleModel[]>;
   getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined>;
+  createRoleModel(roleModel: InsertRoleModel): Promise<RoleModel>;
+  updateRoleModel(id: string, roleModel: Partial<InsertRoleModel>): Promise<RoleModel | undefined>;
+  deleteRoleModel(id: string): Promise<boolean>;
 
-  // Subscription operations
-  getSubscriptionPlans(): Promise<SubscriptionPlan[]>;
-  getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined>;
-  createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan>;
+  // ナレッジグラフ関連
+  getKnowledgeNodesByRoleModelId(roleModelId: string): Promise<KnowledgeNode[]>;
+  getKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<KnowledgeEdge[]>;
+  getKnowledgeNodeById(id: string): Promise<KnowledgeNode | undefined>;
+  getKnowledgeEdgeById(id: string): Promise<KnowledgeEdge | undefined>;
+  createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode>;
+  createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge>;
+  updateKnowledgeNode(id: string, node: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined>;
+  updateKnowledgeEdge(id: string, edge: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined>;
+  deleteKnowledgeNode(id: string): Promise<boolean>;
+  deleteKnowledgeEdge(id: string): Promise<boolean>;
+  deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<boolean>;
+  deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<boolean>;
 
-  // Information Collection Plan operations
-  getInformationCollectionPlan(roleModelId: string): Promise<InformationCollectionPlan | undefined>;
-  createInformationCollectionPlan(plan: InsertInformationCollectionPlan): Promise<InformationCollectionPlan>;
-  updateInformationCollectionPlan(id: string, planData: string, updatedBy: string): Promise<InformationCollectionPlan>;
+  // キーワード関連
+  getRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<RoleModelKeyword[]>;
+  createRoleModelKeyword(keyword: InsertRoleModelKeyword): Promise<RoleModelKeyword>;
+  deleteRoleModelKeyword(id: string): Promise<boolean>;
+  deleteRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<boolean>;
 
-  // Session store
-  sessionStore: any; // session.SessionStore
+  // 業界関連
+  getIndustry(id: string): Promise<Industry | undefined>;
+  getIndustries(): Promise<Industry[]>;
+  getIndustryByName(name: string): Promise<Industry | undefined>;
+  createIndustry(industry: InsertIndustry): Promise<Industry>;
+  getRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<RoleModelIndustry[]>;
+  createRoleModelIndustry(roleModelIndustry: InsertRoleModelIndustry): Promise<RoleModelIndustry>;
+  deleteRoleModelIndustry(id: string): Promise<boolean>;
+  deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean>;
+
+  // サマリー関連
+  getSummariesByRoleModelId(roleModelId: string): Promise<Summary[]>;
+  getSummary(id: string): Promise<Summary | undefined>;
+  createSummary(summary: InsertSummary): Promise<Summary>;
+  updateSummary(id: string, summary: Partial<InsertSummary>): Promise<Summary | undefined>;
+  deleteSummary(id: string): Promise<boolean>;
+
+  // 情報収集プラン関連
+  getCollectionPlanById(id: string): Promise<CollectionPlan | undefined>;
+  getCollectionPlansByRoleModelId(roleModelId: string): Promise<CollectionPlan[]>;
+  getCollectionPlansByUserId(userId: string): Promise<CollectionPlan[]>;
+  getActiveCollectionPlansByUserId(userId: string): Promise<CollectionPlan[]>;
+  createCollectionPlan(plan: InsertCollectionPlan): Promise<CollectionPlan>;
+  updateCollectionPlan(id: string, plan: Partial<InsertCollectionPlan>): Promise<CollectionPlan | undefined>;
+  deleteCollectionPlan(id: string): Promise<boolean>;
+  activateCollectionPlan(id: string): Promise<CollectionPlan | undefined>;
+  deactivateCollectionPlan(id: string): Promise<CollectionPlan | undefined>;
+
+  // 情報ソース関連
+  getCollectionSourceById(id: string): Promise<CollectionSource | undefined>;
+  getCollectionSourcesByPlanId(planId: string): Promise<CollectionSource[]>;
+  getCollectionSourcesByExecutionId(executionId: string): Promise<CollectionSource[]>;
+  createCollectionSource(source: InsertCollectionSource): Promise<CollectionSource>;
+  deleteCollectionSource(id: string): Promise<boolean>;
+
+  // 要約結果関連
+  getCollectionSummaryById(id: string): Promise<CollectionSummary | undefined>;
+  getCollectionSummariesByPlanId(planId: string): Promise<CollectionSummary[]>;
+  getCollectionSummaryByExecutionId(executionId: string): Promise<CollectionSummary | undefined>;
+  createCollectionSummary(summary: InsertCollectionSummary): Promise<CollectionSummary>;
+  updateCollectionSummary(id: string, summary: Partial<InsertCollectionSummary>): Promise<CollectionSummary | undefined>;
+  deleteCollectionSummary(id: string): Promise<boolean>;
+
+  // セッションストア
+  sessionStore: any;
 }
 
-// In-memory storage implementation
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private roleModels: Map<string, RoleModel>;
-  private knowledgeNodes: Map<string, KnowledgeNode>;
-  private knowledgeEdges: Map<string, KnowledgeEdge>;
-  private keywords: Map<string, Keyword>;
-  private industries: Map<string, Industry>;
-  private subscriptionPlans: Map<string, SubscriptionPlan>;
-  private informationCollectionPlans: Map<string, InformationCollectionPlan>;
-  sessionStore: any; // session.SessionStore
-
-  constructor() {
-    this.users = new Map();
-    this.roleModels = new Map();
-    this.knowledgeNodes = new Map();
-    this.knowledgeEdges = new Map();
-    this.keywords = new Map();
-    this.industries = new Map();
-    this.subscriptionPlans = new Map();
-    this.informationCollectionPlans = new Map();
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000, // 24 hours
-    });
-  }
-
-  // User methods
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = crypto.randomUUID();
-    // デフォルト値を設定
-    const user: User = { 
-      ...insertUser, 
-      id,
-      role: insertUser.role || 'individual_user',
-      companyId: insertUser.companyId || null,
-      subscriptionPlan: 'Lite',
-      subscriptionExpiresAt: null
-    };
-    this.users.set(id, user);
-    return user;
-  }
-  
-  async updateUserSubscription(userId: string, planName: string, expiresAt?: Date): Promise<User> {
-    const user = this.users.get(userId);
-    if (!user) {
-      throw new Error(`User with ID ${userId} not found`);
-    }
-    
-    const updatedUser = {
-      ...user,
-      subscriptionPlan: planName,
-      subscriptionExpiresAt: expiresAt || null
-    };
-    
-    this.users.set(userId, updatedUser);
-    return updatedUser;
-  }
-  
-  // Role model methods
-  async getRoleModels(userId: string): Promise<RoleModel[]> {
-    const user = Array.from(this.users.values()).find(u => u.id === userId);
-    const models = Array.from(this.roleModels.values()).filter(
-      (roleModel) => roleModel.userId === userId
-    );
-    
-    // 所属している会社の共有ロールモデルも取得
-    if (user && user.companyId) {
-      const companySharedModels = await this.getSharedRoleModels(user.companyId);
-      return [...models, ...companySharedModels];
-    }
-    
-    return models;
-  }
-  
-  async getSharedRoleModels(companyId: string): Promise<RoleModel[]> {
-    return Array.from(this.roleModels.values()).filter(
-      (roleModel) => roleModel.companyId === companyId && roleModel.isShared === 1
-    );
-  }
-
-  // Extended role model operations
-  async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
-    const roleModel = this.roleModels.get(id);
-    if (!roleModel) return undefined;
-
-    // メモリストレージにはこのメソッドの完全実装がないので、空の配列を返す
-    return {
-      ...roleModel,
-      industries: [],
-      keywords: []
-    };
-  }
-  
-  // Knowledge Node methods
-  async getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]> {
-    return Array.from(this.knowledgeNodes.values())
-      .filter((node) => node.roleModelId === roleModelId)
-      .sort((a, b) => a.level - b.level); // Sort by level ascending
-  }
-  
-  async getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined> {
-    return this.knowledgeNodes.get(id);
-  }
-  
-  async createKnowledgeNode(insertNode: InsertKnowledgeNode): Promise<KnowledgeNode> {
-    const id = insertNode.id || crypto.randomUUID();
-    const node: KnowledgeNode = {
-      ...insertNode,
-      id,
-      createdAt: new Date(),
-      description: insertNode.description || null,
-      color: insertNode.color || null,
-      parentId: insertNode.parentId || null,
-      type: insertNode.type || "keyword",
-      level: insertNode.level || 0
-    };
-    this.knowledgeNodes.set(id, node);
-    return node;
-  }
-  
-  async deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<void> {
-    // ノードをフィルタリングして削除
-    const nodeIdsToDelete: string[] = [];
-    
-    this.knowledgeNodes.forEach((node, id) => {
-      if (node.roleModelId === roleModelId) {
-        nodeIdsToDelete.push(id);
-      }
-    });
-    
-    // 特定したノードをMapから削除
-    nodeIdsToDelete.forEach(id => {
-      this.knowledgeNodes.delete(id);
-    });
-    
-    console.log(`Deleted ${nodeIdsToDelete.length} knowledge nodes for role model ID: ${roleModelId}`);
-  }
-  
-  // Knowledge Edge methods
-  async getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]> {
-    return Array.from(this.knowledgeEdges.values())
-      .filter((edge) => edge.roleModelId === roleModelId);
-  }
-  
-  async getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined> {
-    return this.knowledgeEdges.get(id);
-  }
-  
-  async createKnowledgeEdge(insertEdge: InsertKnowledgeEdge): Promise<KnowledgeEdge> {
-    const id = crypto.randomUUID();
-    const edge: KnowledgeEdge = {
-      ...insertEdge,
-      id,
-      label: insertEdge.label || null,
-      strength: insertEdge.strength || 1
-    };
-    this.knowledgeEdges.set(id, edge);
-    return edge;
-  }
-  
-  async deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<void> {
-    // エッジをフィルタリングして削除
-    const edgeIdsToDelete: string[] = [];
-    
-    this.knowledgeEdges.forEach((edge, id) => {
-      if (edge.roleModelId === roleModelId) {
-        edgeIdsToDelete.push(id);
-      }
-    });
-    
-    // 特定したエッジをMapから削除
-    edgeIdsToDelete.forEach(id => {
-      this.knowledgeEdges.delete(id);
-    });
-    
-    console.log(`Deleted ${edgeIdsToDelete.length} knowledge edges for role model ID: ${roleModelId}`);
-  }
-  
-  // 購読プラン関連メソッド
-  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-    return Array.from(this.subscriptionPlans.values());
-  }
-  
-  async getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined> {
-    return this.subscriptionPlans.get(id);
-  }
-  
-  async createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
-    const id = crypto.randomUUID();
-    const now = new Date();
-    
-    const newPlan: SubscriptionPlan = {
-      ...plan,
-      id,
-      createdAt: now,
-      updatedAt: now,
-      description: plan.description || null,
-      features: plan.features || null
-    };
-    
-    this.subscriptionPlans.set(id, newPlan);
-    return newPlan;
-  }
-  
-  // 情報収集プラン関連メソッド
-  async getInformationCollectionPlan(roleModelId: string): Promise<InformationCollectionPlan | undefined> {
-    return Array.from(this.informationCollectionPlans.values()).find(
-      plan => plan.roleModelId === roleModelId
-    );
-  }
-  
-  async createInformationCollectionPlan(plan: InsertInformationCollectionPlan): Promise<InformationCollectionPlan> {
-    const id = crypto.randomUUID();
-    const now = new Date();
-    
-    const newPlan: InformationCollectionPlan = {
-      ...plan,
-      id,
-      createdAt: now,
-      updatedAt: now,
-      updatedBy: plan.updatedBy || null
-    };
-    
-    this.informationCollectionPlans.set(id, newPlan);
-    return newPlan;
-  }
-  
-  async updateInformationCollectionPlan(id: string, planData: string, updatedBy: string): Promise<InformationCollectionPlan> {
-    const existingPlan = this.informationCollectionPlans.get(id);
-    if (!existingPlan) {
-      throw new Error(`Information collection plan with ID ${id} not found`);
-    }
-    
-    const updatedPlan: InformationCollectionPlan = {
-      ...existingPlan,
-      planData,
-      updatedBy,
-      updatedAt: new Date()
-    };
-    
-    this.informationCollectionPlans.set(id, updatedPlan);
-    return updatedPlan;
-  }
-}
-
-// PostgresStorage implementation
-export class PostgresStorage implements IStorage {
+export class DatabaseStorage implements IStorage {
   sessionStore: any;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({
-      pool, 
-      createTableIfMissing: true
+      pool: pool,
+      createTableIfMissing: true,
+      tableName: 'session',
+      schemaName: 'public',
+      // スケジュールされたクリーンアップが動作しない問題を解決するためのカスタム設定
+      pruneSessionInterval: 60 * 60 * 24 // 24時間ごとに期限切れセッションを削除
     });
   }
 
-  // User methods
+  // ユーザー関連
   async getUser(id: string): Promise<User | undefined> {
-    try {
-      const [user] = await db.select().from(users).where(eq(users.id, id));
-      return user;
-    } catch (error) {
-      console.error("Error in getUser:", error);
-      return undefined;
-    }
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    try {
-      const [user] = await db.select().from(users).where(eq(users.email, email));
-      return user;
-    } catch (error) {
-      console.error("Error in getUserByEmail:", error);
-      return undefined;
-    }
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    // username フィールドがないためemailで代用
+    const [user] = await db.select().from(users).where(eq(users.email, username));
+    return user;
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    try {
-      const [newUser] = await db.insert(users).values({
-        ...user,
-        subscriptionPlan: 'Lite'
-      }).returning();
-      return newUser;
-    } catch (error) {
-      console.error("Error in createUser:", error);
-      throw error;
-    }
-  }
-  
-  async updateUserSubscription(userId: string, planName: string, expiresAt?: Date): Promise<User> {
-    try {
-      const [updatedUser] = await db.update(users)
-        .set({ 
-          subscriptionPlan: planName,
-          subscriptionExpiresAt: expiresAt || null
-        })
-        .where(eq(users.id, userId))
-        .returning();
-      
-      if (!updatedUser) {
-        throw new Error(`User with ID ${userId} not found`);
-      }
-      
-      return updatedUser;
-    } catch (error) {
-      console.error("Error in updateUserSubscription:", error);
-      throw error;
-    }
+    const [createdUser] = await db.insert(users).values(user).returning();
+    return createdUser;
   }
 
-  // Role model methods
-  async getRoleModels(userId: string): Promise<RoleModel[]> {
-    try {
-      // ユーザーが所属する会社を取得
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      
-      // ユーザーに直接紐づくロールモデル
-      const userModels = await db.select()
-        .from(roleModels)
-        .where(eq(roleModels.userId, userId));
-      
-      // 会社に紐づく共有ロールモデル
-      if (user && user.companyId) {
-        const companyModels = await this.getSharedRoleModels(user.companyId);
-        return [...userModels, ...companyModels];
-      }
-      
-      return userModels;
-    } catch (error) {
-      console.error("Error in getRoleModels:", error);
-      return [];
-    }
-  }
-  
-  async getSharedRoleModels(companyId: string): Promise<RoleModel[]> {
-    try {
-      return await db.select()
-        .from(roleModels)
-        .where(
-          and(
-            eq(roleModels.companyId, companyId),
-            eq(roleModels.isShared, 1)
-          )
-        );
-    } catch (error) {
-      console.error("Error in getSharedRoleModels:", error);
-      return [];
-    }
+  async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> {
+    const [updatedUser] = await db.update(users).set(user).where(eq(users.id, id)).returning();
+    return updatedUser;
   }
 
-  // Knowledge Node methods
-  async getKnowledgeNodes(roleModelId: string): Promise<KnowledgeNode[]> {
-    try {
-      return await db.select()
-        .from(knowledgeNodes)
-        .where(eq(knowledgeNodes.roleModelId, roleModelId))
-        .orderBy(knowledgeNodes.level);
-    } catch (error) {
-      console.error("Error in getKnowledgeNodes:", error);
-      return [];
-    }
-  }
-  
-  async getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined> {
-    try {
-      const [node] = await db.select()
-        .from(knowledgeNodes)
-        .where(eq(knowledgeNodes.id, id));
-      return node;
-    } catch (error) {
-      console.error("Error in getKnowledgeNode:", error);
-      return undefined;
-    }
-  }
-  
-  async createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode> {
-    try {
-      const [newNode] = await db.insert(knowledgeNodes).values(node).returning();
-      return newNode;
-    } catch (error) {
-      console.error("Error in createKnowledgeNode:", error);
-      throw error;
-    }
-  }
-  
-  async deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<void> {
-    try {
-      await db.delete(knowledgeNodes)
-        .where(eq(knowledgeNodes.roleModelId, roleModelId));
-      console.log(`Deleted knowledge nodes for role model ID: ${roleModelId}`);
-    } catch (error) {
-      console.error("Error in deleteKnowledgeNodesByRoleModelId:", error);
-      throw error;
-    }
-  }
-  
-  // Knowledge Edge methods
-  async getKnowledgeEdges(roleModelId: string): Promise<KnowledgeEdge[]> {
-    try {
-      return await db.select()
-        .from(knowledgeEdges)
-        .where(eq(knowledgeEdges.roleModelId, roleModelId));
-    } catch (error) {
-      console.error("Error in getKnowledgeEdges:", error);
-      return [];
-    }
-  }
-  
-  async getKnowledgeEdge(id: string): Promise<KnowledgeEdge | undefined> {
-    try {
-      const [edge] = await db.select()
-        .from(knowledgeEdges)
-        .where(eq(knowledgeEdges.id, id));
-      return edge;
-    } catch (error) {
-      console.error("Error in getKnowledgeEdge:", error);
-      return undefined;
-    }
-  }
-  
-  async createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge> {
-    try {
-      const [newEdge] = await db.insert(knowledgeEdges).values(edge).returning();
-      return newEdge;
-    } catch (error) {
-      console.error("Error in createKnowledgeEdge:", error);
-      throw error;
-    }
-  }
-  
-  async deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<void> {
-    try {
-      await db.delete(knowledgeEdges)
-        .where(eq(knowledgeEdges.roleModelId, roleModelId));
-      console.log(`Deleted knowledge edges for role model ID: ${roleModelId}`);
-    } catch (error) {
-      console.error("Error in deleteKnowledgeEdgesByRoleModelId:", error);
-      throw error;
-    }
+  async deleteUser(id: string): Promise<boolean> {
+    const [deletedUser] = await db.delete(users).where(eq(users.id, id)).returning();
+    return !!deletedUser;
   }
 
-  // Extended role model operations
+  // 組織関連
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, id));
+    return organization;
+  }
+
+  async getOrganizationByName(name: string): Promise<Organization | undefined> {
+    const [organization] = await db.select().from(organizations).where(eq(organizations.name, name));
+    return organization;
+  }
+
+  async createOrganization(organization: InsertOrganization): Promise<Organization> {
+    const [createdOrganization] = await db.insert(organizations).values(organization).returning();
+    return createdOrganization;
+  }
+
+  async updateOrganization(id: string, organization: Partial<InsertOrganization>): Promise<Organization | undefined> {
+    const [updatedOrganization] = await db.update(organizations).set(organization).where(eq(organizations.id, id)).returning();
+    return updatedOrganization;
+  }
+
+  async deleteOrganization(id: string): Promise<boolean> {
+    const [deletedOrganization] = await db.delete(organizations).where(eq(organizations.id, id)).returning();
+    return !!deletedOrganization;
+  }
+
+  // ロールモデル関連
+  async getRoleModel(id: string): Promise<RoleModel | undefined> {
+    const [roleModel] = await db.select().from(roleModels).where(eq(roleModels.id, id));
+    return roleModel;
+  }
+
+  async getRoleModelsByOrganizationId(organizationId: string): Promise<RoleModel[]> {
+    const models = await db.select().from(roleModels).where(eq(roleModels.organizationId, organizationId));
+    return models;
+  }
+
+  async getRoleModelsByUserId(userId: string): Promise<RoleModel[]> {
+    const models = await db.select().from(roleModels).where(eq(roleModels.createdBy, userId));
+    return models;
+  }
+
   async getRoleModelWithIndustriesAndKeywords(id: string): Promise<RoleModelWithIndustriesAndKeywords | undefined> {
-    try {
-      const [roleModel] = await db.select().from(roleModels).where(eq(roleModels.id, id));
-      if (!roleModel) return undefined;
+    const [roleModel] = await db.select().from(roleModels).where(eq(roleModels.id, id));
+    if (!roleModel) return undefined;
 
-      // DBから業界とキーワードデータを取得
-      const industriesData = await this.getRoleModelIndustriesData(id);
-      const keywordsData = await this.getRoleModelKeywordsData(id);
+    const roleModelIndustryRelations = await db.select().from(roleModelIndustries).where(eq(roleModelIndustries.roleModelId, id));
+    const industryIds = roleModelIndustryRelations.map(relation => relation.industryId);
 
-      return {
-        ...roleModel,
-        industries: industriesData,
-        keywords: keywordsData
-      };
-    } catch (error) {
-      console.error("Error in getRoleModelWithIndustriesAndKeywords:", error);
-      return undefined;
-    }
-  }
+    const industryList = await db.select().from(industries).where(industryIds.length ? (industryIds as any) : eq(industries.id, ''));
 
-  // ロールモデルに関連する業界データを取得
-  private async getRoleModelIndustriesData(roleModelId: string): Promise<IndustrySubcategory[]> {
-    try {
-      // ロールモデルに関連する業界サブカテゴリーIDを取得
-      const industryMappings = await db
-        .select()
-        .from(sql`role_model_industries`)
-        .where(sql`role_model_id = ${roleModelId}`);
-      
-      if (!industryMappings || industryMappings.length === 0) {
-        return [];
-      }
-      
-      // 業界サブカテゴリーIDリスト
-      const subcategoryIds = industryMappings.map((mapping: any) => mapping.industry_id);
-      
-      // 業界サブカテゴリーデータ取得
-      const subcategoryData = await db
-        .select()
-        .from(industrySubcategories)
-        .where(inArray(industrySubcategories.id, subcategoryIds));
-      
-      return subcategoryData;
-    } catch (error) {
-      console.error("Error in getRoleModelIndustriesData:", error);
-      return [];
-    }
+    const keywordRelations = await db.select().from(roleModelKeywords).where(eq(roleModelKeywords.roleModelId, id));
+    const keywords = keywordRelations.map(relation => relation.keyword);
+
+    return {
+      ...roleModel,
+      industries: industryList,
+      keywords
+    };
   }
 
-  // ロールモデルに関連するキーワードデータを取得
-  private async getRoleModelKeywordsData(roleModelId: string): Promise<Keyword[]> {
-    try {
-      // ロールモデルに関連するキーワードIDを取得（SQLで直接クエリ）
-      const keywordMappings = await db
-        .select()
-        .from(sql`role_model_keywords`)
-        .where(sql`role_model_id = ${roleModelId}`);
-      
-      if (!keywordMappings || keywordMappings.length === 0) {
-        return [];
-      }
-      
-      // キーワードIDリスト
-      const keywordIds = keywordMappings.map((mapping: any) => mapping.keyword_id);
-      
-      // キーワードデータ取得
-      const keywordData = await db
-        .select()
-        .from(keywords)
-        .where(inArray(keywords.id, keywordIds));
-      
-      // 必要なプロパティを持つKeyword型の配列に変換
-      return keywordData.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        status: item.status || null,
-        parentId: item.parentId || null,
-        isCommon: item.isCommon || null,
-        createdBy: item.createdBy || null,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt
-      }));
-    } catch (error) {
-      console.error("Error in getRoleModelKeywordsData:", error);
-      return [];
-    }
+  async createRoleModel(roleModel: InsertRoleModel): Promise<RoleModel> {
+    const [createdRoleModel] = await db.insert(roleModels).values(roleModel).returning();
+    return createdRoleModel;
   }
-  
-  // 購読プラン操作
-  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-    try {
-      return await db.select().from(subscriptionPlans);
-    } catch (error) {
-      console.error("Error in getSubscriptionPlans:", error);
-      return [];
-    }
+
+  async updateRoleModel(id: string, roleModel: Partial<InsertRoleModel>): Promise<RoleModel | undefined> {
+    const [updatedRoleModel] = await db.update(roleModels).set(roleModel).where(eq(roleModels.id, id)).returning();
+    return updatedRoleModel;
   }
-  
-  async getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined> {
-    try {
-      const [plan] = await db.select()
-        .from(subscriptionPlans)
-        .where(eq(subscriptionPlans.id, id));
-      return plan;
-    } catch (error) {
-      console.error("Error in getSubscriptionPlan:", error);
-      return undefined;
-    }
+
+  async deleteRoleModel(id: string): Promise<boolean> {
+    const [deletedRoleModel] = await db.delete(roleModels).where(eq(roleModels.id, id)).returning();
+    return !!deletedRoleModel;
   }
-  
-  async createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
-    try {
-      const [newPlan] = await db.insert(subscriptionPlans)
-        .values({
-          ...plan,
-          features: plan.features || null
-        })
-        .returning();
-      return newPlan;
-    } catch (error) {
-      console.error("Error in createSubscriptionPlan:", error);
-      throw error;
-    }
+
+  // ナレッジグラフ関連
+  async getKnowledgeNodesByRoleModelId(roleModelId: string): Promise<KnowledgeNode[]> {
+    const nodes = await db.select().from(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+    return nodes;
   }
-  
-  // 情報収集プラン操作
-  async getInformationCollectionPlan(roleModelId: string): Promise<InformationCollectionPlan | undefined> {
-    try {
-      const [plan] = await db.select()
-        .from(informationCollectionPlans)
-        .where(eq(informationCollectionPlans.roleModelId, roleModelId));
-      return plan;
-    } catch (error) {
-      console.error("Error in getInformationCollectionPlan:", error);
-      return undefined;
-    }
+
+  async getKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<KnowledgeEdge[]> {
+    const edges = await db.select().from(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
+    return edges;
   }
-  
-  async createInformationCollectionPlan(plan: InsertInformationCollectionPlan): Promise<InformationCollectionPlan> {
-    try {
-      const [newPlan] = await db.insert(informationCollectionPlans)
-        .values({
-          ...plan,
-          updatedBy: plan.updatedBy || null
-        })
-        .returning();
-      return newPlan;
-    } catch (error) {
-      console.error("Error in createInformationCollectionPlan:", error);
-      throw error;
-    }
+
+  async getKnowledgeNodeById(id: string): Promise<KnowledgeNode | undefined> {
+    const [node] = await db.select().from(knowledgeNodes).where(eq(knowledgeNodes.id, id));
+    return node;
   }
-  
-  async updateInformationCollectionPlan(id: string, planData: string, updatedBy: string): Promise<InformationCollectionPlan> {
-    try {
-      const [updatedPlan] = await db.update(informationCollectionPlans)
-        .set({
-          planData,
-          updatedBy,
-          updatedAt: new Date()
-        })
-        .where(eq(informationCollectionPlans.id, id))
-        .returning();
-      
-      if (!updatedPlan) {
-        throw new Error(`Information collection plan with ID ${id} not found`);
-      }
-      
-      return updatedPlan;
-    } catch (error) {
-      console.error("Error in updateInformationCollectionPlan:", error);
-      throw error;
-    }
+
+  async getKnowledgeEdgeById(id: string): Promise<KnowledgeEdge | undefined> {
+    const [edge] = await db.select().from(knowledgeEdges).where(eq(knowledgeEdges.id, id));
+    return edge;
+  }
+
+  async createKnowledgeNode(node: InsertKnowledgeNode): Promise<KnowledgeNode> {
+    const [createdNode] = await db.insert(knowledgeNodes).values(node).returning();
+    return createdNode;
+  }
+
+  async createKnowledgeEdge(edge: InsertKnowledgeEdge): Promise<KnowledgeEdge> {
+    const [createdEdge] = await db.insert(knowledgeEdges).values(edge).returning();
+    return createdEdge;
+  }
+
+  async updateKnowledgeNode(id: string, node: Partial<InsertKnowledgeNode>): Promise<KnowledgeNode | undefined> {
+    const [updatedNode] = await db.update(knowledgeNodes).set(node).where(eq(knowledgeNodes.id, id)).returning();
+    return updatedNode;
+  }
+
+  async updateKnowledgeEdge(id: string, edge: Partial<InsertKnowledgeEdge>): Promise<KnowledgeEdge | undefined> {
+    const [updatedEdge] = await db.update(knowledgeEdges).set(edge).where(eq(knowledgeEdges.id, id)).returning();
+    return updatedEdge;
+  }
+
+  async deleteKnowledgeNode(id: string): Promise<boolean> {
+    const [deletedNode] = await db.delete(knowledgeNodes).where(eq(knowledgeNodes.id, id)).returning();
+    return !!deletedNode;
+  }
+
+  async deleteKnowledgeEdge(id: string): Promise<boolean> {
+    const [deletedEdge] = await db.delete(knowledgeEdges).where(eq(knowledgeEdges.id, id)).returning();
+    return !!deletedEdge;
+  }
+
+  async deleteKnowledgeNodesByRoleModelId(roleModelId: string): Promise<boolean> {
+    const result = await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId)).returning();
+    return result.length > 0;
+  }
+
+  async deleteKnowledgeEdgesByRoleModelId(roleModelId: string): Promise<boolean> {
+    const result = await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId)).returning();
+    return result.length > 0;
+  }
+
+  // キーワード関連
+  async getRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<RoleModelKeyword[]> {
+    const keywords = await db.select().from(roleModelKeywords).where(eq(roleModelKeywords.roleModelId, roleModelId));
+    return keywords;
+  }
+
+  async createRoleModelKeyword(keyword: InsertRoleModelKeyword): Promise<RoleModelKeyword> {
+    const [createdKeyword] = await db.insert(roleModelKeywords).values(keyword).returning();
+    return createdKeyword;
+  }
+
+  async deleteRoleModelKeyword(id: string): Promise<boolean> {
+    const [deletedKeyword] = await db.delete(roleModelKeywords).where(eq(roleModelKeywords.id, id)).returning();
+    return !!deletedKeyword;
+  }
+
+  async deleteRoleModelKeywordsByRoleModelId(roleModelId: string): Promise<boolean> {
+    const result = await db.delete(roleModelKeywords).where(eq(roleModelKeywords.roleModelId, roleModelId)).returning();
+    return result.length > 0;
+  }
+
+  // 業界関連
+  async getIndustry(id: string): Promise<Industry | undefined> {
+    const [industry] = await db.select().from(industries).where(eq(industries.id, id));
+    return industry;
+  }
+
+  async getIndustries(): Promise<Industry[]> {
+    const industryList = await db.select().from(industries);
+    return industryList;
+  }
+
+  async getIndustryByName(name: string): Promise<Industry | undefined> {
+    const [industry] = await db.select().from(industries).where(eq(industries.name, name));
+    return industry;
+  }
+
+  async createIndustry(industry: InsertIndustry): Promise<Industry> {
+    const [createdIndustry] = await db.insert(industries).values(industry).returning();
+    return createdIndustry;
+  }
+
+  async getRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<RoleModelIndustry[]> {
+    const roleModelIndustryList = await db.select().from(roleModelIndustries).where(eq(roleModelIndustries.roleModelId, roleModelId));
+    return roleModelIndustryList;
+  }
+
+  async createRoleModelIndustry(roleModelIndustry: InsertRoleModelIndustry): Promise<RoleModelIndustry> {
+    const [createdRoleModelIndustry] = await db.insert(roleModelIndustries).values(roleModelIndustry).returning();
+    return createdRoleModelIndustry;
+  }
+
+  async deleteRoleModelIndustry(id: string): Promise<boolean> {
+    const [deletedRoleModelIndustry] = await db.delete(roleModelIndustries).where(eq(roleModelIndustries.id, id)).returning();
+    return !!deletedRoleModelIndustry;
+  }
+
+  async deleteRoleModelIndustriesByRoleModelId(roleModelId: string): Promise<boolean> {
+    const result = await db.delete(roleModelIndustries).where(eq(roleModelIndustries.roleModelId, roleModelId)).returning();
+    return result.length > 0;
+  }
+
+  // サマリー関連
+  async getSummariesByRoleModelId(roleModelId: string): Promise<Summary[]> {
+    const summaryList = await db.select().from(summaries).where(eq(summaries.roleModelId, roleModelId)).orderBy(desc(summaries.createdAt));
+    return summaryList;
+  }
+
+  async getSummary(id: string): Promise<Summary | undefined> {
+    const [summary] = await db.select().from(summaries).where(eq(summaries.id, id));
+    return summary;
+  }
+
+  async createSummary(summary: InsertSummary): Promise<Summary> {
+    const [createdSummary] = await db.insert(summaries).values(summary).returning();
+    return createdSummary;
+  }
+
+  async updateSummary(id: string, summary: Partial<InsertSummary>): Promise<Summary | undefined> {
+    const [updatedSummary] = await db.update(summaries).set(summary).where(eq(summaries.id, id)).returning();
+    return updatedSummary;
+  }
+
+  async deleteSummary(id: string): Promise<boolean> {
+    const [deletedSummary] = await db.delete(summaries).where(eq(summaries.id, id)).returning();
+    return !!deletedSummary;
+  }
+
+  // 情報収集プラン関連
+  async getCollectionPlanById(id: string): Promise<CollectionPlan | undefined> {
+    const [plan] = await db.select().from(collectionPlans).where(eq(collectionPlans.id, id));
+    return plan;
+  }
+
+  async getCollectionPlansByRoleModelId(roleModelId: string): Promise<CollectionPlan[]> {
+    const plans = await db.select().from(collectionPlans).where(eq(collectionPlans.roleModelId, roleModelId));
+    return plans;
+  }
+
+  async getCollectionPlansByUserId(userId: string): Promise<CollectionPlan[]> {
+    const plans = await db.select().from(collectionPlans).where(eq(collectionPlans.createdBy, userId));
+    return plans;
+  }
+
+  async getActiveCollectionPlansByUserId(userId: string): Promise<CollectionPlan[]> {
+    const plans = await db.select().from(collectionPlans).where(
+      and(
+        eq(collectionPlans.createdBy, userId),
+        eq(collectionPlans.isActive, true)
+      )
+    );
+    return plans;
+  }
+
+  async createCollectionPlan(plan: InsertCollectionPlan): Promise<CollectionPlan> {
+    const [createdPlan] = await db.insert(collectionPlans).values(plan).returning();
+    return createdPlan;
+  }
+
+  async updateCollectionPlan(id: string, plan: Partial<InsertCollectionPlan>): Promise<CollectionPlan | undefined> {
+    const [updatedPlan] = await db.update(collectionPlans).set(plan).where(eq(collectionPlans.id, id)).returning();
+    return updatedPlan;
+  }
+
+  async deleteCollectionPlan(id: string): Promise<boolean> {
+    const [deletedPlan] = await db.delete(collectionPlans).where(eq(collectionPlans.id, id)).returning();
+    return !!deletedPlan;
+  }
+
+  async activateCollectionPlan(id: string): Promise<CollectionPlan | undefined> {
+    // まず指定されたユーザーのすべてのアクティブプランを非アクティブにする
+    const [planToActivate] = await db.select().from(collectionPlans).where(eq(collectionPlans.id, id));
+    if (!planToActivate) return undefined;
+
+    // このユーザーの他のすべてのアクティブプランを非アクティブにする
+    await db.update(collectionPlans)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(collectionPlans.createdBy, planToActivate.createdBy),
+          eq(collectionPlans.isActive, true)
+        )
+      );
+
+    // 指定されたプランをアクティブにする
+    const [activatedPlan] = await db.update(collectionPlans)
+      .set({ isActive: true })
+      .where(eq(collectionPlans.id, id))
+      .returning();
+
+    return activatedPlan;
+  }
+
+  async deactivateCollectionPlan(id: string): Promise<CollectionPlan | undefined> {
+    const [deactivatedPlan] = await db.update(collectionPlans)
+      .set({ isActive: false })
+      .where(eq(collectionPlans.id, id))
+      .returning();
+
+    return deactivatedPlan;
+  }
+
+  // 情報ソース関連
+  async getCollectionSourceById(id: string): Promise<CollectionSource | undefined> {
+    const [source] = await db.select().from(collectionSources).where(eq(collectionSources.id, id));
+    return source;
+  }
+
+  async getCollectionSourcesByPlanId(planId: string): Promise<CollectionSource[]> {
+    const sources = await db.select().from(collectionSources)
+      .where(eq(collectionSources.collectionPlanId, planId))
+      .orderBy(desc(collectionSources.collectedAt));
+    return sources;
+  }
+
+  async getCollectionSourcesByExecutionId(executionId: string): Promise<CollectionSource[]> {
+    const sources = await db.select().from(collectionSources)
+      .where(eq(collectionSources.executionId, executionId))
+      .orderBy(desc(collectionSources.relevanceScore));
+    return sources;
+  }
+
+  async createCollectionSource(source: InsertCollectionSource): Promise<CollectionSource> {
+    const [createdSource] = await db.insert(collectionSources).values(source).returning();
+    return createdSource;
+  }
+
+  async deleteCollectionSource(id: string): Promise<boolean> {
+    const [deletedSource] = await db.delete(collectionSources).where(eq(collectionSources.id, id)).returning();
+    return !!deletedSource;
+  }
+
+  // 要約結果関連
+  async getCollectionSummaryById(id: string): Promise<CollectionSummary | undefined> {
+    const [summary] = await db.select().from(collectionSummaries).where(eq(collectionSummaries.id, id));
+    return summary;
+  }
+
+  async getCollectionSummariesByPlanId(planId: string): Promise<CollectionSummary[]> {
+    const summaries = await db.select().from(collectionSummaries)
+      .where(eq(collectionSummaries.collectionPlanId, planId))
+      .orderBy(desc(collectionSummaries.generatedAt));
+    return summaries;
+  }
+
+  async getCollectionSummaryByExecutionId(executionId: string): Promise<CollectionSummary | undefined> {
+    const [summary] = await db.select().from(collectionSummaries).where(eq(collectionSummaries.executionId, executionId));
+    return summary;
+  }
+
+  async createCollectionSummary(summary: InsertCollectionSummary): Promise<CollectionSummary> {
+    const [createdSummary] = await db.insert(collectionSummaries).values(summary).returning();
+    return createdSummary;
+  }
+
+  async updateCollectionSummary(id: string, summary: Partial<InsertCollectionSummary>): Promise<CollectionSummary | undefined> {
+    const [updatedSummary] = await db.update(collectionSummaries).set(summary).where(eq(collectionSummaries.id, id)).returning();
+    return updatedSummary;
+  }
+
+  async deleteCollectionSummary(id: string): Promise<boolean> {
+    const [deletedSummary] = await db.delete(collectionSummaries).where(eq(collectionSummaries.id, id)).returning();
+    return !!deletedSummary;
   }
 }
 
-// ストレージインスタンスを作成
-export const storage = new PostgresStorage();
+export const storage = new DatabaseStorage();

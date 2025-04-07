@@ -21,18 +21,13 @@ import {
   knowledgeNodes,
   knowledgeEdges,
   users,
-  companies,
+  organizations,
   roleModels,
   insertRoleModelSchema,
-  insertCompanySchema,
+  insertOrganizationSchema, // 組織スキーマに修正
   industries,
-  industryCategories,
-  industrySubcategories,
-  keywords,
   roleModelIndustries,
   roleModelKeywords,
-  insertKeywordSchema,
-  informationCollectionPlans,
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
@@ -153,10 +148,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let companiesQuery;
       
       if (user.role === 'admin') {
-        companiesQuery = await db.query.companies.findMany();
+        companiesQuery = await db.query.organizations.findMany();
       } else {
-        companiesQuery = await db.query.companies.findMany({
-          where: eq(companies.id, user.companyId),
+        companiesQuery = await db.query.organizations.findMany({
+          where: eq(organizations.id, user.companyId),
         });
       }
       
@@ -178,8 +173,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
-      const company = await db.query.companies.findFirst({
-        where: eq(companies.id, id),
+      const company = await db.query.organizations.findFirst({
+        where: eq(organizations.id, id),
         with: {
           users: {
             orderBy: (users, { asc }) => [asc(users.name)],
@@ -212,9 +207,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 会社作成 (システム管理者のみ)
   app.post('/api/companies', isAuthenticated, requireRole('admin'), async (req, res) => {
     try {
-      const validatedData = insertCompanySchema.parse(req.body);
+      const validatedData = insertOrganizationSchema.parse(req.body);
       
-      const result = await db.insert(companies).values(validatedData).returning();
+      const result = await db.insert(organizations).values(validatedData).returning();
       
       res.status(201).json(result[0]);
     } catch (error) {
@@ -234,12 +229,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'アクセス権限がありません' });
       }
       
-      const validatedData = insertCompanySchema.parse(req.body);
+      const validatedData = insertOrganizationSchema.parse(req.body);
       
       const result = await db
-        .update(companies)
+        .update(organizations)
         .set(validatedData)
-        .where(eq(companies.id, id))
+        .where(eq(organizations.id, id))
         .returning();
       
       if (result.length === 0) {

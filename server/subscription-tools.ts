@@ -1,5 +1,4 @@
 import { db } from './db';
-import { userSubscriptions, subscriptionPlans } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 // サブスクリプションプランごとに利用可能なツールのマッピング
@@ -36,6 +35,11 @@ const DEFAULT_PLAN = 'lite';
  * @returns 利用可能なツールのリスト
  */
 export async function getUserSubscriptionTools(userId: string): Promise<string[]> {
+  // 現段階では定型の結果を返す（プランシステム未実装のため）
+  console.log(`ユーザー ${userId} にはデフォルトプラン(${DEFAULT_PLAN})を使用します`);
+  return SUBSCRIPTION_TOOLS_MAP[DEFAULT_PLAN];
+  
+  /* TODO: サブスクリプションシステム実装後に有効化
   try {
     // ユーザーのアクティブなサブスクリプションを取得
     const userSubscription = await db.query.userSubscriptions.findFirst({
@@ -62,6 +66,7 @@ export async function getUserSubscriptionTools(userId: string): Promise<string[]
     // エラー時はデフォルトプランを返す
     return SUBSCRIPTION_TOOLS_MAP[DEFAULT_PLAN];
   }
+  */
 }
 
 /**
@@ -69,6 +74,10 @@ export async function getUserSubscriptionTools(userId: string): Promise<string[]
  * 新規インストール時に呼び出す
  */
 export async function setupDefaultSubscriptionPlans(): Promise<void> {
+  console.log('サブスクリプションプランのセットアップスキップ（機能未実装）');
+  return;
+  
+  /* TODO: サブスクリプションシステム実装後に有効化
   try {
     // 既存のプランをチェック
     const existingPlans = await db.query.subscriptionPlans.findMany();
@@ -118,6 +127,7 @@ export async function setupDefaultSubscriptionPlans(): Promise<void> {
   } catch (error) {
     console.error('サブスクリプションプラン設定エラー:', error);
   }
+  */
 }
 
 /**
@@ -126,6 +136,10 @@ export async function setupDefaultSubscriptionPlans(): Promise<void> {
  * @param planName プラン名
  */
 export async function assignUserSubscription(userId: string, planName: string): Promise<void> {
+  console.log(`ユーザー ${userId} にプラン "${planName}" を割り当てようとしましたが、機能は未実装です`);
+  return;
+  
+  /* TODO: サブスクリプションシステム実装後に有効化
   try {
     // プランの存在を確認
     const plan = await db.query.subscriptionPlans.findFirst({
@@ -163,4 +177,5 @@ export async function assignUserSubscription(userId: string, planName: string): 
     console.error('ユーザーサブスクリプション割り当てエラー:', error);
     throw error;
   }
+  */
 }
