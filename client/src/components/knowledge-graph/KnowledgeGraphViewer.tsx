@@ -487,20 +487,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     <div className="flex flex-col w-full" style={{ height }}>
       <div className="flex justify-between items-center mb-2 px-4 py-2 bg-muted/50 rounded-lg">
         <h3 className="text-lg font-semibold">ナレッジグラフビューワー</h3>
-        {!generating && (
-          <div className="flex gap-2">
-            <CrewAIButton 
-              roleModelId={roleModelId}
-              onStart={() => {
-                setGenerating(true);
-                setProgress(0);
-                setProgressMessage('CrewAIでマルチエージェント処理を開始しています...');
-                setAgentMessages([]);
-              }}
-              onComplete={() => fetchGraphData()}
-            />
-          </div>
-        )}
+        {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
       </div>
       
       {generating ? (

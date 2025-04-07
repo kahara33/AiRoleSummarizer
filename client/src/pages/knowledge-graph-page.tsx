@@ -5,9 +5,12 @@ import { apiRequest } from "@/lib/queryClient";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import CreateCollectionPlanButton from '@/components/collection-plan/CreateCollectionPlanButton';
+import { CrewAIButton } from '@/components/knowledge-graph/CrewAIButton';
 import { KnowledgeNode } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Zap, FileText } from 'lucide-react';
+import { Button } from "@/components/ui/button";
 
 
 interface KnowledgeGraphPageProps {
@@ -55,17 +58,28 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
           )}
         </h1>
         <div className="flex items-center gap-2">
-          
           {roleModelId !== 'default' && (
-            <div className="w-48">
-              <CreateCollectionPlanButton 
-                roleModelId={roleModelId}
-                industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
-                keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
-                disabled={isGenerating}
-                hasKnowledgeGraph={hasKnowledgeGraph}
-              />
-            </div>
+            <>
+              {/* CrewAIでナレッジグラフを作成ボタン */}
+              <div className="w-auto">
+                <CrewAIButton 
+                  roleModelId={roleModelId}
+                  onStart={() => setIsGenerating(true)}
+                  onComplete={() => setIsGenerating(false)}
+                />
+              </div>
+
+              {/* 情報収集プラン作成ボタン */}
+              <div className="w-auto">
+                <CreateCollectionPlanButton 
+                  roleModelId={roleModelId}
+                  industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
+                  keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
+                  disabled={isGenerating}
+                  hasKnowledgeGraph={hasKnowledgeGraph}
+                />
+              </div>
+            </>
           )}
           
           <button
