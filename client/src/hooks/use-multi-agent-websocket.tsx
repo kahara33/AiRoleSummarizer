@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-type MessageType = 'chat_message' | 'agent_thought' | 'crewai_progress' | 'error';
+// メッセージタイプの定義
+type MessageType = 
+  | 'chat_message' 
+  | 'agent_thought' 
+  | 'agent-thought'
+  | 'crewai_progress' 
+  | 'progress-update'
+  | 'error';
 
+// WebSocketメッセージの型定義
 interface JsonMessage {
   type: MessageType;
-  data: {
-    message: string;
+  data?: {
+    message?: string;
     agentName?: string;
     agentType?: string;
     thought?: string;
@@ -13,6 +21,14 @@ interface JsonMessage {
     stage?: string;
     error?: string;
   };
+  // サーバー形式のメッセージのためのフィールド
+  message?: string;
+  agentName?: string;
+  agentType?: string;
+  thought?: string;
+  progress?: number;
+  stage?: string;
+  roleModelId?: string;
 }
 
 export interface WebSocketHook {

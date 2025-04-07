@@ -57,9 +57,20 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
     if (!lastJsonMessage) return;
     
     try {
+      console.log('WebSocketメッセージ受信:', lastJsonMessage.type, lastJsonMessage);
+      
+      // チャットメッセージの処理
       if (lastJsonMessage.type === 'chat_message') {
-        // 通常のチャットメッセージ
-        const messageContent = lastJsonMessage.data.message;
+        // データソースを安全に取得
+        const messageContent: string = 
+          (lastJsonMessage.data && typeof lastJsonMessage.data.message === 'string') 
+            ? lastJsonMessage.data.message 
+            : (typeof lastJsonMessage.message === 'string')
+              ? lastJsonMessage.message
+              : '';
+              
+        if (!messageContent) return;
+        
         const newMessage: Message = {
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -69,11 +80,41 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
         
         setMessages(prevMessages => [...prevMessages, newMessage]);
         setIsGenerating(false);
-      } else if (lastJsonMessage.type === 'agent_thought') {
-        // エージェントの思考プロセス
-        const agentName = lastJsonMessage.data.agentName || '不明なエージェント';
-        const agentType = lastJsonMessage.data.agentType || 'generic';
-        const content = lastJsonMessage.data.message;
+      } 
+      // エージェント思考の処理 (agent_thought または agent-thought)
+      else if (lastJsonMessage.type === 'agent_thought' || lastJsonMessage.type === 'agent-thought') {
+        // データソースを安全に取得
+        const agentName: string = 
+          (lastJsonMessage.data && typeof lastJsonMessage.data.agentName === 'string')
+            ? lastJsonMessage.data.agentName
+            : (typeof lastJsonMessage.agentName === 'string')
+              ? lastJsonMessage.agentName
+              : '不明なエージェント';
+              
+        const agentType: string = 
+          (lastJsonMessage.data && typeof lastJsonMessage.data.agentType === 'string')
+            ? lastJsonMessage.data.agentType
+            : (typeof lastJsonMessage.agentType === 'string')
+              ? lastJsonMessage.agentType
+              : 'generic';
+        
+        // メッセージの優先順位: data.message > data.thought > message > thought
+        let content: string = '';
+        if (lastJsonMessage.data) {
+          if (typeof lastJsonMessage.data.message === 'string') {
+            content = lastJsonMessage.data.message;
+          } else if (typeof lastJsonMessage.data.thought === 'string') {
+            content = lastJsonMessage.data.thought;
+          }
+        }
+        
+        if (!content && typeof lastJsonMessage.message === 'string') {
+          content = lastJsonMessage.message;
+        } else if (!content && typeof lastJsonMessage.thought === 'string') {
+          content = lastJsonMessage.thought;
+        }
+        
+        if (!content) return;
         
         const newProcess: AgentProcess = {
           id: crypto.randomUUID(),
@@ -83,11 +124,44 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
           timestamp: new Date()
         };
         
+        console.log('エージェント処理を追加:', newProcess);
         setProcesses(prevProcesses => [...prevProcesses, newProcess]);
-      } else if (lastJsonMessage.type === 'crewai_progress') {
-        // CrewAIの進捗更新
-        const message = lastJsonMessage.data.message;
-        const progress = lastJsonMessage.data.progress || 0;
+        
+        // エージェント処理タブに自動的に切り替え
+        if (currentTab !== 'process') {
+          setCurrentTab('process');
+        }
+      } 
+      // 進捗更新の処理 (crewai_progress または progress-update)
+      else if (lastJsonMessage.type === 'crewai_progress' || lastJsonMessage.type === 'progress-update') {
+        // データソースを安全に取得
+        let message: string = '';
+        
+        // メッセージの優先順位: data.message > message > data.stage > stage
+        if (lastJsonMessage.data) {
+          if (typeof lastJsonMessage.data.message === 'string') {
+            message = lastJsonMessage.data.message;
+          } else if (typeof lastJsonMessage.data.stage === 'string') {
+            message = lastJsonMessage.data.stage;
+          }
+        }
+        
+        if (!message && typeof lastJsonMessage.message === 'string') {
+          message = lastJsonMessage.message;
+        } else if (!message && typeof lastJsonMessage.stage === 'string') {
+          message = lastJsonMessage.stage;
+        }
+        
+        if (!message) return;
+        
+        // 進捗情報の取得
+        const progress: number = 
+          (lastJsonMessage.data && typeof lastJsonMessage.data.progress === 'number')
+            ? lastJsonMessage.data.progress
+            : (typeof lastJsonMessage.progress === 'number')
+              ? lastJsonMessage.progress
+              : 0;
+        
         const progressMessage = `${message} (${progress}%)`;
         
         const newProcess: AgentProcess = {
@@ -98,12 +172,18 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
           timestamp: new Date()
         };
         
+        console.log('進捗処理を追加:', newProcess);
         setProcesses(prevProcesses => [...prevProcesses, newProcess]);
+        
+        // 進捗メッセージの場合も、エージェント処理タブに自動的に切り替え
+        if (currentTab !== 'process') {
+          setCurrentTab('process');
+        }
       }
     } catch (error) {
       console.error('WebSocketメッセージの処理中にエラーが発生しました:', error);
     }
-  }, [lastJsonMessage]);
+  }, [lastJsonMessage, currentTab]);
 
   // チャットミューテーション
   const sendMessageMutation = useMutation({
@@ -198,7 +278,10 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
 
   // エージェントアイコンを取得
   const getAgentIcon = (agentType: string) => {
-    switch (agentType.toLowerCase()) {
+    if (!agentType) return <Bot className="h-4 w-4" />;
+    
+    const type = agentType.toLowerCase();
+    switch (type) {
       case 'analyzer':
       case 'アナリスト':
         return <Brain className="h-4 w-4" />;
@@ -207,6 +290,7 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
         return <Network className="h-4 w-4" />;
       case 'coordinator':
       case 'オーケストレーター':
+      case 'orchestrator':
         return <Layers className="h-4 w-4" />;
       case 'domain_expert':
       case 'ドメインエキスパート':
