@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -237,149 +237,151 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           )}
           
           {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
-          <Panel 
-            defaultSize={20} 
-            minSize={leftPanelCollapsed ? 0 : leftPanelMinWidth} 
-            maxSize={leftPanelCollapsed ? 0 : 30}
-            className={`border-r ${leftPanelCollapsed ? 'hidden' : ''}`}
-            collapsible={true}
-            onResize={(size) => {
-              // パネルのサイズがminWidthよりも小さくなったら自動的に最小化
-              if (size < 8 && !leftPanelCollapsed) {
-                setLeftPanelCollapsed(true);
-                toast({
-                  title: "パネルを最小化",
-                  description: "情報収集プランパネルを最小化しました"
-                });
-              }
-            }}
-          >
-            <div className="h-full overflow-hidden flex flex-col bg-gray-50">
-              <div className="px-4 py-3 border-b bg-white flex justify-between items-center">
-                <h2 className="font-semibold text-sm">情報収集プラン</h2>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-5 w-5 p-0" 
-                  onClick={() => {
-                    const newState = !leftPanelCollapsed;
-                    setLeftPanelCollapsed(newState);
-                    
-                    // パネルを展開する場合は、メインパネルが最大化されていたら元に戻す
-                    if (newState === false && mainPanelMaximized) {
-                      setMainPanelMaximized(false);
-                    }
-                    
-                    if (newState === true) {
-                      toast({
-                        title: "パネルを最小化",
-                        description: "情報収集プランパネルを最小化しました"
-                      });
-                    } else {
-                      toast({
-                        title: "パネルを展開",
-                        description: "情報収集プランパネルを展開しました"
-                      });
-                    }
-                  }}
-                  title={leftPanelCollapsed ? "パネルを展開" : "パネルを最小化"}
-                >
-                  {leftPanelCollapsed ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
-                </Button>
-              </div>
+          {!leftPanelCollapsed && (
+            <>
+              <Panel
+                defaultSize={20} 
+                minSize={15} 
+                maxSize={30}
+                className="border-r"
+                onResize={(size) => {
+                  // パネルのサイズがminWidthよりも小さくなったら自動的に最小化
+                  if (size < 8 && !leftPanelCollapsed) {
+                    setLeftPanelCollapsed(true);
+                    toast({
+                      title: "パネルを最小化",
+                      description: "情報収集プランパネルを最小化しました"
+                    });
+                  }
+                }}
+              >
+                <div className="h-full overflow-hidden flex flex-col bg-gray-50">
+                  <div className="px-4 py-3 border-b bg-white flex justify-between items-center">
+                    <h2 className="font-semibold text-sm">情報収集プラン</h2>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-5 w-5 p-0" 
+                      onClick={() => {
+                        const newState = !leftPanelCollapsed;
+                        setLeftPanelCollapsed(newState);
+                        
+                        // パネルを展開する場合は、メインパネルが最大化されていたら元に戻す
+                        if (newState === false && mainPanelMaximized) {
+                          setMainPanelMaximized(false);
+                        }
+                        
+                        if (newState === true) {
+                          toast({
+                            title: "パネルを最小化",
+                            description: "情報収集プランパネルを最小化しました"
+                          });
+                        } else {
+                          toast({
+                            title: "パネルを展開",
+                            description: "情報収集プランパネルを展開しました"
+                          });
+                        }
+                      }}
+                      title={leftPanelCollapsed ? "パネルを展開" : "パネルを最小化"}
+                    >
+                      {leftPanelCollapsed ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
 
-              <div className="flex-1 overflow-auto p-4">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="text-left px-2 py-0.5 font-medium text-xs">プラン名</th>
-                      <th className="text-left px-2 py-0.5 font-medium text-xs">作成日</th>
-                      <th className="text-left px-2 py-0.5 font-medium text-xs">更新日</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockCollectionPlans.map((plan) => (
-                      <tr 
-                        key={plan.id}
-                        className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
-                        onClick={() => setSelectedPlan(plan.id)}
-                      >
-                        <td className="px-2 py-0.5 border-t border-gray-200 text-xs">プラン{plan.id.replace('plan', '')}</td>
-                        <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.createdAt}</td>
-                        <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.updatedAt}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="border-t mt-2 overflow-auto">
-                <div className="px-4 py-3 bg-white">
-                  <h2 className="font-semibold text-sm">プラン詳細</h2>
-                </div>
-                <div className="p-4 space-y-2">
-                  <div>
-                    <h3 className="text-sm font-medium">収集プラン</h3>
-                    <p className="text-sm">{mockPlanDetails.name}</p>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-medium">実行頻度</h3>
-                    <p className="text-sm">{mockPlanDetails.status}</p>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-medium">通知先</h3>
-                    <p className="text-sm">{mockPlanDetails.completion}</p>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-medium">利用するツール</h3>
-                    <div className="space-y-0.5 mt-1">
-                      {mockPlanDetails.tools.map((tool, index) => (
-                        <div key={index} className="text-sm">{tool}</div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mt-2">
-                      <table className="w-full text-xs mt-1 border-collapse border">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="text-left px-2 py-0.5 font-medium text-xs">ソース</th>
-                            <th className="text-left px-1 py-0.5 font-medium w-10 text-center text-xs">詳細</th>
+                  <div className="flex-1 overflow-auto p-4">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="text-left px-2 py-0.5 font-medium text-xs">プラン名</th>
+                          <th className="text-left px-2 py-0.5 font-medium text-xs">作成日</th>
+                          <th className="text-left px-2 py-0.5 font-medium text-xs">更新日</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mockCollectionPlans.map((plan) => (
+                          <tr 
+                            key={plan.id}
+                            className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
+                            onClick={() => setSelectedPlan(plan.id)}
+                          >
+                            <td className="px-2 py-0.5 border-t border-gray-200 text-xs">プラン{plan.id.replace('plan', '')}</td>
+                            <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.createdAt}</td>
+                            <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.updatedAt}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {mockPlanDetails.sources.map((source) => (
-                            <tr key={source.id} className="border-t">
-                              <td className="px-2 py-0.5 truncate text-xs" style={{ maxWidth: "120px" }}>
-                                メディア https://
-                              </td>
-                              <td className="px-1 py-0.5 text-center">
-                                <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
-                                  <ExternalLink className="h-3 w-3" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="border-t mt-2 overflow-auto">
+                    <div className="px-4 py-3 bg-white">
+                      <h2 className="font-semibold text-sm">プラン詳細</h2>
                     </div>
-                    <div className="text-right mt-1">
-                      <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
-                        <Plus className="h-3 w-3 mr-1" />
-                        追加
-                      </Button>
+                    <div className="p-4 space-y-2">
+                      <div>
+                        <h3 className="text-sm font-medium">収集プラン</h3>
+                        <p className="text-sm">{mockPlanDetails.name}</p>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium">実行頻度</h3>
+                        <p className="text-sm">{mockPlanDetails.status}</p>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium">通知先</h3>
+                        <p className="text-sm">{mockPlanDetails.completion}</p>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium">利用するツール</h3>
+                        <div className="space-y-0.5 mt-1">
+                          {mockPlanDetails.tools.map((tool, index) => (
+                            <div key={index} className="text-sm">{tool}</div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between mt-2">
+                          <table className="w-full text-xs mt-1 border-collapse border">
+                            <thead>
+                              <tr className="bg-gray-100">
+                                <th className="text-left px-2 py-0.5 font-medium text-xs">ソース</th>
+                                <th className="text-left px-1 py-0.5 font-medium w-10 text-center text-xs">詳細</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {mockPlanDetails.sources.map((source) => (
+                                <tr key={source.id} className="border-t">
+                                  <td className="px-2 py-0.5 truncate text-xs" style={{ maxWidth: "120px" }}>
+                                    メディア https://
+                                  </td>
+                                  <td className="px-1 py-0.5 text-center">
+                                    <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="text-right mt-1">
+                          <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
+                            <Plus className="h-3 w-3 mr-1" />
+                            追加
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </Panel>
-          
-          <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
+              </Panel>
+              <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
+            </>
+          )}
 
           {/* メインコンテンツエリア */}
           <Panel 
