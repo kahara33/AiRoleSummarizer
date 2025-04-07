@@ -501,6 +501,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roleModelsData = await db.select().from(roleModels).where(
         or(
           eq(roleModels.createdBy, user.id),
+          // is_shared = 1 の場合も表示
+          eq(roleModels.isShared, 1),
           user.organizationId ? eq(roleModels.organizationId, user.organizationId) : undefined
         )
       ).orderBy(desc(roleModels.createdAt));
@@ -590,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sharedRoleModelsData = await db.select().from(roleModels).where(
         and(
           eq(roleModels.organizationId, user.organizationId),
-          eq(roleModels.isShared, true)
+          eq(roleModels.isShared, 1)
         )
       ).orderBy(desc(roleModels.createdAt));
       
@@ -1133,8 +1135,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (hasIsSharedField) {
         updateData.isShared = isShared;
       } else {
-        // schemaにisSharedフィールドがない場合は代替のsharedフィールドを使用
-        updateData.shared = isShared === 1 ? true : false;
+        // isSharedフィールドを使用
+        updateData.isShared = isShared;
       }
       
       const result = await db
@@ -1190,13 +1192,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: 'ロールモデルが見つかりません' });
         }
         
-        // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
-        const tableColumns = Object.keys(roleModels);
-        const hasIsSharedField = tableColumns.includes('isShared');
-        const hasSharedField = tableColumns.includes('shared');
-        
-        const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                         hasSharedField ? roleModel.shared === true : false;
+        // 組織内共有の場合は、isSharedフィールドと組織IDをチェック
+        const isShared = roleModel.isShared === 1;
         
         if (
           roleModel.createdBy !== user.id && 
@@ -1259,13 +1256,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
-      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
-      const tableColumns = Object.keys(roleModels);
-      const hasIsSharedField = tableColumns.includes('isShared');
-      const hasSharedField = tableColumns.includes('shared');
-      
-      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                       hasSharedField ? roleModel.shared === true : false;
+      // 組織内共有の場合は、isSharedフィールドと組織IDをチェック
+      const isShared = roleModel.isShared === 1;
       
       if (
         roleModel.createdBy !== user.id && 
@@ -1311,13 +1303,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
-      // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
-      const tableColumns = Object.keys(roleModels);
-      const hasIsSharedField = tableColumns.includes('isShared');
-      const hasSharedField = tableColumns.includes('shared');
-      
-      const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                       hasSharedField ? roleModel.shared === true : false;
+      // 組織内共有の場合は、isSharedフィールドと組織IDをチェック
+      const isShared = roleModel.isShared === 1;
       
       if (
         roleModel.createdBy !== user.id && 
@@ -1378,7 +1365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         hasCreatedByField ? node.roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? node.roleModel.isShared === 1 : 
-                       hasSharedField ? node.roleModel.shared === true : false;
+                       hasSharedField ? node.roleModel.isShared === true : false;
       
       if (
         creatorId !== user.id && 
@@ -1607,7 +1594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                       hasSharedField ? roleModel.shared === true : false;
+                       hasSharedField ? roleModel.isShared === true : false;
       
       if (
         creatorId !== user.id && 
@@ -1745,7 +1732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                       hasSharedField ? roleModel.shared === true : false;
+                       hasSharedField ? roleModel.isShared === true : false;
       
       if (
         creatorId !== user.id && 
@@ -1825,7 +1812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                       hasSharedField ? roleModel.shared === true : false;
+                       hasSharedField ? roleModel.isShared === true : false;
       
       if (
         creatorId !== user.id && 
@@ -1940,7 +1927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         hasCreatedByField ? roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? roleModel.isShared === 1 : 
-                       hasSharedField ? roleModel.shared === true : false;
+                       hasSharedField ? roleModel.isShared === true : false;
       
       if (
         creatorId !== user.id && 

@@ -36,10 +36,15 @@ export const roleModels = pgTable('role_models', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   description: text('description'),
-  createdBy: uuid('created_by').references(() => users.id),
-  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  // 実際のデータベースでは user_id として定義されている
+  createdBy: uuid('user_id').references(() => users.id),
+  // 実際のデータベースでは company_id として定義されている
+  organizationId: uuid('company_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  // 共有設定フラグ
+  isShared: integer('is_shared').default(0),
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+  // データベースには updated_at が存在しない
+  // updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // 知識ノード
