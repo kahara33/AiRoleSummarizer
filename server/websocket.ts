@@ -12,10 +12,12 @@ const clients: Map<string, Set<WebSocket>> = new Map();
 
 // 進捗更新の型
 export type ProgressUpdateData = {
-  message: string;
-  progress: number;
-  stage: string;
-  subStage: string;
+  message?: string;
+  progress?: number;
+  stage?: string;
+  subStage?: string;
+  roleModelId?: string;
+  [key: string]: any;
 };
 
 /**
@@ -254,19 +256,45 @@ export function initWebSocket(server: HttpServer): void {
  * @param detailedData 詳細な進捗データ
  */
 export function sendProgressUpdate(
-  message: string,
-  progress: number,
-  roleModelId: string,
+  messageOrData: string | ProgressUpdateData,
+  progress?: number,
+  roleModelId?: string,
   detailedData?: ProgressUpdateData
 ): void {
-  const clientSet = clients.get(roleModelId);
+  // 古いシグネチャとの互換性のために入力パラメータをチェック
+  let message: string;
+  let progressValue: number;
+  let roleModelIdValue: string;
+  let detailedDataValue: ProgressUpdateData | undefined;
+  
+  // オブジェクト形式で呼び出された場合
+  if (typeof messageOrData === 'object') {
+    const data = messageOrData as ProgressUpdateData;
+    message = data.message || '';
+    progressValue = data.progress !== undefined ? data.progress : 0;
+    roleModelIdValue = data.roleModelId || '';
+    detailedDataValue = data;
+  } else {
+    // 従来の個別パラメータ形式で呼び出された場合
+    message = messageOrData;
+    progressValue = progress !== undefined ? progress : 0;
+    roleModelIdValue = roleModelId || '';
+    detailedDataValue = detailedData;
+  }
+  
+  // ロールモデルIDが未定義の場合は処理を中止
+  if (!roleModelIdValue) {
+    console.log('ロールモデルIDが指定されていないため、進捗更新を送信できません');
+    return;
+  }
+  const clientSet = clients.get(roleModelIdValue);
   if (!clientSet || clientSet.size === 0) {
-    console.log(`ロールモデル ${roleModelId} に接続されたクライアントはありません`);
+    console.log(`ロールモデル ${roleModelIdValue} に接続されたクライアントはありません`);
     return;
   }
 
   // 進捗を0-100の範囲に制限
-  const normalizedProgress = Math.min(100, Math.max(0, progress));
+  const normalizedProgress = Math.min(100, Math.max(0, progressValue));
   
   // データの統合（複数のクライアントライブラリでの互換性を確保）
   const data = {
@@ -274,11 +302,11 @@ export function sendProgressUpdate(
     message,
     progress: normalizedProgress,
     progress_update: normalizedProgress, // 後方互換性のため
-    roleModelId,
+    roleModelId: roleModelIdValue,
     timestamp: new Date().toISOString(),
-    stage: detailedData?.stage || 'processing',
-    subStage: detailedData?.subStage || '',
-    ...detailedData
+    stage: detailedDataValue?.stage || 'processing',
+    subStage: detailedDataValue?.subStage || '',
+    ...(detailedDataValue || {})
   };
 
   // 標準メッセージ形式のJSONを生成
@@ -292,8 +320,8 @@ export function sendProgressUpdate(
   });
 
   // 冗長なログは出力しない（進捗が5%以上変化した場合のみ出力）
-  if (progress % 5 === 0 || progress === 100) {
-    console.log(`進捗更新を送信: ${roleModelId}, ${normalizedProgress}%, "${message}"`);
+  if (normalizedProgress % 5 === 0 || normalizedProgress === 100) {
+    console.log(`進捗更新を送信: ${roleModelIdValue}, ${normalizedProgress}%, "${message}"`);
   }
 }
 

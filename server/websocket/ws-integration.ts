@@ -50,46 +50,37 @@ async function handleCreateKnowledgeGraph(roleModelId: string, payload: any): Pr
       roleModelId
     });
     
+    // まずはリアルタイムフィードバックのために初期メッセージを送信
     // ドメイン分析のデモメッセージ
-    setTimeout(() => {
-      sendAgentThoughts(
-        'ドメイン分析者',
-        `ドメイン分析を開始します。業界: ${industry}、キーワード: ${keywords.join(', ')}`,
-        roleModelId,
-        { step: 'domain_analysis' }
-      );
-    }, 1000);
-    
-    // 進捗更新
-    setTimeout(() => {
-      sendProgressUpdate({
-        message: 'ドメイン分析中...',
-        percent: 15,
-        roleModelId
-      });
-    }, 2000);
+    sendAgentThoughts(
+      'ドメイン分析者',
+      `ドメイン分析を開始します。業界: ${industry}、キーワード: ${keywords.join(', ')}の情報を収集します。`,
+      roleModelId,
+      { step: 'domain_analysis_start' }
+    );
     
     // トレンド調査のデモメッセージ
     setTimeout(() => {
       sendAgentThoughts(
         'トレンド調査者',
-        `トレンド調査を開始します。キーワード ${keywords[0]} に関連するトレンドを分析しています。`,
+        `トレンド調査を準備しています。キーワード「${keywords.join('」「')}」に関連するトレンドを分析するための準備をしています。`,
         roleModelId,
-        { step: 'trend_research' }
+        { step: 'trend_research_preparation' }
       );
-    }, 3000);
+    }, 1000);
     
-    // 進捗更新
+    // コンテキストマッパーのデモメッセージ
     setTimeout(() => {
-      sendProgressUpdate({
-        message: 'トレンド調査中...',
-        percent: 30,
-        roleModelId
-      });
-    }, 4000);
+      sendAgentThoughts(
+        'コンテキストマッパー',
+        `情報の構造化を準備しています。関連キーワードの関係性と階層構造を分析する準備をしています。`,
+        roleModelId,
+        { step: 'context_mapping_preparation' }
+      );
+    }, 2000);
     
     // CrewAIナレッジグラフ生成を開始
-    // 実際のCrewAI処理を開始
+    console.log('実際のCrewAI処理を開始します...');
     generateKnowledgeGraphWithCrewAI(
       'system', // システムユーザーとして実行（将来的にはWebSocketクライアントのユーザーIDを使用）
       roleModelId,
@@ -102,16 +93,24 @@ async function handleCreateKnowledgeGraph(roleModelId: string, payload: any): Pr
       console.error('CrewAIナレッジグラフ生成エラー:', error);
       
       // エラーメッセージを送信
-      const wss = getWebSocketServer();
-      if (wss) {
-        wss.sendToRoleModelViewers(roleModelId, {
-          type: 'crewai_error',
-          payload: {
-            message: 'ナレッジグラフの生成中にエラーが発生しました',
-            error: error.message
-          }
-        });
-      }
+      sendProgressUpdate({
+        message: `ナレッジグラフの生成中にエラーが発生しました: ${error.message}`,
+        percent: 0,
+        roleModelId
+      });
+      
+      // 詳細なエラー情報も送信
+      sendAgentThoughts(
+        'システム',
+        `エラーが発生しました: ${error.message}\n${error.stack || ''}`,
+        roleModelId,
+        { 
+          step: 'error',
+          error: true,
+          message: error.message,
+          stack: error.stack
+        }
+      );
     });
     
   } catch (error) {
