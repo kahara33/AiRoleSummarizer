@@ -63,7 +63,7 @@ const HomePage: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold">ロールモデル一覧</h2>
             <Button asChild>
-              <Link to="/role-models/new">
+              <Link to="/role-models">
                 <Plus className="h-4 w-4 mr-1" />
                 新規作成
               </Link>
@@ -103,7 +103,7 @@ const HomePage: React.FC = () => {
                 「新規作成」ボタンをクリックして、最初のロールを作成しましょう
               </p>
               <Button asChild>
-                <Link to="/role-models/new">
+                <Link to="/role-models">
                   <Plus className="h-4 w-4 mr-1" />
                   ロールを作成する
                 </Link>
@@ -112,7 +112,7 @@ const HomePage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {roleModels.map((roleModel) => (
-                <Link key={roleModel.id} to={`/role-model/${roleModel.id}/knowledge-graph`}>
+                <Link key={roleModel.id} to={`/knowledge-graph/${roleModel.id}`}>
                   <Card className="h-full cursor-pointer hover:shadow-md transition-shadow border border-gray-200">
                     <div className="p-6">
                       <div className="flex items-center justify-center h-14 w-14 bg-primary-100 rounded-lg mb-4">
