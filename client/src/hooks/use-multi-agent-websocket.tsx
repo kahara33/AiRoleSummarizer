@@ -5,9 +5,14 @@ type MessageType =
   | 'chat_message' 
   | 'agent_thought' 
   | 'agent-thought'
+  | 'agent-thoughts'
+  | 'agent_thoughts'
   | 'crewai_progress' 
   | 'progress-update'
-  | 'error';
+  | 'progress'
+  | 'error'
+  | 'connection'
+  | 'subscription_confirmed';
 
 // WebSocketメッセージの型定義
 interface JsonMessage {
@@ -17,6 +22,8 @@ interface JsonMessage {
     agentName?: string;
     agentType?: string;
     thought?: string;
+    thoughts?: string;
+    content?: string;
     progress?: number;
     stage?: string;
     error?: string;
@@ -25,9 +32,15 @@ interface JsonMessage {
   message?: string;
   agentName?: string;
   agentType?: string;
+  agent?: string;   // 後方互換性のため
+  agent_type?: string; // 後方互換性のため
   thought?: string;
+  thoughts?: string;
+  content?: string;
   progress?: number;
+  progress_update?: number; // 後方互換性のため
   stage?: string;
+  error?: string;
   roleModelId?: string;
 }
 

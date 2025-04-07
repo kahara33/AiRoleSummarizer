@@ -81,40 +81,64 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
         setMessages(prevMessages => [...prevMessages, newMessage]);
         setIsGenerating(false);
       } 
-      // エージェント思考の処理 (agent_thought または agent-thought)
-      else if (lastJsonMessage.type === 'agent_thought' || lastJsonMessage.type === 'agent-thought') {
+      // エージェント思考の処理 (複数のメッセージタイプに対応)
+      else if (
+        lastJsonMessage.type === 'agent_thought' || 
+        lastJsonMessage.type === 'agent-thought' ||
+        lastJsonMessage.type === 'agent_thoughts' || 
+        lastJsonMessage.type === 'agent-thoughts'
+      ) {
         // データソースを安全に取得
         const agentName: string = 
           (lastJsonMessage.data && typeof lastJsonMessage.data.agentName === 'string')
             ? lastJsonMessage.data.agentName
             : (typeof lastJsonMessage.agentName === 'string')
               ? lastJsonMessage.agentName
-              : '不明なエージェント';
+              : (typeof lastJsonMessage.agent === 'string')
+                ? lastJsonMessage.agent
+                : '不明なエージェント';
               
         const agentType: string = 
           (lastJsonMessage.data && typeof lastJsonMessage.data.agentType === 'string')
             ? lastJsonMessage.data.agentType
             : (typeof lastJsonMessage.agentType === 'string')
               ? lastJsonMessage.agentType
-              : 'generic';
+              : (typeof lastJsonMessage.agent_type === 'string')
+                ? lastJsonMessage.agent_type
+                : 'generic';
         
-        // メッセージの優先順位: data.message > data.thought > message > thought
+        // メッセージの優先順位で内容を取得
         let content: string = '';
+        // data内のフィールドをチェック
         if (lastJsonMessage.data) {
           if (typeof lastJsonMessage.data.message === 'string') {
             content = lastJsonMessage.data.message;
           } else if (typeof lastJsonMessage.data.thought === 'string') {
             content = lastJsonMessage.data.thought;
+          } else if (typeof lastJsonMessage.data.thoughts === 'string') {
+            content = lastJsonMessage.data.thoughts;
+          } else if (typeof lastJsonMessage.data.content === 'string') {
+            content = lastJsonMessage.data.content;
           }
         }
         
-        if (!content && typeof lastJsonMessage.message === 'string') {
-          content = lastJsonMessage.message;
-        } else if (!content && typeof lastJsonMessage.thought === 'string') {
-          content = lastJsonMessage.thought;
+        // ルートレベルのフィールドをチェック
+        if (!content) {
+          if (typeof lastJsonMessage.message === 'string') {
+            content = lastJsonMessage.message;
+          } else if (typeof lastJsonMessage.thought === 'string') {
+            content = lastJsonMessage.thought;
+          } else if (typeof lastJsonMessage.thoughts === 'string') {
+            content = lastJsonMessage.thoughts;
+          } else if (typeof lastJsonMessage.content === 'string') {
+            content = lastJsonMessage.content;
+          }
         }
         
-        if (!content) return;
+        if (!content) {
+          console.log('エージェント思考メッセージのコンテンツが見つかりません', lastJsonMessage);
+          return;
+        }
         
         const newProcess: AgentProcess = {
           id: crypto.randomUUID(),
@@ -132,12 +156,16 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
           setCurrentTab('process');
         }
       } 
-      // 進捗更新の処理 (crewai_progress または progress-update)
-      else if (lastJsonMessage.type === 'crewai_progress' || lastJsonMessage.type === 'progress-update') {
+      // 進捗更新の処理 (複数のメッセージタイプに対応)
+      else if (
+        lastJsonMessage.type === 'crewai_progress' || 
+        lastJsonMessage.type === 'progress-update' ||
+        lastJsonMessage.type === 'progress'
+      ) {
         // データソースを安全に取得
         let message: string = '';
         
-        // メッセージの優先順位: data.message > message > data.stage > stage
+        // メッセージの優先順位で進捗メッセージを取得
         if (lastJsonMessage.data) {
           if (typeof lastJsonMessage.data.message === 'string') {
             message = lastJsonMessage.data.message;
@@ -146,13 +174,18 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
           }
         }
         
-        if (!message && typeof lastJsonMessage.message === 'string') {
-          message = lastJsonMessage.message;
-        } else if (!message && typeof lastJsonMessage.stage === 'string') {
-          message = lastJsonMessage.stage;
+        if (!message) {
+          if (typeof lastJsonMessage.message === 'string') {
+            message = lastJsonMessage.message;
+          } else if (typeof lastJsonMessage.stage === 'string') {
+            message = lastJsonMessage.stage;
+          }
         }
         
-        if (!message) return;
+        if (!message) {
+          console.log('進捗メッセージのコンテンツが見つかりません', lastJsonMessage);
+          return;
+        }
         
         // 進捗情報の取得
         const progress: number = 
@@ -160,7 +193,9 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
             ? lastJsonMessage.data.progress
             : (typeof lastJsonMessage.progress === 'number')
               ? lastJsonMessage.progress
-              : 0;
+              : (typeof lastJsonMessage.progress_update === 'number')
+                ? lastJsonMessage.progress_update
+                : 0;
         
         const progressMessage = `${message} (${progress}%)`;
         
@@ -180,10 +215,51 @@ export default function MultiAgentChatPanel({ roleModelId }: MultiAgentChatPanel
           setCurrentTab('process');
         }
       }
+      // エラーメッセージの処理
+      else if (lastJsonMessage.type === 'error') {
+        // エラーメッセージの取得
+        let errorMessage: string = '';
+        
+        if (lastJsonMessage.data && typeof lastJsonMessage.data.error === 'string') {
+          errorMessage = lastJsonMessage.data.error;
+        } else if (typeof lastJsonMessage.error === 'string') {
+          errorMessage = lastJsonMessage.error;
+        } else if (typeof lastJsonMessage.message === 'string') {
+          errorMessage = lastJsonMessage.message;
+        } else {
+          errorMessage = 'エラーが発生しました';
+        }
+        
+        const newProcess: AgentProcess = {
+          id: crypto.randomUUID(),
+          agentName: 'エラー',
+          agentType: 'error',
+          content: errorMessage,
+          timestamp: new Date()
+        };
+        
+        console.error('エラー処理を追加:', newProcess);
+        setProcesses(prevProcesses => [...prevProcesses, newProcess]);
+        toast({
+          title: 'エラー',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        
+        setIsGenerating(false);
+      }
+      // 接続または購読確認メッセージ
+      else if (lastJsonMessage.type === 'connection' || lastJsonMessage.type === 'subscription_confirmed') {
+        console.log('WebSocket接続状態メッセージ:', lastJsonMessage.type, lastJsonMessage.message);
+      }
+      // 処理されないメッセージタイプ
+      else {
+        console.log('未処理のメッセージタイプ:', lastJsonMessage.type, lastJsonMessage);
+      }
     } catch (error) {
       console.error('WebSocketメッセージの処理中にエラーが発生しました:', error);
     }
-  }, [lastJsonMessage, currentTab]);
+  }, [lastJsonMessage, currentTab, toast]);
 
   // チャットミューテーション
   const sendMessageMutation = useMutation({

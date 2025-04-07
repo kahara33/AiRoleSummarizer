@@ -24,6 +24,8 @@ export type ProgressUpdateData = {
  */
 export function initWebSocket(server: HttpServer): void {
   try {
+    console.log('WebSocketサーバーを初期化しています...');
+    
     // WebSocketServerの作成
     wss = new WebSocketServer({ 
       server, 
@@ -369,10 +371,13 @@ export function sendAgentThoughts(
   const data = {
     type: 'agent-thoughts',
     agent_thoughts: true, // 後方互換性のため
+    agent_thought: true, // 別の互換性形式
     agentName,
     agent: agentName, // 後方互換性のため
     agent_type: detailedData?.agentType || 'PlannerAgent',
+    agentType: detailedData?.agentType || 'PlannerAgent', // 後方互換性のため
     thoughts,
+    thought: thoughts, // 後方互換性のため
     message: thoughts, // 後方互換性のため
     content: thoughts, // 後方互換性のため
     thinking: detailedData?.thinking || [{

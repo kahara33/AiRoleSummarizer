@@ -68,6 +68,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
   initWebSocket(httpServer);
   
   // API エンドポイントの設定
+  
+  // チャットAPI エンドポイント
+  app.post('/api/chat/:roleModelId', async (req: Request, res: Response) => {
+    const { roleModelId } = req.params;
+    const { message } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'メッセージは必須です' });
+    }
+
+    try {
+      console.log(`[CHAT API] メッセージを受信しました: roleModelId=${roleModelId}, message="${message.substring(0, 50)}..."`);
+      
+      // WebSocketを使用してエージェント思考のデモ送信
+      if (message.includes('エージェント') || message.includes('グラフ') || message.includes('作成') || message.includes('収集')) {
+        console.log(`[CHAT API] エージェント思考プロセスのデモ表示を開始します`);
+        
+        // Orchestratorエージェントの思考を送信
+        setTimeout(() => {
+          sendAgentThoughts(
+            'Orchestrator', 
+            `質問「${message}」を受け取りました。分析を開始します。`, 
+            roleModelId,
+            { agentType: 'orchestrator' }
+          );
+        }, 500);
+        
+        // AnalyzerAgentの思考を送信
+        setTimeout(() => {
+          sendAgentThoughts(
+            'AnalyzerAgent', 
+            `質問を解析しています:\n「${message}」\n\nこの質問は知識グラフの構造に関連していると判断しました。`, 
+            roleModelId,
+            { agentType: 'analyzer' }
+          );
+        }, 1500);
+        
+        // 進捗更新を送信
+        setTimeout(() => {
+          sendProgressUpdate(
+            '情報収集を実行中...', 
+            25, 
+            roleModelId
+          );
+        }, 2500);
+        
+        // ResearcherAgentの思考を送信
+        setTimeout(() => {
+          sendAgentThoughts(
+            'ResearcherAgent', 
+            `関連情報を収集しています。\n\n・ナレッジグラフは知識の構造化に有効\n・複数のエージェントが協調して処理`, 
+            roleModelId,
+            { agentType: 'researcher' }
+          );
+        }, 3500);
+        
+        // 別の進捗更新を送信
+        setTimeout(() => {
+          sendProgressUpdate(
+            '情報の構造化を実行中...', 
+            55, 
+            roleModelId
+          );
+        }, 4500);
+        
+        // DomainExpertAgentの思考を送信
+        setTimeout(() => {
+          sendAgentThoughts(
+            'DomainExpertAgent', 
+            `専門的な視点からの分析:\n\nマルチエージェントシステムは複数のAIが連携して効率的に問題解決を行うアーキテクチャです。`, 
+            roleModelId,
+            { agentType: 'domain_expert' }
+          );
+        }, 5500);
+        
+        // 最終進捗更新を送信
+        setTimeout(() => {
+          sendProgressUpdate(
+            '回答の生成中...', 
+            85, 
+            roleModelId
+          );
+        }, 6500);
+      }
+
+      // 実際のレスポンスを生成 (今回はモックレスポンス)
+      const response = `あなたの質問「${message}」に関する回答です。マルチエージェントシステムを使用して分析した結果、この質問に対する答えは...\n\n知識グラフは情報の関連性を視覚化し、複数のAIエージェントがそれぞれの専門知識を活かして協調的に問題を解決します。`;
+
+      console.log(`[CHAT API] 応答生成完了`);
+      
+      // クライアントにJSONレスポンスを送信
+      res.json({ message: response });
+      
+      // WebSocketを通じてクライアントに応答を送信
+      try {
+        // チャットメッセージをブロードキャスト
+        sendMessageToRoleModelViewers(response, 'chat_message', {
+          roleModelId
+        });
+        
+        console.log(`[CHAT API] WebSocketメッセージが送信されました`);
+      } catch (wsError) {
+        console.error(`[CHAT API] WebSocket送信エラー:`, wsError);
+      }
+      
+      // 処理完了メッセージを送信
+      setTimeout(() => {
+        sendProgressUpdate(
+          '処理が完了しました', 
+          100, 
+          roleModelId
+        );
+      }, 7500);
+      
+    } catch (err) {
+      console.error('チャットリクエストエラー:', err);
+      res.status(500).json({
+        error: 'チャットリクエストの処理中にエラーが発生しました'
+      });
+    }
+  });
+  
   // システム状態の確認
   app.get('/api/status', (req, res) => {
     res.json({
