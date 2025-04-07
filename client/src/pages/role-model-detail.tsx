@@ -196,6 +196,11 @@ export default function RoleModelDetailPage({ id }: RoleModelDetailPageProps) {
                 知識グラフを表示
               </Button>
             </Link>
+            <Link href={`/notebook/${roleModelId}`}>
+              <Button variant="outline">
+                ノートブックを表示
+              </Button>
+            </Link>
             <Button 
               variant="destructive" 
               size="icon"

@@ -1,181 +1,210 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Search, FileText, Eye } from 'lucide-react';
-import { CollectionSummary } from '@shared/schema';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, ThumbsUp, Tag, ExternalLink, ArrowRight } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface SummaryPanelProps {
   planId: string | null;
+  onSelectSummary: (summaryId: string) => void;
   selectedSummaryId: string | null;
-  onSelectSummary: (summaryId: string | null) => void;
-  onViewExecution: (executionId: string | null) => void;
+  onViewExecution?: (executionId: string) => void;
 }
 
-export function SummaryPanel({ 
-  planId, 
-  selectedSummaryId,
+interface Summary {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  executionId: string;
+  feedback: number;
+  tags: { id: string; name: string; category: string }[];
+}
+
+export function SummaryPanel({
+  planId,
   onSelectSummary,
+  selectedSummaryId,
   onViewExecution
 }: SummaryPanelProps) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'all' | 'daily' | 'weekly' | 'monthly'>('all');
 
-  // 要約結果の取得
-  const { data: summaries, isLoading } = useQuery({
-    queryKey: ['/api/collection-summaries', planId],
+  // 要約一覧の取得
+  const { data: summaries, isLoading, error } = useQuery<Summary[]>({
+    queryKey: ['/api/summaries', planId, viewMode],
     queryFn: async () => {
       if (!planId) return [];
-      
-      const res = await apiRequest('GET', `/api/collection-summaries?planId=${planId}`);
+      const url = `/api/summaries?planId=${planId}${viewMode !== 'all' ? `&type=${viewMode}` : ''}`;
+      const res = await apiRequest('GET', url);
       return await res.json();
     },
     enabled: !!planId,
   });
 
-  // 選択された要約の詳細取得
-  const { data: summaryDetail } = useQuery({
-    queryKey: ['/api/collection-summaries', selectedSummaryId],
-    queryFn: async () => {
-      if (!selectedSummaryId) return null;
-      
-      const res = await apiRequest('GET', `/api/collection-summaries/${selectedSummaryId}`);
-      return await res.json();
-    },
-    enabled: !!selectedSummaryId,
-  });
-
-  // 検索フィルター
-  const filteredSummaries = summaries ? summaries.filter((summary: CollectionSummary) => {
-    return !searchTerm || summary.title.toLowerCase().includes(searchTerm.toLowerCase());
-  }) : [];
-
-  // ソース表示ハンドラー
-  const handleViewSources = (executionId: string) => {
-    onViewExecution(executionId);
-  };
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full">
-      {/* 要約リスト */}
-      <div className="col-span-1 md:col-span-4 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="要約を検索..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+  // ローディング表示
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">要約一覧</h2>
         </div>
-
-        <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-2">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          ) : !planId ? (
-            <div className="text-center p-8 bg-muted/50 rounded-lg">
-              情報収集プランを選択してください
-            </div>
-          ) : filteredSummaries.length === 0 ? (
-            <div className="text-center p-8 bg-muted/50 rounded-lg">
-              {searchTerm ? '検索条件に一致する要約はありません' : 'このプランの要約結果はまだありません'}
-            </div>
-          ) : (
-            filteredSummaries.map((summary: CollectionSummary) => (
-              <Card 
-                key={summary.id}
-                className={`cursor-pointer hover:border-primary/50 transition-colors ${
-                  summary.id === selectedSummaryId ? 'border-primary' : ''
-                }`}
-                onClick={() => onSelectSummary(summary.id)}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{summary.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  <div className="flex items-center text-xs text-muted-foreground mb-1">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    {new Date(summary.generatedAt).toLocaleString('ja-JP')}
-                  </div>
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <FileText className="h-3 w-3 mr-1" />
-                    情報ソース: {summary.sourceIds?.length || 0}件
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-0">
-                  <div className="flex flex-wrap gap-1">
-                    {summary.keyTopics?.slice(0, 3).map((topic, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {topic}
-                      </Badge>
-                    ))}
-                    {summary.keyTopics?.length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{summary.keyTopics.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                </CardFooter>
-              </Card>
-            ))
-          )}
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-24 w-full" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
-      
-      {/* 要約詳細 */}
-      <div className="col-span-1 md:col-span-8 border rounded-lg overflow-hidden">
-        {!selectedSummaryId ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">要約を選択してください</h3>
-            <p className="text-muted-foreground mt-2">
-              左側のリストから要約を選択すると、ここに詳細が表示されます
+    );
+  }
+
+  // エラー表示
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">要約一覧</h2>
+        </div>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-destructive">要約データの取得に失敗しました</p>
+            <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+              再読み込み
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // プランが選択されていない場合
+  if (!planId) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-muted-foreground">情報収集プランを選択してください</p>
+      </div>
+    );
+  }
+
+  // 要約がない場合
+  if (summaries?.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">要約一覧</h2>
+        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">
+              まだ要約がありません。情報収集を実行すると、ここに要約が表示されます。
             </p>
-          </div>
-        ) : !summaryDetail ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-          </div>
-        ) : (
-          <div className="flex flex-col h-full">
-            <div className="p-4 border-b bg-muted/30">
-              <h2 className="text-xl font-semibold">{summaryDetail.title}</h2>
-              <div className="flex items-center justify-between mt-2">
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">要約一覧</h2>
+        <Tabs defaultValue="all" onValueChange={(v) => setViewMode(v as any)}>
+          <TabsList>
+            <TabsTrigger value="all">すべて</TabsTrigger>
+            <TabsTrigger value="daily">日次</TabsTrigger>
+            <TabsTrigger value="weekly">週次</TabsTrigger>
+            <TabsTrigger value="monthly">月次</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <div className="space-y-4">
+        {summaries?.map((summary) => (
+          <Card 
+            key={summary.id} 
+            className={`cursor-pointer transition-colors ${
+              selectedSummaryId === summary.id ? 'ring-2 ring-primary' : 'hover:bg-muted/50'
+            }`}
+            onClick={() => onSelectSummary(summary.id)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-lg">{summary.title}</CardTitle>
                 <div className="flex items-center text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4 mr-1" />
-                  {new Date(summaryDetail.generatedAt).toLocaleString('ja-JP')}
+                  <Calendar className="h-3.5 w-3.5 mr-1" />
+                  {new Date(summary.createdAt).toLocaleDateString('ja-JP')}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center"
-                  onClick={() => handleViewSources(summaryDetail.executionId)}
-                >
-                  <Eye className="h-4 w-4 mr-1" />
-                  情報ソースを表示
-                </Button>
               </div>
-              <div className="flex flex-wrap gap-1 mt-2">
-                {summaryDetail.keyTopics?.map((topic, index) => (
-                  <Badge key={index} variant="secondary">
-                    {topic}
+              <div className="flex flex-wrap gap-1 mt-1">
+                {summary.tags?.slice(0, 3).map((tag) => (
+                  <Badge key={tag.id} variant="outline" className="text-xs">
+                    {tag.name}
                   </Badge>
                 ))}
+                {summary.tags?.length > 3 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{summary.tags.length - 3}
+                  </Badge>
+                )}
               </div>
-            </div>
-            <div className="flex-1 p-4 overflow-auto">
-              <div className="prose max-w-none">
-                {summaryDetail.content.split('\n').map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                {summary.content.substring(0, 200)}...
+              </p>
+            </CardContent>
+            <CardFooter className="border-t pt-3 flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                {summary.feedback > 0 && (
+                  <div className="flex items-center text-green-500">
+                    <ThumbsUp className="h-3.5 w-3.5 mr-1" />
+                    <span className="text-xs">フィードバック済み</span>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-        )}
+              <div className="flex space-x-2">
+                {onViewExecution && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="flex items-center text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewExecution(summary.executionId);
+                    }}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    情報ソース
+                  </Button>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="flex items-center text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectSummary(summary.id);
+                  }}
+                >
+                  詳細を見る
+                  <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
+        ))}
       </div>
     </div>
   );

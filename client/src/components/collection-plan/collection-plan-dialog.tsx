@@ -49,13 +49,15 @@ type FormValues = z.infer<typeof collectionPlanFormSchema>;
 interface CollectionPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  planId: string | null;
+  planId?: string | null;
+  roleModelId?: string;
 }
 
 export function CollectionPlanDialog({
   open,
   onOpenChange,
   planId,
+  roleModelId,
 }: CollectionPlanDialogProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -114,7 +116,7 @@ export function CollectionPlanDialog({
     } else if (open) {
       form.reset({
         title: '',
-        roleModelId: '',
+        roleModelId: roleModelId || '',
         frequency: 'daily',
         enabledTools: ['google_search'],
         customSites: '',
@@ -126,7 +128,7 @@ export function CollectionPlanDialog({
         webhookType: 'slack',
       });
     }
-  }, [planDetails, open, form]);
+  }, [planDetails, open, form, roleModelId]);
 
   // プラン作成/更新のミューテーション
   const mutation = useMutation({

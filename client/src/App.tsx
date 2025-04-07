@@ -13,6 +13,7 @@ import OrganizationsPage from '@/pages/organizations';
 import RoleModelsPage from '@/pages/role-models';
 import RoleModelDetailPage from '@/pages/role-model-detail';
 import SettingsPage from '@/pages/settings';
+import NotebookPage from '@/pages/notebook-page';
 import { ComponentProps } from '@/lib/types';
 
 // QueryClientの設定
@@ -44,6 +45,11 @@ const KnowledgeGraphPageComponent = (props: ComponentProps) => (
   <KnowledgeGraphPage id={props.params?.id} />
 );
 
+// ノートブックページコンポーネント
+const NotebookPageComponent = (props: ComponentProps) => (
+  <NotebookPage roleModelId={props.params?.id || ''} />
+);
+
 const AppRoutes: React.FC = () => {
   const [location] = useLocation();
   const isAuthPage = location === '/auth';
@@ -63,6 +69,7 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute path="/role-models" component={RoleModelsPageComponent} />
             <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPageComponent} />
             <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
+            <ProtectedRoute path="/notebook/:id" component={NotebookPageComponent} />
             <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
             <Route component={NotFoundPage} />
           </Switch>
