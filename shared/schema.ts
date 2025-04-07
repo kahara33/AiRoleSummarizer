@@ -73,11 +73,24 @@ export const knowledgeEdges = pgTable('knowledge_edges', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// キーワード
+export const keywords = pgTable('keywords', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  parentId: uuid('parent_id').references(() => keywords.id, { onDelete: 'set null' }),
+  createdBy: uuid('created_by').references(() => users.id),
+  isCommon: boolean('is_common').default(false),
+  status: text('status').default('active'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
 // ロールモデルとキーワードの関連付け
 export const roleModelKeywords = pgTable('role_model_keywords', {
   id: uuid('id').primaryKey().defaultRandom(),
   roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
-  keyword: text('keyword').notNull(),
+  keywordId: uuid('keyword_id').references(() => keywords.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow()
 });
 
@@ -183,6 +196,12 @@ export const insertKnowledgeEdgeSchema = createInsertSchema(knowledgeEdges).omit
   updatedAt: true
 });
 
+export const insertKeywordSchema = createInsertSchema(keywords).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 export const insertRoleModelKeywordSchema = createInsertSchema(roleModelKeywords).omit({
   id: true,
   createdAt: true
@@ -226,6 +245,7 @@ export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type InsertRoleModel = z.infer<typeof insertRoleModelSchema>;
 export type InsertKnowledgeNode = z.infer<typeof insertKnowledgeNodeSchema>;
 export type InsertKnowledgeEdge = z.infer<typeof insertKnowledgeEdgeSchema>;
+export type InsertKeyword = z.infer<typeof insertKeywordSchema>;
 export type InsertRoleModelKeyword = z.infer<typeof insertRoleModelKeywordSchema>;
 export type InsertRoleModelIndustry = z.infer<typeof insertRoleModelIndustrySchema>;
 export type InsertIndustry = z.infer<typeof insertIndustrySchema>;
@@ -242,6 +262,7 @@ export type Organization = typeof organizations.$inferSelect;
 export type RoleModel = typeof roleModels.$inferSelect;
 export type KnowledgeNode = typeof knowledgeNodes.$inferSelect;
 export type KnowledgeEdge = typeof knowledgeEdges.$inferSelect;
+export type Keyword = typeof keywords.$inferSelect;
 export type RoleModelKeyword = typeof roleModelKeywords.$inferSelect;
 export type RoleModelIndustry = typeof roleModelIndustries.$inferSelect;
 export type Industry = typeof industries.$inferSelect;

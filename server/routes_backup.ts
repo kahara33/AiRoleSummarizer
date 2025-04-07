@@ -527,14 +527,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
       
       // 業界IDsの抽出
-      // キーワードIDsの抽出
-      const keywordIds = keywordRelations.map(rel => rel.keywordId).filter(Boolean);
-      
-      // キーワードデータの取得
-      const keywordsData = keywordIds.length ? 
-        await db.select().from(keywords).where(inArray(keywords.id, keywordIds)) : 
-        [];
-      
       const industryIds = industryRelations.map(rel => rel.industryId);
       
       // 業界データの取得
@@ -550,16 +542,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const organization = orgs.find(o => o.id === model.organizationId);
         
         // このロールモデルのキーワード
-        const modelKeywordIds = keywordRelations
+        const keywords = keywordRelations
           .filter(rel => rel.roleModelId === model.id)
-          .map(rel => rel.keywordId)
-          .filter(Boolean);
-          
-        // キーワード名の取得
-        const keywords = modelKeywordIds.map(id => {
-          const keyword = keywordsData.find(k => k.id === id);
-          return keyword ? keyword.name : null;
-        }).filter(Boolean);
+          .map(rel => rel.keyword);
         
         // このロールモデルの業界リレーション
         const modelIndustryRels = industryRelations.filter(rel => rel.roleModelId === model.id);
@@ -651,16 +636,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const organization = orgs.find(o => o.id === model.organizationId);
         
         // このロールモデルのキーワード
-        const modelKeywordIds = keywordRelations
+        const keywords = keywordRelations
           .filter(rel => rel.roleModelId === model.id)
-          .map(rel => rel.keywordId)
-          .filter(Boolean);
-          
-        // キーワード名の取得
-        const keywords = modelKeywordIds.map(id => {
-          const keyword = keywordsData.find(k => k.id === id);
-          return keyword ? keyword.name : null;
-        }).filter(Boolean);
+          .map(rel => rel.keyword);
         
         // このロールモデルの業界リレーション
         const modelIndustryRels = industryRelations.filter(rel => rel.roleModelId === model.id);
@@ -744,7 +722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: roleModel.organization.name,
         } : null,
         industries: roleModel.industries.map(rel => rel.industry),
-        keywords: roleModel.keywords.map(rel => rel.keywordId),
+        keywords: roleModel.keywords.map(rel => rel.keyword),
       };
       
       res.json(safeRoleModel);
@@ -796,7 +774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 産業と業界名を抽出
       const industries = roleModel.industries.map(rel => rel.industry.name);
-      const keywords = roleModel.keywords.map(rel => rel.keywordId.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword.name);
 
       // 非同期処理を開始し、すぐにレスポンスを返す
       res.json({ 
@@ -863,7 +841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 産業と業界名を抽出
       const industries = roleModel.industries.map(rel => rel.industry.name);
-      const keywords = roleModel.keywords.map(rel => rel.keywordId.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword.name);
 
       // 非同期処理を開始し、すぐにレスポンスを返す
       res.json({ 
