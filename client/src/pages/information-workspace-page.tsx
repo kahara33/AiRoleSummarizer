@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FolderOpenDot, List, Maximize2, Minimize2 } from 'lucide-react';
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SourcesList } from '@/components/collection-plan/sources-list';
@@ -9,6 +9,7 @@ import { SummaryPanel } from '@/components/summary/summary-panel';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'wouter';
 import ChatPanel from '@/components/chat/ChatPanel';
+import { Separator } from '@/components/ui/separator';
 
 export default function InformationWorkspacePage() {
   const params = useParams();
@@ -25,6 +26,9 @@ export default function InformationWorkspacePage() {
   // 実行ID
   const [currentExecutionId, setCurrentExecutionId] = useState<string | null>(null);
 
+  // 左パネルのアクティブタブ
+  const [leftPanelTab, setLeftPanelTab] = useState<'plans' | 'sources'>('plans');
+
   // ロールモデルの取得
   const { data: roleModel } = useQuery<{ name: string }>({
     queryKey: ['/api/role-models', roleModelId],
@@ -34,14 +38,14 @@ export default function InformationWorkspacePage() {
   });
 
   // 左パネルの幅
-  const leftPanelWidth = leftPanelCollapsed ? '50px' : '300px';
+  const leftPanelWidth = leftPanelCollapsed ? '50px' : '350px';
   
   // 右パネルの幅
   const rightPanelWidth = rightPanelCollapsed ? '50px' : '300px';
 
   return (
     <div className="flex h-screen">
-      {/* 左側パネル - 情報収集プラン */}
+      {/* 左側パネル - 情報収集プランとソース一覧 */}
       <div 
         className="flex flex-col border-r transition-all duration-300 ease-in-out bg-background"
         style={{ width: leftPanelWidth }}
@@ -58,14 +62,14 @@ export default function InformationWorkspacePage() {
             </Button>
             <div className="flex-1 flex flex-col items-center justify-center">
               <div className="rotate-90 whitespace-nowrap text-muted-foreground font-medium">
-                情報収集プラン
+                情報収集管理
               </div>
             </div>
           </div>
         ) : (
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-between p-3 border-b">
-              <h2 className="font-semibold">情報収集プラン</h2>
+              <h2 className="font-semibold">情報収集管理</h2>
               <Button
                 variant="ghost"
                 size="icon"
@@ -74,11 +78,60 @@ export default function InformationWorkspacePage() {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </div>
+            <div className="p-2 border-b">
+              <TabsList className="w-full grid grid-cols-2">
+                <TabsTrigger 
+                  value="plans" 
+                  className={leftPanelTab === 'plans' ? 'data-[state=active]:bg-primary' : ''}
+                  onClick={() => setLeftPanelTab('plans')}
+                >
+                  <FolderOpenDot className="h-4 w-4 mr-2" />
+                  収集プラン
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="sources" 
+                  className={leftPanelTab === 'sources' ? 'data-[state=active]:bg-primary' : ''}
+                  onClick={() => setLeftPanelTab('sources')}
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  ソース一覧
+                </TabsTrigger>
+              </TabsList>
+            </div>
             <div className="flex-1 overflow-auto">
-              <CollectionPlanPanel 
-                onSelectPlan={setSelectedPlanId}
-                selectedPlanId={selectedPlanId}
-              />
+              {leftPanelTab === 'plans' ? (
+                <CollectionPlanPanel 
+                  onSelectPlan={(planId) => {
+                    setSelectedPlanId(planId);
+                    // プランが選択されたらソースタブに自動で切り替え
+                    if (planId) setLeftPanelTab('sources');
+                  }}
+                  selectedPlanId={selectedPlanId}
+                />
+              ) : (
+                <div className="p-3">
+                  <h3 className="font-medium text-sm mb-2">情報ソース一覧</h3>
+                  {selectedPlanId ? (
+                    <SourcesList 
+                      planId={selectedPlanId} 
+                      executionId={currentExecutionId || undefined}
+                      compact={true}
+                    />
+                  ) : (
+                    <div className="py-6 text-center text-muted-foreground text-sm">
+                      <p>収集プランを選択してください</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-2"
+                        onClick={() => setLeftPanelTab('plans')}
+                      >
+                        プラン一覧を表示
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
