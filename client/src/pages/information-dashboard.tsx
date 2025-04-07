@@ -15,7 +15,9 @@ import {
   ExternalLink, 
   RefreshCw,
   BrainCircuit,
-  Sparkles
+  Sparkles,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 // react-resizable-panelsのインポート
@@ -51,6 +53,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
   const [showAgentPanel, setShowAgentPanel] = useState<boolean>(true); // デフォルトで表示
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState<boolean>(false);
+  const [mainPanelMaximized, setMainPanelMaximized] = useState<boolean>(false);
   const { toast } = useToast();
 
   // WebSocketメッセージを処理
@@ -62,6 +66,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       setShowAgentPanel(true);
     }
   }, [agentThoughts]);
+  
+  // パネルの状態が変更されたときにグラフビューアのサイズを調整
+  useEffect(() => {
+    // 必要があればリサイズイベントを強制的に発火させる
+    window.dispatchEvent(new Event('resize'));
+  }, [leftPanelCollapsed, mainPanelMaximized, showAgentPanel]);
   
   // メッセージ送信関数
   const handleSendMessage = (message: string) => {
@@ -168,10 +178,33 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal">
           {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
-          <Panel defaultSize={20} minSize={15} className="border-r">
+          <Panel 
+            defaultSize={20} 
+            minSize={leftPanelCollapsed ? 0 : 15} 
+            maxSize={leftPanelCollapsed ? 0 : 30} 
+            className={`border-r ${leftPanelCollapsed ? 'hidden' : ''}`}
+            collapsible={true}
+          >
             <div className="h-full overflow-auto flex flex-col bg-gray-50">
-              <div className="p-3 border-b bg-white">
+              <div className="p-3 border-b bg-white flex justify-between items-center">
                 <h2 className="font-semibold">情報収集プラン</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0" 
+                  onClick={() => {
+                    setLeftPanelCollapsed(!leftPanelCollapsed);
+                    if (!leftPanelCollapsed) {
+                      toast({
+                        title: "パネルを最小化",
+                        description: "情報収集プランパネルを最小化しました"
+                      });
+                    }
+                  }}
+                  title={leftPanelCollapsed ? "パネルを展開" : "パネルを最小化"}
+                >
+                  {leftPanelCollapsed ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+                </Button>
               </div>
 
               <div className="overflow-auto">
@@ -268,7 +301,10 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
 
           {/* メインコンテンツエリア */}
-          <Panel defaultSize={showAgentPanel ? 50 : 80} className="flex flex-col">
+          <Panel 
+            defaultSize={showAgentPanel ? 50 : 80}
+            className={`flex flex-col z-10 ${mainPanelMaximized ? 'flex-grow' : ''}`}
+          >
             <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="border-b bg-white flex justify-between items-center">
                 <TabsList className="h-10 border-b-0 bg-transparent">
@@ -283,19 +319,48 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   </TabsTrigger>
                 </TabsList>
                 
-                {/* CrewAIで知識グラフを生成するボタン */}
-                {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
-                  <Button
-                    onClick={() => generateGraphMutation.mutate()}
-                    disabled={generateGraphMutation.isPending}
-                    variant="outline"
-                    className="mr-2 text-sm"
-                    size="sm"
+                <div className="flex items-center gap-2">
+                  {/* CrewAIで知識グラフを生成するボタン */}
+                  {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
+                    <Button
+                      onClick={() => generateGraphMutation.mutate()}
+                      disabled={generateGraphMutation.isPending}
+                      variant="outline"
+                      className="text-sm"
+                      size="sm"
+                    >
+                      <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
+                      {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
+                    </Button>
+                  )}
+                  
+                  {/* 最大化/最小化ボタン */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 w-7 p-0 mr-2" 
+                    onClick={() => {
+                      setMainPanelMaximized(!mainPanelMaximized);
+                      if (!mainPanelMaximized) {
+                        setLeftPanelCollapsed(true);
+                        setShowAgentPanel(false);
+                        toast({
+                          title: "コンテンツを最大化",
+                          description: "ナレッジグラフを全画面表示にしました"
+                        });
+                      } else {
+                        setLeftPanelCollapsed(false);
+                        toast({
+                          title: "通常表示に戻す",
+                          description: "レイアウトを元に戻しました"
+                        });
+                      }
+                    }}
+                    title={mainPanelMaximized ? "通常表示に戻す" : "最大化して表示"}
                   >
-                    <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                    {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
+                    {mainPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                   </Button>
-                )}
+                </div>
               </div>
               
               {/* ナレッジグラフタブ */}
@@ -334,7 +399,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           {showAgentPanel && (
             <>
               <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
-              <Panel defaultSize={30} minSize={20} className="border-l">
+              <Panel 
+                defaultSize={30} 
+                minSize={20} 
+                className="border-l relative z-10"
+              >
                 <div className="h-full flex flex-col bg-gray-50">
                   <div className="p-3 border-b bg-white flex justify-between items-center">
                     <div className="flex items-center">
