@@ -58,7 +58,7 @@ async function initializeAdminUser() {
         });
         
         if (existingOrganization) {
-          organizationId = existingOrganization.id;
+          organizationId = String(existingOrganization.id);
         } else {
           // 実際のテーブル構造に合わせたクエリ
           const insertResult = await pool.query(`

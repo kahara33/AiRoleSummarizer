@@ -2,7 +2,6 @@
  * クリティカルシンカーエージェントのツール
  * 各エージェントの提案を批判的に評価、盲点の発見と品質保証を担当
  */
-import { Tool } from 'crewai-js';
 
 // AI/LLMサービスとの連携用関数（実際の実装は別ファイルで行う）
 import { 
@@ -11,12 +10,15 @@ import {
   generateExplanation
 } from '../../../ai-services';
 
+// CrewAI-JSのAPIが変更されているようなので、ベーシックなオブジェクト形式で定義
 export const CriticalThinkerTools = [
   {
     name: "一貫性検証ツール",
     description: "プランとグラフの一貫性を検証する",
-    async func: async ({ plan, knowledgeGraph, requirements }) => {
+    // 実行ハンドラー
+    async execute(args: any) {
       try {
+        const { plan, knowledgeGraph, requirements } = args;
         // プランとグラフの一貫性を検証
         const consistencyReport = await verifyConsistency(plan, knowledgeGraph, requirements);
         
@@ -28,7 +30,7 @@ export const CriticalThinkerTools = [
           requirementsFulfillment: consistencyReport.requirementsFulfillment,
           recommendedAdjustments: consistencyReport.recommendedAdjustments
         });
-      } catch (error) {
+      } catch (error: any) {
         return `一貫性検証中にエラーが発生しました: ${error.message}`;
       }
     }
@@ -37,8 +39,10 @@ export const CriticalThinkerTools = [
   {
     name: "ギャップ分析ツール",
     description: "情報収集の空白領域を特定する",
-    async func: async ({ currentPlan, industryBenchmarks, companyNeeds }) => {
+    // 実行ハンドラー
+    async execute(args: any) {
       try {
+        const { currentPlan, industryBenchmarks, companyNeeds } = args;
         // 情報収集の空白領域を分析
         const gapAnalysis = await analyzeInformationGaps(currentPlan, industryBenchmarks, companyNeeds);
         
@@ -50,7 +54,7 @@ export const CriticalThinkerTools = [
           gapImportanceRanking: gapAnalysis.importanceRanking,
           remediationSuggestions: gapAnalysis.remediationSuggestions
         });
-      } catch (error) {
+      } catch (error: any) {
         return `ギャップ分析中にエラーが発生しました: ${error.message}`;
       }
     }
@@ -59,8 +63,10 @@ export const CriticalThinkerTools = [
   {
     name: "説明生成ツール",
     description: "プラン採用理由の論理的説明を生成する",
-    async func: async ({ plan, alternativesConsidered, decisionCriteria }) => {
+    // 実行ハンドラー
+    async execute(args: any) {
       try {
+        const { plan, alternativesConsidered, decisionCriteria } = args;
         // プラン採用理由の説明を生成
         const explanation = await generateExplanation(plan, alternativesConsidered, decisionCriteria);
         
@@ -73,7 +79,7 @@ export const CriticalThinkerTools = [
           potentialRisks: explanation.risks,
           mitigationStrategies: explanation.mitigationStrategies
         });
-      } catch (error) {
+      } catch (error: any) {
         return `説明生成中にエラーが発生しました: ${error.message}`;
       }
     }

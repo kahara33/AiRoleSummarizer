@@ -1,11 +1,7 @@
 import { Server } from 'http';
 import { sendProgressUpdate, sendAgentThoughts, initWebSocketServer, getWebSocketServer } from './ws-server';
-// この時点ではCrewAIサービスの完全な実装はしておらず、後でインポートします
-// 一時的なスケルトン関数を定義します
-const startCrewAIKnowledgeGraphGeneration = async (options: any) => {
-  console.log('CrewAIナレッジグラフ生成が開始されました（スケルトン実装）:', options);
-  return { success: true };
-};
+// CrewAIサービスをインポート
+import { generateKnowledgeGraphWithCrewAI } from '../services/crew-ai/crew-ai-service';
 
 // WebSocketとCrewAIを統合する関数
 export function setupWebSocketIntegration(server: Server): void {
@@ -94,19 +90,19 @@ async function handleCreateKnowledgeGraph(roleModelId: string, payload: any): Pr
     
     // CrewAIナレッジグラフ生成を開始
     // 実際のCrewAI処理を開始
-    startCrewAIKnowledgeGraphGeneration({
+    generateKnowledgeGraphWithCrewAI(
+      'system', // システムユーザーとして実行（将来的にはWebSocketクライアントのユーザーIDを使用）
       roleModelId,
       industry,
       keywords,
-      sources: sources || [],
-      constraints: constraints || [],
-      requirements: requirements || []
-    }).catch(error => {
+      sources || [],
+      constraints || [],
+      requirements || []
+    ).catch((error: Error) => {
       console.error('CrewAIナレッジグラフ生成エラー:', error);
       
       // エラーメッセージを送信
-      // nullではなく、エラー処理のためのモックオブジェクトを渡す（実際の実装では適切なサーバーインスタンスが必要）
-  const wss = getWebSocketServer();
+      const wss = getWebSocketServer();
       if (wss) {
         wss.sendToRoleModelViewers(roleModelId, {
           type: 'crewai_error',

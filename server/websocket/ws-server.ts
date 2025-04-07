@@ -149,14 +149,14 @@ export class WSServerManager {
     // 定期的なクライアント監視
     setInterval(() => {
       // 全クライアントに対してPINGを送信
-      for (const [clientId, client] of this.clients) {
+      Array.from(this.clients.entries()).forEach(([clientId, client]) => {
         if (client.socket.readyState === WS_CONSTANTS.OPEN) {
           client.socket.ping();
         } else if (client.socket.readyState !== WS_CONSTANTS.CONNECTING) {
           console.log(`非アクティブなクライアントを削除: clientId=${clientId}, state=${client.socket.readyState}`);
           this.clients.delete(clientId);
         }
-      }
+      });
     }, 30000); // 30秒ごと
   }
   
@@ -178,7 +178,7 @@ export class WSServerManager {
   sendToUser(userId: string, message: WSMessage): number {
     let sentCount = 0;
     
-    for (const [clientId, client] of this.clients) {
+    Array.from(this.clients.entries()).forEach(([clientId, client]) => {
       if (client.userId === userId && client.socket.readyState === WS_CONSTANTS.OPEN) {
         try {
           client.socket.send(JSON.stringify(message));
@@ -187,7 +187,7 @@ export class WSServerManager {
           console.error(`ユーザーへのメッセージ送信エラー: userId=${userId}, clientId=${clientId}`, error);
         }
       }
-    }
+    });
     
     return sentCount;
   }
@@ -201,7 +201,7 @@ export class WSServerManager {
       return 0;
     }
     
-    for (const clientId of this.clients.keys()) {
+    Array.from(this.clients.keys()).forEach(clientId => {
       const client = this.clients.get(clientId);
       if (client && client.roleModelId === roleModelId && client.socket.readyState === WS_CONSTANTS.OPEN) {
         try {
@@ -211,7 +211,7 @@ export class WSServerManager {
           console.error(`ロールモデル閲覧者へのメッセージ送信エラー: roleModelId=${roleModelId}, clientId=${clientId}`, error);
         }
       }
-    }
+    });
     
     return sentCount;
   }
@@ -220,7 +220,7 @@ export class WSServerManager {
   broadcast(message: WSMessage): number {
     let sentCount = 0;
     
-    for (const client of this.clients.values()) {
+    Array.from(this.clients.values()).forEach(client => {
       if (client.socket.readyState === WS_CONSTANTS.OPEN) {
         try {
           client.socket.send(JSON.stringify(message));
@@ -229,7 +229,7 @@ export class WSServerManager {
           console.error(`ブロードキャストエラー: clientId=${client.id}`, error);
         }
       }
-    }
+    });
     
     return sentCount;
   }
@@ -249,13 +249,13 @@ export class WSServerManager {
   private emit(event: string, data: any) {
     const listeners = this.eventListeners[event];
     if (listeners) {
-      for (const callback of listeners) {
+      listeners.forEach(callback => {
         try {
           callback(data);
         } catch (error) {
           console.error(`WebSocketイベントリスナーエラー: event=${event}`, error);
         }
-      }
+      });
     }
   }
   

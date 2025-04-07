@@ -21,7 +21,7 @@ import {
  * ナレッジグラフ生成プロセスを管理
  */
 export class CrewManager extends EventEmitter {
-  private crew: Crew;
+  private crew: any; // Crewの型定義が変更されている可能性があるため、any型で定義
   private industry: string;
   private initialKeywords: string[];
   private potentialSources: string[];
@@ -48,7 +48,8 @@ export class CrewManager extends EventEmitter {
     
     // Crewの初期化
     this.crew = new Crew({
-      agents: AllAgents,
+      name: "KnowledgeGraphCrewAI",
+      agents: AllAgents as any, // 型の互換性問題を一時的に回避
       tasks: [
         AnalyzeIndustryTask,
         EvaluateSourcesTask,
@@ -56,7 +57,7 @@ export class CrewManager extends EventEmitter {
         DevelopCollectionPlanTask,
         EvaluateQualityTask,
         IntegrateAndDocumentTask
-      ],
+      ] as any, // 型の互換性問題を一時的に回避
       verbose: true
     });
     

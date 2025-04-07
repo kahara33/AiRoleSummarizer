@@ -2,7 +2,6 @@
  * プランストラテジストエージェントのツール
  * 情報収集戦略立案、プラン最適化と評価基準設定を担当
  */
-import { Tool } from 'crewai-js';
 
 // AI/LLMサービスとの連携用関数（実際の実装は別ファイルで行う）
 import { 
@@ -11,12 +10,15 @@ import {
   optimizeCollectionSchedule
 } from '../../../ai-services';
 
+// CrewAI-JSのAPIが変更されているようなので、ベーシックなオブジェクト形式で定義
 export const PlanStrategistTools = [
   {
     name: "プラン生成ツール",
     description: "情報収集プランを生成する",
-    async func: async ({ keywords, industries, sources, timeframe }) => {
+    // 実行ハンドラー
+    async execute(args: any) {
       try {
+        const { keywords, industries, sources, timeframe } = args;
         // 情報収集プランを生成
         const plan = await generateCollectionPlan(keywords, industries, sources, timeframe);
         
@@ -30,7 +32,7 @@ export const PlanStrategistTools = [
           expectedOutcomes: plan.expectedOutcomes,
           evaluationCriteria: plan.evaluationCriteria
         });
-      } catch (error) {
+      } catch (error: any) {
         return `プラン生成中にエラーが発生しました: ${error.message}`;
       }
     }
@@ -39,8 +41,10 @@ export const PlanStrategistTools = [
   {
     name: "情報価値評価ツール",
     description: "各情報の価値と優先度を計算する",
-    async func: async ({ informationItem, context, existingKnowledge }) => {
+    // 実行ハンドラー
+    async execute(args: any) {
       try {
+        const { informationItem, context, existingKnowledge } = args;
         // 情報の価値を評価
         const valueAssessment = await evaluateInformationValue(informationItem, context, existingKnowledge);
         
@@ -54,7 +58,7 @@ export const PlanStrategistTools = [
           collectionPriority: valueAssessment.priority,
           justification: valueAssessment.justification
         });
-      } catch (error) {
+      } catch (error: any) {
         return `情報価値評価中にエラーが発生しました: ${error.message}`;
       }
     }
@@ -63,8 +67,10 @@ export const PlanStrategistTools = [
   {
     name: "収集スケジューラー",
     description: "効率的な情報収集スケジュールを設計する",
-    async func: async ({ sources, priorities, constraints, frequency }) => {
+    // 実行ハンドラー
+    async execute(args: any) {
       try {
+        const { sources, priorities, constraints, frequency } = args;
         // 情報収集スケジュールを最適化
         const schedule = await optimizeCollectionSchedule(sources, priorities, constraints, frequency);
         
@@ -76,7 +82,7 @@ export const PlanStrategistTools = [
           automationRecommendations: schedule.automationRecommendations,
           frequencyJustification: schedule.frequencyJustification
         });
-      } catch (error) {
+      } catch (error: any) {
         return `スケジュール最適化中にエラーが発生しました: ${error.message}`;
       }
     }
