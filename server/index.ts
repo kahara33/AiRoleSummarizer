@@ -66,7 +66,8 @@ async function initializeAdminUser() {
             VALUES ('EVERYS', 'EVERYSは自律型情報収集サービスを提供する組織です。')
             RETURNING id
           `);
-          organizationId = insertResult.rows[0].id;
+          // 数値型を文字列に変換して互換性を確保
+          organizationId = String(insertResult.rows[0].id);
         }
       } catch (error) {
         console.error('組織追加エラー:', error);

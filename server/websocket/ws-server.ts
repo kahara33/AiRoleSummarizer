@@ -42,7 +42,8 @@ export class WSServerManager {
   constructor(server: Server) {
     this.wss = new WebSocketServer({ 
       server,
-      path: '/ws' // WebSocket専用のパスを設定
+      // ViteのWebSocketと競合しないよう専用パスを設定
+      path: '/api/ws' 
     });
     
     // 接続イベントの処理

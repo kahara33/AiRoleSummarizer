@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -106,23 +106,42 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     sendMessage('create_knowledge_graph', params);
   }, [sendMessage]);
 
-  // WebSocket接続関数
+  // 前回の接続試行時間を記録
+  const lastConnectAttemptRef = useRef<number>(0);
+  
+  // WebSocket接続関数（デバウンス処理付き）
   const connect = useCallback((roleModelId: string) => {
     if (!user) {
       console.warn('ユーザーがログインしていないため、WebSocket接続を確立できません');
       return;
     }
+    
+    // 短時間に複数の接続要求が発生するのを防ぐ（1秒以内の再接続を防止）
+    const now = Date.now();
+    if (now - lastConnectAttemptRef.current < 1000) {
+      console.log('短時間での再接続を防止します。前回の接続からの経過時間:', now - lastConnectAttemptRef.current, 'ms');
+      return;
+    }
+    lastConnectAttemptRef.current = now;
+    
+    // 既に同じロールモデルに接続済みの場合は接続しない
+    if (socket && isConnected && currentRoleModelId === roleModelId) {
+      console.log(`既に ${roleModelId} に接続済みです。再接続をスキップします。`);
+      return;
+    }
 
     // 既存の接続を閉じる
     if (socket) {
+      console.log('既存のWebSocket接続を閉じます');
       socket.close();
     }
 
-    // 接続先URLの構築
+    // 接続先URLの構築 - パス形式の変更
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    // Replit環境ではプロキシを介してアクセスする
-    const wsUrl = `${protocol}//${host}/ws?userId=${user.id}&roleModelId=${roleModelId}`;
+    
+    // ViteのWebSocketとの競合を防ぐためパスを変更
+    const wsUrl = `${protocol}//${host}/api/ws?userId=${user.id}&roleModelId=${roleModelId}`;
     console.log('WebSocket接続URL:', wsUrl);
 
     try {
