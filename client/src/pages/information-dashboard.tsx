@@ -209,7 +209,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       </div>
 
       <div className="flex-1 overflow-hidden panel-container">
-        <PanelGroup direction="horizontal" className="relative">
+        <PanelGroup direction="horizontal" className="relative" id="panel-group-main">
           {/* 左側パネルが最小化されているときのアイコン */}
           {leftPanelCollapsed && (
             <div className="w-8 border-r bg-gray-50 flex flex-col items-center">
@@ -240,6 +240,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           {!leftPanelCollapsed && (
             <>
               <Panel
+                id="left-panel"
                 defaultSize={20} 
                 minSize={15} 
                 maxSize={30}
@@ -267,11 +268,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         setLeftPanelCollapsed(newState);
                         
                         // パネルを展開する場合は、メインパネルが最大化されていたら元に戻す
-                        if (newState === false && mainPanelMaximized) {
+                        if (!newState && mainPanelMaximized) {
                           setMainPanelMaximized(false);
                         }
                         
-                        if (newState === true) {
+                        if (newState) {
                           toast({
                             title: "パネルを最小化",
                             description: "情報収集プランパネルを最小化しました"
@@ -385,6 +386,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
 
           {/* メインコンテンツエリア */}
           <Panel 
+            id="main-panel"
             defaultSize={showAgentPanel ? 50 : 80}
             className={`flex flex-col z-10 ${mainPanelMaximized ? 'flex-grow' : ''}`}
           >
@@ -487,6 +489,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             <>
               <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
               <Panel 
+                id="right-panel"
                 defaultSize={30} 
                 minSize={20} 
                 className="border-l relative z-10"
