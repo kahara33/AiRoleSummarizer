@@ -9,7 +9,7 @@ import {
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
-import { eq, and, or, not, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, not, sql, inArray, desc } from 'drizzle-orm';
 import { 
   createInformationCollectionPlan,
   getInformationCollectionPlan
