@@ -452,7 +452,7 @@ export default function MultiAgentChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full max-h-full">
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-2 border-b">
         <div className="flex items-center">
@@ -500,7 +500,7 @@ export default function MultiAgentChatPanel({
       {/* タブコンテンツ */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className={`h-full ${currentTab === 'chat' ? 'block' : 'hidden'}`}>
-          <div className="h-full overflow-y-auto p-4 space-y-4">
+          <div className="h-full overflow-y-auto p-2 space-y-3">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                 <Network className="h-12 w-12 mb-4" />
@@ -559,7 +559,7 @@ export default function MultiAgentChatPanel({
         </div>
 
         <div className={`h-full ${currentTab === 'process' ? 'block' : 'hidden'}`}>
-          <div className="h-full overflow-y-auto p-4 space-y-4">
+          <div className="h-full overflow-y-auto p-2 space-y-3">
             {processes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                 <Layers className="h-12 w-12 mb-4" />
