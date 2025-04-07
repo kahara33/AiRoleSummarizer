@@ -73,6 +73,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     // 両方のパネルが閉じられている場合はメインパネルを100%にする
     if (leftPanelCollapsed && !showAgentPanel) {
       setMainPanelMaximized(true);
+    } else if (!leftPanelCollapsed || showAgentPanel) {
+      // どちらかのパネルが表示されたらメインパネルの最大化を解除
+      setMainPanelMaximized(false);
     }
     
     // 必要があればリサイズイベントを強制的に発火させる
@@ -215,7 +218,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 size="sm" 
                 className="h-8 w-8 p-0 mt-2" 
                 onClick={() => {
+                  // 最小化状態を解除
                   setLeftPanelCollapsed(false);
+                  // メインパネルが最大化されていた場合は元に戻す
+                  if (mainPanelMaximized) {
+                    setMainPanelMaximized(false);
+                  }
                   toast({
                     title: "パネルを展開",
                     description: "情報収集プランパネルを展開しました"
@@ -254,8 +262,15 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   size="sm" 
                   className="h-5 w-5 p-0" 
                   onClick={() => {
-                    setLeftPanelCollapsed(!leftPanelCollapsed);
-                    if (!leftPanelCollapsed) {
+                    const newState = !leftPanelCollapsed;
+                    setLeftPanelCollapsed(newState);
+                    
+                    // パネルを展開する場合は、メインパネルが最大化されていたら元に戻す
+                    if (newState === false && mainPanelMaximized) {
+                      setMainPanelMaximized(false);
+                    }
+                    
+                    if (newState === true) {
                       toast({
                         title: "パネルを最小化",
                         description: "情報収集プランパネルを最小化しました"
@@ -449,6 +464,10 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 className="h-8 w-8 p-0 mt-2" 
                 onClick={() => {
                   setShowAgentPanel(true);
+                  // メインパネルが最大化されていたら元に戻す
+                  if (mainPanelMaximized) {
+                    setMainPanelMaximized(false);
+                  }
                   toast({
                     title: "パネルを展開",
                     description: "AIエージェント思考パネルを展開しました"
