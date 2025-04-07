@@ -397,7 +397,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   <KnowledgeGraphViewer
                     roleModelId={roleModelId}
                     width="100%"
-                    height="calc(100vh - 128px)"
+                    height="calc(100vh - 160px)"
                     onGraphDataChange={setHasKnowledgeGraph}
                   />
                 </div>
@@ -406,7 +406,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
                 <div className="p-6">
-                  <div className="h-[calc(100vh-128px)] overflow-auto">
+                  <div className="h-[calc(100vh-160px)] overflow-auto">
                     <div className="text-center text-gray-500 mt-20">
                       <p>要約結果は現在開発中です</p>
                       <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
@@ -418,7 +418,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               {/* メモタブ */}
               <TabsContent value="memo" className="p-0 m-0">
                 <div className="p-6">
-                  <div className="h-[calc(100vh-128px)] overflow-auto">
+                  <div className="h-[calc(100vh-160px)] overflow-auto">
                     <div className="text-center text-gray-500 mt-20">
                       <p>メモ機能は現在開発中です</p>
                       <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
