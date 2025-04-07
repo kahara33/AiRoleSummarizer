@@ -67,11 +67,24 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     }
   }, [agentThoughts]);
   
-  // パネルの状態が変更されたときにグラフビューアのサイズを調整
+  // パネルのサイズを調整する
   useEffect(() => {
+    // 両方のパネルが閉じられている場合はメインパネルを100%にする
+    if (leftPanelCollapsed && !showAgentPanel) {
+      setMainPanelMaximized(true);
+    }
+    
     // 必要があればリサイズイベントを強制的に発火させる
     window.dispatchEvent(new Event('resize'));
-  }, [leftPanelCollapsed, mainPanelMaximized, showAgentPanel]);
+  }, [leftPanelCollapsed, showAgentPanel]);
+  
+  // メインパネルが最大化されている場合は他のパネルを閉じる
+  useEffect(() => {
+    if (mainPanelMaximized) {
+      setLeftPanelCollapsed(true);
+      setShowAgentPanel(false);
+    }
+  }, [mainPanelMaximized]);
   
   // メッセージ送信関数
   const handleSendMessage = (message: string) => {
@@ -192,7 +205,28 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        <PanelGroup direction="horizontal">
+        <PanelGroup direction="horizontal" className="relative">
+          {/* 左側パネルが最小化されているときのアイコン */}
+          {leftPanelCollapsed && (
+            <div className="w-8 border-r bg-gray-50 flex flex-col items-center">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 mt-2" 
+                onClick={() => {
+                  setLeftPanelCollapsed(false);
+                  toast({
+                    title: "パネルを展開",
+                    description: "情報収集プランパネルを展開しました"
+                  });
+                }}
+                title="パネルを展開"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          
           {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
           <Panel 
             defaultSize={20} 
@@ -388,6 +422,27 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               </TabsContent>
             </Tabs>
           </Panel>
+          
+          {/* 右側パネルが最小化されているときのアイコン */}
+          {!showAgentPanel && (
+            <div className="w-8 border-l bg-gray-50 flex flex-col items-center">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 mt-2" 
+                onClick={() => {
+                  setShowAgentPanel(true);
+                  toast({
+                    title: "パネルを展開",
+                    description: "AIエージェント思考パネルを展開しました"
+                  });
+                }}
+                title="AIエージェントパネルを表示"
+              >
+                <BrainCircuit className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           
           {/* 右側パネル: マルチAIエージェント思考パネル */}
           {showAgentPanel && (
