@@ -622,20 +622,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
       
-      // 関連するユーザーとorganizationを取得
+      // 関連するユーザーとorganizationを取得 - createdByを使用
       const creatorIds = sharedRoleModelsData.map(model => model.createdBy).filter(Boolean);
       const orgIds = sharedRoleModelsData.map(model => model.organizationId).filter(Boolean);
       
-      const [creators, orgs, keywordRelations, industryRelations] = await Promise.all([
-        // ユーザーの取得
-        creatorIds.length ? db.select().from(users).where(inArray(users.id, creatorIds)) : Promise.resolve([]),
-        // 組織の取得
-        orgIds.length ? db.select().from(organizations).where(inArray(organizations.id, orgIds)) : Promise.resolve([]),
-        // キーワードの取得
-        roleModelIds.length ? db.select().from(roleModelKeywords).where(inArray(roleModelKeywords.roleModelId, roleModelIds)) : Promise.resolve([]),
-        // ロールモデルと業界のリレーション取得
-        roleModelIds.length ? db.select().from(roleModelIndustries).where(inArray(roleModelIndustries.roleModelId, roleModelIds)) : Promise.resolve([])
-      ]);
+      // 以下、Drizzleの修正されたクエリビルダーAPIを使用
+      // ユーザーの取得
+      const creators = creatorIds.length ? await db.query.users.findMany({
+        where: (users, { inArray }) => inArray(users.id, creatorIds)
+      }) : [];
+      
+      // 組織の取得
+      const orgs = orgIds.length ? await db.query.organizations.findMany({
+        where: (organizations, { inArray }) => inArray(organizations.id, orgIds)
+      }) : [];
+      
+      // キーワードの取得
+      const keywordRelations = roleModelIds.length ? await db.query.roleModelKeywords.findMany({
+        where: (roleModelKeywords, { inArray }) => inArray(roleModelKeywords.roleModelId, roleModelIds)
+      }) : [];
+      
+      // ロールモデルと業界のリレーション取得
+      const industryRelations = roleModelIds.length ? await db.query.roleModelIndustries.findMany({
+        where: (roleModelIndustries, { inArray }) => inArray(roleModelIndustries.roleModelId, roleModelIds)
+      }) : [];
       
       // 業界IDsの抽出
       const industryIds = industryRelations.map(rel => rel.industryId);
@@ -644,18 +654,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const keywordIds = keywordRelations.map(rel => rel.keywordId).filter(Boolean);
       
       // 業界データの取得
-      const industriesData = industryIds.length ? 
-        await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
-        [];
+      const industriesData = industryIds.length ? await db.query.industries.findMany({
+        where: (industries, { inArray }) => inArray(industries.id, industryIds)
+      }) : [];
         
       // キーワードデータの取得
-      const keywordsData = keywordIds.length ? 
-        await db.select().from(keywords).where(inArray(keywords.id, keywordIds)) : 
-        [];
+      const keywordsData = keywordIds.length ? await db.query.keywords.findMany({
+        where: (keywords, { inArray }) => inArray(keywords.id, keywordIds)
+      }) : [];
       
       // ロールモデルデータの整形
       const safeRoleModels = sharedRoleModelsData.map(model => {
-        // 作成者 
+        // 作成者 - createdByを使用
         const creator = creators.find(u => u.id === model.createdBy);
         // 組織
         const organization = orgs.find(o => o.id === model.organizationId);
@@ -1389,13 +1399,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // アクセス権のチェック
       // 組織内共有の場合は、shared/isSharedフィールドと組織IDをチェック
       const tableColumns = Object.keys(node.roleModel);
-      const hasUserIdField = tableColumns.includes("user_id");
+      // createdByおよびisSharedフィールドの有無を確認
       const hasCreatedByField = tableColumns.includes('createdBy');
       const hasIsSharedField = tableColumns.includes('isShared');
       const hasSharedField = tableColumns.includes('shared');
       
-      const creatorId = hasUserIdField ? node.roleModel.user_id : 
-                        hasCreatedByField ? node.roleModel.createdBy : null;
+      // 常にcreatedByを優先的に使用
+      const creatorId = hasCreatedByField ? node.roleModel.createdBy : null;
       
       const isShared = hasIsSharedField ? node.roleModel.isShared === 1 : 
                        hasSharedField ? node.roleModel.isShared === true : false;
