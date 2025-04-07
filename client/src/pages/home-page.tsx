@@ -5,7 +5,7 @@ import { RoleModelWithIndustriesAndKeywords, Industry } from '@shared/schema';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, Plus, User } from 'lucide-react';
+import { Loader2, Plus, User, Settings } from 'lucide-react';
 
 const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -112,9 +112,19 @@ const HomePage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {roleModels.map((roleModel) => (
-                <Link key={roleModel.id} to={`/knowledge-graph/${roleModel.id}`}>
-                  <Card className="h-full cursor-pointer hover:shadow-md transition-shadow border border-gray-200">
-                    <div className="p-6">
+                <Card key={roleModel.id} className="h-full relative border border-gray-200">
+                  {/* 歯車アイコン（設定） */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <Link to={`/role-model/${roleModel.id}`} onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-gray-200/80">
+                        <Settings className="h-4 w-4 text-gray-500" />
+                      </Button>
+                    </Link>
+                  </div>
+                  
+                  {/* カードコンテンツ（クリック可能） */}
+                  <Link to={`/knowledge-graph/${roleModel.id}`}>
+                    <div className="p-6 cursor-pointer hover:bg-gray-50 transition-colors">
                       <div className="flex items-center justify-center h-14 w-14 bg-primary-100 rounded-lg mb-4">
                         <User className="h-8 w-8 text-primary-700" />
                       </div>
@@ -148,8 +158,8 @@ const HomePage: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  </Card>
-                </Link>
+                  </Link>
+                </Card>
               ))}
             </div>
           )}
