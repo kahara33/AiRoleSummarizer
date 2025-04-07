@@ -5,6 +5,7 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SourcesList } from '@/components/collection-plan/sources-list';
 import { CollectionPlanPanel } from '@/components/collection-plan/collection-plan-panel';
+import { SummaryPanel } from '@/components/summary/summary-panel';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'wouter';
 import ChatPanel from '@/components/chat/ChatPanel';
@@ -25,9 +26,11 @@ export default function InformationWorkspacePage() {
   const [currentExecutionId, setCurrentExecutionId] = useState<string | null>(null);
 
   // ロールモデルの取得
-  const { data: roleModel } = useQuery({
+  const { data: roleModel } = useQuery<{ name: string }>({
     queryKey: ['/api/role-models', roleModelId],
     enabled: !!roleModelId,
+    // デフォルト値を設定
+    initialData: { name: 'ロールモデル' },
   });
 
   // 左パネルの幅
@@ -109,7 +112,7 @@ export default function InformationWorkspacePage() {
             >
               <SourcesList 
                 planId={selectedPlanId} 
-                executionId={currentExecutionId}
+                executionId={currentExecutionId || undefined}
               />
             </TabsContent>
             
