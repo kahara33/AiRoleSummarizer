@@ -5,17 +5,15 @@ import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
-import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import CreateCollectionPlanButton from '@/components/collection-plan/CreateCollectionPlanButton';
 import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, 
   FileText, 
-  Calendar, 
-  Settings, 
-  FilePlus2, 
-  ExternalLink 
+  ExternalLink, 
+  RefreshCw
 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 // モックデータ（後で実装時に置き換える）
 const mockCollectionPlans = [
@@ -45,8 +43,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const roleModelId = id || 'default';
   const [activeTab, setActiveTab] = useState<string>('knowledgeGraph');
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
   const { toast } = useToast();
 
@@ -67,11 +63,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     }
   }, [selectedPlan]);
 
-  // サイドパネルの表示/非表示を切り替え
-  const togglePanel = () => {
-    setIsPanelOpen(!isPanelOpen);
-  };
-
   // 新規ソース追加関数
   const handleAddSource = () => {
     toast({
@@ -89,128 +80,111 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         <div className="flex items-center gap-2">
           {roleModelId !== 'default' && (
             <>
+              {/* 情報収集プラン作成ボタン */}
+              <CreateCollectionPlanButton 
+                roleModelId={roleModelId}
+                industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
+                keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
+                disabled={false}
+                hasKnowledgeGraph={hasKnowledgeGraph}
+              />
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="sm" 
-                className="gap-1"
+                className="px-2"
                 onClick={() => {
                   toast({
-                    title: "新規プラン作成",
-                    description: "新しい情報収集プランを作成します。"
+                    title: "最新情報に更新",
+                    description: "最新のデータに更新しました"
                   });
                 }}
               >
-                <FilePlus2 className="h-4 w-4" />
-                新規プラン作成
+                <RefreshCw className="h-4 w-4" />
               </Button>
-              
-              {/* 情報収集プラン作成ボタン */}
-              <div className="w-auto">
-                <CreateCollectionPlanButton 
-                  roleModelId={roleModelId}
-                  industryIds={roleModel?.industries?.map((ind: any) => ind.id) || []}
-                  keywordIds={roleModel?.keywords?.map((kw: any) => kw.id) || []}
-                  disabled={isGenerating}
-                  hasKnowledgeGraph={hasKnowledgeGraph}
-                />
-              </div>
             </>
           )}
-          
-          <button
-            onClick={togglePanel}
-            className={`px-3 py-1 rounded text-sm ${
-              isPanelOpen
-                ? 'bg-gray-200 text-gray-800'
-                : 'bg-primary text-white'
-            }`}
-          >
-            {isPanelOpen ? 'パネルを閉じる' : 'パネルを開く'}
-          </button>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
-        {isPanelOpen && (
-          <div className="w-1/4 border-r overflow-auto flex flex-col">
-            <div className="p-4 border-b">
-              <h2 className="text-lg font-semibold mb-3">情報収集プラン</h2>
-              <div className="overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left px-2 py-1">プラン名</th>
-                      <th className="text-left px-2 py-1">作成日</th>
-                      <th className="text-left px-2 py-1">更新日</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockCollectionPlans.map((plan) => (
-                      <tr 
-                        key={plan.id}
-                        className={`hover:bg-gray-50 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
-                        onClick={() => setSelectedPlan(plan.id)}
-                      >
-                        <td className="px-2 py-1.5">{plan.name}</td>
-                        <td className="px-2 py-1.5">{plan.createdAt}</td>
-                        <td className="px-2 py-1.5">{plan.updatedAt}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        <div className="w-64 border-r overflow-auto flex flex-col bg-gray-50">
+          <div className="p-3 border-b bg-white">
+            <h2 className="font-semibold">情報収集プラン</h2>
+          </div>
+
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="text-left px-2 py-1 font-medium">プラン名</th>
+                  <th className="text-left px-2 py-1 font-medium">作成日</th>
+                  <th className="text-left px-2 py-1 font-medium">更新日</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mockCollectionPlans.map((plan) => (
+                  <tr 
+                    key={plan.id}
+                    className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
+                    onClick={() => setSelectedPlan(plan.id)}
+                  >
+                    <td className="px-2 py-1.5 border-t border-gray-200">プラン{plan.id.replace('plan', '')}</td>
+                    <td className="px-2 py-1.5 border-t border-gray-200">{plan.createdAt}</td>
+                    <td className="px-2 py-1.5 border-t border-gray-200">{plan.updatedAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="border-t mt-4">
+            <div className="p-3 bg-white">
+              <h2 className="font-semibold">プラン詳細</h2>
             </div>
-            
-            <div className="p-4 flex-1 overflow-auto">
-              <h2 className="text-lg font-semibold mb-3">プラン詳細</h2>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm text-gray-500 mb-1">収集プラン</h3>
-                  <p className="text-sm font-medium">{mockPlanDetails.name}</p>
+            <div className="p-3 space-y-2">
+              <div>
+                <h3 className="text-sm font-medium">収集プラン</h3>
+                <p className="text-sm">{mockPlanDetails.name}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium">実行頻度</h3>
+                <p className="text-sm">{mockPlanDetails.status}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium">通知先</h3>
+                <p className="text-sm">{mockPlanDetails.completion}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium">利用するツール</h3>
+                <div className="space-y-0.5 mt-1">
+                  {mockPlanDetails.tools.map((tool, index) => (
+                    <div key={index} className="text-sm">{tool}</div>
+                  ))}
                 </div>
-                <div>
-                  <h3 className="text-sm text-gray-500 mb-1">実行頻度</h3>
-                  <p className="text-sm font-medium">{mockPlanDetails.status}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm text-gray-500 mb-1">通知先</h3>
-                  <p className="text-sm font-medium">{mockPlanDetails.completion}</p>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm text-gray-500 mb-1">利用するツール</h3>
-                  <div className="space-y-1">
-                    {mockPlanDetails.tools.map((tool, index) => (
-                      <div key={index} className="text-sm">{tool}</div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm text-gray-500">ソース</h3>
-                    <Button variant="ghost" size="sm" onClick={handleAddSource}>
-                      <Plus className="h-3.5 w-3.5" />
-                      <span className="ml-1 text-xs">追加</span>
-                    </Button>
-                  </div>
-                  <table className="w-full text-sm border-collapse">
+              </div>
+              
+              <div>
+                <div className="flex items-center justify-between mt-2">
+                  <table className="w-full text-xs mt-1 border-collapse border">
                     <thead>
-                      <tr className="bg-gray-50">
-                        <th className="text-left px-2 py-1">メディア</th>
-                        <th className="text-left px-2 py-1 w-12">詳細</th>
+                      <tr className="bg-gray-100">
+                        <th className="text-left px-2 py-1 font-medium">ソース</th>
+                        <th className="text-left px-1 py-1 font-medium w-10 text-center">詳細</th>
                       </tr>
                     </thead>
                     <tbody>
                       {mockPlanDetails.sources.map((source) => (
                         <tr key={source.id} className="border-t">
-                          <td className="px-2 py-1.5 truncate" style={{ maxWidth: "150px" }}>
-                            {source.media}
+                          <td className="px-2 py-1 truncate" style={{ maxWidth: "120px" }}>
+                            メディア https://
                           </td>
-                          <td className="px-2 py-1.5 text-center">
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              <ExternalLink className="h-3.5 w-3.5" />
+                          <td className="px-1 py-0.5 text-center">
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                              <ExternalLink className="h-3 w-3" />
                             </Button>
                           </td>
                         </tr>
@@ -218,16 +192,22 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </tbody>
                   </table>
                 </div>
+                <div className="text-right mt-1">
+                  <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    追加
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* 中央のメインコンテンツ */}
-        <div className={`flex-1 transition-all duration-300 ${isPanelOpen ? 'w-3/4' : 'w-full'}`}>
+        {/* メインコンテンツエリア */}
+        <div className="flex-1 flex flex-col overflow-hidden">
           <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="border-b px-4">
-              <TabsList className="bg-transparent h-10">
+            <div className="border-b bg-white">
+              <TabsList className="h-10 border-b-0 bg-transparent">
                 <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
                   ナレッジグラフ
                 </TabsTrigger>
@@ -241,19 +221,19 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </div>
             
             {/* ナレッジグラフタブ */}
-            <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden">
+            <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
               <KnowledgeGraphViewer
                 roleModelId={roleModelId}
                 width="100%"
-                height="calc(100vh - 105px)"
+                height="calc(100vh - 87px)"
                 onGraphDataChange={setHasKnowledgeGraph}
               />
             </TabsContent>
             
             {/* 要約結果タブ */}
-            <TabsContent value="summarizedResults" className="p-4">
-              <div className="rounded-lg border p-4 h-[calc(100vh-130px)] overflow-auto">
-                <div className="text-center text-gray-500 mt-10">
+            <TabsContent value="summarizedResults" className="p-0 m-0">
+              <div className="h-[calc(100vh-87px)] overflow-auto">
+                <div className="text-center text-gray-500 mt-20">
                   <p>要約結果は現在開発中です</p>
                   <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
                 </div>
@@ -261,9 +241,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </TabsContent>
             
             {/* メモタブ */}
-            <TabsContent value="memo" className="p-4">
-              <div className="rounded-lg border p-4 h-[calc(100vh-130px)] overflow-auto">
-                <div className="text-center text-gray-500 mt-10">
+            <TabsContent value="memo" className="p-0 m-0">
+              <div className="h-[calc(100vh-87px)] overflow-auto">
+                <div className="text-center text-gray-500 mt-20">
                   <p>メモ機能は現在開発中です</p>
                   <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
                 </div>
@@ -271,18 +251,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </TabsContent>
           </Tabs>
         </div>
-        
-        {/* 右側のマルチAIエージェントチャットパネル */}
-        {isPanelOpen && (
-          <div className="w-1/4 border-l">
-            <div className="h-full flex flex-col">
-              {/* マルチAIエージェントチャットパネル */}
-              <div className="flex-1 overflow-hidden">
-                <MultiAgentChatPanel roleModelId={roleModelId} />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
