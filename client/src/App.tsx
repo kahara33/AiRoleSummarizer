@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/lib/protected-route';
 import MainLayout from '@/components/layout/MainLayout';
 import HomePage from '@/pages/home-page';
 import KnowledgeGraphPage from '@/pages/knowledge-graph-page';
+import InformationDashboard from '@/pages/information-dashboard';
 import AuthPage from '@/pages/auth-page';
 import NotFoundPage from '@/pages/not-found';
 import OrganizationsPage from '@/pages/organizations';
@@ -45,6 +46,11 @@ const KnowledgeGraphPageComponent = (props: ComponentProps) => (
   <KnowledgeGraphPage id={props.params?.id} />
 );
 
+// 情報整理ダッシュボードコンポーネント
+const InformationDashboardComponent = (props: ComponentProps) => (
+  <InformationDashboard id={props.params?.id} />
+);
+
 // ノートブックページコンポーネント
 const NotebookPageComponent = (props: ComponentProps) => (
   <NotebookPage roleModelId={props.params?.id || ''} />
@@ -70,6 +76,7 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute path="/role-models/new" component={RoleModelsPageComponent} />
             <ProtectedRoute path="/role-model/:id" component={RoleModelDetailPageComponent} />
             <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
+            <ProtectedRoute path="/information-dashboard/:id" component={InformationDashboardComponent} />
             <ProtectedRoute path="/notebook/:id" component={NotebookPageComponent} />
             <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
             <Route component={NotFoundPage} />
