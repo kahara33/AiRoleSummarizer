@@ -452,9 +452,9 @@ export default function MultiAgentChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden bg-white rounded-md shadow">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between p-2 border-b">
+      <div className="flex items-center justify-between p-3 border-b bg-white">
         <div className="flex items-center">
           <Network className="h-4 w-4 mr-1 text-primary" />
           <span className="font-medium text-sm">マルチAIエージェント思考</span>
@@ -497,9 +497,9 @@ export default function MultiAgentChatPanel({
         </div>
       </div>
 
-      {/* タブコンテンツ */}
+      {/* タブコンテンツ - フレックス比率を調整してスクロールエリアが常に表示されるようにする */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        <div className={`h-full overflow-hidden ${currentTab === 'chat' ? 'block' : 'hidden'}`}>
+        <div className={`flex-1 overflow-hidden ${currentTab === 'chat' ? 'block' : 'hidden'}`}>
           <div className="h-full overflow-y-auto p-4 space-y-2">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
@@ -558,7 +558,7 @@ export default function MultiAgentChatPanel({
           </div>
         </div>
 
-        <div className={`h-full overflow-hidden ${currentTab === 'process' ? 'block' : 'hidden'}`}>
+        <div className={`flex-1 overflow-hidden ${currentTab === 'process' ? 'block' : 'hidden'}`}>
           <div className="h-full overflow-y-auto p-4 space-y-2">
             {processes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
@@ -600,21 +600,22 @@ export default function MultiAgentChatPanel({
         </div>
       </div>
 
-      {/* 入力エリア */}
-      <div className="border-t p-3">
+      {/* 入力エリア - 常に下部に表示される */}
+      <div className="chat-input-container">
         <div className="flex items-end gap-2">
           <Textarea
             placeholder="メッセージを入力..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[36px] max-h-[60px] resize-none text-sm"
+            className="min-h-[36px] max-h-[60px] resize-none text-sm border border-gray-300 rounded-md flex-1"
             disabled={isGenerating}
           />
           <Button
             size="icon"
             onClick={handleSendMessage}
             disabled={!input.trim() || isGenerating}
+            className="flex-shrink-0"
           >
             {isGenerating ? (
               <Loader2 className="h-4 w-4 animate-spin" />

@@ -462,15 +462,13 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <div className="h-full flex flex-col bg-gray-50">
                   {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
                   
-                  <div className="flex-1 overflow-hidden">
-                    <div className="p-1">
-                      <MultiAgentChatPanel 
-                        roleModelId={roleModelId} 
-                        messages={messages}
-                        agentThoughts={agentThoughts}
-                        onSendMessage={handleSendMessage}
-                      />
-                    </div>
+                  <div className="flex-1 overflow-hidden p-2">
+                    <MultiAgentChatPanel 
+                      roleModelId={roleModelId} 
+                      messages={messages}
+                      agentThoughts={agentThoughts}
+                      onSendMessage={handleSendMessage}
+                    />
                   </div>
                 </div>
               </Panel>
