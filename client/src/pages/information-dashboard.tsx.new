@@ -130,8 +130,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     }
   });
 
-  // ロールモデルデータは上部で取得済み
-
   // プランが選択されたときの処理
   useEffect(() => {
     if (mockCollectionPlans.length > 0 && !selectedPlan) {
@@ -404,7 +402,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </TabsList>
                 
                 <div className="flex items-center gap-2">
-                  {/* CrewAIで知識グラフを生成するボタンと情報収集プラン作成ボタン */}
+                  {/* ボタンの配置: CrewAIで知識グラフを生成 + 情報収集プラン作成 */}
                   {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
                     <>
                       <Button
