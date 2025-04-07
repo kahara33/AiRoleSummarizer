@@ -536,7 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.select().from(keywords).where(inArray(keywords.id, keywordIds)) : 
         [];
       
-      const industryIds = industryRelations.map(rel => rel.industryId);
+      const industryIds = industryRelations.map(rel => rel.industryId).filter(Boolean);
       
       // 業界データの取得
       const industriesData = industryIds.length ? 
@@ -648,7 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }) : [];
       
       // 業界IDsの抽出
-      const industryIds = industryRelations.map(rel => rel.industryId);
+      const industryIds = industryRelations.map(rel => rel.industryId).filter(Boolean);
       
       // キーワードIDsの抽出
       const keywordIds = keywordRelations.map(rel => rel.keywordId).filter(Boolean);
