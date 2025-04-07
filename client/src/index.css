@@ -11,3 +11,27 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* リサイズパネルのスタイル */
+[data-panel] {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+[data-panel-resize-handle][data-panel-group-direction='horizontal'] {
+  width: 4px;
+  margin-left: -2px;
+  margin-right: -2px;
+  cursor: col-resize;
+  background-color: transparent;
+  transition: background-color 0.2s;
+}
+
+[data-panel-resize-handle][data-panel-group-direction='horizontal']:hover {
+  background-color: #3b82f6;
+}
+
+[data-panel-resize-handle][data-panel-group-direction='horizontal'][data-panel-resize-handle-active] {
+  background-color: #3b82f6;
+}

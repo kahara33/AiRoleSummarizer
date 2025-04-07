@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'wouter';
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,12 @@ import {
   FileText, 
   ExternalLink, 
   RefreshCw,
-  BrainCircuit
+  BrainCircuit,
+  Sparkles
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+// react-resizable-panelsのインポート
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 
 // モックデータ（後で実装時に置き換える）
 const mockCollectionPlans = [
@@ -71,6 +74,27 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       }
     });
   };
+  
+  // CrewAIで知識グラフを生成する関数
+  const generateGraphMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/knowledge-graph/generate/${roleModelId}`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "知識グラフ生成開始",
+        description: "CrewAIによる知識グラフの生成を開始しました。しばらくお待ちください。"
+      });
+      setShowAgentPanel(true); // エージェントパネルを表示
+    },
+    onError: (error) => {
+      toast({
+        title: "エラー",
+        description: "知識グラフの生成に失敗しました。",
+        variant: "destructive"
+      });
+    }
+  });
 
   // ロールモデルデータのフェッチ
   const { data: roleModel } = useQuery({
@@ -141,180 +165,205 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
-        <div className="w-64 border-r overflow-auto flex flex-col bg-gray-50">
-          <div className="p-3 border-b bg-white">
-            <h2 className="font-semibold">情報収集プラン</h2>
-          </div>
+      <div className="flex-1 overflow-hidden">
+        <PanelGroup direction="horizontal">
+          {/* 左側パネル: 情報収集プラン一覧とプラン詳細 */}
+          <Panel defaultSize={20} minSize={15} className="border-r">
+            <div className="h-full overflow-auto flex flex-col bg-gray-50">
+              <div className="p-3 border-b bg-white">
+                <h2 className="font-semibold">情報収集プラン</h2>
+              </div>
 
-          <div className="overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="text-left px-2 py-1 font-medium">プラン名</th>
-                  <th className="text-left px-2 py-1 font-medium">作成日</th>
-                  <th className="text-left px-2 py-1 font-medium">更新日</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockCollectionPlans.map((plan) => (
-                  <tr 
-                    key={plan.id}
-                    className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
-                    onClick={() => setSelectedPlan(plan.id)}
-                  >
-                    <td className="px-2 py-1.5 border-t border-gray-200">プラン{plan.id.replace('plan', '')}</td>
-                    <td className="px-2 py-1.5 border-t border-gray-200">{plan.createdAt}</td>
-                    <td className="px-2 py-1.5 border-t border-gray-200">{plan.updatedAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="border-t mt-4">
-            <div className="p-3 bg-white">
-              <h2 className="font-semibold">プラン詳細</h2>
-            </div>
-            <div className="p-3 space-y-2">
-              <div>
-                <h3 className="text-sm font-medium">収集プラン</h3>
-                <p className="text-sm">{mockPlanDetails.name}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium">実行頻度</h3>
-                <p className="text-sm">{mockPlanDetails.status}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium">通知先</h3>
-                <p className="text-sm">{mockPlanDetails.completion}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium">利用するツール</h3>
-                <div className="space-y-0.5 mt-1">
-                  {mockPlanDetails.tools.map((tool, index) => (
-                    <div key={index} className="text-sm">{tool}</div>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex items-center justify-between mt-2">
-                  <table className="w-full text-xs mt-1 border-collapse border">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="text-left px-2 py-1 font-medium">ソース</th>
-                        <th className="text-left px-1 py-1 font-medium w-10 text-center">詳細</th>
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="text-left px-2 py-1 font-medium">プラン名</th>
+                      <th className="text-left px-2 py-1 font-medium">作成日</th>
+                      <th className="text-left px-2 py-1 font-medium">更新日</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mockCollectionPlans.map((plan) => (
+                      <tr 
+                        key={plan.id}
+                        className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
+                        onClick={() => setSelectedPlan(plan.id)}
+                      >
+                        <td className="px-2 py-1.5 border-t border-gray-200">プラン{plan.id.replace('plan', '')}</td>
+                        <td className="px-2 py-1.5 border-t border-gray-200">{plan.createdAt}</td>
+                        <td className="px-2 py-1.5 border-t border-gray-200">{plan.updatedAt}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {mockPlanDetails.sources.map((source) => (
-                        <tr key={source.id} className="border-t">
-                          <td className="px-2 py-1 truncate" style={{ maxWidth: "120px" }}>
-                            メディア https://
-                          </td>
-                          <td className="px-1 py-0.5 text-center">
-                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                          </td>
-                        </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border-t mt-4">
+                <div className="p-3 bg-white">
+                  <h2 className="font-semibold">プラン詳細</h2>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div>
+                    <h3 className="text-sm font-medium">収集プラン</h3>
+                    <p className="text-sm">{mockPlanDetails.name}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium">実行頻度</h3>
+                    <p className="text-sm">{mockPlanDetails.status}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium">通知先</h3>
+                    <p className="text-sm">{mockPlanDetails.completion}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium">利用するツール</h3>
+                    <div className="space-y-0.5 mt-1">
+                      {mockPlanDetails.tools.map((tool, index) => (
+                        <div key={index} className="text-sm">{tool}</div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between mt-2">
+                      <table className="w-full text-xs mt-1 border-collapse border">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="text-left px-2 py-1 font-medium">ソース</th>
+                            <th className="text-left px-1 py-1 font-medium w-10 text-center">詳細</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mockPlanDetails.sources.map((source) => (
+                            <tr key={source.id} className="border-t">
+                              <td className="px-2 py-1 truncate" style={{ maxWidth: "120px" }}>
+                                メディア https://
+                              </td>
+                              <td className="px-1 py-0.5 text-center">
+                                <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                                  <ExternalLink className="h-3 w-3" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="text-right mt-1">
+                      <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
+                        <Plus className="h-3 w-3 mr-1" />
+                        追加
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right mt-1">
-                  <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
-                    <Plus className="h-3 w-3 mr-1" />
-                    追加
+              </div>
+            </div>
+          </Panel>
+          
+          <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
+
+          {/* メインコンテンツエリア */}
+          <Panel defaultSize={showAgentPanel ? 50 : 80} className="flex flex-col">
+            <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <div className="border-b bg-white flex justify-between items-center">
+                <TabsList className="h-10 border-b-0 bg-transparent">
+                  <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
+                    ナレッジグラフ
+                  </TabsTrigger>
+                  <TabsTrigger value="summarizedResults" className="data-[state=active]:bg-white">
+                    要約結果
+                  </TabsTrigger>
+                  <TabsTrigger value="memo" className="data-[state=active]:bg-white">
+                    メモ
+                  </TabsTrigger>
+                </TabsList>
+                
+                {/* CrewAIで知識グラフを生成するボタン */}
+                {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
+                  <Button
+                    onClick={() => generateGraphMutation.mutate()}
+                    disabled={generateGraphMutation.isPending}
+                    variant="outline"
+                    className="mr-2 text-sm"
+                    size="sm"
+                  >
+                    <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
+                    {generateGraphMutation.isPending ? "生成中..." : "CrewAIで知識グラフを生成"}
                   </Button>
+                )}
+              </div>
+              
+              {/* ナレッジグラフタブ */}
+              <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
+                <KnowledgeGraphViewer
+                  roleModelId={roleModelId}
+                  width="100%"
+                  height="calc(100vh - 87px)"
+                  onGraphDataChange={setHasKnowledgeGraph}
+                />
+              </TabsContent>
+              
+              {/* 要約結果タブ */}
+              <TabsContent value="summarizedResults" className="p-0 m-0">
+                <div className="h-[calc(100vh-87px)] overflow-auto">
+                  <div className="text-center text-gray-500 mt-20">
+                    <p>要約結果は現在開発中です</p>
+                    <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* メインコンテンツエリア */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="border-b bg-white">
-              <TabsList className="h-10 border-b-0 bg-transparent">
-                <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
-                  ナレッジグラフ
-                </TabsTrigger>
-                <TabsTrigger value="summarizedResults" className="data-[state=active]:bg-white">
-                  要約結果
-                </TabsTrigger>
-                <TabsTrigger value="memo" className="data-[state=active]:bg-white">
-                  メモ
-                </TabsTrigger>
-              </TabsList>
-            </div>
-            
-            {/* ナレッジグラフタブ */}
-            <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-              <KnowledgeGraphViewer
-                roleModelId={roleModelId}
-                width="100%"
-                height="calc(100vh - 87px)"
-                onGraphDataChange={setHasKnowledgeGraph}
-              />
-            </TabsContent>
-            
-            {/* 要約結果タブ */}
-            <TabsContent value="summarizedResults" className="p-0 m-0">
-              <div className="h-[calc(100vh-87px)] overflow-auto">
-                <div className="text-center text-gray-500 mt-20">
-                  <p>要約結果は現在開発中です</p>
-                  <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
+              </TabsContent>
+              
+              {/* メモタブ */}
+              <TabsContent value="memo" className="p-0 m-0">
+                <div className="h-[calc(100vh-87px)] overflow-auto">
+                  <div className="text-center text-gray-500 mt-20">
+                    <p>メモ機能は現在開発中です</p>
+                    <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
+                  </div>
                 </div>
-              </div>
-            </TabsContent>
-            
-            {/* メモタブ */}
-            <TabsContent value="memo" className="p-0 m-0">
-              <div className="h-[calc(100vh-87px)] overflow-auto">
-                <div className="text-center text-gray-500 mt-20">
-                  <p>メモ機能は現在開発中です</p>
-                  <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
+              </TabsContent>
+            </Tabs>
+          </Panel>
+          
+          {/* 右側パネル: マルチAIエージェント思考パネル */}
+          {showAgentPanel && (
+            <>
+              <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
+              <Panel defaultSize={30} minSize={20} className="border-l">
+                <div className="h-full flex flex-col bg-gray-50">
+                  <div className="p-3 border-b bg-white flex justify-between items-center">
+                    <div className="flex items-center">
+                      <BrainCircuit className="h-4 w-4 mr-2 text-purple-600" />
+                      <h2 className="font-semibold">マルチAIエージェント思考</h2>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0" 
+                      onClick={() => setShowAgentPanel(false)}
+                    >
+                      &times;
+                    </Button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-auto">
+                    <MultiAgentChatPanel 
+                      roleModelId={roleModelId} 
+                      messages={messages}
+                      agentThoughts={agentThoughts}
+                      onSendMessage={handleSendMessage}
+                    />
+                  </div>
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* 右側パネル: マルチAIエージェント思考パネル */}
-        {showAgentPanel && (
-          <div className="w-72 border-l flex flex-col bg-gray-50">
-            <div className="p-3 border-b bg-white flex justify-between items-center">
-              <div className="flex items-center">
-                <BrainCircuit className="h-4 w-4 mr-2 text-purple-600" />
-                <h2 className="font-semibold">マルチAIエージェント思考</h2>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 w-6 p-0" 
-                onClick={() => setShowAgentPanel(false)}
-              >
-                &times;
-              </Button>
-            </div>
-            
-            <div className="flex-1 overflow-auto">
-              <MultiAgentChatPanel 
-                roleModelId={roleModelId} 
-                messages={messages}
-                agentThoughts={agentThoughts}
-                onSendMessage={handleSendMessage}
-              />
-            </div>
-          </div>
-        )}
+              </Panel>
+            </>
+          )}
+        </PanelGroup>
       </div>
     </div>
   );
