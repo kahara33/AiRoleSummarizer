@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { RoleModel } from '@shared/schema';
+import { RoleModelWithIndustriesAndKeywords, Industry } from '@shared/schema';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,7 +15,7 @@ const HomePage: React.FC = () => {
     data: roleModels = [], 
     isLoading: isLoadingModels,
     error: roleModelsError
-  } = useQuery<RoleModel[]>({
+  } = useQuery<RoleModelWithIndustriesAndKeywords[]>({
     queryKey: ["/api/role-models"],
     enabled: !!user,
   });
@@ -38,7 +38,7 @@ const HomePage: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold">ロールモデル一覧</h2>
             <Button asChild>
-              <Link href="/role-models/new">
+              <Link to="/role-models/new">
                 <Plus className="h-4 w-4 mr-1" />
                 新規作成
               </Link>
@@ -64,7 +64,7 @@ const HomePage: React.FC = () => {
                 「新規作成」ボタンをクリックして、最初のロールを作成しましょう
               </p>
               <Button asChild>
-                <Link href="/role-models/new">
+                <Link to="/role-models/new">
                   <Plus className="h-4 w-4 mr-1" />
                   ロールを作成する
                 </Link>
@@ -73,7 +73,7 @@ const HomePage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {roleModels.map((roleModel) => (
-                <Link key={roleModel.id} href={`/role-model/${roleModel.id}/knowledge-graph`}>
+                <Link key={roleModel.id} to={`/role-model/${roleModel.id}/knowledge-graph`}>
                   <Card className="h-full cursor-pointer hover:shadow-md transition-shadow border border-gray-200">
                     <div className="p-6">
                       <div className="flex items-center justify-center h-14 w-14 bg-primary-100 rounded-lg mb-4">
@@ -90,7 +90,7 @@ const HomePage: React.FC = () => {
                       <div className="mt-4 space-y-3">
                         {roleModel.industries && roleModel.industries.length > 0 && (
                           <div className="flex flex-wrap gap-2">
-                            {roleModel.industries.slice(0, 3).map((industry) => (
+                            {roleModel.industries.slice(0, 3).map((industry: Industry) => (
                               <span key={industry.id} className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
                                 {industry.name}
                               </span>
@@ -100,9 +100,9 @@ const HomePage: React.FC = () => {
                         
                         {roleModel.keywords && roleModel.keywords.length > 0 && (
                           <div className="flex flex-wrap gap-2">
-                            {roleModel.keywords.slice(0, 3).map((keyword) => (
-                              <span key={keyword.id} className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                {keyword.name}
+                            {roleModel.keywords.slice(0, 3).map((keyword: string, index: number) => (
+                              <span key={index} className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                {keyword}
                               </span>
                             ))}
                           </div>

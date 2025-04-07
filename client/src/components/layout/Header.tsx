@@ -18,6 +18,7 @@ const Header: React.FC = () => {
 
   // ユーザーのイニシャルを取得
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name
       .split(" ")
       .map((n) => n[0])
@@ -31,7 +32,7 @@ const Header: React.FC = () => {
         <div className="flex justify-between h-16">
           {/* ロゴ */}
           <div className="flex items-center">
-            <Link href="/">
+            <Link to="/">
               <div className="flex items-center cursor-pointer">
                 <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                   <span className="text-white text-xl font-bold">E</span>
@@ -44,7 +45,7 @@ const Header: React.FC = () => {
           {/* 右側 - 設定 & ユーザー */}
           <div className="flex items-center space-x-4">
             {/* 設定ボタン */}
-            <Link href="/settings">
+            <Link to="/settings">
               <Button variant="ghost" size="icon" className="text-gray-600 hover:text-gray-900">
                 <Settings size={20} />
               </Button>
