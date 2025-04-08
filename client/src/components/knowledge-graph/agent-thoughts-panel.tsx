@@ -47,9 +47,21 @@ interface AgentThoughtsPanelProps {
   onClose?: () => void;
   thoughts?: AgentThought[];
   height?: string;
+  isProcessing?: boolean;
+  progressUpdates?: ProgressUpdate[];
+  onCancel?: () => boolean;
 }
 
-export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, thoughts: externalThoughts = [], height }: AgentThoughtsPanelProps) {
+export function AgentThoughtsPanel({ 
+  roleModelId, 
+  isVisible = true, 
+  onClose, 
+  thoughts: externalThoughts = [], 
+  height,
+  isProcessing: externalProcessing,
+  progressUpdates = [],
+  onCancel
+}: AgentThoughtsPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [internalThoughts, setInternalThoughts] = useState<AgentMessage[]>([]);
   const [filteredThoughts, setFilteredThoughts] = useState<AgentMessage[]>([]);
@@ -60,6 +72,22 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
   // WebSocketインスタンスをrefに保存
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
+  
+  // 外部からの処理状態を反映
+  useEffect(() => {
+    if (externalProcessing !== undefined) {
+      setIsProcessing(externalProcessing);
+    }
+  }, [externalProcessing]);
+  
+  // 外部から渡された進捗状況を反映
+  useEffect(() => {
+    if (progressUpdates && progressUpdates.length > 0) {
+      // 最後の進捗情報を取得
+      const latestProgress = progressUpdates[progressUpdates.length - 1];
+      setProgress(latestProgress);
+    }
+  }, [progressUpdates]);
   
   // 外部から渡されたthoughtsを内部形式に変換
   useEffect(() => {
@@ -296,8 +324,20 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
     return (
       <div className="w-full h-full flex flex-col">
         <div className="p-3 bg-white border-b">
-          <h2 className="font-semibold text-base">エージェント処理ログ</h2>
-          <p className="text-sm text-gray-500">AIエージェントの処理内容をリアルタイムで表示します</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="font-semibold text-base">エージェント処理ログ</h2>
+              <p className="text-sm text-gray-500">AIエージェントの処理内容をリアルタイムで表示します</p>
+            </div>
+            {isProcessing && onCancel && (
+              <button 
+                onClick={() => onCancel()}
+                className="py-1 px-3 bg-red-100 text-red-800 hover:bg-red-200 rounded-md text-sm transition-colors"
+              >
+                処理をキャンセル
+              </button>
+            )}
+          </div>
         </div>
 
         <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
@@ -377,6 +417,14 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 <span className="text-sm">処理中...</span>
               </div>
+            )}
+            {isProcessing && onCancel && (
+              <button 
+                onClick={() => onCancel()}
+                className="py-1 px-3 bg-red-100 text-red-800 hover:bg-red-200 rounded-md text-sm transition-colors mr-2"
+              >
+                キャンセル
+              </button>
             )}
             {onClose && (
               <button 

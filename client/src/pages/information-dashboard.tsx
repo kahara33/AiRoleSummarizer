@@ -8,7 +8,7 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
-import AgentThoughtsPanel from '@/components/knowledge-graph/agent-thoughts-panel';
+import AgentThoughtsPanel, { ProgressUpdate as AgentProgressUpdate } from '@/components/knowledge-graph/agent-thoughts-panel';
 import { CreateCollectionPlanWithCrewAIButton } from '@/components/knowledge-graph/CreateCollectionPlanWithCrewAIButton';
 import { 
   Plus, 
@@ -63,7 +63,23 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   });
   
   // WebSocketメッセージを処理
-  const { messages, agentThoughts, isConnected, sendMessage: send, connect } = useMultiAgentWebSocket();
+  const { 
+    messages, 
+    agentThoughts, 
+    isConnected, 
+    sendMessage: send, 
+    connect, 
+    isProcessing, 
+    progressUpdates,
+    cancelOperation 
+  } = useMultiAgentWebSocket();
+  
+  // デバッグ用のログ出力
+  useEffect(() => {
+    console.log("エージェント思考の数:", agentThoughts.length);
+    console.log("進捗更新の数:", progressUpdates.length);
+    console.log("処理中フラグ:", isProcessing);
+  }, [agentThoughts.length, progressUpdates.length, isProcessing]);
   
   // roleModelIdが設定されたらWebSocketを接続
   useEffect(() => {
@@ -436,26 +452,47 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   {/* CrewAIボタンと情報収集プラン作成ボタン - 順序変更 */}
                   {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
                     <>
-                      <Button
-                        onClick={() => generateGraphMutation.mutate()}
-                        disabled={generateGraphMutation.isPending}
-                        variant="outline"
-                        className="text-sm"
-                        size="sm"
-                      >
-                        <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                        {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフと情報収集プランを生成"}
-                      </Button>
+                      {isProcessing ? (
+                        <Button
+                          onClick={() => {
+                            cancelOperation();
+                            toast({
+                              title: "処理をキャンセル",
+                              description: "AIエージェント処理をキャンセルしました"
+                            });
+                          }}
+                          variant="outline"
+                          className="text-sm"
+                          size="sm"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1 text-red-600 animate-spin" />
+                          処理中... キャンセル
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => generateGraphMutation.mutate()}
+                          disabled={generateGraphMutation.isPending || isProcessing}
+                          variant="outline"
+                          className="text-sm"
+                          size="sm"
+                        >
+                          <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
+                          {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフと情報収集プランを生成"}
+                        </Button>
+                      )}
                       
                       {/* 情報収集プラン作成ボタン - 単独コンポーネント化してここに配置 */}
-                      <CreateCollectionPlanWithCrewAIButton 
-                        size="sm"
-                        variant="outline"
-                        className="text-sm"
-                        onStart={showAgentPanelHandler}
-                        defaultKeywords={roleModel?.keywords || []}
-                        defaultIndustry={roleModel?.industry || ''}
-                      />
+                      {!isProcessing && (
+                        <CreateCollectionPlanWithCrewAIButton 
+                          size="sm"
+                          variant="outline"
+                          className="text-sm"
+                          onStart={showAgentPanelHandler}
+                          defaultKeywords={roleModel?.keywords || []}
+                          defaultIndustry={roleModel?.industry || ''}
+                          disabled={isProcessing || generateGraphMutation.isPending}
+                        />
+                      )}
                     </>
                   )}
                 </div>
@@ -552,20 +589,60 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   <div className="flex-1 overflow-hidden flex flex-col">
                     {/* エージェント思考パネル */}
                     <div className="flex-1 overflow-hidden pb-1">
+                      {/* エージェント思考パネル */}
                       <AgentThoughtsPanel 
                         roleModelId={roleModelId}
                         isVisible={true}
                         height="100%"
-                        thoughts={agentThoughts.map(thought => ({
-                          id: thought.id || String(crypto.randomUUID()),
-                          agentName: thought.agentName || (thought as any).agent || 'AI エージェント',
-                          agentType: thought.agentType || (thought as any).type || (thought as any).agent_type || 'agent',
-                          type: thought.type || thought.agentType || 'info',
-                          thought: thought.thought || (thought as any).message || (thought as any).thoughts || ((thought as any).payload ? JSON.stringify((thought as any).payload) : ''),
-                          message: thought.message || thought.thought || (thought as any).content || '',
-                          timestamp: new Date(thought.timestamp || Date.now()),
-                          roleModelId: thought.roleModelId || (thought as any).roleModelId
-                        }))}
+                        isProcessing={isProcessing}
+                        progressUpdates={progressUpdates.map(update => {
+                          // AgentThoughtsPanelが期待する形式に変換
+                          return {
+                            stage: update.stage || 'processing', 
+                            progress: update.progress || update.percent || 0,
+                            message: update.message || '',
+                            details: update.details || {}
+                          };
+
+                        })}
+                        thoughts={[
+                          ...agentThoughts.map(thought => ({
+                            id: thought.id || String(crypto.randomUUID()),
+                            agentName: thought.agentName || (thought as any).agent || 'AI エージェント',
+                            agentType: thought.agentType || (thought as any).type || (thought as any).agent_type || 'agent',
+                            type: thought.type || thought.agentType || 'info',
+                            thought: thought.thought || (thought as any).message || (thought as any).thoughts || 
+                                   ((thought as any).payload ? 
+                                      (typeof (thought as any).payload === 'string' ? 
+                                        (thought as any).payload : 
+                                        JSON.stringify((thought as any).payload)) 
+                                      : ''),
+                            message: thought.message || thought.thought || (thought as any).content || '',
+                            timestamp: new Date(thought.timestamp || Date.now()),
+                            roleModelId: thought.roleModelId || (thought as any).roleModelId
+                          })),
+                          // エージェント思考としての進捗情報
+                          ...progressUpdates.map(update => {
+                            // AgentThoughtとして表示するための変換
+                            return {
+                              id: String(crypto.randomUUID()),
+                              agentName: 'プロセス進捗',
+                              agentType: 'progress',
+                              type: 'progress',
+                              thought: typeof update.message === 'string' ? 
+                                      update.message : 
+                                      JSON.stringify(update.progress || update.percent || 0),
+                              message: typeof update.message === 'string' ? 
+                                      update.message : 
+                                      '進捗情報',
+                              timestamp: new Date(update.timestamp || Date.now()),
+                              roleModelId: update.roleModelId || roleModelId,
+                              progress: update.progress || update.percent || 0,
+                              progressPercent: update.progressPercent || update.percent || 0
+                            };
+                          })
+                        ]}
+                        onCancel={cancelOperation}
                       />
                     </div>
 

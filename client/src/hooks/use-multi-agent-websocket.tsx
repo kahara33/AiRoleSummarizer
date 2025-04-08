@@ -53,6 +53,11 @@ interface ProgressUpdate {
   percent: number;
   timestamp: string;
   roleModelId?: string;
+  // AgentThoughtsPanelと互換性を持たせるためのフィールド
+  stage?: string;
+  progress?: number;
+  details?: any;
+  progressPercent?: number;
 }
 
 // デフォルト値を持つコンテキスト作成
@@ -470,7 +475,12 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           message: msg,
           percent: percent,
           timestamp: message.timestamp || new Date().toISOString(),
-          roleModelId: message.payload.roleModelId || currentRoleModelId || ''
+          roleModelId: message.payload.roleModelId || currentRoleModelId || '',
+          // AgentThoughtsPanelと互換性を持たせるためのフィールド
+          stage: message.payload.step || 'processing',
+          progress: percent,
+          progressPercent: percent,
+          details: message.payload
         };
         
         console.log('進捗更新を追加:', progressUpdate);
@@ -566,7 +576,12 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
                 : `${agentName}が処理中: ${thought.substring(0, 30)}...`,
               percent: isError ? 0 : percent,
               timestamp: new Date().toISOString(),
-              roleModelId: currentRoleModelId
+              roleModelId: currentRoleModelId,
+              // AgentThoughtsPanelと互換性を持たせるためのフィールド
+              stage: message.payload.step || 'processing',
+              progress: isError ? 0 : percent,
+              progressPercent: isError ? 0 : percent,
+              details: message.payload
             };
             
             setProgressUpdates(prev => [...prev, progressUpdate]);
@@ -583,7 +598,12 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
             message: message.payload.message,
             percent: message.payload.percent,
             timestamp: message.timestamp || new Date().toISOString(),
-            roleModelId: message.payload.roleModelId || currentRoleModelId || undefined
+            roleModelId: message.payload.roleModelId || currentRoleModelId || undefined,
+            // AgentThoughtsPanelと互換性を持たせるためのフィールド
+            stage: message.payload.step || 'processing',
+            progress: message.payload.percent,
+            progressPercent: message.payload.percent,
+            details: message.payload
           };
           setProgressUpdates(prev => [...prev, update]);
           

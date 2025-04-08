@@ -18,6 +18,7 @@ interface CreateCollectionPlanProps {
   variant?: 'default' | 'secondary' | 'outline' | 'destructive' | 'ghost' | 'link';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   useCard?: boolean;
+  disabled?: boolean;
 }
 
 export function CreateCollectionPlanWithCrewAIButton({
@@ -27,7 +28,8 @@ export function CreateCollectionPlanWithCrewAIButton({
   className = '',
   variant = 'default',
   size = 'default',
-  useCard = false
+  useCard = false,
+  disabled = false
 }: CreateCollectionPlanProps) {
   const { isConnected: connected, sendMessage: send, messages } = useMultiAgentWebSocket();
   const { toast } = useToast();
@@ -319,8 +321,8 @@ export function CreateCollectionPlanWithCrewAIButton({
           variant={variant} 
           size={size}
           onClick={toggleForm}
-          disabled={isProcessing}
-          className={`w-full ${isProcessing ? 'opacity-70 cursor-not-allowed' : ''}`}
+          disabled={isProcessing || disabled}
+          className={`w-full ${(isProcessing || disabled) ? 'opacity-70 cursor-not-allowed' : ''}`}
           aria-busy={isProcessing}
         >
           {isProcessing ? (
@@ -347,8 +349,8 @@ export function CreateCollectionPlanWithCrewAIButton({
             variant={variant}
             size={size}
             onClick={toggleForm}
-            disabled={isProcessing}
-            className={`${className} ${isProcessing ? 'opacity-70 cursor-not-allowed' : ''}`}
+            disabled={isProcessing || disabled}
+            className={`${className} ${(isProcessing || disabled) ? 'opacity-70 cursor-not-allowed' : ''}`}
             aria-busy={isProcessing}
           >
             {isProcessing ? (
