@@ -191,6 +191,66 @@ export function initWebSocket(server: HttpServer): void {
                   }
                 }
               }
+              // エージェント思考メッセージの処理
+              else if (data.type === 'agent_thought') {
+                const agentName = data.agentName || data.agent || 'エージェント';
+                const thought = data.thought || data.message || data.content || '思考内容が記録されませんでした';
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                console.log(`エージェント思考メッセージを受信: ${agentName}`);
+                
+                // エージェント思考をブロードキャスト
+                if (specificRoleModelId) {
+                  // エージェント思考を他のクライアントにも送信
+                  sendAgentThoughts(agentName, thought, specificRoleModelId, data);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'thought_received',
+                    message: 'エージェント思考を受信しました',
+                    agentName,
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
+              // 進捗更新メッセージの処理
+              else if (data.type === 'progress_update') {
+                const message = data.message || '';
+                const progress = data.progress || 0;
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                console.log(`進捗更新メッセージを受信: ${progress}%`);
+                
+                // 進捗更新をブロードキャスト
+                if (specificRoleModelId) {
+                  // 進捗更新を他のクライアントにも送信
+                  sendProgressUpdate(message, progress, specificRoleModelId, data);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'progress_received',
+                    message: '進捗更新を受信しました',
+                    progress,
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
+              // 未知のメッセージタイプの場合
+              else if (data.type && data.type !== 'ping') {
+                console.log(`未処理のメッセージタイプ: ${data.type}`);
+                
+                // メッセージの処理をログに記録
+                try {
+                  ws.send(JSON.stringify({
+                    type: 'message_received',
+                    message: `メッセージタイプ '${data.type}' を受信しました`,
+                    originalType: data.type,
+                    timestamp: new Date().toISOString()
+                  }));
+                } catch (sendError) {
+                  console.error(`確認メッセージ送信エラー: ${sendError}`);
+                }
+              }
             } catch (jsonError) {
               console.error('JSONメッセージの解析に失敗:', jsonError);
             }

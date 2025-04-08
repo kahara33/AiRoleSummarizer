@@ -88,7 +88,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       if (send) {
         setTimeout(() => {
           // エージェント思考メッセージを送信
-          send('agent_thought', {
+          send('agent_thoughts', {
             id: "test-thought-1",
             roleModelId: roleModelId,
             agentName: "ドメイン分析エージェント",
@@ -96,11 +96,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             thought: "業界分析を開始しています。主要なトレンドと特性を評価中...",
             message: "業界分析を開始",
             type: "info",
-            timestamp: new Date()
+            timestamp: new Date().toISOString()
           });
           
           // 進捗更新メッセージを送信
-          send('progress_update', {
+          send('progress', {
             roleModelId: roleModelId,
             stage: "分析フェーズ",
             progress: 30,
