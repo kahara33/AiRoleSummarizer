@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, AlertCircle, CheckCircle, Brain } from 'lucide-react';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
+import useGlobalWebSocket, { AgentThought, ProgressUpdate } from '@/hooks/use-global-websocket';
 
 // エージェント出力メッセージの型定義
 export interface AgentMessage {
@@ -19,27 +19,6 @@ export interface AgentMessage {
   agentName: string;
   message: string;
   type: 'info' | 'error' | 'success' | 'thinking' | string;
-}
-
-// 進捗状況の型定義
-export interface ProgressUpdate {
-  stage: string;
-  progress: number;
-  message: string;
-  details?: any;
-}
-
-// Thoughts型定義
-export interface AgentThought {
-  id?: string;
-  agentName: string;
-  agentType?: string;
-  thought: string;
-  message?: string;
-  type?: string;
-  timestamp: string | Date;
-  roleModelId?: string;
-  step?: string;
 }
 
 interface AgentThoughtsPanelProps {
@@ -60,7 +39,7 @@ export function AgentThoughtsPanel({
   thoughts: externalThoughts = [], 
   height,
   isProcessing: externalProcessing,
-  progressUpdates = [],
+  progressUpdates: externalProgressUpdates = [],
   onCancel
 }: AgentThoughtsPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -70,11 +49,10 @@ export function AgentThoughtsPanel({
   const [isProcessing, setIsProcessing] = useState(false);
   const [agentNames, setAgentNames] = useState<string[]>([]);
   
-  // グローバルWebSocketフックを利用
-  const { agentThoughts: wsAgentThoughts, progressUpdates: wsProgressUpdates } = useMultiAgentWebSocket();
+  // グローバルWebSocketフックを利用（roleModelIdが変更されても再マウントされない）
+  const { agentThoughts: wsAgentThoughts, progressUpdates: wsProgressUpdates } = useGlobalWebSocket(roleModelId);
   
-  // WebSocketインスタンスをrefに保存
-  const socketRef = useRef<WebSocket | null>(null);
+  // コンポーネントマウント状態の追跡
   const isComponentMountedRef = useRef<boolean>(true);
   
   // 外部からの処理状態を反映
@@ -86,12 +64,34 @@ export function AgentThoughtsPanel({
   
   // 外部から渡された進捗状況を反映
   useEffect(() => {
-    if (progressUpdates && progressUpdates.length > 0) {
+    if (externalProgressUpdates && externalProgressUpdates.length > 0) {
       // 最後の進捗情報を取得
-      const latestProgress = progressUpdates[progressUpdates.length - 1];
+      const latestProgress = externalProgressUpdates[externalProgressUpdates.length - 1];
       setProgress(latestProgress);
     }
-  }, [progressUpdates]);
+  }, [externalProgressUpdates]);
+  
+  // WebSocketフックからの進捗情報を処理
+  useEffect(() => {
+    if (wsProgressUpdates && wsProgressUpdates.length > 0) {
+      const latestProgress = wsProgressUpdates[wsProgressUpdates.length - 1];
+      setProgress({
+        stage: latestProgress.stage || 'processing',
+        progress: latestProgress.progress || latestProgress.percent || 0,
+        message: latestProgress.message || '処理中...',
+        details: latestProgress.details,
+        percent: latestProgress.percent,
+        timestamp: latestProgress.timestamp
+      });
+      
+      // 進捗状況に基づいて処理中フラグを更新
+      if (latestProgress.progress >= 100 || latestProgress.percent >= 100 || latestProgress.stage === 'complete') {
+        setIsProcessing(false);
+      } else {
+        setIsProcessing(true);
+      }
+    }
+  }, [wsProgressUpdates]);
   
   // WebSocketフックからのエージェント思考を処理
   useEffect(() => {
@@ -225,7 +225,9 @@ export function AgentThoughtsPanel({
             setProgress({
               stage: thought.agentName || 'システム',
               progress: progressPercent,
-              message: thought.message || thought.thought || '処理中...'
+              message: thought.message || thought.thought || '処理中...',
+              percent: progressPercent,
+              timestamp: thought.timestamp
             });
           }
           // 通常のメッセージ処理
@@ -396,9 +398,11 @@ export function AgentThoughtsPanel({
   const getProgressColor = useCallback(() => {
     if (!progress) return 'bg-gray-200';
     
-    if (progress.progress < 33) {
+    const progressValue = progress.progress || progress.percent || 0;
+    
+    if (progressValue < 33) {
       return 'bg-blue-500';
-    } else if (progress.progress < 66) {
+    } else if (progressValue < 66) {
       return 'bg-yellow-500';
     } else {
       return 'bg-green-500';
@@ -435,12 +439,12 @@ export function AgentThoughtsPanel({
           <div className="px-4 py-2">
             <div className="flex justify-between mb-1">
               <span className="text-sm font-semibold">{progress.stage}</span>
-              <span className="text-sm">{progress.progress}%</span>
+              <span className="text-sm">{progress.progress || progress.percent || 0}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
               <div 
                 className={`${getProgressColor()} h-2.5 rounded-full transition-all progress-bar-animated`} 
-                style={{ width: `${progress.progress}%` }}
+                style={{ width: `${progress.progress || progress.percent || 0}%` }}
               ></div>
             </div>
             <p className="text-sm text-gray-500 mt-1">{progress.message}</p>
@@ -573,12 +577,12 @@ export function AgentThoughtsPanel({
         <div className="px-6 py-2">
           <div className="flex justify-between mb-1">
             <span className="text-sm font-semibold">{progress.stage}</span>
-            <span className="text-sm">{progress.progress}%</span>
+            <span className="text-sm">{progress.progress || progress.percent || 0}%</span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
             <div 
               className={`${getProgressColor()} h-2.5 rounded-full transition-all progress-bar-animated`} 
-              style={{ width: `${progress.progress}%` }}
+              style={{ width: `${progress.progress || progress.percent || 0}%` }}
             ></div>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{progress.message}</p>

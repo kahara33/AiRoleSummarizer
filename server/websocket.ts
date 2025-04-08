@@ -156,13 +156,28 @@ export function initWebSocket(server: HttpServer): void {
             
             // シンプルなping-pong処理
             if (msgStr === 'ping') {
-              ws.send('pong');
+              ws.send(JSON.stringify({
+                type: 'pong',
+                timestamp: new Date().toISOString()
+              }));
               return;
             }
             
             // JSON形式のメッセージを解析
             try {
               const data = JSON.parse(msgStr);
+              
+              // pingメッセージの場合はpongですぐに応答
+              if (data.type === 'ping') {
+                console.log('Ping received from client');
+                ws.send(JSON.stringify({
+                  type: 'pong',
+                  timestamp: new Date().toISOString(),
+                  payload: data.payload // クライアントが送ったペイロードをそのまま返す
+                }));
+                return;
+              }
+              
               console.log('WebSocketメッセージを受信:', data.type);
               
               // サブスクリプションメッセージの処理
