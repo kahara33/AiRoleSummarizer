@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
-import AgentThoughtsPanel, { ProgressUpdate as AgentProgressUpdate } from '@/components/knowledge-graph/agent-thoughts-panel';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import AgentThoughtsPanel from '@/components/knowledge-graph/agent-thoughts-panel';
+import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
 import { CreateCollectionPlanWithCrewAIButton } from '@/components/knowledge-graph/CreateCollectionPlanWithCrewAIButton';
 import { 
   Plus, 
@@ -64,15 +65,16 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   
   // WebSocketメッセージを処理
   const { 
-    messages, 
     agentThoughts, 
     isConnected, 
     sendMessage: send, 
     connect, 
     isProcessing, 
     progressUpdates,
-    cancelOperation 
   } = useMultiAgentWebSocket();
+  
+  // チャットメッセージ用の状態
+  const [messages, setMessages] = useState<any[]>([]);
   
   // デバッグ用のログ出力
   useEffect(() => {
@@ -536,7 +538,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       {isProcessing ? (
                         <Button
                           onClick={() => {
-                            cancelOperation();
+                            // 操作のキャンセル処理
+                            send('cancel', { roleModelId });
                             toast({
                               title: "処理をキャンセル",
                               description: "AIエージェント処理をキャンセルしました"
@@ -723,7 +726,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                             };
                           })
                         ]}
-                        onCancel={cancelOperation}
+                        onCancel={() => send('cancel', { roleModelId })}
                       />
                     </div>
 
