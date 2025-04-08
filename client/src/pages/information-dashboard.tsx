@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -8,51 +8,23 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
-import AgentThoughtsPanel from '@/components/knowledge-graph/agent-thoughts-panel';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
-import { CreateCollectionPlanWithCrewAIButton } from '@/components/knowledge-graph/CreateCollectionPlanWithCrewAIButton';
 import { 
   Plus, 
-  FileText, 
-  ExternalLink, 
+  FileText,
   RefreshCw,
   BrainCircuit,
   Sparkles,
-  Maximize2,
-  Minimize2
 } from 'lucide-react';
 
-// モックデータ
-const mockCollectionPlans = [
-  { id: 'plan1', name: 'プラン1', createdAt: '2025/3/7', updatedAt: '2025/4/7' },
-  { id: 'plan2', name: 'プラン2', createdAt: '2025/3/15', updatedAt: '2025/4/5' },
-];
-
-// プラン詳細のモックデータ
-const mockPlanDetails = {
-  name: '収集プラン',
-  status: '実行単位',
-  completion: '通知先',
-  tools: ['Google', 'RSS'],
-  sources: [
-    { id: 'source1', media: 'https://example.com/news' },
-    { id: 'source2', media: 'https://example.org/blog' }
-  ]
-};
-
-interface InformationDashboardProps {
-  id?: string;
-}
-
-const InformationDashboard: React.FC<InformationDashboardProps> = () => {
+const InformationDashboard: React.FC<{ id?: string }> = () => {
   const params = useParams();
   const { id } = params;
   const roleModelId = id || 'default';
   const [activeTab, setActiveTab] = useState<string>('knowledgeGraph');
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
-  const [showAgentThoughts, setShowAgentThoughts] = useState<boolean>(false);
+  const [showAIThoughts, setShowAIThoughts] = useState<boolean>(false);
   const { toast } = useToast();
 
   // ロールモデルデータを取得
@@ -65,98 +37,18 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   const { 
     agentThoughts, 
     isConnected, 
-    sendMessage: send, 
+    sendMessage, 
     connect, 
     isProcessing, 
     progressUpdates,
   } = useMultiAgentWebSocket();
   
-  // チャットメッセージ用の状態
-  const [messages, setMessages] = useState<any[]>([]);
-
-  // テスト用のエージェント思考処理（本番環境では削除する）
-  useEffect(() => {
-    if (roleModelId && agentThoughts.length === 0) {
-      if (send) {
-        const testAgentThoughts = async () => {
-          // テスト用のエージェント思考データを遅延実行で送信
-          const agents = [
-            { name: "ドメイン分析エージェント", type: "domain_analyst" },
-            { name: "トレンド調査エージェント", type: "trend_researcher" },
-            { name: "コンテキストマッピングエージェント", type: "context_mapper" },
-            { name: "プラン戦略エージェント", type: "plan_strategist" },
-            { name: "批判的思考エージェント", type: "critical_thinker" }
-          ];
-          
-          const thoughts = [
-            "分析を開始しています。情報を収集中...",
-            "キーとなる特性とパターンを特定しています。",
-            "関連データを評価して、重要な関係性を見つけています。",
-            "収集したデータに基づいて戦略を策定しています。",
-            "構築された知識構造の整合性と完全性を確認中です。"
-          ];
-          
-          // 複数のメッセージをシーケンシャルに送信
-          let delay = 500;
-          agents.forEach((agent, index) => {
-            setTimeout(() => {
-              // エージェント思考メッセージ
-              send('agent_thoughts', {
-                id: `test-thought-${index + 1}`,
-                roleModelId: roleModelId,
-                agentName: agent.name,
-                agentType: agent.type,
-                thought: thoughts[index],
-                message: `${agent.name}の思考: ${thoughts[index]}`,
-                type: "thinking",
-                timestamp: new Date().toISOString()
-              });
-              
-              // 少し遅れて進捗更新
-              setTimeout(() => {
-                send('progress', {
-                  roleModelId: roleModelId,
-                  stage: `${agent.name}のフェーズ`,
-                  progress: 20 * (index + 1),
-                  message: `プロセスが${20 * (index + 1)}%完了しました`,
-                  details: { step: agent.type },
-                  percent: 20 * (index + 1)
-                });
-              }, 300);
-            }, delay);
-            
-            delay += 1500; // 次のエージェントのディレイを増加
-          });
-          
-          // 最後に成功メッセージ
-          setTimeout(() => {
-            send('agent_thoughts', {
-              id: "test-thought-completion",
-              roleModelId: roleModelId,
-              agentName: "システム",
-              agentType: "system",
-              thought: "全エージェントの処理が完了しました。知識グラフと情報収集プランが正常に生成されました。",
-              message: "処理完了: 知識グラフと情報収集プランが生成されました。",
-              type: "success",
-              timestamp: new Date().toISOString()
-            });
-            
-            // 完了進捗
-            send('progress', {
-              roleModelId: roleModelId,
-              stage: "完了",
-              progress: 100,
-              message: "処理が完了しました",
-              details: { step: "completion" },
-              percent: 100
-            });
-          }, delay + 1000);
-        };
-        
-        //testAgentThoughts(); // 必要に応じてコメントアウトを解除
-      }
-    }
-  }, [roleModelId, agentThoughts.length, send]);
+  // ダミーデータ（左メニュー表示用）
+  const plans = [
+    { id: 'plan1', name: 'プラン1', createdAt: '2025/3/7', updatedAt: '2025/4/7' },
+    { id: 'plan2', name: 'プラン2', createdAt: '2025/3/15', updatedAt: '2025/4/5' },
+  ];
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   
   // roleModelIdが設定されたらWebSocketを接続
   useEffect(() => {
@@ -164,11 +56,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       console.log('WebSocketを接続します: roleModelId =', roleModelId);
       connect(roleModelId);
     }
-    
-    // コンポーネントがアンマウントされたときにクリーンアップ
-    return () => {
-      console.log('情報整理ダッシュボードのWebSocket接続をクリーンアップします');
-    };
   }, [roleModelId, isConnected, connect]);
   
   // CrewAIで知識グラフを生成する関数
@@ -181,11 +68,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         title: "プロセス開始",
         description: "CrewAIによるナレッジグラフと情報収集プランの生成を開始しました。しばらくお待ちください。"
       });
-      setShowAgentThoughts(true); // エージェント思考パネルを表示
-      
-      // WebSocketが切断されている場合は再接続
+      setShowAIThoughts(true);
       if (!isConnected && roleModelId) {
-        console.log('ナレッジグラフ生成時にWebSocketを再接続します');
         connect(roleModelId);
       }
     },
@@ -200,19 +84,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
 
   // プランが選択されたときの処理
   useEffect(() => {
-    if (mockCollectionPlans.length > 0 && !selectedPlan) {
-      setSelectedPlan(mockCollectionPlans[0].id);
+    if (plans.length > 0 && !selectedPlan) {
+      setSelectedPlan(plans[0].id);
     }
   }, [selectedPlan]);
 
-  // 新規ソース追加関数
-  const handleAddSource = () => {
-    toast({
-      title: "新規ソース追加",
-      description: "新しい情報ソースを追加する機能は開発中です。"
-    });
-  };
-  
   return (
     <div className="flex flex-col h-screen">
       {/* ヘッダー */}
@@ -241,7 +117,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </tr>
               </thead>
               <tbody className="text-xs">
-                {mockCollectionPlans.map((plan) => (
+                {plans.map((plan) => (
                   <tr 
                     key={plan.id} 
                     className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
@@ -254,46 +130,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-          
-          {/* プラン詳細 */}
-          <div className="p-4 border-t overflow-auto">
-            <h2 className="text-sm font-medium mb-2">プラン詳細</h2>
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-xs font-medium">収集プラン</h3>
-                <p className="text-xs">{mockPlanDetails.name}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-xs font-medium">実行頻度</h3>
-                <p className="text-xs">{mockPlanDetails.status}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-xs font-medium">通知先</h3>
-                <p className="text-xs">{mockPlanDetails.completion}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-xs font-medium">利用ツール</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {mockPlanDetails.tools.map((tool, index) => (
-                    <span key={index} className="text-xs px-2 py-0.5 bg-gray-100 rounded-sm">{tool}</span>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-medium">情報ソース</h3>
-                  <Button variant="outline" size="sm" className="h-6 text-xs" onClick={handleAddSource}>
-                    <Plus className="h-3 w-3 mr-1" />
-                    追加
-                  </Button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -352,7 +188,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       variant="outline" 
                       size="sm" 
                       className="h-8"
-                      onClick={() => setShowAgentThoughts(!showAgentThoughts)}
+                      onClick={() => setShowAIThoughts(!showAIThoughts)}
                     >
                       <BrainCircuit className="h-4 w-4 mr-1" />
                       マルチエージェント思考
@@ -379,7 +215,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               )}
               
               {/* エージェント思考パネル (右サイドバー) */}
-              {showAgentThoughts && (
+              {showAIThoughts && (
                 <div className="absolute right-0 top-0 w-64 h-full bg-white border-l shadow-lg z-10">
                   <div className="flex justify-between items-center p-2 border-b">
                     <h3 className="text-sm font-medium">AIエージェント思考</h3>
@@ -387,9 +223,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       variant="ghost" 
                       size="sm" 
                       className="h-6 w-6 p-0"
-                      onClick={() => setShowAgentThoughts(false)}
+                      onClick={() => setShowAIThoughts(false)}
                     >
-                      <Minimize2 className="h-4 w-4" />
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
                     </Button>
                   </div>
                   
@@ -416,15 +255,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <p>このタブは開発中です。</p>
               </div>
             </TabsContent>
-          </div>
-          
-          {/* チャットインターフェース（オプション） */}
-          <div className="h-12 border-t bg-white p-2 flex items-center">
-            <input 
-              type="text" 
-              placeholder="メッセージを入力..."
-              className="w-full border rounded-md px-3 py-1 text-sm"
-            />
           </div>
         </div>
       </div>
