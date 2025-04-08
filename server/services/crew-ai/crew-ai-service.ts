@@ -75,13 +75,14 @@ export class CrewAIService {
         console.warn('デモ思考プロセスの送信に失敗:', demoError);
       }
       
-      // CrewManagerの作成
+      // CrewManagerの作成 - roleModelIdを渡す
       const crewManager = createCrewManager(
         industry,
         initialKeywords,
         potentialSources,
         resourceConstraints,
-        originalRequirements
+        originalRequirements,
+        roleModelId
       );
       
       // イベントリスナーの設定

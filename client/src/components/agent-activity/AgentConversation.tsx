@@ -48,65 +48,37 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
     sendMessage
   } = useMultiAgentWebSocket();
   
-  // デバッグ用の表示データ
+  // エージェント思考データの状態管理
   const [localThoughts, setLocalThoughts] = useState<AgentThought[]>([]);
-  
-  // テストデータ: 常に表示するデモデータ（一時的な対応）
-  useEffect(() => {
-    console.log("AgentConversation: テストデータを強制表示します");
-    
-    // Replitの環境情報をログ出力
-    console.log("環境変数:", {
-      nodeEnv: process.env.NODE_ENV,
-      isDevelopment: process.env.NODE_ENV === 'development',
-      hasRoleModelId: Boolean(roleModelId),
-      agentThoughtsCount: agentThoughts.length
-    });
-    
-    // 本番環境とは関係なく必ずテストデータを表示
-    if (roleModelId) {
-      // テスト用のエージェント思考を追加
-      const testAgents = [
-        { name: 'ドメイン分析エージェント', type: 'info' },
-        { name: 'トレンド調査エージェント', type: 'info' },
-        { name: 'コンテキストマッパー', type: 'thinking' },
-        { name: '計画立案エージェント', type: 'success' },
-        { name: '批判的思考エージェント', type: 'error' }
-      ];
-      
-      // 更新用の配列
-      const generatedThoughts: AgentThought[] = [];
-      
-      // 各エージェントのテストデータを作成
-      testAgents.forEach((agent, index) => {
-        const testThought: AgentThought = {
-          id: `test-thought-${index}`,
-          agentName: agent.name,
-          thought: `${agent.name}のテスト思考メッセージです。このメッセージはクライアント側で生成されました。(${index + 1})`,
-          message: `${agent.name}のテスト思考メッセージです。(${index + 1})`,
-          timestamp: new Date(Date.now() + index * 20000).toISOString(), // 順番にずらして表示
-          roleModelId: roleModelId || '',
-          type: agent.type,
-          step: 'thinking'
-        };
-        
-        generatedThoughts.push(testThought);
-        console.log("テスト思考を追加:", testThought);
-      });
-      
-      // ローカルの状態を設定（初回のみ）
-      if (localThoughts.length === 0) {
-        console.log("ローカル状態にテストデータを設定します:", generatedThoughts.length);
-        setLocalThoughts(generatedThoughts);
-      }
-    }
 
-    // 実際のデータがある場合はそれを使用
+  // WebSocketから実データを取得する際のログ強化バージョン
+  useEffect(() => {
+    // 接続情報のログ出力
+    console.log("AgentConversation: WebSocket接続状態:", {
+      isConnected,
+      isProcessing,
+      hasRoleModelId: Boolean(roleModelId),
+      agentThoughtsCount: agentThoughts.length,
+      localThoughtsCount: localThoughts.length
+    });
+
+    // 実際のデータを検出した場合は詳細ログを出力
     if (agentThoughts.length > 0) {
       console.log("実データを検出:", agentThoughts.length);
-      setLocalThoughts(prevThoughts => [...prevThoughts, ...agentThoughts]);
+      agentThoughts.forEach((thought, idx) => {
+        console.log(`思考データ[${idx}]:`, {
+          id: thought.id,
+          agentName: thought.agentName,
+          timestamp: thought.timestamp,
+          type: thought.type,
+          thoughtStart: thought.thought?.substring(0, 30)
+        });
+      });
+      
+      // ローカル状態に実データを追加
+      setLocalThoughts(agentThoughts);
     }
-  }, [roleModelId]);
+  }, [agentThoughts, isConnected, isProcessing, roleModelId]);
   
   // ロールモデルIDが変更されたら再接続
   useEffect(() => {

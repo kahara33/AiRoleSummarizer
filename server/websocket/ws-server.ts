@@ -407,21 +407,63 @@ export function sendAgentThoughts(
     return 0;
   }
   
+  // クライアント側のハンドラで確実に認識されるようにメッセージ形式を修正
   const message: WSMessage = {
-    type: 'agent_thoughts', // 修正：agent_thoughtsに変更（クライアント側のハンドラに合わせる）
+    type: 'agent_thought', // クライアント側の主要なイベントハンドラ名
     payload: {
+      id: crypto.randomUUID(), // 一意のIDを必ず生成
       agentName,
       thought,
-      message: thought, // message フィールドも追加（クライアント側の互換性のため）
+      message: thought, // クライアント側の互換性のため
       roleModelId,
+      timestamp: new Date().toISOString(), // タイムスタンプをペイロード内にも含める
+      ...additionalData
+    },
+    timestamp: new Date().toISOString()
+  };
+  
+  // デバッグ用: 同じメッセージを2つの異なるイベント名で送信して確実に認識されるようにする
+  const backupMessage: WSMessage = {
+    type: 'thought', // 代替ハンドラ名
+    payload: {
+      id: crypto.randomUUID(), // バックアップメッセージ用に別のIDを生成
+      agentName,
+      thought,
+      message: thought,
+      roleModelId,
+      timestamp: new Date().toISOString(),
       ...additionalData
     },
     timestamp: new Date().toISOString()
   };
   
   // 高頻度で発生するエージェント思考メッセージのログは最小限に抑える
-  // console.log(`エージェント思考メッセージを送信します: agentName=${agentName}, roleModelId=${roleModelId}`);
-  return wss.sendToRoleModelViewers(roleModelId, message);
+  console.log(`エージェント思考メッセージを送信します: agentName=${agentName}, roleModelId=${roleModelId}, type=${message.type}`);
+  
+  // 主要メッセージとバックアップメッセージの両方を送信して確実に受信を保証
+  let sentCount = wss.sendToRoleModelViewers(roleModelId, message);
+  
+  // バックアップメッセージも送信
+  sentCount += wss.sendToRoleModelViewers(roleModelId, backupMessage);
+  
+  // 3つ目のイベント名でもメッセージを送信（完全な互換性のため）
+  const compatMessage: WSMessage = {
+    type: 'agent_thoughts', // 複数形のハンドラ名
+    payload: {
+      id: crypto.randomUUID(),
+      agentName,
+      thought,
+      message: thought,
+      roleModelId,
+      timestamp: new Date().toISOString(),
+      ...additionalData
+    },
+    timestamp: new Date().toISOString()
+  };
+  
+  sentCount += wss.sendToRoleModelViewers(roleModelId, compatMessage);
+  
+  return sentCount;
 }
 
 // ロールモデル閲覧者へのメッセージ送信ヘルパー関数

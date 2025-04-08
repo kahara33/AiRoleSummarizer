@@ -37,7 +37,8 @@ export class CrewManager extends EventEmitter {
     initialKeywords: string[],
     potentialSources: string[] = [],
     resourceConstraints: string[] = [],
-    originalRequirements: string[] = []
+    originalRequirements: string[] = [],
+    roleModelId: string = '' // ロールモデルIDを追加
   ) {
     super();
     this.industry = industry;
@@ -45,6 +46,9 @@ export class CrewManager extends EventEmitter {
     this.potentialSources = potentialSources;
     this.resourceConstraints = resourceConstraints;
     this.originalRequirements = originalRequirements;
+    
+    // ロールモデルIDを保持（WebSocket通信に必要）
+    (this as any).roleModelId = roleModelId;
     
     // Crewの初期化
     this.crew = new Crew({
@@ -60,6 +64,9 @@ export class CrewManager extends EventEmitter {
       ] as any, // 型の互換性問題を一時的に回避
       verbose: true
     });
+    
+    // WebSocket関連のデバッグログ
+    console.log(`CrewManagerが初期化されました。roleModelId=${roleModelId}`);
     
     // エージェントの思考プロセスイベントリスナーを設定
     this.setupAgentEventListeners();
@@ -92,12 +99,41 @@ export class CrewManager extends EventEmitter {
       // 思考内容がない場合は、既定の思考内容を提供
       const thoughtContent = data.thought || `${japaneseAgentName}がタスク「${data.taskName || "未知のタスク"}」を処理中...`;
       
-      // エージェント思考イベントの発行
+      // 直接サーバーのWebSocketインターフェースを使ってエージェント思考を送信
+      // これにより、イベントのデッドロックやリスナー問題を回避
+      const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
+      
+      try {
+        // WebSocketサーバー関数を使用して直接送信
+        if (typeof sendAgentThoughts === 'function') {
+          // roleModelIdがなくて送信されない場合があるため、
+          // ダミーのIDを設定（後でフィルタリングされる）
+          const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+          sendAgentThoughts(
+            japaneseAgentName,
+            thoughtContent,
+            roleModelId,
+            {
+              taskName: data.taskName,
+              type: 'thinking', // 思考中タイプを明示的に設定
+              timestamp: new Date().toISOString()
+            }
+          );
+          console.log(`WebSocketを介してエージェント思考を直接送信: ${japaneseAgentName}`);
+        } else {
+          console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
+        }
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
+      // 従来のイベントエミッターも維持（互換性のため）
       this.emit('agentThought', {
         agentName: japaneseAgentName,
         taskName: data.taskName,
         thought: thoughtContent,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        id: crypto.randomUUID() // 一意のIDを必ず設定
       });
       
       // クリティカルなログも出力して、イベントの発行を確認
@@ -122,13 +158,40 @@ export class CrewManager extends EventEmitter {
         agentName = 'クリティカルシンカー';
       }
       
-      // タスク完了メッセージを直接エージェント思考として送信
+      // 直接WebSocketインターフェースを使用してタスク完了メッセージを送信
+      const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
+      try {
+        if (typeof sendAgentThoughts === 'function') {
+          const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+          const thought = `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`;
+          
+          sendAgentThoughts(
+            agentName,
+            thought,
+            roleModelId,
+            {
+              taskName: data.taskName,
+              type: 'success', // 成功タイプを明示的に設定
+              timestamp: new Date().toISOString(),
+              id: crypto.randomUUID() // 一意のIDを必ず設定
+            }
+          );
+          console.log(`タスク完了メッセージをWebSocketで直接送信: ${agentName} - ${data.taskName}`);
+        } else {
+          console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
+        }
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました(タスク完了):', wsError);
+      }
+      
+      // 元のイベントエミッターも維持（互換性のため）
       this.emit('agentThought', {
         agentName: agentName,
         thought: `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`,
         taskName: data.taskName,
         timestamp: new Date().toISOString(),
-        type: 'success'
+        type: 'success',
+        id: crypto.randomUUID() // 一意のIDを必ず設定
       });
       
       // 元のタスク完了イベントも発行
@@ -157,6 +220,27 @@ export class CrewManager extends EventEmitter {
    * 現在の進捗状況をイベントとして発行
    */
   private reportProgress(stage: string, progress: number, detail: string) {
+    // 直接WebSocketインターフェースを使用して進捗状況を送信
+    const sendProgressUpdate = require('../../websocket/ws-server').sendProgressUpdate;
+    try {
+      if (typeof sendProgressUpdate === 'function') {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendProgressUpdate({
+          message: `${stage}: ${detail}`,
+          percent: progress,
+          roleModelId,
+          stage,
+          details: detail
+        });
+        console.log(`進捗状況をWebSocketで直接送信: ${stage}, ${progress}%, ${detail}`);
+      } else {
+        console.error('sendProgressUpdate関数が見つかりません。WebSocketでの送信に失敗しました。');
+      }
+    } catch (wsError) {
+      console.error('WebSocket送信中にエラーが発生しました(進捗):', wsError);
+    }
+    
+    // 元のイベントエミッターも維持（互換性のため）
     this.emit('progress', {
       stage,
       progress,
@@ -174,11 +258,35 @@ export class CrewManager extends EventEmitter {
     try {
       this.reportProgress('開始', 0, 'ナレッジグラフ生成プロセスを開始します');
       
-      // 開始メッセージをエージェント思考として発行
+      // 開始メッセージをエージェント思考として発行 - 直接WebSocketインターフェースを使用
+      const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
+      try {
+        if (typeof sendAgentThoughts === 'function') {
+          const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+          const thought = 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。';
+          
+          sendAgentThoughts(
+            'オーケストレーター',
+            thought,
+            roleModelId,
+            {
+              type: 'info', // 情報タイプを明示的に設定
+              timestamp: new Date().toISOString(),
+              id: crypto.randomUUID() // 一意のIDを必ず設定
+            }
+          );
+          console.log(`開始メッセージをWebSocketで直接送信: オーケストレーター`);
+        }
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました(開始メッセージ):', wsError);
+      }
+      
+      // 元のイベントエミッターも維持（互換性のため）
       this.emit('agentThought', {
         agentName: 'オーケストレーター',
         thought: 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        id: crypto.randomUUID() // 一意のIDを必ず設定
       });
       
       // 業界分析タスクの実行
@@ -397,13 +505,15 @@ export function createCrewManager(
   initialKeywords: string[],
   potentialSources: string[] = [],
   resourceConstraints: string[] = [],
-  originalRequirements: string[] = []
+  originalRequirements: string[] = [],
+  roleModelId: string = ''
 ): CrewManager {
   return new CrewManager(
     industry,
     initialKeywords,
     potentialSources,
     resourceConstraints,
-    originalRequirements
+    originalRequirements,
+    roleModelId
   );
 }
