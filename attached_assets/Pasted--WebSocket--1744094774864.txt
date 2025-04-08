@@ -1,0 +1,354 @@
+以下に、現在の実装から「エージェントの思考過程とアクション内容を画面に表示する」ためのポイントを整理し、問題点の解消と実装改善の提案をまとめます。大きく分けると「WebSocket接続の安定化」「サーバー側の処理フロー実装の充実」「クライアント側(React)でのメッセージ受信処理の見直し」の3点です。
+
+---
+
+## 1. WebSocket接続の安定化
+
+### 1-1. クライアントIDの取り扱いと再接続ロジック
+- **問題点**  
+  - 接続のたびに `clientId = ${userId}-${Date.now()}-${Math.random()...}` を生成しているため、少しページを操作しただけでも新しいクライアントIDで再接続が発生し、短時間で大量の接続ログが発生している。  
+  - 再接続時に別のクライアントIDになってしまうと、サーバー側で「同一クライアントが切り替わったのか、別のクライアントが来たのか」の区別がつきにくい。
+
+- **改善案**  
+  1. **クライアントIDを再利用する**  
+     - ログイン時などに初回生成したクライアントIDを `localStorage` などに保存し、同じブラウザセッション内では再利用する。  
+     - 例:  
+       ```ts
+       // 一度生成したら localStorage に格納し、後から取り出す
+       let clientId = localStorage.getItem("CLIENT_ID");
+       if (!clientId) {
+         clientId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+         localStorage.setItem("CLIENT_ID", clientId);
+       }
+       ```
+
+  2. **再接続の制御**  
+     - 通信エラーやサーバー側の切断(Code=1001など)が起きた場合も、一定のバックオフ(指数的に再試行回数を延ばすなど)を挟む。  
+     - 連続的にWebSocket再接続が走らないように、`useEffect` や `useCallback` の依存配列を見直し、**必要なタイミング**だけで接続するようにする。  
+
+  3. **接続ステータス管理**  
+     - `isConnected` をフラグにして、再接続を行う前に「本当に今ソケットが閉じているのか」を判定する。  
+     - もし既に接続済みであれば `connect()` を走らせないようにする。
+
+### 1-2. Ping/Pongの問題
+- **問題点**  
+  - 15秒ごとの `ping` は飛んでいるが、サーバー側またはプロキシ環境によっては短時間で切断されるケースがある。  
+  - サーバー側のタイムアウト設定やホスティング環境での WebSocket 制限も考慮する必要がある。
+
+- **改善案**  
+  - サーバー側の WebSocket タイムアウトを適切に調整し、クライアントの `ping` に対する `pong` が確認できていれば切断しないようにする。  
+  - もしくは Socket.IO や他のライブラリを使い、より安定した接続維持機能を利用する手もある。
+
+---
+
+## 2. サーバー側の処理フロー実装の充実
+
+多エージェントによるワークフロー（1.ドメインアナリスト → 2.トレンドリサーチャー → 3.コンテキストマッパー → 4.プランストラテジスト → 5.クリティカルシンカー）を**段階的に進める**ことが重要です。その過程で、各エージェントの「思考内容」「アクション内容」を逐次フロントエンドに送信するよう実装を強化します。
+
+### 2-1. エージェント呼び出しと `sendAgentThought` の呼び出し
+
+```ts
+async function handleCreateKnowledgeGraph(socket: WebSocket, payload: any, clientId: string) {
+  // 進捗状況の通知
+  const sendProgress = (percent: number, message: string) => {
+    socket.send(JSON.stringify({
+      type: 'progress',
+      payload: { percent, message, roleModelId: payload.roleModelId },
+      timestamp: new Date().toISOString()
+    }));
+  };
+
+  // エージェント思考の送信
+  const sendAgentThought = (
+    agentName: string, 
+    thought: string, 
+    type: string = 'info',
+    step?: number
+  ) => {
+    socket.send(JSON.stringify({
+      type: 'agent_thoughts',
+      payload: {
+        agentName,
+        thought,
+        type,
+        roleModelId: payload.roleModelId,
+        step: step ?? null // ステップ番号など必要に応じて
+      },
+      timestamp: new Date().toISOString()
+    }));
+  };
+
+  try {
+    // === 1) Domain Analystエージェントの起動 ===
+    sendAgentThought('Domain Analyst', '業界分析を開始します...', 'thinking', 1);
+    sendProgress(10, '業界分析中...');
+
+    // 実際のエージェント呼び出し処理（LangChainや自前エージェントなど）
+    const domainAnalysisResult = await domainAnalystAgent.analyze(payload.initialInput);
+    
+    // 分析結果を送信
+    sendAgentThought('Domain Analyst', `分析結果: ${domainAnalysisResult}`, 'info', 1);
+
+    // === 2) Trend Researcherエージェント ===
+    sendAgentThought('Trend Researcher', '最新トレンドをリサーチします...', 'thinking', 2);
+    sendProgress(30, 'トレンドリサーチ中...');
+    const trendResult = await trendResearcherAgent.searchTrends(domainAnalysisResult);
+    
+    // 結果送信
+    sendAgentThought('Trend Researcher', `トレンド情報: ${trendResult}`, 'info', 2);
+
+    // === 3) Context Mapperエージェント ===
+    sendAgentThought('Context Mapper', 'ナレッジグラフ構造を構築します...', 'thinking', 3);
+    sendProgress(50, 'ナレッジグラフ構築中...');
+    const graphStructure = await contextMapperAgent.buildGraph(domainAnalysisResult, trendResult);
+    
+    sendAgentThought('Context Mapper', 'ナレッジグラフ構造生成完了。', 'success', 3);
+
+    // === 4) プランストラテジストエージェント ===
+    sendAgentThought('Plan Strategist', '情報収集プランを策定します...', 'thinking', 4);
+    sendProgress(70, '情報収集プラン策定中...');
+    const plan = await planStrategistAgent.createPlan(graphStructure);
+    
+    sendAgentThought('Plan Strategist', `プラン作成完了: ${plan}`, 'success', 4);
+
+    // === 5) クリティカルシンカーエージェント ===
+    sendAgentThought('Critical Thinker', '全体評価と最適化を実施します...', 'thinking', 5);
+    sendProgress(90, '最終評価中...');
+    const finalCheck = await criticalThinkerAgent.evaluateAll(plan);
+    
+    sendAgentThought('Critical Thinker', `最終評価結果: ${finalCheck}`, 'success', 5);
+
+    // === 最終結果通知 ===
+    sendProgress(100, 'ナレッジグラフ生成完了');
+    // 必要に応じて、最終出力のGraphやプランをクライアントに送る
+    socket.send(JSON.stringify({
+      type: 'final_result',
+      payload: {
+        knowledgeGraph: graphStructure,
+        plan,
+        evaluation: finalCheck
+      },
+      timestamp: new Date().toISOString()
+    }));
+
+  } catch (error) {
+    console.error('ナレッジグラフ生成中にエラーが発生しました:', error);
+    // エラー送信
+    socket.send(JSON.stringify({
+      type: 'agent_thoughts',
+      payload: {
+        agentName: 'System',
+        thought: `エラーが発生しました: ${error.message}`,
+        type: 'error'
+      },
+      timestamp: new Date().toISOString()
+    }));
+  }
+}
+```
+
+> **ポイント**  
+> - エージェントごとに `sendAgentThought` を必ず呼び出し、**「どのエージェントが何を考え、どのような結果を出したか」**を WebSocket 経由で送信します。  
+> - 進捗バーはお好みのタイミングで `sendProgress` を呼んで更新してください。  
+> - 各エージェントの処理後に必ず `sendAgentThought` を呼び出し、UIに「思考内容」や「アクション結果」が表示されるようにすることが重要です。
+
+### 2-2. フィードバックループと最適化
+- 実際には、  
+  - (2)→(3)間, (3)→(4)間 などでフィードバックループを挟む場合、例えば `while` や `for` でループし、評価・再提案を繰り返す形が必要です。  
+  - その際も各ループのタイミングで `sendAgentThought` してあげれば、フロント側はリアルタイムに「再度検証しました」「修正を加えています」などのステップを確認できます。
+
+---
+
+## 3. クライアント側 (React) の実装見直し
+
+### 3-1. `MultiAgentWebSocketProvider` の `connect()` 処理
+```ts
+const connect = useCallback((roleModelId: string) => {
+  // すでに接続中なら何もしない or 切断後に再度接続する
+  if (socket && isConnected) {
+    console.log("既に接続済みです");
+    return;
+  }
+
+  // 既存の clientId を再利用
+  let clientId = localStorage.getItem("CLIENT_ID");
+  if (!clientId) {
+    const userId = getUserId();
+    clientId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    localStorage.setItem("CLIENT_ID", clientId);
+  }
+
+  // 接続試行
+  try {
+    const wsUrl = getWebSocketUrl();
+    const newSocket = new WebSocket(`${wsUrl}?userId=${getUserId()}&roleModelId=${roleModelId}&clientId=${clientId}`);
+    
+    newSocket.onopen = () => {
+      setIsConnected(true);
+      setCurrentRoleModelId(roleModelId);
+      console.log(`WebSocket接続確立: roleModelId=${roleModelId}, clientId=${clientId}`);
+    };
+
+    newSocket.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      } catch (e) {
+        console.error('WebSocketメッセージの解析エラー:', e);
+      }
+    };
+
+    newSocket.onclose = (event) => {
+      setIsConnected(false);
+      console.log(`WebSocket接続が閉じられました: ${event.code}, ${event.reason}`);
+      // 自動再接続など行う場合、ここでBackoff処理を追加
+    };
+
+    newSocket.onerror = (error) => {
+      console.error('WebSocketエラー:', error);
+      setIsConnected(false);
+    };
+
+    setSocket(newSocket);
+    // Ping送信は継続して良いが、タイミングを長めにするなど調整
+  } catch (error) {
+    console.error('WebSocket接続エラー:', error);
+  }
+}, [socket, isConnected]);
+```
+
+> **ポイント**  
+> - 一度接続中なら、むやみに再接続しない。  
+> - `clientId` をローカルに保持し、**同じタブでは同じIDを使い続ける**。  
+> - クリーンアップで `onclose` が呼ばれるまで、新たに `connect()` しない。
+
+### 3-2. 受信メッセージ(`handleMessage`)処理
+すでに実装されているとおり、以下のようなフローで良いですが、**余計な重複表示やステート更新**を防ぐためにいくつかの注意点があります。
+
+1. **全メッセージを `messages` ステートに一括保存**  
+   - ログ表示やデバッグ用に全メッセージ履歴を残す場合など。  
+2. **`agent_thoughts` / `agent_thought` / `progress` など**、目的別にステートを分ける  
+   - 例えば `agentThoughts` は各エージェントの思考内容のみを時系列で追加  
+   - `progressUpdates` はプログレスバー更新用に追加  
+3. **重複判定**  
+   - もし同じメッセージID（サーバー側で生成したユニークIDなど）を受信したら、再度表示しないようにするなどの仕組みが必要なら実装する。
+
+```ts
+const handleMessage = useCallback((message: WSMessage) => {
+  console.log('WebSocketメッセージを受信:', message);
+
+  // 全メッセージを保存（デバッグ・表示用）
+  setMessages(prev => [...prev, message]);
+
+  switch (message.type) {
+    case 'agent_thoughts':
+    case 'agent_thought': {
+      // エージェント名、内容の取り出し
+      const agentName = message.payload?.agentName ?? '未知のエージェント';
+      const thought = message.payload?.thought ?? message.payload?.message ?? '';
+      
+      // AgentThoughtオブジェクトに変換
+      const agentThought: AgentThought = {
+        id: `${Date.now()}-${Math.random()}`,
+        agentName,
+        thought,
+        message: message.payload?.message || '',
+        type: message.payload?.type || 'info',
+        timestamp: message.timestamp ?? new Date().toISOString(),
+        roleModelId: message.payload?.roleModelId || currentRoleModelId || '',
+        step: message.payload?.step,
+      };
+      setAgentThoughts(prev => [...prev, agentThought]);
+      break;
+    }
+    case 'progress':
+    case 'progress-update': {
+      const percent = message.payload?.percent || message.payload?.progress || 0;
+      const msg = message.payload?.message || '';
+      
+      const progressUpdate: ProgressUpdate = {
+        message: msg,
+        percent,
+        timestamp: message.timestamp || new Date().toISOString(),
+        roleModelId: message.payload?.roleModelId || currentRoleModelId || '',
+        stage: message.payload?.step || 'processing',
+        progress: percent,
+        progressPercent: percent,
+        details: message.payload
+      };
+      setProgressUpdates(prev => [...prev, progressUpdate]);
+      break;
+    }
+    case 'final_result': {
+      // 最終的なグラフやプランを受け取る場合に処理
+      const { knowledgeGraph, plan, evaluation } = message.payload ?? {};
+      // 画面に表示したり、別のステートに格納する処理
+      console.log('最終結果:', knowledgeGraph, plan, evaluation);
+      setIsProcessing(false);
+      break;
+    }
+    // ...その他type
+  }
+}, [currentRoleModelId]);
+```
+
+> **ポイント**  
+> - `agent_thoughts` / `progress` / `final_result` などタイプごとにUIに反映されるように正しく振り分ける。  
+> - 「すべて表示しているのに表示されない」場合は、サーバー側から該当の `type` メッセージが本当に送信されているかを最初に要確認。  
+> - もしサーバー側で `sendAgentThought` が呼ばれていないと、クライアントには届きません。
+
+### 3-3. AgentThoughtsPanel の表示
+- **最も重要なのは、`agentThoughts` ステートがリアルタイムに更新され、それが `AgentThoughtsPanel` に渡っているか** です。  
+- `AgentThoughtsPanel` 内では `internalThoughts` や `filteredThoughts` に変換をかけていますが、`wsAgentThoughts` → `internalThoughts` へ **都度追記** するところで問題がないかを確認してください。
+- もし「初回接続時だけ表示されて、その後追加が反映されない」という場合は、`useEffect` の依存配列や、ステート追記の方法(`prev => [...prev, ...新規データ]`)に問題がないか見直す必要があります。
+
+---
+
+## 4. まとめ・実装ステップ
+
+1. **サーバー側**  
+   - `handleCreateKnowledgeGraph` の内部をエージェントごとに明示的に区切り、各ステップ終了時に `sendAgentThought` と `sendProgress` を**必ず**呼ぶ。  
+   - （必要ならフィードバックループを実装し、ループの都度思考内容を `sendAgentThought` する）  
+2. **フロントエンド (WebSocket接続)**  
+   - `clientId` をセッション内で再利用し、むやみに新規接続を増やさない。  
+   - 接続維持のための `ping` はサーバー設定と整合を取り、頻繁に切断が発生しないようにする。  
+3. **フロントエンド (メッセージ受信〜UI表示)**  
+   - `handleMessage` 内で `agent_thoughts` / `progress` / `final_result` などを明確に振り分け、ステート（`agentThoughts`, `progressUpdates` など）に追加。  
+   - `AgentThoughtsPanel` では受信データをソートして表示。重複や欠落がないかをデバッグログで確認。
+
+上記をしっかり実装すると、ChatGPT のように「各エージェントが順番に何を考え、何をしたか」がリアルタイムに画面上に流れていく形を実現できます。
+
+もし「依然としてUIに何も表示されない」場合は、
+
+1. **サーバー側が実際に `sendAgentThought` を呼んでいるか** (コンソールログなどで確認)  
+2. **WebSocketメッセージがクライアントに届いているか** (`onmessage` 内で `console.log(message)` を確認)  
+3. **`handleMessage` の中で `agent_thoughts` タイプが正しく受理されているか**  
+4. **`agentThoughts` ステートが `AgentThoughtsPanel` に確実に渡り、描画されているか**  
+
+を順番にデバッグ・確認してください。  
+
+---
+
+### 参考実装パターン
+
+- **「1エージェント1ステップずつ実行して、処理が終わるたびにメッセージ送信」**  
+  - ChatGPTのように「入力→思考→回答→次のエージェント」という流れが可視化できる。  
+- **「進捗バーを段階的に更新」**  
+  - 10% -> 30% -> 50% -> 70% -> 90% -> 100% のようにタイミングを合わせて送信  
+  - 画面に「ドメインアナリストの処理中...」「トレンドリサーチ中...」と表示  
+
+これらを合わせると、ユーザーは「現在どのエージェントが動いているか」「どこまで終わったか」「最終的な成果物はどうなったか」をリアルタイムでモニタリングできます。
+
+---
+
+## 最終的な要点
+1. **サーバー側:**  
+   - ワークフロー（エージェント同士の連携）を段階的に実行し、各ステップで `sendAgentThought` / `sendProgress` を確実に実行。  
+   - （フィードバックループを回す場合は、そのたびに思考内容や途中結果を送る）
+
+2. **クライアント側:**  
+   - **WebSocket接続が安定しているか**(同じ clientId を再利用する/再接続制御)  
+   - **受信メッセージをハンドリングしてステートに反映する処理**が適切か (type ごとに正しく処理し、UIに反映できているか)  
+   - 画面表示コンポーネント(AgentThoughtsPanelなど)がリアルタイムにステートを受け取り、表示しているか
+
+このように実装を整理すると、マルチAIエージェントの思考過程が ChatGPT のように連続して画面に表示できるようになるはずです。ぜひご参考ください。

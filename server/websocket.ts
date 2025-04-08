@@ -87,15 +87,22 @@ export function initWebSocket(server: HttpServer): void {
           return;
         }
 
-        // URLパラメータからロールモデルIDを取得
+        // URLパラメータからロールモデルIDとクライアントIDを取得
         const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
         const roleModelId = urlParams.get('roleModelId');
+        const clientId = urlParams.get('clientId');
 
         if (!roleModelId) {
           // ロールモデルIDが指定されていない場合は接続を閉じる
           console.log('ロールモデルIDが指定されていないWebSocket接続を閉じます');
           ws.close(1008, 'Missing roleModelId');
           return;
+        }
+        
+        // クライアントID（存在すれば）をログに記録
+        if (clientId) {
+          console.log(`新しいWebSocket接続: clientId=${clientId}, userId=${userId}, roleModelId=${roleModelId}`);
+          (ws as any).clientId = clientId;
         }
 
         // ロールモデルIDに対応するクライアント集合を取得または作成
@@ -135,7 +142,7 @@ export function initWebSocket(server: HttpServer): void {
                 clients.delete(roleModelId);
               }
             }
-            console.log(`WebSocket接続終了: ユーザーID=${userId}, ロールモデルID=${roleModelId}, コード=${code}, 理由=${reason}`);
+            console.log(`WebSocket切断: clientId=${(ws as any).clientId || 'unknown'}, code=${code}, reason=${reason}`);
           } catch (cleanupError) {
             console.error(`WebSocket切断処理エラー: ${cleanupError}`);
           }

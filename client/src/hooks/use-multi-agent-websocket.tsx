@@ -173,6 +173,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
   
   // 接続状態をモニタリングする変数
   const reconnectAttemptsRef = useRef<number>(0);
+  const connectAttemptRef = useRef<number>(0); // 全体の接続試行回数を追跡
   const maxReconnectAttempts = 10; // 最大再接続試行回数を10回に増加
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // 定期的なping送信のインターバルを管理
@@ -223,10 +224,17 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     const host = window.location.host;
     
     // WebSocketの接続安定性のために、より堅牢な接続URLを生成
-    // タイムスタンプとランダム値を追加してキャッシュ問題を防止
+    // クライアントIDを永続化して再接続時も同じIDを使用
+    let clientId = localStorage.getItem(`WS_CLIENT_ID_${user.id}`);
+    if (!clientId) {
+      clientId = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      localStorage.setItem(`WS_CLIENT_ID_${user.id}`, clientId);
+    }
+    
+    // タイムスタンプとランダム値を追加してキャッシュ問題を防止（クライアントIDは維持）
     const timestamp = Date.now();
     const randomValue = Math.random().toString(36).substring(2, 8);
-    const wsUrl = `${protocol}//${host}/api/ws?userId=${user.id}&roleModelId=${roleModelId}&t=${timestamp}&r=${randomValue}`;
+    const wsUrl = `${protocol}//${host}/api/ws?userId=${user.id}&roleModelId=${roleModelId}&clientId=${clientId}&t=${timestamp}&r=${randomValue}`;
     console.log('WebSocket接続URL:', wsUrl);
 
     try {
@@ -242,11 +250,20 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
         console.log('WebSocket接続が確立されました');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0; // 接続成功したら再接続試行回数をリセット
-        toast({
-          title: '接続成功',
-          description: 'リアルタイム更新が有効になりました',
-          variant: 'default'
-        });
+        
+        // 再接続ではなく初回接続の場合のみトースト表示
+        // connectAttemptRefが定義されていることを確認
+        if (connectAttemptRef && connectAttemptRef.current <= 1) {
+          toast({
+            title: '接続成功',
+            description: 'リアルタイム更新が有効になりました',
+            variant: 'default'
+          });
+        }
+        // アクセスカウンターをインクリメント
+        if (connectAttemptRef) {
+          connectAttemptRef.current++;
+        }
         
         // 接続後すぐに最初のping送信
         setTimeout(() => {
@@ -416,27 +433,45 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     };
   }, [socket]);
   
-  // 定期的に接続状態をチェックする
+  // 定期的に接続状態をチェックする（ただし接続維持のための最小限の頻度）
   useEffect(() => {
+    // 明示的に切断された場合、または再接続試行回数が上限に達した場合は
+    // ポーリングによる再接続を行わない
+    const shouldAttemptReconnect = 
+      reconnectAttemptsRef.current <= maxReconnectAttempts && 
+      currentRoleModelId !== null;
+      
+    if (!shouldAttemptReconnect) {
+      return; // ポーリングを設定しない
+    }
+    
     const checkConnectionInterval = setInterval(() => {
-      if (socket && socket.readyState !== WebSocket.OPEN && currentRoleModelId) {
-        console.warn('WebSocketが切断されています。再接続を試みます...');
+      // 接続状態をチェック（明示的な閉鎖でなければ）
+      if (socket && socket.readyState !== WebSocket.OPEN && 
+          currentRoleModelId && shouldAttemptReconnect) {
+        console.warn('WebSocketが切断されています。ポーリングによる再接続を試みます...');
         setIsConnected(false);
         connect(currentRoleModelId);
       } else if (socket && socket.readyState === WebSocket.OPEN) {
-        // 接続中の場合はpingを送信（ハートビート）
+        // 接続中の場合はpingを送信（ハートビート、ただしログは最小限に）
         try {
-          socket.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
-          console.log('Ping送信（接続確認）');
+          // roleModelIdを含めてサーバーが適切にルーティングできるようにする
+          socket.send(JSON.stringify({ 
+            type: 'ping', 
+            payload: { roleModelId: currentRoleModelId },
+            timestamp: new Date().toISOString() 
+          }));
+          // 30秒間隔のpingはログに残さない（コンソールを占有しないため）
         } catch (e) {
           console.error('Ping送信エラー:', e);
+          // エラーの場合は切断したとみなす（次回のチェックで再接続）
           setIsConnected(false);
         }
       }
-    }, 30000); // 30秒ごとにチェック
+    }, 60000); // 60秒ごとにチェック（頻度を下げて負荷を軽減）
     
     return () => clearInterval(checkConnectionInterval);
-  }, [socket, currentRoleModelId, connect]);
+  }, [socket, currentRoleModelId, connect, maxReconnectAttempts]);
   
   // メッセージタイプに応じた処理関数を定義（整理のため）
   const handleMessage = useCallback((message: WSMessage) => {
