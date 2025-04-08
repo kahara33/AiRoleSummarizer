@@ -310,22 +310,12 @@ function useMultiAgentWebSocketManager() {
       }
     };
     
-    // リスナーを追加
-    wsManager.addMessageListener('agent_thought', handleAgentThought);
-    wsManager.addMessageListener('agent_thoughts', handleAgentThought);
-    wsManager.addMessageListener('thought', handleAgentThought);
-    wsManager.addMessageListener('progress', handleProgress);
-    wsManager.addMessageListener('progress_update', handleProgress);
-    // すべてのメッセージを受け取るリスナーを追加
+    // すべてのメッセージを受け取るリスナーのみを追加し、個別のリスナーは使用しない
+    // 重複処理を避けるため
     wsManager.addMessageListener('all', handleAllMessages);
     
     // クリーンアップ
     return () => {
-      wsManager.removeMessageListener('agent_thought', handleAgentThought);
-      wsManager.removeMessageListener('agent_thoughts', handleAgentThought);
-      wsManager.removeMessageListener('thought', handleAgentThought);
-      wsManager.removeMessageListener('progress', handleProgress);
-      wsManager.removeMessageListener('progress_update', handleProgress);
       wsManager.removeMessageListener('all', handleAllMessages);
     };
   }, [currentRoleModelId, wsManager]);
