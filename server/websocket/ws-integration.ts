@@ -51,7 +51,9 @@ export function setupWebSocketIntegration(server: Server): void {
           // pong応答を返す
           wsServer.sendToClient(clientId, {
             type: 'pong',
-            timestamp: new Date().toISOString()
+            payload: {
+              timestamp: new Date().toISOString()
+            }
           });
 
           
