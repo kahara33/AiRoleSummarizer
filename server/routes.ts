@@ -65,10 +65,10 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   });
   
   // WebSocketサーバーのセットアップ
-  // 注: メインのWebSocketサーバーは外部でセットアップされるため、こちらは旧実装との互換性のために残す
-  if (!server) {
-    initWebSocket(httpServer);
-  }
+  // 注: メインのWebSocketサーバーは外部でセットアップされるため、こちらの初期化は無効化
+  // if (!server) {
+  //   initWebSocket(httpServer);
+  // }
   
   // API エンドポイントの設定
   

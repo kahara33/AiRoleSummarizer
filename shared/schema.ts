@@ -79,9 +79,7 @@ export const knowledgeEdges = pgTable('knowledge_edges', {
   sourceId: uuid('source_id').references(() => knowledgeNodes.id, { onDelete: 'cascade' }),
   targetId: uuid('target_id').references(() => knowledgeNodes.id, { onDelete: 'cascade' }),
   label: text('label'),
-  strength: integer('strength').default(1),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+  strength: integer('strength').default(1)
 });
 
 // キーワード
@@ -101,9 +99,7 @@ export const keywords = pgTable('keywords', {
 export const roleModelKeywords = pgTable('role_model_keywords', {
   id: uuid('id').primaryKey().defaultRandom(),
   roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
-  keywordId: uuid('keyword_id').references(() => keywords.id, { onDelete: 'cascade' }),
-  // 実際のデータベースにはcreated_atカラムが存在しない
-  // createdAt: timestamp('created_at').defaultNow()
+  keywordId: uuid('keyword_id').references(() => keywords.id, { onDelete: 'cascade' })
 });
 
 // 業界カテゴリ
@@ -138,9 +134,7 @@ export const industries = pgTable('industries', {
 export const roleModelIndustries = pgTable('role_model_industries', {
   id: uuid('id').primaryKey().defaultRandom(),
   roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
-  industryId: uuid('industry_subcategory_id').references(() => industrySubcategories.id, { onDelete: 'cascade' }),
-  // 実際のデータベースにはcreated_atカラムが存在しない
-  // createdAt: timestamp('created_at').defaultNow()
+  industryId: uuid('industry_subcategory_id').references(() => industrySubcategories.id, { onDelete: 'cascade' })
 });
 
 // サマリー
@@ -225,8 +219,7 @@ export const insertKnowledgeNodeSchema = createInsertSchema(knowledgeNodes).omit
 
 export const insertKnowledgeEdgeSchema = createInsertSchema(knowledgeEdges).omit({
   id: true,
-  createdAt: true,
-  updatedAt: true
+  // createdAtとupdatedAtはスキーマから削除したので、ここでは省略する必要がない
 });
 
 export const insertKeywordSchema = createInsertSchema(keywords).omit({
