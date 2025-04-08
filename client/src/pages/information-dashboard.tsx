@@ -562,9 +562,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       }))}
                       agentThoughts={agentThoughts.map(thought => ({
                         id: thought.id || String(crypto.randomUUID()),
-                        agentName: thought.agentName || 'Agent',
-                        agentType: thought.type || 'agent',
-                        thought: thought.message || thought.thought || '',
+                        agentName: thought.agentName || thought.agent || 'AI エージェント',
+                        agentType: thought.type || thought.agent_type || 'agent',
+                        thought: thought.message || thought.thought || thought.thoughts || JSON.stringify(thought.payload) || '',
                         timestamp: new Date(thought.timestamp || Date.now()),
                         roleModelId: thought.roleModelId
                       }))}

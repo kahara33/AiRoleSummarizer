@@ -313,16 +313,125 @@ export default function MultiAgentChatPanel({
         
         setIsGenerating(false);
       }
+      // キャンセル確認メッセージの処理
+      else if (lastMessage.type === 'cancel_confirmed' || lastMessage.type === 'operation_cancelled') {
+        // キャンセルメッセージの取得
+        let cancelMessage: string = '';
+        
+        if (lastMessage.payload && typeof lastMessage.payload.message === 'string') {
+          cancelMessage = lastMessage.payload.message;
+        } else if (typeof lastMessage.payload === 'string') {
+          cancelMessage = lastMessage.payload;
+        } else {
+          cancelMessage = '処理がキャンセルされました';
+        }
+        
+        const newProcess: AgentProcess = {
+          id: crypto.randomUUID(),
+          agentName: 'システム',
+          agentType: 'system',
+          content: cancelMessage,
+          timestamp: new Date()
+        };
+        
+        console.log('キャンセル処理を追加:', newProcess);
+        setProcesses(prevProcesses => [...prevProcesses, newProcess]);
+        toast({
+          title: '処理キャンセル',
+          description: cancelMessage,
+        });
+        
+        setIsGenerating(false);
+      }
       // 接続または購読確認メッセージ
       else if (lastMessage.type === 'connection' || lastMessage.type === 'subscription_confirmed') {
         console.log('WebSocket接続状態メッセージ:', lastMessage.type, lastMessage.payload);
+        
+        const newProcess: AgentProcess = {
+          id: crypto.randomUUID(),
+          agentName: 'システム',
+          agentType: 'connection',
+          content: `WebSocket${lastMessage.type === 'connection' ? '接続' : '購読'}が確立されました`,
+          timestamp: new Date()
+        };
+        
+        console.log('接続/購読確認を追加:', newProcess);
+        setProcesses(prevProcesses => [...prevProcesses, newProcess]);
+      }
+      // 生成完了メッセージの処理
+      else if (lastMessage.type === 'knowledge_graph_created' || lastMessage.type === 'generation_complete') {
+        // 完了メッセージの取得
+        let completeMessage: string = '';
+        
+        if (lastMessage.payload && typeof lastMessage.payload.message === 'string') {
+          completeMessage = lastMessage.payload.message;
+        } else if (typeof lastMessage.payload === 'string') {
+          completeMessage = lastMessage.payload;
+        } else {
+          completeMessage = 'ナレッジグラフ生成が完了しました';
+        }
+        
+        const newProcess: AgentProcess = {
+          id: crypto.randomUUID(),
+          agentName: 'システム',
+          agentType: 'success',
+          content: completeMessage,
+          timestamp: new Date()
+        };
+        
+        console.log('完了処理を追加:', newProcess);
+        setProcesses(prevProcesses => [...prevProcesses, newProcess]);
+        toast({
+          title: '処理完了',
+          description: completeMessage,
+        });
+        
+        setIsGenerating(false);
       }
       // 処理されないメッセージタイプ
       else {
-        console.log('未処理のメッセージタイプ:', lastMessage.type, lastMessage);
+        console.log('未処理のメッセージタイプをログに記録:', lastMessage.type, lastMessage);
+        
+        // 未知のメッセージタイプもパネルに表示（どんなメッセージも見逃さない）
+        let unknownMessage = '';
+        
+        if (typeof lastMessage.payload === 'string') {
+          unknownMessage = lastMessage.payload;
+        } else if (lastMessage.payload && typeof lastMessage.payload.message === 'string') {
+          unknownMessage = lastMessage.payload.message;
+        } else if (lastMessage.payload && typeof lastMessage.payload.content === 'string') {
+          unknownMessage = lastMessage.payload.content;
+        } else {
+          unknownMessage = `不明なメッセージ (タイプ: ${lastMessage.type})`;
+        }
+        
+        if (unknownMessage) {
+          const newProcess: AgentProcess = {
+            id: crypto.randomUUID(),
+            agentName: lastMessage.type || '不明',
+            agentType: 'unknown',
+            content: unknownMessage,
+            timestamp: new Date()
+          };
+          
+          console.log('未知のメッセージを追加:', newProcess);
+          setProcesses(prevProcesses => [...prevProcesses, newProcess]);
+        }
       }
     } catch (error) {
       console.error('WebSocketメッセージの処理中にエラーが発生しました:', error);
+      
+      // エラーが発生しても安全に回復するためUIを更新
+      const errorProcess: AgentProcess = {
+        id: crypto.randomUUID(),
+        agentName: 'エラー',
+        agentType: 'error',
+        content: `メッセージ処理中にエラーが発生しました: ${error}`,
+        timestamp: new Date()
+      };
+      
+      setProcesses(prevProcesses => [...prevProcesses, errorProcess]);
+      setIsGenerating(false);
     }
   }, [wsMessages, toast, roleModelId, isConnected]);
 
