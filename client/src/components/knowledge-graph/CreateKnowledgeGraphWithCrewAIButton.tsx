@@ -30,16 +30,27 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
     sendCancelOperationRequest
   } = useMultiAgentWebSocket();
 
-  // 進行状況の更新を監視
+  // 進行状況の更新を監視し、ボタン状態を管理
   useEffect(() => {
     if (progressUpdates.length > 0) {
       const latestUpdate = progressUpdates[progressUpdates.length - 1];
+      
+      // 現在のロールモデルに関連する進捗更新のみを処理
       if (latestUpdate.roleModelId === roleModelId) {
+        console.log(`進捗更新を処理: ${latestUpdate.percent}%, ${latestUpdate.message}`);
+        
+        // 進捗状態を更新
         setProgress(latestUpdate.percent);
         setStatusMessage(latestUpdate.message);
         
+        // 処理中フラグを設定 (0%でないあらゆる進捗は処理中と見なす)
+        if (latestUpdate.percent > 0 && latestUpdate.percent < 100) {
+          setIsGenerating(true);
+        }
+        
         // 進行状況が100%に達したらボタンを再有効化
         if (latestUpdate.percent >= 100) {
+          console.log('処理が完了しました (100%)');
           setTimeout(() => {
             setIsGenerating(false);
             setProgress(0);
@@ -54,6 +65,7 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
 
         // エラーが発生した場合（progressが0%に戻った場合）
         if (latestUpdate.percent === 0 && isGenerating) {
+          console.log('エラーが発生しました (0%)');
           setIsGenerating(false);
           setProgress(0);
           toast({

@@ -133,6 +133,12 @@ export default function MultiAgentChatPanel({
       // WebSocketのデバッグ情報
       console.log('WebSocket接続状態:', isConnected, 'ロールモデルID:', roleModelId);
       
+      // デバッグブロードキャストを検出して対処
+      if (lastMessage.payload && lastMessage.payload._debug_broadcast) {
+        console.log('デバッグブロードキャストメッセージを受信しました。通常の処理をスキップします:', lastMessage.type);
+        return;
+      }
+      
       // チャットメッセージの処理
       if (lastMessage.type === 'chat_message') {
         // データソースを安全に取得

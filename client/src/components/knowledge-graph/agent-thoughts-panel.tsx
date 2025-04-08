@@ -64,23 +64,47 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
   // 外部から渡されたthoughtsを内部形式に変換
   useEffect(() => {
     if (externalThoughts && externalThoughts.length > 0) {
+      console.log("AgentThoughtsPanel: 受信したthoughts:", externalThoughts.length);
+      
       const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => {
         // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
         const timestamp = thought.timestamp instanceof Date 
           ? thought.timestamp.getTime() 
           : new Date(thought.timestamp).getTime();
         
+        // メッセージはthought, messageのどちらかを使用（優先順位はthought > message）
+        const messageText = thought.thought || thought.message || "詳細情報がありません";
+        
         return {
           timestamp,
-          agentName: thought.agentName,
-          message: thought.thought,
+          agentName: thought.agentName || "Unknown Agent",
+          message: messageText,
           type: thought.agentType === 'thinking' ? 'thinking' : 
                 thought.agentType === 'error' ? 'error' :
                 thought.agentType === 'success' ? 'success' : 'info'
         };
       });
       
-      setInternalThoughts(convertedThoughts);
+      // ユニークなエージェント名のリストを更新（タブ用）
+      const uniqueAgentNames = Array.from(new Set(
+        externalThoughts.map(t => t.agentName || "Unknown Agent")
+      ));
+      setAgentNames(uniqueAgentNames);
+      
+      // 既存のthoughtsと結合して重複を排除（idでフィルタリング）
+      const thoughtIds = new Set(externalThoughts.map(t => t.id));
+      const combinedThoughts = [
+        ...internalThoughts, 
+        ...convertedThoughts.filter(t => !internalThoughts.some(it => 
+          it.timestamp === t.timestamp && it.agentName === t.agentName && it.message === t.message
+        ))
+      ];
+      
+      // 時間順にソート
+      const sortedThoughts = combinedThoughts.sort((a, b) => a.timestamp - b.timestamp);
+      
+      setInternalThoughts(sortedThoughts);
+      setIsProcessing(true);
     }
   }, [externalThoughts]);
   

@@ -264,7 +264,7 @@ export class WSServerManager {
     return sentCount;
   }
   
-  // 全クライアントにメッセージをブロードキャスト
+  // 全クライアントにメッセージをブロードキャスト - デバッグのみ使用
   broadcast(message: WSMessage): number {
     let sentCount = 0;
     
@@ -272,6 +272,12 @@ export class WSServerManager {
     // 本番環境では通常、特定のユーザーまたはロールモデル視聴者にのみ送信する
     console.warn('ブロードキャスト機能が使用されました。これはデバッグ目的でのみ使用してください。');
     console.warn(`ブロードキャストメッセージ: type=${message.type}`);
+    
+    // agent_thoughts関連のメッセージはブロードキャストしない（セキュリティ対策）
+    if (message.type === 'agent_thought' || message.type === 'agent_thoughts') {
+      console.error('エージェント思考メッセージはブロードキャストできません。セキュリティ上の理由により、ブロードキャストはブロックされました。');
+      return 0;
+    }
     
     // デバッグインジケータをペイロードに追加
     const debugMessage = {

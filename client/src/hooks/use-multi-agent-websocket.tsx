@@ -428,6 +428,12 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
   const handleMessage = useCallback((message: WSMessage) => {
     console.log('WebSocketメッセージを受信:', message);
     
+    // デバッグブロードキャストを検出して対処
+    if (message.payload && message.payload._debug_broadcast) {
+      console.log('デバッグブロードキャストメッセージを受信しました。通常のメッセージ処理をスキップします:', message.type);
+      return;
+    }
+    
     // pongメッセージの場合は接続確認のみで特別な処理はしない
     if (message.type === 'pong') {
       console.log('Pong受信（接続確認OK）');
