@@ -121,6 +121,13 @@ export class CrewManager extends EventEmitter {
     try {
       this.reportProgress('開始', 0, 'ナレッジグラフ生成プロセスを開始します');
       
+      // 開始メッセージをエージェント思考として発行
+      this.emit('agentThought', {
+        agentName: 'オーケストレーター',
+        thought: 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。',
+        timestamp: new Date().toISOString()
+      });
+      
       // 業界分析タスクの実行
       this.reportProgress('業界分析', 5, 'ドメインアナリストが業界分析を実行中...');
       const industryAnalysis = await this.crew.runTask(

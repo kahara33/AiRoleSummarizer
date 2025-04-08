@@ -88,8 +88,22 @@ export class CrewAIService {
       
       // エージェントの思考プロセスをクライアントに送信
       crewManager.on('agentThought', (data) => {
-        const { agentName, thought } = data;
+        const { agentName, thought, taskName } = data;
         console.log(`CrewAIエージェント思考: ${agentName} - ${thought.substring(0, 50)}...`);
+        
+        // エージェント名に基づいてメッセージタイプを決定
+        let messageType = 'thinking';
+        if (agentName.includes('ドメイン') || agentName === 'Domain Analyst') {
+          messageType = 'domain_analysis';
+        } else if (agentName.includes('トレンド') || agentName === 'Trend Researcher') {
+          messageType = 'trend_research';
+        } else if (agentName.includes('コンテキスト') || agentName === 'Context Mapper') {
+          messageType = 'context_mapping';
+        } else if (agentName.includes('プラン') || agentName === 'Plan Strategist') {
+          messageType = 'plan_strategy';
+        } else if (agentName.includes('クリティカル') || agentName === 'Critical Thinker') {
+          messageType = 'critical_thinking';
+        }
         
         sendAgentThoughts(
           agentName,
@@ -98,7 +112,9 @@ export class CrewAIService {
           {
             industry,
             keywords: initialKeywords,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            taskName: taskName || 'unknown',
+            type: messageType
           }
         );
       });
@@ -120,14 +136,31 @@ export class CrewAIService {
         const { taskName, result } = data;
         console.log(`CrewAIタスク完了: ${taskName}`);
         
+        // タスク名から担当エージェントを決定
+        let agentName = 'タスクマネージャー';
+        let messageType = 'success';
+        
+        if (taskName === 'AnalyzeIndustryTask') {
+          agentName = 'ドメイン分析者';
+        } else if (taskName === 'EvaluateSourcesTask') {
+          agentName = 'トレンドリサーチャー';
+        } else if (taskName === 'DesignGraphStructureTask') {
+          agentName = 'コンテキストマッパー';
+        } else if (taskName === 'DevelopCollectionPlanTask') {
+          agentName = 'プランストラテジスト';
+        } else if (taskName === 'EvaluateQualityTask' || taskName === 'IntegrateAndDocumentTask') {
+          agentName = 'クリティカルシンカー';
+        }
+        
         // タスク完了をエージェント思考として送信
         sendAgentThoughts(
-          'タスクマネージャー',
+          agentName,
           `タスク「${taskName}」が完了しました。`,
           roleModelId,
           {
             taskName,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            type: messageType
           }
         );
         
@@ -170,8 +203,28 @@ export class CrewAIService {
       
       // 非同期でナレッジグラフ生成/情報収集プラン作成を実行
       console.log(`CrewAI ${processType}プロセスを開始します...`);
+      sendAgentThoughts(
+        'オーケストレーター',
+        `CrewAI ${processType}プロセスを開始します。複数のAIエージェントが協調して作業を行います。`,
+        roleModelId,
+        {
+          timestamp: new Date().toISOString(),
+          type: 'info'
+        }
+      );
+      
       const result = await crewManager.generateKnowledgeGraph(skipGraphUpdate);
       console.log(`CrewAI ${processType}プロセスが完了しました`);
+      
+      sendAgentThoughts(
+        'オーケストレーター',
+        `CrewAI ${processType}プロセスが完了しました。全エージェントのタスクが正常に終了しました。`,
+        roleModelId,
+        {
+          timestamp: new Date().toISOString(),
+          type: 'success'
+        }
+      );
       
       // 完了メッセージを送信
       const completionMessage = skipGraphUpdate
