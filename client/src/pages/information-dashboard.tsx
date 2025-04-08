@@ -423,9 +423,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
                     ナレッジグラフ
                   </TabsTrigger>
-                  <TabsTrigger value="agentProcess" className="data-[state=active]:bg-white">
-                    エージェントプロセス
-                  </TabsTrigger>
+                  {/* 「エージェントプロセス」タブを削除 */}
                   <TabsTrigger value="summarizedResults" className="data-[state=active]:bg-white">
                     要約結果
                   </TabsTrigger>
@@ -475,22 +473,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 </div>
               </TabsContent>
               
-              {/* エージェントプロセスタブ */}
-              <TabsContent value="agentProcess" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <div className="p-0">
-                  <AgentThoughtsPanel 
-                    thoughts={agentThoughts.map(thought => ({
-                      id: thought.id || String(crypto.randomUUID()),
-                      agentName: thought.agentName || 'AIエージェント',
-                      agentType: thought.type || 'generic',
-                      thought: thought.message || thought.thought || '',
-                      timestamp: new Date(thought.timestamp || Date.now()),
-                      roleModelId: thought.roleModelId
-                    }))}
-                    height="calc(100vh - 130px)"
-                  />
-                </div>
-              </TabsContent>
+              {/* エージェントプロセスタブは削除 - 右パネルに統合 */}
               
               {/* 要約結果タブ */}
               <TabsContent value="summarizedResults" className="p-0 m-0">
