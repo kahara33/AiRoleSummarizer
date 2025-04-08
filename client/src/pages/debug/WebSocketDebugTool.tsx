@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'wouter';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,20 +155,26 @@ const WebSocketDebugTool: React.FC = () => {
 
   return (
     <MainLayout hideHeader={true}>
-      <div className="bg-gray-50 py-4 px-4 sm:px-6">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-6 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          {/* 独自ヘッダー - ロゴとタイトル */}
-          <div className="flex items-center mb-6 border-b pb-2">
-            <div className="flex items-center mr-auto">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">E</span>
+          {/* グローバルヘッダー - メインデザインに合わせる */}
+          <header className="mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Link to="/">
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold">E</span>
+                    </div>
+                    <span className="ml-2 font-bold text-lg">EVERYS</span>
+                  </div>
+                </Link>
               </div>
-              <span className="ml-2 font-bold text-lg">EVERYS</span>
+              <div className="text-right">
+                <h1 className="text-2xl font-bold text-gray-900">WebSocketデバッグツール</h1>
+              </div>
             </div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              WebSocketデバッグツール
-            </h1>
-          </div>
+          </header>
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* 左側のコントロールパネル */}
