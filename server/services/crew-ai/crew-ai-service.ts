@@ -124,6 +124,36 @@ export class CrewAIService {
         const { stage, progress, detail } = data;
         console.log(`CrewAI進捗状況: ${stage} - ${progress}% - ${detail}`);
         
+        // 進捗更新に応じたエージェント名とメッセージタイプを決定
+        let agentName = 'オーケストレーター';
+        let messageType = 'info';
+        
+        if (stage === '業界分析') {
+          agentName = 'ドメイン分析者';
+        } else if (stage === '情報源評価') {
+          agentName = 'トレンドリサーチャー';
+        } else if (stage === 'グラフ構造設計') {
+          agentName = 'コンテキストマッパー';
+        } else if (stage === 'プラン策定') {
+          agentName = 'プランストラテジスト';
+        } else if (stage === '品質評価' || stage === '最終統合' || stage === '改善サイクル') {
+          agentName = 'クリティカルシンカー';
+        }
+        
+        // 進捗状況をエージェント思考イベントとしても送信
+        sendAgentThoughts(
+          agentName,
+          detail,
+          roleModelId,
+          {
+            stage,
+            progress,
+            timestamp: new Date().toISOString(),
+            type: messageType
+          }
+        );
+        
+        // 通常の進捗更新も送信
         sendProgressUpdate({
           message: detail,
           percent: progress,
@@ -194,6 +224,19 @@ export class CrewAIService {
         console.error('CrewAIエラー:', err);
         const errorMessage = err instanceof Error ? err.message : String(err);
         
+        // エラーメッセージをエージェント思考として送信
+        sendAgentThoughts(
+          'オーケストレーター',
+          `処理中にエラーが発生しました: ${errorMessage}`,
+          roleModelId,
+          {
+            timestamp: new Date().toISOString(),
+            type: 'error',
+            error: errorMessage
+          }
+        );
+        
+        // 通常のエラー更新も送信
         sendProgressUpdate({
           message: `エラーが発生しました: ${errorMessage}`,
           percent: 0,

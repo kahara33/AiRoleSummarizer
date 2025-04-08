@@ -71,22 +71,75 @@ export class CrewManager extends EventEmitter {
    */
   private setupAgentEventListeners() {
     // 各エージェントの思考プロセスをモニタリング
+    // 元のイベントリスナーを強化
     this.crew.on('agentThinking', (data: any) => {
+      console.log('CrewAI エージェント思考イベント検出:', data);
+      
+      // 日本語名とタスクタイプのマッピング
+      let japaneseAgentName = data.agentName;
+      if (data.agentName === 'Domain Analyst') {
+        japaneseAgentName = 'ドメイン分析者';
+      } else if (data.agentName === 'Trend Researcher') {
+        japaneseAgentName = 'トレンドリサーチャー';
+      } else if (data.agentName === 'Context Mapper') {
+        japaneseAgentName = 'コンテキストマッパー';
+      } else if (data.agentName === 'Plan Strategist') {
+        japaneseAgentName = 'プランストラテジスト';
+      } else if (data.agentName === 'Critical Thinker') {
+        japaneseAgentName = 'クリティカルシンカー';
+      }
+      
+      // 思考内容がない場合は、既定の思考内容を提供
+      const thoughtContent = data.thought || `${japaneseAgentName}がタスク「${data.taskName || "未知のタスク"}」を処理中...`;
+      
+      // エージェント思考イベントの発行
       this.emit('agentThought', {
-        agentName: data.agentName,
+        agentName: japaneseAgentName,
         taskName: data.taskName,
-        thought: data.thought,
+        thought: thoughtContent,
         timestamp: new Date().toISOString()
       });
+      
+      // クリティカルなログも出力して、イベントの発行を確認
+      console.log(`エージェント思考イベントを発行: ${japaneseAgentName} - ${thoughtContent.substring(0, 50)}...`);
     });
     
     // タスク完了イベント
     this.crew.on('taskCompleted', (data: any) => {
+      console.log('CrewAI タスク完了イベント検出:', data);
+      
+      // タスク名から担当エージェントを決定
+      let agentName = 'タスクマネージャー';
+      if (data.taskName === 'AnalyzeIndustryTask') {
+        agentName = 'ドメイン分析者';
+      } else if (data.taskName === 'EvaluateSourcesTask') {
+        agentName = 'トレンドリサーチャー';
+      } else if (data.taskName === 'DesignGraphStructureTask') {
+        agentName = 'コンテキストマッパー';
+      } else if (data.taskName === 'DevelopCollectionPlanTask') {
+        agentName = 'プランストラテジスト';
+      } else if (data.taskName === 'EvaluateQualityTask' || data.taskName === 'IntegrateAndDocumentTask') {
+        agentName = 'クリティカルシンカー';
+      }
+      
+      // タスク完了メッセージを直接エージェント思考として送信
+      this.emit('agentThought', {
+        agentName: agentName,
+        thought: `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`,
+        taskName: data.taskName,
+        timestamp: new Date().toISOString(),
+        type: 'success'
+      });
+      
+      // 元のタスク完了イベントも発行
       this.emit('taskCompleted', {
         taskName: data.taskName,
         result: data.result,
+        agentName: agentName, // 担当エージェント情報を追加
         timestamp: new Date().toISOString()
       });
+      
+      console.log(`タスク完了イベントを発行: ${agentName} - ${data.taskName}`);
     });
     
     // エラーイベント
