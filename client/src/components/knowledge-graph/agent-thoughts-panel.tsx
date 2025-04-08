@@ -61,7 +61,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
   
-  // 外部から渡されたthoughtsを内部形式に変換
+  // 外部から渡されたthoughtsを内部形式に変換（初期表示のみ）
   useEffect(() => {
     if (externalThoughts && externalThoughts.length > 0) {
       console.log("AgentThoughtsPanel: 受信したthoughts:", externalThoughts.length);
@@ -111,28 +111,13 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
       ));
       setAgentNames(uniqueAgentNames);
       
-      // 既存のthoughtsと結合して重複を排除（idでフィルタリング）
-      const thoughtsMap = new Map();
-      
-      // 既存の思考情報を先に追加
-      internalThoughts.forEach(thought => {
-        const key = `${thought.agentName}-${thought.timestamp}-${thought.message.substring(0, 20)}`;
-        thoughtsMap.set(key, thought);
-      });
-      
-      // 新しい思考情報を追加（重複する場合は上書き）
-      convertedThoughts.forEach(thought => {
-        const key = `${thought.agentName}-${thought.timestamp}-${thought.message.substring(0, 20)}`;
-        thoughtsMap.set(key, thought);
-      });
-      
       // 時間順にソート
-      const sortedThoughts = Array.from(thoughtsMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+      const sortedThoughts = convertedThoughts.sort((a, b) => a.timestamp - b.timestamp);
       
       setInternalThoughts(sortedThoughts);
       setIsProcessing(sortedThoughts.length > 0);
     }
-  }, [externalThoughts, internalThoughts]);
+  }, [externalThoughts]);
   
   // マウント時にrefを初期化
   useEffect(() => {
@@ -161,197 +146,10 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
     }
   }, [internalThoughts]);
   
-  // WebSocket接続の管理
-  useEffect(() => {
-    if (!isVisible || !roleModelId) return;
-    
-    // 表示開始時に状態をリセット
-    setInternalThoughts([]);
-    setProgress(null);
-    
-    // WebSocket接続を開始
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    console.log(`Creating WebSocket connection to ${wsUrl}`);
-    
-    const socket = new WebSocket(wsUrl);
-    socketRef.current = socket;
-    
-    // 再接続機能のための変数
-    let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 5;
-    const RECONNECT_DELAY = 2000; // ms
-    
-    // 再接続機能
-    const reconnect = () => {
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && isComponentMountedRef.current) {
-        reconnectAttempts++;
-        console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-        
-        setTimeout(() => {
-          if (isComponentMountedRef.current) {
-            console.log('Reconnecting WebSocket...');
-            const newSocket = new WebSocket(wsUrl);
-            socketRef.current = newSocket;
-            setupSocketHandlers(newSocket);
-          }
-        }, RECONNECT_DELAY);
-      } else {
-        console.log('Maximum reconnection attempts reached or component unmounted');
-      }
-    };
-    
-    // WebSocketイベントハンドラを設定する関数
-    const setupSocketHandlers = (socket: WebSocket) => {
-      socket.onopen = () => {
-        console.log('WebSocket connected for agent thoughts');
-        reconnectAttempts = 0; // 接続成功時に再接続カウンターをリセット
-        
-        if (socket.readyState === WebSocket.OPEN) {
-          try {
-            console.log(`Subscribing to role model ${roleModelId}`);
-            socket.send(JSON.stringify({
-              type: 'subscribe_role_model',
-              payload: { roleModelId }
-            }));
-            
-            // 定期的なping送信で接続を維持
-            const pingInterval = setInterval(() => {
-              if (socket.readyState === WebSocket.OPEN) {
-                try {
-                  socket.send(JSON.stringify({ type: 'ping', payload: {} }));
-                } catch (err) {
-                  console.error('Error sending ping:', err);
-                  clearInterval(pingInterval);
-                }
-              } else {
-                clearInterval(pingInterval);
-              }
-            }, 30000); // 30秒ごと
-            
-            // クリーンアップのために保存
-            (socket as any).pingInterval = pingInterval;
-          } catch (err) {
-            console.error('Error sending subscription message:', err);
-          }
-        }
-      };
-      
-      socket.onmessage = (event) => {
-        if (!isComponentMountedRef.current) return;
-        
-        try {
-          console.log('WebSocket message received:', event.data);
-          
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'agent_thoughts' || data.type === 'agent_thought') {
-            console.log('エージェント思考メッセージ受信:', data.payload);
-            const payload = data.payload || data;
-            const newThought: AgentMessage = {
-              timestamp: payload.timestamp || Date.now(),
-              agentName: payload.agentName || payload.agent || 'System',
-              message: payload.message || payload.thought || payload.content || '',
-              type: payload.agentType || payload.type || 'info'
-            };
-            
-            // デバッグログを追加
-            console.log('処理されたエージェント思考データ:', {
-              original: data,
-              parsed: newThought
-            });
-            
-            // 詳細情報がある場合は表示内容を強化
-            if (data.payload.details || data.payload.steps || data.payload.reasoning) {
-              let enhancedMessage = newThought.message;
-              
-              if (data.payload.reasoning) {
-                enhancedMessage += '\n\n**推論プロセス:**\n' + data.payload.reasoning;
-              }
-              
-              if (data.payload.steps && Array.isArray(data.payload.steps)) {
-                enhancedMessage += '\n\n**詳細ステップ:**\n' + data.payload.steps.map((step: string, i: number) => `${i+1}. ${step}`).join('\n');
-              }
-              
-              if (data.payload.details) {
-                if (typeof data.payload.details === 'string') {
-                  enhancedMessage += '\n\n**詳細情報:**\n' + data.payload.details;
-                } else {
-                  enhancedMessage += '\n\n**詳細情報:**\n' + JSON.stringify(data.payload.details, null, 2);
-                }
-              }
-              
-              newThought.message = enhancedMessage;
-            }
-            
-            console.log('処理されたエージェント思考:', newThought);
-            setInternalThoughts((prev: AgentMessage[]) => [...prev, newThought]);
-          } 
-          else if (data.type === 'progress_update' || data.type === 'progress') {
-            const progressData = data.payload || data;
-            
-            if (progressData && typeof progressData.progress === 'number') {
-              setProgress({
-                stage: progressData.stage || '処理中',
-                progress: progressData.progress,
-                message: progressData.message || ''
-              });
-              
-              setIsProcessing(progressData.progress < 100);
-            }
-          }
-        } catch (error) {
-          console.error('Error processing WebSocket message:', error);
-        }
-      };
-      
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-      
-      socket.onclose = (event) => {
-        console.log(`WebSocket disconnected for agent thoughts: code=${event.code}, reason=${event.reason}`);
-        
-        // pingIntervalを停止
-        if ((socket as any).pingInterval) {
-          clearInterval((socket as any).pingInterval);
-        }
-        
-        // 非正常な切断の場合は再接続を試みる
-        if (event.code !== 1000 && event.code !== 1001) {
-          reconnect();
-        }
-      };
-    };
-    
-    // WebSocketハンドラを設定
-    setupSocketHandlers(socket);
-    
-    // クリーンアップ関数
-    return () => {
-      try {
-        const socket = socketRef.current;
-        if (socket) {
-          // pingIntervalを停止
-          if ((socket as any).pingInterval) {
-            clearInterval((socket as any).pingInterval);
-          }
-          
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-              type: 'unsubscribe_role_model',
-              payload: { roleModelId }
-            }));
-            socket.close(1000, 'Component unmounted');
-          }
-        }
-        socketRef.current = null;
-      } catch (e) {
-        console.error('Error during WebSocket cleanup:', e);
-      }
-    };
-  }, [roleModelId, isVisible]);
+  // 注記：独自のWebSocket接続は無効化し、親コンポーネントから渡されるthoughtsを使用
+  // これにより、重複接続による問題を回避し、コンポーネント間で一貫したデータを表示
+  // const reconnect = () => { ... }
+  // const setupSocketHandlers = (socket: WebSocket) => { ... }
   
   // メッセージタイプに応じたアイコンを取得
   const getIconForType = useCallback((type: string) => {
