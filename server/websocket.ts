@@ -504,10 +504,8 @@ export function sendAgentThoughts(
     type: 'agent_thoughts', // クライアント側が 'agent_thoughts'として処理するために修正
     agent_thoughts: true, // 後方互換性のため
     agent_thought: true, // 別の互換性形式
-    agent_type: 'agent_thoughts', // 型情報追加
     agentName,
     agent: agentName, // 後方互換性のため
-    agent_type: detailedData?.agentType || 'PlannerAgent',
     agentType: detailedData?.agentType || 'PlannerAgent', // 後方互換性のため
     thoughts,
     thought: thoughts, // 後方互換性のため

@@ -507,28 +507,36 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     switch (message.type) {
       case 'agent_thought':
       case 'agent_thoughts': // agent_thoughtsもサポート
+      case 'agent-thoughts': // ハイフン区切りフォーマットもサポート
       case 'thought': // thoughtタイプも追加
-        if (message.payload) {
+        if (message.payload || (typeof message === 'object' && message.type === 'agent_thoughts')) {
           console.log(`エージェント思考を受信 (${message.type})`, message);
           
+          // 直接メッセージにデータフィールドがある場合の処理を追加
+          const payload = message.payload || message;
+          
           // データからエージェント名と思考内容を安全に取得
-          const agentName = message.payload.agentName || message.payload.agent || '未知のエージェント';
+          const agentName = payload.agentName || payload.agent || message.agentName || message.agent || '未知のエージェント';
           
           // 思考内容をさまざまなフィールドから可能な限り取得
           let thought = '';
-          if (typeof message.payload.thought === 'string') {
-            thought = message.payload.thought;
-          } else if (typeof message.payload.message === 'string') {
-            thought = message.payload.message;
-          } else if (typeof message.payload.content === 'string') {
-            thought = message.payload.content;
-          } else if (typeof message.payload === 'string') {
-            thought = message.payload;
+          if (typeof payload.thought === 'string') {
+            thought = payload.thought;
+          } else if (typeof payload.thoughts === 'string') {
+            thought = payload.thoughts;
+          } else if (typeof payload.message === 'string') {
+            thought = payload.message;
+          } else if (typeof payload.content === 'string') {
+            thought = payload.content;
+          } else if (typeof payload === 'string') {
+            thought = payload;
+          } else if (message.thought || message.thoughts) {
+            thought = message.thought || message.thoughts || '';
           } else {
             // オブジェクトの場合は文字列化して適切なエラーメッセージを表示
             try {
-              thought = typeof message.payload === 'object' ? 
-                JSON.stringify(message.payload, null, 2) : 
+              thought = typeof payload === 'object' ? 
+                JSON.stringify(payload, null, 2) : 
                 '不明なデータ形式';
             } catch (e) {
               thought = '不明なデータ形式';
@@ -536,14 +544,14 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           }
           
           const agentThought: AgentThought = {
-            id: message.payload.id || crypto.randomUUID().toString(),
+            id: payload.id || crypto.randomUUID().toString(),
             agentName,
             thought,
             message: thought, // 互換性のため両方のフィールドにセット
-            type: message.payload.type || 'generic',
-            roleModelId: message.payload.roleModelId || currentRoleModelId || '',
+            type: payload.type || message.type || 'generic',
+            roleModelId: payload.roleModelId || currentRoleModelId || '',
             timestamp: message.timestamp || new Date().toISOString(),
-            step: message.payload.step
+            step: payload.step || payload.stage || 'thinking'
           };
           
           console.log('エージェント思考を追加:', agentThought);
@@ -563,25 +571,26 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
             };
             
             // ステップに基づいてプログレスを決定
-            const percent = message.payload.step && stepToProgress[message.payload.step] 
-              ? stepToProgress[message.payload.step] 
+            const step = payload.step || payload.stage;
+            const percent = step && stepToProgress[step] 
+              ? stepToProgress[step] 
               : (Math.floor(Math.random() * 5) + 5) * 10; // ステップ不明なら10〜50%のランダム値
             
             // エラーの場合は0%に設定
-            const isError = message.payload.error === true || message.payload.step === 'error';
+            const isError = payload.error === true || step === 'error';
             
             const progressUpdate: ProgressUpdate = {
               message: isError 
-                ? `エラーが発生しました: ${message.payload.message || '不明なエラー'}` 
+                ? `エラーが発生しました: ${payload.message || '不明なエラー'}` 
                 : `${agentName}が処理中: ${thought.substring(0, 30)}...`,
               percent: isError ? 0 : percent,
               timestamp: new Date().toISOString(),
               roleModelId: currentRoleModelId,
               // AgentThoughtsPanelと互換性を持たせるためのフィールド
-              stage: message.payload.step || 'processing',
+              stage: step || 'processing',
               progress: isError ? 0 : percent,
               progressPercent: isError ? 0 : percent,
-              details: message.payload
+              details: payload
             };
             
             setProgressUpdates(prev => [...prev, progressUpdate]);
