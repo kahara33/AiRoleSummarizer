@@ -3,7 +3,7 @@
  * WebSocketを通じてフロントエンドと連携するCrewAIのメインインターフェース
  */
 import { createCrewManager } from './crew-manager';
-import { sendProgressUpdate, sendAgentThoughts } from '../../websocket';
+import { sendProgressUpdate, sendAgentThoughts } from '../../websocket/ws-server';
 
 /**
  * CrewAIサービスクラス
@@ -34,7 +34,11 @@ export class CrewAIService {
         ? 'CrewAIで情報収集プランの作成を開始しています...' 
         : 'CrewAIでナレッジグラフと情報収集プランの生成を開始しています...';
       
-      sendProgressUpdate(initialMessage, 5, roleModelId);
+      sendProgressUpdate({
+        message: initialMessage,
+        percent: 5,
+        roleModelId
+      });
       
       // CrewManagerの作成
       const crewManager = createCrewManager(
@@ -69,11 +73,11 @@ export class CrewAIService {
         const { stage, progress, detail } = data;
         console.log(`CrewAI進捗状況: ${stage} - ${progress}% - ${detail}`);
         
-        sendProgressUpdate(
-          detail,
-          progress,
+        sendProgressUpdate({
+          message: detail,
+          percent: progress,
           roleModelId
-        );
+        });
       });
       
       // タスク完了イベントをクライアントに送信
@@ -122,11 +126,11 @@ export class CrewAIService {
         console.error('CrewAIエラー:', err);
         const errorMessage = err instanceof Error ? err.message : String(err);
         
-        sendProgressUpdate(
-          `エラーが発生しました: ${errorMessage}`,
-          0,
+        sendProgressUpdate({
+          message: `エラーが発生しました: ${errorMessage}`,
+          percent: 0,
           roleModelId
-        );
+        });
       });
       
       // 非同期でナレッジグラフ生成/情報収集プラン作成を実行
@@ -139,11 +143,11 @@ export class CrewAIService {
         ? '情報収集プランの作成が完了しました'
         : 'ナレッジグラフ生成と情報収集プラン作成が完了しました';
       
-      sendProgressUpdate(
-        completionMessage,
-        100,
+      sendProgressUpdate({
+        message: completionMessage,
+        percent: 100,
         roleModelId
-      );
+      });
       
       // 最終結果をエージェント思考として送信（より詳細に）
       if (result) {
@@ -181,11 +185,11 @@ export class CrewAIService {
       
       // エラーメッセージを送信
       const errorMessage = error instanceof Error ? error.message : String(error);
-      sendProgressUpdate(
-        `処理中にエラーが発生しました: ${errorMessage}`,
-        0,
+      sendProgressUpdate({
+        message: `処理中にエラーが発生しました: ${errorMessage}`,
+        percent: 0,
         roleModelId
-      );
+      });
       
       throw error;
     }

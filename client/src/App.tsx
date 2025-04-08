@@ -79,6 +79,8 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute path="/knowledge-graph/:id" component={KnowledgeGraphPageComponent} />
             <ProtectedRoute path="/information-dashboard/:id" component={InformationDashboardComponent} />
             <ProtectedRoute path="/notebook/:id" component={NotebookPageComponent} />
+            <ProtectedRoute path="/agent-thinking" component={() => <KnowledgeGraphPageComponent id="" />} />
+            <ProtectedRoute path="/agent-thinking/:id" component={KnowledgeGraphPageComponent} />
             <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
             <Route component={NotFoundPage} />
           </Switch>
