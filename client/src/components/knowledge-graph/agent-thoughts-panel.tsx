@@ -426,7 +426,7 @@ export function AgentThoughtsPanel({
             </div>
             {isProcessing && onCancel && (
               <button 
-                onClick={() => onCancel()}
+                onClick={onCancel}
                 className="py-1 px-3 bg-red-100 text-red-800 hover:bg-red-200 rounded-md text-sm transition-colors"
               >
                 処理をキャンセル
@@ -549,7 +549,7 @@ export function AgentThoughtsPanel({
             )}
             {isProcessing && onCancel && (
               <button 
-                onClick={() => onCancel()}
+                onClick={onCancel}
                 className="py-1 px-3 bg-red-100 text-red-800 hover:bg-red-200 rounded-md text-sm transition-colors mr-2"
               >
                 キャンセル

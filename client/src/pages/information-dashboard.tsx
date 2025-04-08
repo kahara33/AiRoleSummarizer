@@ -685,7 +685,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                             stage: update.stage || 'processing', 
                             progress: update.progress || update.percent || 0,
                             message: update.message || '',
-                            details: update.details || {}
+                            details: update.details || {},
+                            percent: update.percent || update.progress || 0,
+                            timestamp: update.timestamp || new Date().toISOString()
                           };
 
                         })}
@@ -702,7 +704,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                                         JSON.stringify((thought as any).payload)) 
                                       : ''),
                             message: thought.message || thought.thought || (thought as any).content || '',
-                            timestamp: new Date(thought.timestamp || Date.now()),
+                            timestamp: (thought.timestamp || new Date().toISOString()),
                             roleModelId: thought.roleModelId || (thought as any).roleModelId
                           })),
                           // エージェント思考としての進捗情報
@@ -719,10 +721,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                               message: typeof update.message === 'string' ? 
                                       update.message : 
                                       '進捗情報',
-                              timestamp: new Date(update.timestamp || Date.now()),
-                              roleModelId: update.roleModelId || roleModelId,
-                              progress: update.progress || update.percent || 0,
-                              progressPercent: update.progressPercent || update.percent || 0
+                              timestamp: update.timestamp || new Date().toISOString(),
+                              roleModelId: update.roleModelId || roleModelId || '',
+                              step: 'progress'
                             };
                           })
                         ]}
