@@ -28,6 +28,7 @@ import KnowledgeGraphViewer from "@/components/knowledge-graph/knowledge-graph-v
 import KnowledgeNodeForm from "@/components/knowledge-graph/knowledge-node-form";
 import KnowledgeEdgeForm from "@/components/knowledge-graph/knowledge-edge-form";
 import AgentThoughtsPanel from "@/components/knowledge-graph/agent-thoughts-panel";
+import { AgentConversation } from "@/components/agent-activity";
 import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
 import { useMultiAgentWebSocket } from "@/hooks/use-multi-agent-websocket-fixed";
@@ -533,13 +534,25 @@ export default function KnowledgeGraphPage() {
             </div>
             
             {/* AIエージェント思考プロセスパネル */}
-            <AgentThoughtsPanel
-              roleModelId={roleModelId}
-              isVisible={showAgentPanel}
-              onClose={() => setShowAgentPanel(false)}
-              isProcessing={generateGraphMutation.isPending || expandNodeMutation.isPending || wsIsProcessing}
-              thoughts={wsAgentThoughts}
-            />
+            {showAgentPanel && (
+              <div className="fixed right-0 top-0 h-screen w-[450px] z-20 bg-background border-l p-4 overflow-y-auto shadow-xl">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold">AIエージェント思考プロセス</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAgentPanel(false)}>
+                    <span className="sr-only">閉じる</span>
+                    ✕
+                  </Button>
+                </div>
+                
+                <AgentConversation
+                  roleModelId={roleModelId}
+                  height="calc(100vh - 100px)"
+                  width="100%"
+                  showHeader={false}
+                  title="エージェント思考プロセス"
+                />
+              </div>
+            )}
             
             {/* デバッグ情報 */}
             {import.meta.env.DEV && (

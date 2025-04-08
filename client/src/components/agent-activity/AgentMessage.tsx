@@ -1,0 +1,144 @@
+import React from 'react';
+import './styles.css';
+import { BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
+
+export type AgentMessageType = 'thinking' | 'thought' | 'action' | 'result' | 'error';
+
+interface AgentMessageProps {
+  agentName: string;
+  content: string;
+  timestamp: string | Date;
+  type: AgentMessageType;
+  showAvatar?: boolean;
+}
+
+/**
+ * エージェントからのメッセージを表示するコンポーネント
+ */
+const AgentMessage: React.FC<AgentMessageProps> = ({ 
+  agentName, 
+  content, 
+  timestamp, 
+  type, 
+  showAvatar = true 
+}) => {
+  // エージェント名から CSS クラス名を生成
+  const getAgentClass = (name: string): string => {
+    const normalizedName = name
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+    
+    const knownAgents: Record<string, string> = {
+      'domainanalyst': 'domain-analyst',
+      'ドメイン分析エージェント': 'domain-analyst',
+      'ドメインアナリスト': 'domain-analyst',
+      'domainanalysisagent': 'domain-analyst',
+      'trendresearcher': 'trend-researcher',
+      'トレンド調査エージェント': 'trend-researcher',
+      'トレンドリサーチャー': 'trend-researcher',
+      'trendresearchagent': 'trend-researcher',
+      'contextmapper': 'context-mapper',
+      'コンテキストマッピングエージェント': 'context-mapper',
+      'contextmappingagent': 'context-mapper',
+      'planstrategist': 'plan-strategist',
+      'プラン戦略エージェント': 'plan-strategist',
+      'プランストラテジスト': 'plan-strategist',
+      'planstrategistagent': 'plan-strategist',
+      'criticalthinker': 'critical-thinker',
+      '批判的思考エージェント': 'critical-thinker',
+      'クリティカルシンカー': 'critical-thinker',
+      'criticalthinkingagent': 'critical-thinker',
+      'orchestrator': 'orchestrator',
+      'オーケストレーターエージェント': 'orchestrator',
+      'オーケストレーター': 'orchestrator',
+      'orchestratoragent': 'orchestrator',
+      'knowledgegraphagent': 'knowledge-graph',
+      '知識グラフエージェント': 'knowledge-graph',
+      'ナレッジグラフエージェント': 'knowledge-graph',
+    };
+    
+    return knownAgents[normalizedName] || normalizedName;
+  };
+  
+  // タイムスタンプをフォーマット
+  const formatTimestamp = (timestamp: string | Date): string => {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    return date.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+  
+  // メッセージタイプに応じたアイコンを表示
+  const getIconForType = () => {
+    switch (type) {
+      case 'thinking':
+        return <BrainCircuit size={16} />;
+      case 'thought':
+        return <Bot size={16} />;
+      case 'action':
+        return <Zap size={16} />;
+      case 'result':
+        return <CheckCircle2 size={16} />;
+      case 'error':
+        return <AlertTriangle size={16} />;
+      default:
+        return <Bot size={16} />;
+    }
+  };
+  
+  // コードブロックを見つけてフォーマットする
+  const formatMessageContent = (content: string) => {
+    // コードブロックを検出して処理
+    const codeBlockRegex = /```([a-z]*)\n([\s\S]*?)```/g;
+    let formattedContent = content;
+    let match;
+    
+    // すべてのコードブロックを置換
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      const language = match[1];
+      const code = match[2];
+      
+      formattedContent = formattedContent.replace(
+        match[0],
+        `<div class="agent-message-code"><pre>${code}</pre></div>`
+      );
+    }
+    
+    // インラインコードの処理
+    formattedContent = formattedContent.replace(
+      /`([^`]+)`/g,
+      '<code>$1</code>'
+    );
+    
+    return { __html: formattedContent };
+  };
+  
+  const agentClass = getAgentClass(agentName);
+  
+  return (
+    <div className={`agent-message-container message-type-${type}`}>
+      <div className="agent-message">
+        {showAvatar && (
+          <div className={`agent-message-avatar agent-${agentClass}`}>
+            {getIconForType()}
+          </div>
+        )}
+        <div className="agent-message-content">
+          <div className="agent-message-header">
+            <span className="agent-message-name">{agentName}</span>
+            <span className="agent-message-time">{formatTimestamp(timestamp)}</span>
+          </div>
+          <div 
+            className="agent-message-text"
+            dangerouslySetInnerHTML={formatMessageContent(content)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AgentMessage;

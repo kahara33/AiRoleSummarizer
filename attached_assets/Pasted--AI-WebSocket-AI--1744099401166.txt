@@ -1,0 +1,272 @@
+# マルチAIエージェント思考・アクション表示の実装ガイド
+
+WebSocket接続が改善されたプロジェクトに、AIエージェントの思考とアクションを視覚的に表示するコンポーネントを実装するためのガイドです。
+
+## 1. アーキテクチャの概要
+
+マルチAIエージェント表示システムは以下のコンポーネントで構成されています：
+
+1. **AgentConversation**: 会話全体のコンテナ
+2. **AgentMessage**: 個別のエージェントメッセージ表示
+3. **AgentThinking**: 思考中の状態表示
+4. **サーバー側のメッセージ送信**: 構造化されたメッセージフォーマット
+
+## 2. コンポーネント実装
+
+### 2.1 ディレクトリ構造
+
+```
+client/src/
+  ├── components/
+  │   └── agent-activity/
+  │       ├── AgentConversation.tsx  # 会話コンテナ
+  │       ├── AgentMessage.tsx       # メッセージ表示
+  │       ├── AgentThinking.tsx      # 思考中表示
+  │       └── styles.css             # スタイル定義
+  └── hooks/
+      └── use-multi-agent-websocket.tsx  # WebSocketフック（既存）
+```
+
+### 2.2 実装手順
+
+1. `agent-activity` ディレクトリを作成
+2. 各コンポーネントファイルを配置
+3. スタイルシートを適用
+4. メインアプリケーションに統合
+
+### 2.3 コンポーネントの役割
+
+- **AgentConversation**: WebSocketからデータを受け取り、メッセージをグループ化
+- **AgentMessage**: 各タイプ（思考、アクション、結果、エラー）のメッセージを表示
+- **AgentThinking**: エージェントが思考中の状態をアニメーション表示
+
+## 3. メッセージタイプの定義
+
+エージェントの活動は以下のタイプに分類されます：
+
+1. **thinking**: エージェントが考えている状態
+2. **thought**: エージェントの思考内容
+3. **action**: エージェントが実行するアクション
+4. **result**: アクションの結果や出力
+5. **error**: エラー状態
+
+## 4. サーバー側との連携
+
+### 4.1 サーバー側のメッセージフォーマット
+
+```javascript
+{
+  type: 'agent_thoughts',
+  payload: {
+    agentName: 'エージェント名',
+    thought: 'メッセージ内容',
+    type: 'thinking|thought|action|result|error',
+    roleModelId: 'ロールモデルID',
+    operationId: '操作ID'
+  },
+  timestamp: '2025-04-08T10:15:30.123Z'
+}
+```
+
+### 4.2 CrewAIとの統合
+
+1. CrewAIの各タスク実行時の `callback` 関数内でエージェントの思考・アクションを送信
+2. 進捗状況の更新も同時に行う
+
+## 5. 実装ステップ
+
+### 5.1 コンポーネント追加
+
+1. 提供したコードファイルを対応するパスに配置
+2. スタイルシートも同様に配置
+
+### 5.2 プロジェクトへの統合
+
+```tsx
+// ナレッジグラフビューアーにエージェント会話コンポーネントを追加
+import AgentConversation from '../agent-activity/AgentConversation';
+
+function KnowledgeGraphViewer({ roleModelId }) {
+  return (
+    <div className="knowledge-graph-container">
+      <div className="graph-view">
+        {/* ナレッジグラフ表示 */}
+      </div>
+      
+      <div className="agent-activity-panel">
+        <AgentConversation 
+          roleModelId={roleModelId}
+          height="400px"
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+### 5.3 サーバー側の実装
+
+1. サーバー側でエージェント活動送信関数を実装
+2. CrewAIコールバック内に組み込み
+
+## 6. データフロー
+
+1. CrewAIのエージェントが処理を実行
+2. コールバック内でWebSocketにメッセージを送信
+3. クライアント側のフックがメッセージを受信
+4. AgentConversationがメッセージをグループ化して表示
+5. 各メッセージタイプに応じた表示がAgentMessageで行われる
+
+## 7. 具体的な実装例
+
+### 7.1 メインページにAgentConversationを追加
+
+```tsx
+// client/src/pages/KnowledgeGraphPage.tsx
+
+import React, { useState, useEffect } from 'react';
+import { useMultiAgentWebSocket } from '../hooks/use-multi-agent-websocket';
+import AgentConversation from '../components/agent-activity/AgentConversation';
+
+const KnowledgeGraphPage = () => {
+  const [roleModelId, setRoleModelId] = useState('default-model');
+  const { connect, isConnected, sendCreateKnowledgeGraphRequest } = useMultiAgentWebSocket();
+  
+  // WebSocket接続
+  useEffect(() => {
+    if (!isConnected) {
+      connect(roleModelId);
+    }
+  }, [connect, isConnected, roleModelId]);
+  
+  // ナレッジグラフ生成開始
+  const handleCreateKnowledgeGraph = () => {
+    sendCreateKnowledgeGraphRequest({
+      industry: 'Webマーケティング',
+      keywords: ['SEO', 'コンテンツマーケティング', 'SNS運用']
+    });
+  };
+  
+  return (
+    <div className="knowledge-graph-page">
+      <div className="page-header">
+        <h1>ナレッジグラフ</h1>
+        <button 
+          className="create-button" 
+          onClick={handleCreateKnowledgeGraph}
+        >
+          CrewAIでナレッジグラフ情報収集プランを生成
+        </button>
+      </div>
+      
+      <div className="page-content">
+        <div className="graph-container">
+          {/* ナレッジグラフ表示エリア */}
+        </div>
+        
+        <div className="activity-container">
+          <AgentConversation
+            roleModelId={roleModelId}
+            height="600px"
+            width="100%"
+            showHeader={true}
+            title="AIエージェントアクティビティ"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default KnowledgeGraphPage;
+```
+
+### 7.2 スタイルを適用
+
+`src/components/agent-activity/styles.css` を正しく配置し、インポートを確認します。
+
+### 7.3 サーバー側のエージェント活動送信関数
+
+```typescript
+// server/websocket.ts の一部
+
+// エージェント活動送信の共通関数
+function sendAgentActivity(
+  socket: WebSocket,
+  agentName: string,
+  content: string,
+  type: 'thinking' | 'thought' | 'action' | 'result' | 'error',
+  roleModelId: string,
+  operationId: string
+) {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  
+  sendToClient(socket, {
+    type: 'agent_thoughts',
+    payload: {
+      agentName,
+      thought: content,
+      type,
+      roleModelId,
+      operationId
+    },
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+## 8. テストとデバッグ
+
+### 8.1 WebSocketデータのデバッグ
+
+1. ブラウザのデベロッパーツールでWebSocketメッセージを監視
+2. コンソールログで受信データを確認
+
+### 8.2 コンポーネントのテスト
+
+1. テスト用のメッセージデータを使ってコンポーネントを表示
+2. 各メッセージタイプのスタイリングを確認
+
+## 9. 発展的な機能
+
+### 9.1 エージェント間の対話表示
+
+エージェント間でメッセージをやり取りする場合の表示方法：
+
+```typescript
+// エージェント間のメッセージ送信
+sendAgentToAgentMessage(
+  socket,
+  'トレンドリサーチャー',         // 送信元エージェント
+  'ドメインアナリスト',           // 送信先エージェント
+  '追加の業界キーワードを提供してください', // メッセージ内容
+  roleModelId,
+  operationId
+);
+```
+
+### 9.2 インタラクティブな操作
+
+ユーザーがエージェントに直接指示を出せるインターフェース：
+
+```typescript
+// ユーザーからエージェントへの指示
+sendUserToAgentMessage(
+  socket,
+  'プランストラテジスト',
+  'SNSマーケティングにより焦点を当てた計画を立案してください',
+  roleModelId,
+  operationId
+);
+```
+
+## 10. まとめ
+
+このガイドに従って実装することで、以下の特徴を持つマルチAIエージェント表示システムが構築できます：
+
+1. **ChatGPT風のインターフェース**: エージェントの思考とアクションが会話形式で表示
+2. **リアルタイム更新**: WebSocketを通じた即時反映
+3. **視覚的な区別**: 思考、アクション、結果、エラーの視覚的な区別
+4. **エージェントの個性**: 異なるエージェントがアバターと色で区別
+
+AIエージェントの思考プロセスとアクションを視覚的に表現することで、ユーザーはAIの情報収集プロセスを理解しやすくなります。
