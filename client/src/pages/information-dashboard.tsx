@@ -70,6 +70,23 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       console.log('WebSocketを接続します: roleModelId =', roleModelId);
       connect(roleModelId);
     }
+    
+    // コンポーネントがアンマウントされたときにクリーンアップ
+    return () => {
+      console.log('情報整理ダッシュボードのWebSocket接続をクリーンアップします');
+    };
+  }, [roleModelId, isConnected, connect]);
+  
+  // 定期的にWebSocket接続を確認し、切断されていたら再接続
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      if (roleModelId && !isConnected) {
+        console.log('WebSocket接続が切断されています。再接続を試みます...');
+        connect(roleModelId);
+      }
+    }, 10000); // 10秒ごとに確認
+    
+    return () => clearInterval(checkInterval);
   }, [roleModelId, isConnected, connect]);
   
   // エージェントの思考が届いたらパネルを表示

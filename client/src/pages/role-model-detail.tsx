@@ -191,13 +191,8 @@ export default function RoleModelDetailPage({ id }: RoleModelDetailPageProps) {
             </p>
           </div>
           <div className="flex space-x-2">
-            <Link to={`/knowledge-graph/${roleModelId}`}>
-              <Button>
-                知識グラフを表示
-              </Button>
-            </Link>
             <Link to={`/information-dashboard/${roleModelId}`}>
-              <Button variant="secondary">
+              <Button variant="default">
                 情報整理ダッシュボード
               </Button>
             </Link>
