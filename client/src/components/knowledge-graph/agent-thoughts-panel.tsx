@@ -73,26 +73,26 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
           : new Date(thought.timestamp).getTime();
         
         // メッセージはthought, messageのどちらかを使用（優先順位はthought > message）
-        const messageText = thought.thought || (thought as any).message || "詳細情報がありません";
+        const messageText = thought.thought || thought.message || (thought as any).content || "詳細情報がありません";
         
         let messageType = 'info';
-        // agentTypeに基づいて表示タイプを決定
-        if (thought.agentType) {
+        // typeプロパティを優先的に使用
+        if (thought.type) {
+          if (thought.type === 'error' || thought.type === 'エラー') {
+            messageType = 'error';
+          } else if (thought.type === 'success' || thought.type === 'システム') {
+            messageType = 'success';
+          } else if (thought.type === 'thinking' || thought.type === 'process') {
+            messageType = 'thinking';
+          }
+        }
+        // agentTypeがある場合は次に使用
+        else if (thought.agentType) {
           if (thought.agentType === 'error' || thought.agentType === 'エラー') {
             messageType = 'error';
           } else if (thought.agentType === 'success' || thought.agentType === 'システム') {
             messageType = 'success';
           } else if (thought.agentType === 'thinking' || thought.agentType === 'process') {
-            messageType = 'thinking';
-          }
-        } else if ((thought as any).type) {
-          // 型アサーションでtypeプロパティにアクセス
-          const typeValue = (thought as any).type;
-          if (typeValue === 'error' || typeValue === 'エラー') {
-            messageType = 'error';
-          } else if (typeValue === 'success' || typeValue === 'システム') {
-            messageType = 'success';
-          } else if (typeValue === 'thinking' || typeValue === 'process') {
             messageType = 'thinking';
           }
         }

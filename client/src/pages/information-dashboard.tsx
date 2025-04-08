@@ -560,7 +560,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           id: thought.id || String(crypto.randomUUID()),
                           agentName: thought.agentName || (thought as any).agent || 'AI エージェント',
                           agentType: thought.agentType || (thought as any).type || (thought as any).agent_type || 'agent',
+                          type: thought.type || thought.agentType || 'info',
                           thought: thought.thought || (thought as any).message || (thought as any).thoughts || ((thought as any).payload ? JSON.stringify((thought as any).payload) : ''),
+                          message: thought.message || thought.thought || (thought as any).content || '',
                           timestamp: new Date(thought.timestamp || Date.now()),
                           roleModelId: thought.roleModelId || (thought as any).roleModelId
                         }))}

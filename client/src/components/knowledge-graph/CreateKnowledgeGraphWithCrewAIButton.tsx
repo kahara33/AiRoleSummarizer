@@ -203,7 +203,8 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
       <Button
         onClick={handleCreateKnowledgeGraph}
         disabled={isGenerating || !isConnected}
-        className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 ${className}`}
+        className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 ${className} ${isGenerating ? 'opacity-70 cursor-not-allowed' : ''}`}
+        aria-busy={isGenerating}
       >
         {isGenerating ? (
           <>
