@@ -2,6 +2,8 @@ import { Server } from 'http';
 import { sendProgressUpdate, sendAgentThoughts, initWebSocketServer, getWebSocketServer } from './ws-server';
 // CrewAIサービスをインポート
 import { generateKnowledgeGraphWithCrewAI, CrewAIService } from '../services/crew-ai/crew-ai-service';
+// キャンセル処理のハンドラをインポート
+import { handleCancelOperation } from './cancel-handler';
 
 // WebSocketサーバーのクライアントへの送信関数を取得
 const wsServer = {
@@ -32,6 +34,11 @@ export function setupWebSocketIntegration(server: Server): void {
           
         case 'create_collection_plan':
           handleCreateCollectionPlan(roleModelId, message.payload);
+          break;
+          
+        case 'cancel_operation':
+          // 処理のキャンセルリクエスト
+          handleCancelOperation(roleModelId, message.payload);
           break;
           
         case 'chat_message':
@@ -114,6 +121,31 @@ async function handleCreateKnowledgeGraph(roleModelId: string, payload: any): Pr
       );
     }, 2000);
     
+    // プロセス中間ステップのプログレス更新も送信
+    setTimeout(() => {
+      sendProgressUpdate({
+        message: 'ドメイン分析を実行中...',
+        percent: 25,
+        roleModelId
+      });
+    }, 3000);
+    
+    setTimeout(() => {
+      sendProgressUpdate({
+        message: 'トレンド調査を実行中...',
+        percent: 45,
+        roleModelId
+      });
+    }, 5000);
+    
+    setTimeout(() => {
+      sendProgressUpdate({
+        message: '関連情報の構造化を実行中...',
+        percent: 65,
+        roleModelId
+      });
+    }, 7000);
+    
     // CrewAIナレッジグラフ生成を開始
     console.log('実際のCrewAI処理を開始します...');
     generateKnowledgeGraphWithCrewAI(
@@ -124,7 +156,14 @@ async function handleCreateKnowledgeGraph(roleModelId: string, payload: any): Pr
       sources || [],
       constraints || [],
       requirements || []
-    ).catch((error: Error) => {
+    ).then(() => {
+      // 完了メッセージを送信
+      sendProgressUpdate({
+        message: 'ナレッジグラフの生成が完了しました',
+        percent: 100,
+        roleModelId
+      });
+    }).catch((error: Error) => {
       console.error('CrewAIナレッジグラフ生成エラー:', error);
       
       // エラーメッセージを送信
@@ -191,7 +230,45 @@ async function handleCreateCollectionPlan(roleModelId: string, payload: any): Pr
         roleModelId,
         { step: 'plan_strategist_preparation' }
       );
+      
+      // プログレス更新も送信
+      sendProgressUpdate({
+        message: 'プラン戦略を開発中...',
+        percent: 30,
+        roleModelId
+      });
     }, 1000);
+    
+    // 処理中のプログレス更新
+    setTimeout(() => {
+      sendAgentThoughts(
+        '批評的思考者',
+        `情報収集プランの評価基準を確立しています。品質と網羅性を確保するためのチェックポイントを設定します。`,
+        roleModelId,
+        { step: 'processing' }
+      );
+      
+      sendProgressUpdate({
+        message: '情報フレームワークを構築中...',
+        percent: 50,
+        roleModelId
+      });
+    }, 3000);
+    
+    setTimeout(() => {
+      sendAgentThoughts(
+        'プランストラテジスト',
+        `情報収集プランの詳細を作成しています。重要な情報源、優先すべき領域、情報の検証方法を含めた包括的なプランを構築します。`,
+        roleModelId,
+        { step: 'result_compilation' }
+      );
+      
+      sendProgressUpdate({
+        message: 'プランの詳細を作成中...',
+        percent: 70,
+        roleModelId
+      });
+    }, 5000);
     
     // CrewAI情報収集プラン作成を開始（ナレッジグラフ更新はスキップ）
     console.log('実際のCrewAI処理を開始します（情報収集プランのみ）...');
@@ -205,7 +282,21 @@ async function handleCreateCollectionPlan(roleModelId: string, payload: any): Pr
       sources || [],
       constraints || [],
       requirements || []
-    ).catch((error: Error) => {
+    ).then(() => {
+      // 完了メッセージを送信
+      sendProgressUpdate({
+        message: '情報収集プランの作成が完了しました',
+        percent: 100,
+        roleModelId
+      });
+      
+      sendAgentThoughts(
+        'プランストラテジスト',
+        `情報収集プランが完成しました。このプランに基づいて効率的に情報を収集できます。`,
+        roleModelId,
+        { step: 'finalization' }
+      );
+    }).catch((error: Error) => {
       console.error('CrewAI情報収集プラン作成エラー:', error);
       
       // エラーメッセージを送信

@@ -196,14 +196,21 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
           
           const data = JSON.parse(event.data);
           
-          if (data.type === 'agent_thoughts') {
+          if (data.type === 'agent_thoughts' || data.type === 'agent_thought') {
             console.log('エージェント思考メッセージ受信:', data.payload);
+            const payload = data.payload || data;
             const newThought: AgentMessage = {
-              timestamp: data.payload.timestamp || Date.now(),
-              agentName: data.payload.agentName || 'System',
-              message: data.payload.message || data.payload.thought || '',
-              type: data.payload.agentType || data.payload.type || 'info'
+              timestamp: payload.timestamp || Date.now(),
+              agentName: payload.agentName || payload.agent || 'System',
+              message: payload.message || payload.thought || payload.content || '',
+              type: payload.agentType || payload.type || 'info'
             };
+            
+            // デバッグログを追加
+            console.log('処理されたエージェント思考データ:', {
+              original: data,
+              parsed: newThought
+            });
             
             // 詳細情報がある場合は表示内容を強化
             if (data.payload.details || data.payload.steps || data.payload.reasoning) {

@@ -25,7 +25,9 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
   const { 
     sendMessage: sendWebSocketMessage, 
     isConnected, 
-    progressUpdates 
+    progressUpdates,
+    sendCreateKnowledgeGraphRequest,
+    sendCancelOperationRequest
   } = useMultiAgentWebSocket();
 
   // 進行状況の更新を監視
@@ -65,6 +67,14 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
   }, [progressUpdates, roleModelId, isGenerating, toast]);
 
   const handleCreateKnowledgeGraph = async () => {
+    // すでに生成中の場合は処理を実行しない
+    if (isGenerating) {
+      console.log('すでに処理中のため、リクエストをスキップします');
+      return;
+    }
+    
+    // WebSocket接続状態をチェック
+    console.log('WebSocket接続状態:', isConnected);
     if (!isConnected) {
       toast({
         title: 'WebSocket接続エラー',
@@ -75,18 +85,24 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
     }
 
     try {
+      // UI状態を更新
+      console.log('処理開始: ナレッジグラフ生成');
       setIsGenerating(true);
       setProgress(5); // 初期値として5%の進行状況を設定
       setStatusMessage('処理を開始しています...');
       
-      // WebSocketメッセージを送信してナレッジグラフ生成を開始
-      sendWebSocketMessage('create_knowledge_graph', {
+      // 専用の関数を使用してナレッジグラフ生成を開始
+      const params = {
         industry: industry || '一般',
         keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
         sources: [],
         constraints: [],
         requirements: []
-      });
+      };
+      console.log('リクエストパラメータ:', params);
+      
+      // WebSocketメッセージを送信
+      sendCreateKnowledgeGraphRequest(params);
       
       toast({
         title: 'プロセス開始',
@@ -107,15 +123,32 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
 
   // 処理をキャンセルする関数
   const handleCancel = () => {
-    // 現在はキャンセル機能は実装されていないため、フロントエンドの状態のみリセット
-    // 将来的にはサーバーサイドのキャンセル機能も実装する
-    setIsGenerating(false);
-    setProgress(0);
-    setStatusMessage('');
-    toast({
-      title: '処理中断',
-      description: '処理がキャンセルされました。サーバー側の処理は完了まで続行される場合があります。',
-    });
+    try {
+      // 専用の関数を使用してキャンセルリクエストを送信
+      sendCancelOperationRequest('knowledge_graph');
+      
+      // UI状態をリセット
+      setIsGenerating(false);
+      setProgress(0);
+      setStatusMessage('');
+      
+      toast({
+        title: '処理中断',
+        description: 'リクエストがキャンセルされました',
+      });
+    } catch (error) {
+      console.error('キャンセル処理エラー:', error);
+      
+      // エラー発生時も状態をリセット
+      setIsGenerating(false);
+      setProgress(0);
+      
+      toast({
+        title: 'エラー',
+        description: 'キャンセル処理中にエラーが発生しました。画面を更新してください。',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (

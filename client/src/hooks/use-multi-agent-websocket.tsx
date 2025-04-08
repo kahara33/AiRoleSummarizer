@@ -16,6 +16,7 @@ interface MultiAgentWebSocketContextState {
   disconnect: () => void;
   sendMessage: (type: string, payload: any) => void;
   sendCreateKnowledgeGraphRequest: (params: CreateKnowledgeGraphParams) => void;
+  sendCancelOperationRequest: (operationType: string) => void;
   messages: WSMessage[];
   agentThoughts: AgentThought[];
   progressUpdates: ProgressUpdate[];
@@ -59,6 +60,7 @@ const MultiAgentWebSocketContext = createContext<MultiAgentWebSocketContextState
   disconnect: () => {},
   sendMessage: () => {},
   sendCreateKnowledgeGraphRequest: () => {},
+  sendCancelOperationRequest: () => {},
   messages: [],
   agentThoughts: [],
   progressUpdates: [],
@@ -78,28 +80,70 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
 
   // WebSocketへのメッセージ送信
   const sendMessage = useCallback((type: string, payload: any) => {
-    if (socket && isConnected) {
-      try {
-        const message = {
-          type,
-          payload,
-          timestamp: new Date().toISOString()
-        };
-        socket.send(JSON.stringify(message));
-        console.log('WebSocketメッセージを送信:', message);
-      } catch (error) {
-        console.error('WebSocketメッセージ送信エラー:', error);
-        toast({
-          title: 'エラー',
-          description: 'メッセージの送信に失敗しました',
-          variant: 'destructive'
-        });
-      }
-    } else {
-      console.warn('WebSocketが接続されていないため、メッセージを送信できません');
+    console.log('送信メッセージ準備:', type, payload);
+    
+    // 1. ソケットが存在し、接続状態であることを確認
+    if (!socket) {
+      console.error('WebSocketインスタンスが存在しません');
       toast({
-        title: '警告',
-        description: 'サーバーに接続されていません。再接続してください。',
+        title: '接続エラー',
+        description: 'サーバーへの接続が確立されていません。ページを更新してください。',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    // 2. 接続状態の追加チェック
+    if (socket.readyState !== WebSocket.OPEN) {
+      console.error(`WebSocketが開いていません。現在の状態: ${socket.readyState}`);
+      setIsConnected(false);
+      
+      toast({
+        title: '接続エラー',
+        description: 'サーバーとの接続が切断されています。再接続しています...',
+        variant: 'destructive'
+      });
+      
+      // 自動再接続を試みる
+      if (currentRoleModelId) {
+        console.log('自動再接続を試みます...');
+        connect(currentRoleModelId);
+        
+        // 再接続後、少し待ってからメッセージを再送信
+        setTimeout(() => {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            try {
+              const message = {
+                type,
+                payload,
+                timestamp: new Date().toISOString()
+              };
+              console.log('再接続後のメッセージ送信:', message);
+              socket.send(JSON.stringify(message));
+            } catch (e) {
+              console.error('再送信エラー:', e);
+            }
+          }
+        }, 1000);
+      }
+      
+      return;
+    }
+    
+    // 3. すべての条件を満たしている場合、メッセージを送信
+    try {
+      const message = {
+        type,
+        payload,
+        timestamp: new Date().toISOString()
+      };
+      console.log('WebSocketメッセージ送信:', message);
+      socket.send(JSON.stringify(message));
+    } catch (error) {
+      console.error('WebSocketメッセージ送信エラー:', error);
+      toast({
+        title: 'エラー',
+        description: 'サーバーとの通信中にエラーが発生しました。',
         variant: 'destructive'
       });
     }
@@ -369,6 +413,39 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           
           console.log('エージェント思考を追加:', agentThought);
           setAgentThoughts(prev => [...prev, agentThought]);
+          
+          // エージェント思考が来たときに進捗更新も送信（10%刻み）
+          // これにより、エージェント思考があればプログレスバーも更新される
+          if (currentRoleModelId) {
+            const stepToProgress: Record<string, number> = {
+              'domain_analysis_start': 10,
+              'trend_research_preparation': 20,
+              'context_mapping_preparation': 30,
+              'plan_strategist_preparation': 40,
+              'processing': 50,
+              'result_compilation': 70,
+              'finalization': 90
+            };
+            
+            // ステップに基づいてプログレスを決定
+            const percent = message.payload.step && stepToProgress[message.payload.step] 
+              ? stepToProgress[message.payload.step] 
+              : (Math.floor(Math.random() * 5) + 5) * 10; // ステップ不明なら10〜50%のランダム値
+            
+            // エラーの場合は0%に設定
+            const isError = message.payload.error === true || message.payload.step === 'error';
+            
+            const progressUpdate: ProgressUpdate = {
+              message: isError 
+                ? `エラーが発生しました: ${message.payload.message || '不明なエラー'}` 
+                : `${agentName}が処理中: ${thought.substring(0, 30)}...`,
+              percent: isError ? 0 : percent,
+              timestamp: new Date().toISOString(),
+              roleModelId: currentRoleModelId
+            };
+            
+            setProgressUpdates(prev => [...prev, progressUpdate]);
+          }
         } else {
           console.warn('エージェント思考メッセージにペイロードがありません:', message);
         }
@@ -376,6 +453,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
 
       case 'progress-update':
         if (message.payload) {
+          console.log('進捗更新を受信:', message.payload);
           const update: ProgressUpdate = {
             message: message.payload.message,
             percent: message.payload.percent,
@@ -383,6 +461,24 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
             roleModelId: message.payload.roleModelId || currentRoleModelId || undefined
           };
           setProgressUpdates(prev => [...prev, update]);
+          
+          // 完了通知（100%）の場合はトースト表示
+          if (update.percent === 100) {
+            toast({
+              title: '処理完了',
+              description: update.message || 'ナレッジグラフと情報収集プランの生成が完了しました',
+              variant: 'default'
+            });
+          }
+          
+          // エラー通知（0%）の場合はトースト表示
+          if (update.percent === 0) {
+            toast({
+              title: 'エラー',
+              description: update.message || '処理中にエラーが発生しました',
+              variant: 'destructive'
+            });
+          }
         }
         break;
 
@@ -405,6 +501,11 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     }
   }, [currentRoleModelId, toast]);
 
+  // キャンセル操作のリクエスト
+  const sendCancelOperationRequest = useCallback((operationType: string) => {
+    sendMessage('cancel_operation', { operationType });
+  }, [sendMessage]);
+  
   // コンテキスト値の構築
   const value = {
     isConnected,
@@ -412,6 +513,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     disconnect,
     sendMessage,
     sendCreateKnowledgeGraphRequest,
+    sendCancelOperationRequest,
     messages,
     agentThoughts,
     progressUpdates,
