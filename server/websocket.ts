@@ -235,6 +235,50 @@ export function initWebSocket(server: HttpServer): void {
                   }));
                 }
               }
+              // agent_thoughtsメッセージの処理（agent_thoughtsという名前のタイプに対応）
+              else if (data.type === 'agent_thoughts') {
+                console.log(`エージェント思考メッセージを受信（agent_thoughts形式）: ${data.agentName || 'エージェント'}`);
+                
+                const agentName = data.agentName || data.agent || 'エージェント';
+                const thought = data.thought || data.message || data.content || '思考内容が記録されませんでした';
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                // エージェント思考をブロードキャスト
+                if (specificRoleModelId) {
+                  // エージェント思考を他のクライアントにも送信
+                  sendAgentThoughts(agentName, thought, specificRoleModelId, data);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'thought_received',
+                    message: 'エージェント思考を受信しました',
+                    agentName,
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
+              // progressメッセージの処理（progress形式での処理）
+              else if (data.type === 'progress') {
+                console.log(`進捗更新メッセージを受信（progress形式）: ${data.progress || data.percent || 0}%`);
+                
+                const message = data.message || data.stage || '';
+                const progress = data.progress || data.percent || 0;
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                // 進捗更新をブロードキャスト
+                if (specificRoleModelId) {
+                  // 進捗更新を他のクライアントにも送信
+                  sendProgressUpdate(message, progress, specificRoleModelId, data);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'progress_received',
+                    message: '進捗更新を受信しました',
+                    progress,
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
               // 未知のメッセージタイプの場合
               else if (data.type && data.type !== 'ping') {
                 console.log(`未処理のメッセージタイプ: ${data.type}`);
@@ -457,9 +501,10 @@ export function sendAgentThoughts(
 
   // クライアントの互換性のためのデータ統合
   const data = {
-    type: 'agent-thoughts',
+    type: 'agent_thoughts', // クライアント側が 'agent_thoughts'として処理するために修正
     agent_thoughts: true, // 後方互換性のため
     agent_thought: true, // 別の互換性形式
+    agent_type: 'agent_thoughts', // 型情報追加
     agentName,
     agent: agentName, // 後方互換性のため
     agent_type: detailedData?.agentType || 'PlannerAgent',
