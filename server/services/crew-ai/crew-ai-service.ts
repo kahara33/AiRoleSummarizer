@@ -4,6 +4,7 @@
  */
 import { createCrewManager } from './crew-manager';
 import { sendProgressUpdate, sendAgentThoughts } from '../../websocket/ws-server';
+import { sendDebugAgentThought, sendRoleModelDemoThoughts } from '../../websocket/debug-message-helper';
 
 /**
  * CrewAIサービスクラス
@@ -29,6 +30,9 @@ export class CrewAIService {
       const processType = skipGraphUpdate ? '情報収集プラン作成' : 'ナレッジグラフと情報収集プラン生成';
       console.log(`CrewAI ${processType}プロセスを開始: roleModelId=${roleModelId}, industry=${industry}, keywords=${initialKeywords.join(', ')}`);
       
+      // デバッグメッセージを送信
+      sendDebugAgentThought(roleModelId, `CrewAI ${processType}を開始しています。WebSocketメッセージのテスト。`);
+      
       // 進捗状況を送信
       const initialMessage = skipGraphUpdate
         ? 'CrewAIで情報収集プランの作成を開始しています...' 
@@ -39,6 +43,13 @@ export class CrewAIService {
         percent: 5,
         roleModelId
       });
+      
+      // デモ思考プロセスを生成してWebSocketで送信
+      try {
+        sendRoleModelDemoThoughts(roleModelId, industry);
+      } catch (demoError) {
+        console.warn('デモ思考プロセスの送信に失敗:', demoError);
+      }
       
       // CrewManagerの作成
       const crewManager = createCrewManager(
@@ -233,7 +244,7 @@ export async function generateKnowledgeGraphWithCrewAI(
   potentialSources: string[] = [],
   resourceConstraints: string[] = [],
   originalRequirements: string[] = []
-): Promise<void> {
+): Promise<any> {
   return CrewAIService.startKnowledgeGraphGeneration(
     userId,
     roleModelId,

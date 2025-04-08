@@ -39,7 +39,7 @@ import {
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
-import { generateKnowledgeGraphWithCrewAI } from './agents';
+import { generateKnowledgeGraphWithCrewAI } from './services/crew-ai/crew-ai-service';
 import { randomUUID } from 'crypto';
 
 // UUIDの検証関数
@@ -1024,6 +1024,14 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       const industries = roleModel.industries.map(rel => rel.industry.name);
       const keywords = roleModel.keywords.map(rel => rel.keyword ? rel.keyword.name : (rel.keywordId && typeof rel.keywordId === 'object' ? rel.keywordId.name : ''));
 
+      // デバッグメッセージの送信を追加
+      try {
+        const { sendDebugAgentThought } = require('./websocket/debug-message-helper');
+        sendDebugAgentThought(roleModelId, "CrewAIナレッジグラフ生成プロセスの開始をWebSocketで通知しています");
+      } catch (debugError) {
+        console.warn("デバッグメッセージの送信に失敗しました:", debugError);
+      }
+
       // 非同期処理を開始し、すぐにレスポンスを返す
       res.json({ 
         success: true, 
@@ -1042,9 +1050,18 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       };
 
       // バックグラウンドで処理を継続
-      generateKnowledgeGraphWithCrewAI(input)
-        .then(async (result) => {
-          if (result.success) {
+      try {
+        const result = await generateKnowledgeGraphWithCrewAI(
+          input.userId,
+          input.roleModelId,
+          input.roleName,
+          input.keywords,
+          input.description ? [input.description] : [],
+          input.industries || [],
+          input.keywords || []
+        );
+          
+        if (result && result.success) {
             // 正常に生成された場合、知識グラフデータをデータベースに保存
             try {
               // 既存のノードとエッジを削除
@@ -1141,8 +1158,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
               errorMessage: result.error
             });
           }
-        })
-        .catch(err => {
+        } catch (err) {
           console.error('CrewAI知識グラフ生成エラー:', err);
           sendProgressUpdate(`エラーが発生しました: ${err.message}`, 100, roleModelId, {
             message: `エラーが発生しました: ${err.message}`,
@@ -1151,7 +1167,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             error: true,
             errorMessage: err.message
           });
-        });
+        }
     } catch (error) {
       console.error('CrewAI知識グラフ生成リクエストエラー:', error);
       res.status(500).json({ error: 'CrewAIを使用した知識グラフの生成に失敗しました' });
