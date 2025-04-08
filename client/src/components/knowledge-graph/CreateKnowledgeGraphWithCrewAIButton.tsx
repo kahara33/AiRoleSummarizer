@@ -70,6 +70,11 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
     // すでに生成中の場合は処理を実行しない
     if (isGenerating) {
       console.log('すでに処理中のため、リクエストをスキップします');
+      toast({
+        title: '処理中です',
+        description: 'すでにナレッジグラフの生成処理が進行中です。完了までお待ちください。',
+        variant: 'default',
+      });
       return;
     }
     
@@ -85,11 +90,16 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
     }
 
     try {
-      // UI状態を更新
+      // UI状態を明示的に更新して、ユーザーにフィードバックを提供
       console.log('処理開始: ナレッジグラフ生成');
       setIsGenerating(true);
       setProgress(5); // 初期値として5%の進行状況を設定
       setStatusMessage('処理を開始しています...');
+
+      // ボタンの無効化はReactの状態管理に任せる
+      // DOM操作に頼る必要はない（isGeneratingがtrueになることでdisabled属性が適用される）
+      // この行は削除しても問題ありません - 状態管理の冗長対策として残します
+      setIsGenerating(true);
       
       // 専用の関数を使用してナレッジグラフ生成を開始
       const params = {
@@ -101,13 +111,26 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
       };
       console.log('リクエストパラメータ:', params);
       
+      // WebSocketメッセージを送信する前に確認
+      if (!isConnected) {
+        console.error('WebSocket接続が失われたため、リクエストを送信できません');
+        throw new Error('WebSocket接続が失われました');
+      }
+      
       // WebSocketメッセージを送信
       sendCreateKnowledgeGraphRequest(params);
       
+      // ユーザーに視覚的なフィードバックを提供
       toast({
         title: 'プロセス開始',
-        description: 'マルチエージェントがナレッジグラフと情報収集プランを生成しています...',
+        description: 'マルチエージェントがナレッジグラフと情報収集プランを生成しています。しばらくお待ちください...',
       });
+      
+      // ボタンクリックで生成開始を明示的にログ
+      console.log('======== CrewAIナレッジグラフ生成プロセスを開始しました ========');
+      console.log('対象ロールモデルID:', roleModelId);
+      console.log('業界:', industry || '一般');
+      console.log('キーワード:', initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ']);
       
     } catch (error) {
       console.error('ナレッジグラフ生成リクエストエラー:', error);

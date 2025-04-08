@@ -79,6 +79,26 @@ export class WSServerManager {
             const message = JSON.parse(data.toString()) as WSMessage;
             console.log(`メッセージ受信: clientId=${clientId}, type=${message.type}`);
             
+            // pingメッセージへの応答
+            if (message.type === 'ping') {
+              // クライアントから受信したピングに応答
+              console.log(`WebSocketメッセージ受信: type=${message.type}, roleModelId=${roleModelId}`);
+              console.log('Ping received from client');
+              
+              // pongレスポンスを送信
+              try {
+                socket.send(JSON.stringify({
+                  type: 'pong',
+                  payload: {
+                    time: new Date().toISOString()
+                  },
+                  timestamp: new Date().toISOString()
+                }));
+              } catch (e) {
+                console.error('Pong送信エラー:', e);
+              }
+            }
+            
             // メッセージイベントを発火
             this.emit('message', {
               clientId,
@@ -201,23 +221,24 @@ export class WSServerManager {
       return 0;
     }
     
-    console.log(`ロールモデル ${roleModelId} 閲覧者にメッセージを送信します: type=${message.type}`);
-    console.log(`接続クライアント一覧:`, Array.from(this.clients.values()).map(client => ({
-      id: client.id,
-      roleModelId: client.roleModelId,
-      readyState: client.socket.readyState
-    })));
+    // デバッグログの抑制 - メッセージタイプが重要なものか特定の条件の場合のみログ出力
+    const isImportantMessage = 
+      message.type === 'progress-update' ||
+      message.type === 'crewai_error' ||
+      message.type === 'cancel_operation_result';
+      
+    // pingやagent_thoughtsなどの高頻度メッセージはログ出力しない
+    if (isImportantMessage) {
+      console.log(`ロールモデル ${roleModelId} 閲覧者にメッセージを送信します: type=${message.type}`);
+    }
     
     let foundClients = false;
     
     Array.from(this.clients.keys()).forEach(clientId => {
       const client = this.clients.get(clientId);
       if (client && client.socket.readyState === WS_CONSTANTS.OPEN) {
-        // ロールモデルIDの比較をデバッグ
-        console.log(`クライアント確認: clientId=${clientId}, client.roleModelId=${client.roleModelId}, 対象roleModelId=${roleModelId}, 一致=${client.roleModelId === roleModelId}`);
-        
-        // デバッグモード：すべてのクライアントにメッセージを送信
-        const shouldSend = true; // TODO: 本番環境では client.roleModelId === roleModelId に戻す
+        // 対象のロールモデルを見ているクライアントにのみメッセージを送信
+        const shouldSend = client.roleModelId === roleModelId;
         
         if (shouldSend) {
           try {
@@ -231,11 +252,13 @@ export class WSServerManager {
       }
     });
     
-    if (!foundClients) {
-      console.log(`ロールモデル ${roleModelId} に接続されたアクティブなクライアントはありません`);
-      console.log(`送信予定だったメッセージ:`, JSON.stringify(message, null, 2));
-    } else {
-      console.log(`${sentCount}件のクライアントにメッセージを送信しました: type=${message.type}`);
+    // 重要なメッセージの場合のみ追加のログを出力
+    if (isImportantMessage) {
+      if (!foundClients) {
+        console.log(`ロールモデル ${roleModelId} に接続されたアクティブなクライアントはありません`);
+      } else {
+        console.log(`${sentCount}件のクライアントにメッセージを送信しました: type=${message.type}`);
+      }
     }
     
     return sentCount;
@@ -245,10 +268,24 @@ export class WSServerManager {
   broadcast(message: WSMessage): number {
     let sentCount = 0;
     
+    // 注意: ブロードキャストはデバッグモードでのみ使用すべき
+    // 本番環境では通常、特定のユーザーまたはロールモデル視聴者にのみ送信する
+    console.warn('ブロードキャスト機能が使用されました。これはデバッグ目的でのみ使用してください。');
+    console.warn(`ブロードキャストメッセージ: type=${message.type}`);
+    
+    // デバッグインジケータをペイロードに追加
+    const debugMessage = {
+      ...message,
+      payload: {
+        ...message.payload,
+        _debug_broadcast: true // これによりクライアントは通常操作と区別できる
+      }
+    };
+    
     Array.from(this.clients.values()).forEach(client => {
       if (client.socket.readyState === WS_CONSTANTS.OPEN) {
         try {
-          client.socket.send(JSON.stringify(message));
+          client.socket.send(JSON.stringify(debugMessage));
           sentCount++;
         } catch (error) {
           console.error(`ブロードキャストエラー: clientId=${client.id}`, error);
@@ -376,7 +413,8 @@ export function sendAgentThoughts(
     timestamp: new Date().toISOString()
   };
   
-  console.log(`エージェント思考メッセージを送信します: agentName=${agentName}, roleModelId=${roleModelId}`);
+  // 高頻度で発生するエージェント思考メッセージのログは最小限に抑える
+  // console.log(`エージェント思考メッセージを送信します: agentName=${agentName}, roleModelId=${roleModelId}`);
   return wss.sendToRoleModelViewers(roleModelId, message);
 }
 

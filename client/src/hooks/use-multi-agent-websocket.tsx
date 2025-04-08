@@ -159,8 +159,10 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
   
   // 接続状態をモニタリングする変数
   const reconnectAttemptsRef = useRef<number>(0);
-  const maxReconnectAttempts = 5; // 最大再接続試行回数
+  const maxReconnectAttempts = 10; // 最大再接続試行回数を10回に増加
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // 定期的なping送信のインターバルを管理
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // WebSocket接続関数（デバウンス処理付き）
   const connect = useCallback((roleModelId: string) => {
@@ -202,12 +204,15 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
       socket.close();
     }
 
-    // 接続先URLの構築 - パス形式の変更
+    // 接続先URLの構築 - パスとクエリパラメータの設定
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     
-    // ViteのWebSocketとの競合を防ぐためパスを変更
-    const wsUrl = `${protocol}//${host}/api/ws?userId=${user.id}&roleModelId=${roleModelId}`;
+    // WebSocketの接続安定性のために、より堅牢な接続URLを生成
+    // タイムスタンプとランダム値を追加してキャッシュ問題を防止
+    const timestamp = Date.now();
+    const randomValue = Math.random().toString(36).substring(2, 8);
+    const wsUrl = `${protocol}//${host}/api/ws?userId=${user.id}&roleModelId=${roleModelId}&t=${timestamp}&r=${randomValue}`;
     console.log('WebSocket接続URL:', wsUrl);
 
     try {
@@ -240,6 +245,34 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
             }
           }
         }, 1000);
+        
+        // pingIntervalを設定する前に既存のものがあればクリア
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+        
+        // 定期的なpingを15秒間隔で送信（接続をアクティブに保つため）
+        const pingInterval = setInterval(() => {
+          if (newSocket.readyState === WebSocket.OPEN) {
+            try {
+              newSocket.send(JSON.stringify({ 
+                type: 'ping', 
+                payload: { roleModelId },
+                timestamp: new Date().toISOString() 
+              }));
+              // ログは出力しない（コンソールを占有しないため）
+            } catch (e) {
+              console.error('定期的なping送信エラー:', e);
+            }
+          } else if (newSocket.readyState === WebSocket.CLOSED || newSocket.readyState === WebSocket.CLOSING) {
+            // ソケットが閉じられている場合はインターバルをクリア
+            clearInterval(pingInterval);
+            pingIntervalRef.current = null;
+          }
+        }, 15000); // 15秒間隔
+        
+        pingIntervalRef.current = pingInterval;
       };
 
       newSocket.onmessage = (event) => {
@@ -255,34 +288,44 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
         console.log('WebSocket接続が閉じられました', event.code, event.reason);
         setIsConnected(false);
 
-        // 正常な切断でない場合は再接続を試みる
-        if (event.code !== 1000) {
-          // 再接続試行回数をインクリメント
-          reconnectAttemptsRef.current++;
-          
-          // 指数バックオフで再接続（1秒、2秒、4秒、8秒...）
-          const reconnectDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
-          
-          console.log(`${reconnectDelay / 1000}秒後に再接続を試みます... (試行: ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-          
-          // 最大再接続回数に達していない場合のみ再接続を試みる
-          if (reconnectAttemptsRef.current <= maxReconnectAttempts) {
-            reconnectTimeoutRef.current = setTimeout(() => {
-              if (currentRoleModelId) {
-                connect(currentRoleModelId);
-              }
-            }, reconnectDelay);
-          } else {
-            console.error('最大再接続試行回数に達しました。手動での再接続が必要です。');
+        // コードが1000以外でも再接続を試みる（ブラウザのネットワーク状態変更による自動切断など対応）
+        // 再接続試行回数をインクリメント
+        reconnectAttemptsRef.current++;
+        
+        // 最初の2回は短い間隔、その後は指数バックオフで再接続
+        let reconnectDelay = 500; // 初回は0.5秒
+        if (reconnectAttemptsRef.current === 2) {
+          reconnectDelay = 1000; // 2回目は1秒
+        } else if (reconnectAttemptsRef.current > 2) {
+          // 3回目以降は指数バックオフ（2秒、4秒、8秒...最大30秒）
+          reconnectDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 2), 30000);
+        }
+        
+        console.log(`${reconnectDelay / 1000}秒後に再接続を試みます... (試行: ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+        
+        // 最大再接続回数に達していない場合のみ再接続を試みる
+        if (reconnectAttemptsRef.current <= maxReconnectAttempts) {
+          // 再接続のインジケーターを表示（オプション）
+          if (reconnectAttemptsRef.current > 2) {
             toast({
-              title: '接続エラー',
-              description: 'サーバーへの接続に失敗しました。ページを再読み込みするか、しばらく経ってから再試行してください。',
-              variant: 'destructive'
+              title: '接続の再確立中',
+              description: `サーバーとの接続を再確立しています... (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`,
+              duration: reconnectDelay - 100, // 少し短めに設定
             });
           }
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (currentRoleModelId) {
+              connect(currentRoleModelId);
+            }
+          }, reconnectDelay);
         } else {
-          // 正常な切断の場合は再接続カウンターをリセット
-          reconnectAttemptsRef.current = 0;
+          console.error('最大再接続試行回数に達しました。手動での再接続が必要です。');
+          toast({
+            title: '接続エラー',
+            description: 'サーバーへの接続に失敗しました。ページを再読み込みするか、しばらく経ってから再試行してください。',
+            variant: 'destructive'
+          });
         }
       };
 
@@ -314,12 +357,19 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
       reconnectTimeoutRef.current = null;
     }
     
+    // Ping間隔も必ずクリア
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    
     if (socket) {
       socket.close(1000, 'クライアントからの切断');
       setSocket(null);
       setIsConnected(false);
       setCurrentRoleModelId(null);
       reconnectAttemptsRef.current = 0; // 再接続カウンターをリセット
+      console.log('WebSocket接続を切断しました');
     }
   }, [socket]);
 
@@ -339,8 +389,15 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
         reconnectTimeoutRef.current = null;
       }
       
+      // ping間隔があればクリア
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
+      
       if (socket) {
         socket.close(1000, 'コンポーネントがアンマウントされました');
+        console.log('コンポーネントのアンマウントによりWebSocket接続を閉じました');
       }
     };
   }, [socket]);
@@ -379,8 +436,9 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     
     switch (message.type) {
       case 'agent_thought':
+      case 'agent_thoughts': // agent_thoughtsもサポート
         if (message.payload) {
-          console.log('エージェント思考を受信:', message);
+          console.log(`エージェント思考を受信 (${message.type})`, message);
           
           // データからエージェント名と思考内容を安全に取得
           const agentName = message.payload.agentName || message.payload.agent || '未知のエージェント';
@@ -396,8 +454,14 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           } else if (typeof message.payload === 'string') {
             thought = message.payload;
           } else {
-            // オブジェクトの場合は文字列化
-            thought = JSON.stringify(message.payload);
+            // オブジェクトの場合は文字列化して適切なエラーメッセージを表示
+            try {
+              thought = typeof message.payload === 'object' ? 
+                JSON.stringify(message.payload, null, 2) : 
+                '不明なデータ形式';
+            } catch (e) {
+              thought = '不明なデータ形式';
+            }
           }
           
           const agentThought: AgentThought = {
