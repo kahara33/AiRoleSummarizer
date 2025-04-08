@@ -5,9 +5,10 @@ import { useLocation } from 'wouter';
 
 interface MainLayoutProps {
   children: ReactNode;
+  hideHeader?: boolean; // ヘッダーを非表示にするためのオプションプロパティ
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children, hideHeader = false }) => {
   const { user } = useAuth();
   const [location] = useLocation();
   
@@ -16,8 +17,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* 認証済みかつログイン画面でない場合のみヘッダーを表示 */}
-      {user && !isAuthPage && <Header />}
+      {/* 認証済みかつログイン画面でなく、hideHeaderがfalseの場合のみヘッダーを表示 */}
+      {user && !isAuthPage && !hideHeader && <Header />}
       
       <div className={`flex-1 overflow-auto ${!user && !isAuthPage ? 'hidden' : ''}`}>
         {children}

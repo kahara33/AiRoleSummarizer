@@ -153,17 +153,20 @@ const WebSocketDebugTool: React.FC = () => {
   };
 
   return (
-    <MainLayout>
+    <MainLayout hideHeader={true}>
       <div className="bg-gray-50 py-4 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          {/* ヘッダー */}
-          <div className="mb-6 border-b pb-2">
-            <h1 className="text-2xl font-semibold text-gray-900">
+          {/* 独自ヘッダー - ロゴとタイトル */}
+          <div className="flex items-center mb-6 border-b pb-2">
+            <div className="flex items-center mr-auto">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold">E</span>
+              </div>
+              <span className="ml-2 font-bold text-lg">EVERYS</span>
+            </div>
+            <h1 className="text-xl font-semibold text-gray-900">
               WebSocketデバッグツール
             </h1>
-            <p className="text-sm text-gray-600">
-              エージェントとのリアルタイム通信をテストするためのツール
-            </p>
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
