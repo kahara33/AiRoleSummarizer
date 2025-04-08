@@ -31,7 +31,7 @@ export function initWebSocket(server: HttpServer): void {
     // WebSocketServerの作成
     wss = new WebSocketServer({ 
       server, 
-      path: '/ws',
+      path: '/api/ws', // 新しいパスに合わせて /api/ws に修正
       clientTracking: true, // クライアントを追跡
       perMessageDeflate: { // パフォーマンス向上のための圧縮設定
         zlibDeflateOptions: {
