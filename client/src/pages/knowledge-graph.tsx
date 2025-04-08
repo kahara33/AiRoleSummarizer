@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation, useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { KnowledgeNode, RoleModel, KnowledgeEdge, RoleModelWithIndustriesAndKeywords } from "@shared/schema";
@@ -30,6 +30,7 @@ import KnowledgeEdgeForm from "@/components/knowledge-graph/knowledge-edge-form"
 import AgentThoughtsPanel from "@/components/knowledge-graph/agent-thoughts-panel";
 import AppLayout from "@/components/layout/app-layout";
 import { useToast } from "@/hooks/use-toast";
+import { useMultiAgentWebSocket } from "@/hooks/use-multi-agent-websocket-fixed";
 
 type DialogType = "node" | "edge" | null;
 
@@ -48,11 +49,21 @@ export default function KnowledgeGraphPage() {
   const [generationSteps, setGenerationSteps] = useState<{step: string, status: 'pending' | 'completed' | 'error'}[]>([]);
   const [showGenerationProgress, setShowGenerationProgress] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
-  const [agentThoughts, setAgentThoughts] = useState<{
-    agent: string;
-    thought: string;
-    timestamp: Date;
-  }[]>([]);
+  // MultiAgentWebSocketからagentThoughtsなどを使用
+  const { 
+    agentThoughts: wsAgentThoughts, 
+    connect, 
+    isConnected,
+    isProcessing: wsIsProcessing
+  } = useMultiAgentWebSocket();
+  
+  // role modelが変わった時にWebSocket接続を更新
+  useEffect(() => {
+    if (roleModelId) {
+      connect(roleModelId);
+      console.log("roleModelId変更によるWebSocket接続:", roleModelId);
+    }
+  }, [roleModelId, connect]);
 
   // Fetch role model
   const { data: roleModel, isLoading: isLoadingRoleModel } = useQuery({
@@ -526,13 +537,8 @@ export default function KnowledgeGraphPage() {
               roleModelId={roleModelId}
               isVisible={showAgentPanel}
               onClose={() => setShowAgentPanel(false)}
-              isProcessing={generateGraphMutation.isPending || expandNodeMutation.isPending}
-              thoughts={agentThoughts.map(thought => ({
-                timestamp: thought.timestamp.getTime(),
-                agentName: thought.agent,
-                message: thought.thought,
-                type: 'thinking'
-              }))}
+              isProcessing={generateGraphMutation.isPending || expandNodeMutation.isPending || wsIsProcessing}
+              thoughts={wsAgentThoughts}
             />
             
             {/* デバッグ情報 */}
