@@ -172,14 +172,38 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           switch (message.type) {
             case 'agent_thought':
               if (message.payload) {
-                const thought: AgentThought = {
-                  agentName: message.payload.agentName,
-                  thought: message.payload.thought,
-                  roleModelId: message.payload.roleModelId,
+                console.log('エージェント思考を受信:', message);
+                
+                // データからエージェント名と思考内容を安全に取得
+                const agentName = message.payload.agentName || message.payload.agent || '未知のエージェント';
+                
+                // 思考内容をさまざまなフィールドから可能な限り取得
+                let thought = '';
+                if (typeof message.payload.thought === 'string') {
+                  thought = message.payload.thought;
+                } else if (typeof message.payload.message === 'string') {
+                  thought = message.payload.message;
+                } else if (typeof message.payload.content === 'string') {
+                  thought = message.payload.content;
+                } else if (typeof message.payload === 'string') {
+                  thought = message.payload;
+                } else {
+                  // オブジェクトの場合は文字列化
+                  thought = JSON.stringify(message.payload);
+                }
+                
+                const agentThought: AgentThought = {
+                  agentName,
+                  thought,
+                  roleModelId: message.payload.roleModelId || currentRoleModelId || '',
                   timestamp: message.timestamp || new Date().toISOString(),
                   step: message.payload.step
                 };
-                setAgentThoughts(prev => [...prev, thought]);
+                
+                console.log('エージェント思考を追加:', agentThought);
+                setAgentThoughts(prev => [...prev, agentThought]);
+              } else {
+                console.warn('エージェント思考メッセージにペイロードがありません:', message);
               }
               break;
 

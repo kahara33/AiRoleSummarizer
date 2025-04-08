@@ -62,7 +62,15 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   });
   
   // WebSocketメッセージを処理
-  const { messages, agentThoughts, isConnected, sendMessage: send } = useMultiAgentWebSocket();
+  const { messages, agentThoughts, isConnected, sendMessage: send, connect } = useMultiAgentWebSocket();
+  
+  // roleModelIdが設定されたらWebSocketを接続
+  useEffect(() => {
+    if (roleModelId && !isConnected) {
+      console.log('WebSocketを接続します: roleModelId =', roleModelId);
+      connect(roleModelId);
+    }
+  }, [roleModelId, isConnected, connect]);
   
   // エージェントの思考が届いたらパネルを表示
   useEffect(() => {
@@ -113,6 +121,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         description: "CrewAIによるナレッジグラフと情報収集プランの生成を開始しました。しばらくお待ちください。"
       });
       setShowAgentPanel(true); // エージェントパネルを表示
+      
+      // WebSocketが切断されている場合は再接続
+      if (!isConnected && roleModelId) {
+        console.log('ナレッジグラフ生成時にWebSocketを再接続します');
+        connect(roleModelId);
+      }
     },
     onError: (error) => {
       toast({
@@ -141,7 +155,13 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   // エージェントパネルを表示するヘルパー関数
   const showAgentPanelHandler = useCallback(() => {
     setShowAgentPanel(true);
-  }, []);
+    
+    // WebSocketが切断されている場合は再接続
+    if (!isConnected && roleModelId) {
+      console.log('WebSocketを再接続します');
+      connect(roleModelId);
+    }
+  }, [isConnected, roleModelId, connect]);
   
   return (
     <div className="flex flex-col h-screen overflow-hidden panel-container">

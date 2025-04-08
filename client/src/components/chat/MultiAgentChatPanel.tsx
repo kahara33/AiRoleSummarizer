@@ -130,6 +130,9 @@ export default function MultiAgentChatPanel({
     try {
       console.log('WebSocketメッセージ受信:', lastMessage.type, lastMessage);
       
+      // WebSocketのデバッグ情報
+      console.log('WebSocket接続状態:', isConnected, 'ロールモデルID:', roleModelId);
+      
       // チャットメッセージの処理
       if (lastMessage.type === 'chat_message') {
         // データソースを安全に取得
