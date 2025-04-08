@@ -33,11 +33,14 @@ interface CreateKnowledgeGraphParams {
 
 // エージェント思考の型定義
 interface AgentThought {
+  id?: string;
   agentName: string;
   thought: string;
+  message?: string;
   timestamp: string;
   roleModelId: string;
   step?: string;
+  type?: string;
 }
 
 // 進捗更新の型定義
@@ -353,8 +356,11 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           }
           
           const agentThought: AgentThought = {
+            id: message.payload.id || crypto.randomUUID().toString(),
             agentName,
             thought,
+            message: thought, // 互換性のため両方のフィールドにセット
+            type: message.payload.type || 'generic',
             roleModelId: message.payload.roleModelId || currentRoleModelId || '',
             timestamp: message.timestamp || new Date().toISOString(),
             step: message.payload.step

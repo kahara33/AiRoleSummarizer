@@ -28,15 +28,30 @@ export interface ProgressUpdate {
   details?: any;
 }
 
-interface AgentThoughtsPanelProps {
-  roleModelId: string;
-  isVisible: boolean;
-  onClose: () => void;
+// Thoughts型定義
+export interface AgentThought {
+  id: string;
+  agentName: string;
+  agentType: string;
+  thought: string;
+  message?: string;
+  type?: string;
+  timestamp: Date;
+  roleModelId?: string;
+  step?: string;
 }
 
-export function AgentThoughtsPanel({ roleModelId, isVisible, onClose }: AgentThoughtsPanelProps) {
+interface AgentThoughtsPanelProps {
+  roleModelId?: string;
+  isVisible?: boolean;
+  onClose?: () => void;
+  thoughts?: AgentThought[];
+  height?: string;
+}
+
+export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, thoughts: externalThoughts = [], height }: AgentThoughtsPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
-  const [thoughts, setThoughts] = useState<AgentMessage[]>([]);
+  const [internalThoughts, setInternalThoughts] = useState<AgentMessage[]>([]);
   const [filteredThoughts, setFilteredThoughts] = useState<AgentMessage[]>([]);
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -45,6 +60,22 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose }: AgentTho
   // WebSocketインスタンスをrefに保存
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
+  
+  // 外部から渡されたthoughtsを内部形式に変換
+  useEffect(() => {
+    if (externalThoughts && externalThoughts.length > 0) {
+      const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => ({
+        timestamp: thought.timestamp.getTime(),
+        agentName: thought.agentName,
+        message: thought.thought,
+        type: thought.agentType === 'thinking' ? 'thinking' : 
+              thought.agentType === 'error' ? 'error' :
+              thought.agentType === 'success' ? 'success' : 'info'
+      }));
+      
+      setInternalThoughts(convertedThoughts);
+    }
+  }, [externalThoughts]);
   
   // マウント時にrefを初期化
   useEffect(() => {
@@ -58,24 +89,27 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose }: AgentTho
   // アクティブタブが変更されたときにメッセージをフィルタリング
   useEffect(() => {
     if (activeTab === 'all') {
-      setFilteredThoughts(thoughts);
+      setFilteredThoughts(internalThoughts);
     } else {
-      setFilteredThoughts(thoughts.filter(thought => thought.agentName === activeTab));
+      setFilteredThoughts(internalThoughts.filter(thought => thought.agentName === activeTab));
     }
-  }, [activeTab, thoughts]);
+  }, [activeTab, internalThoughts]);
   
   // エージェント名の一覧を更新
   useEffect(() => {
-    const uniqueAgents = Array.from(new Set(thoughts.map(t => t.agentName)));
-    setAgentNames(uniqueAgents);
-  }, [thoughts]);
+    if (internalThoughts.length > 0) {
+      // TypeScript を満足させるために型アサーションを使用
+      const uniqueAgents = Array.from(new Set(internalThoughts.map(t => t.agentName))) as string[];
+      setAgentNames(uniqueAgents);
+    }
+  }, [internalThoughts]);
   
   // WebSocket接続の管理
   useEffect(() => {
     if (!isVisible || !roleModelId) return;
     
     // 表示開始時に状態をリセット
-    setThoughts([]);
+    setInternalThoughts([]);
     setProgress(null);
     
     // WebSocket接続を開始
@@ -163,7 +197,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose }: AgentTho
               type: data.payload.type || 'info'
             };
             
-            setThoughts(prev => [...prev, newThought]);
+            setInternalThoughts((prev: AgentMessage[]) => [...prev, newThought]);
           } 
           else if (data.type === 'progress_update' || data.type === 'progress') {
             const progressData = data.payload || data;
@@ -263,11 +297,81 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose }: AgentTho
     return new Date(timestamp).toLocaleTimeString('ja-JP');
   }, []);
   
+  // 情報整理ダッシュボードのタブとして表示する場合
+  if (height) {
+    return (
+      <div className="w-full h-full flex flex-col">
+        <div className="p-3 bg-white border-b">
+          <h2 className="font-semibold text-base">エージェント処理ログ</h2>
+          <p className="text-sm text-gray-500">AIエージェントの処理内容をリアルタイムで表示します</p>
+        </div>
+
+        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <div className="px-4 pt-2 border-b">
+            <TabsList className="mb-2 w-full overflow-x-auto flex flex-wrap space-x-1 pb-1">
+              <TabsTrigger value="all" className="flex-shrink-0">すべて</TabsTrigger>
+              {agentNames.map(agent => (
+                <TabsTrigger key={agent} value={agent} className="flex-shrink-0">
+                  {agent}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          
+          <div className="flex-1 p-0 overflow-hidden">
+            <TabsContent value={activeTab} className="m-0 h-full">
+              <ScrollArea className={`${height || 'h-[calc(100vh-200px)]'} px-4 py-4`}>
+                {filteredThoughts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40">
+                    <p className="text-gray-500">エージェント処理データがありません</p>
+                    <p className="text-xs text-gray-400 mt-1">プロセスを開始すると、ここにエージェントの思考過程が表示されます</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredThoughts.map((thought, index) => (
+                      <div key={index} className="border p-3 rounded-md bg-white">
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex items-center">
+                            {getIconForType(thought.type)}
+                            <Badge variant="outline" className={`ml-2 ${
+                              thought.type === 'thinking' ? 'bg-blue-100 text-blue-800 border-blue-300' : 
+                              thought.type === 'error' ? 'bg-red-100 text-red-800 border-red-300' :
+                              thought.type === 'success' ? 'bg-green-100 text-green-800 border-green-300' : ''
+                            }`}>
+                              {thought.agentName}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {formatTime(thought.timestamp)}
+                          </span>
+                        </div>
+                        <p className={`text-sm whitespace-pre-wrap ${
+                          thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-900 rounded p-2' : ''
+                        }`}>
+                          {thought.message}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </div>
+        </Tabs>
+        
+        <div className="p-2 text-xs text-gray-500 border-t">
+          {filteredThoughts.length} 件のエージェント処理ログを表示
+        </div>
+      </div>
+    );
+  }
+  
   // パネルが非表示の場合は何も表示しない
   if (!isVisible) {
     return null;
   }
 
+  // フローティングパネルとして表示する場合（従来の表示方式）
   return (
     <Card className="fixed right-4 top-20 h-[calc(100vh-120px)] flex flex-col z-50 shadow-lg w-96">
       <CardHeader className="pb-2">
@@ -280,15 +384,17 @@ export function AgentThoughtsPanel({ roleModelId, isVisible, onClose }: AgentTho
                 <span className="text-sm">処理中...</span>
               </div>
             )}
-            <button 
-              onClick={onClose}
-              className="ml-2 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+            {onClose && (
+              <button 
+                onClick={onClose}
+                className="ml-2 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
         <CardDescription>

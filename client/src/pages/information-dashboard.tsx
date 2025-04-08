@@ -8,6 +8,7 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
+import AgentThoughtsPanel from '@/components/knowledge-graph/agent-thoughts-panel';
 import { CreateCollectionPlanWithCrewAIButton } from '@/components/knowledge-graph/CreateCollectionPlanWithCrewAIButton';
 import { 
   Plus, 
@@ -89,10 +90,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     return () => clearInterval(checkInterval);
   }, [roleModelId, isConnected, connect]);
   
-  // エージェントの思考が届いたらパネルを表示
+  // エージェントの思考が届いたらパネルを表示し、エージェントプロセスタブに切り替える
   useEffect(() => {
     if (agentThoughts.length > 0) {
       setShowAgentPanel(true);
+      // エージェントプロセスタブに自動的に切り替え
+      setActiveTab('agentProcess');
     }
   }, [agentThoughts]);
   
@@ -420,6 +423,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
                     ナレッジグラフ
                   </TabsTrigger>
+                  <TabsTrigger value="agentProcess" className="data-[state=active]:bg-white">
+                    エージェントプロセス
+                  </TabsTrigger>
                   <TabsTrigger value="summarizedResults" className="data-[state=active]:bg-white">
                     要約結果
                   </TabsTrigger>
@@ -465,6 +471,23 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     width="100%"
                     height="calc(100vh - 130px)"
                     onGraphDataChange={setHasKnowledgeGraph}
+                  />
+                </div>
+              </TabsContent>
+              
+              {/* エージェントプロセスタブ */}
+              <TabsContent value="agentProcess" className="flex-1 h-full overflow-hidden p-0 m-0">
+                <div className="p-0">
+                  <AgentThoughtsPanel 
+                    thoughts={agentThoughts.map(thought => ({
+                      id: thought.id || String(crypto.randomUUID()),
+                      agentName: thought.agentName || 'AIエージェント',
+                      agentType: thought.type || 'generic',
+                      thought: thought.message || thought.thought || '',
+                      timestamp: new Date(thought.timestamp || Date.now()),
+                      roleModelId: thought.roleModelId
+                    }))}
+                    height="calc(100vh - 130px)"
                   />
                 </div>
               </TabsContent>
@@ -555,11 +578,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         timestamp: new Date(msg.timestamp || Date.now())
                       }))}
                       agentThoughts={agentThoughts.map(thought => ({
-                        id: crypto.randomUUID(),
+                        id: thought.id || String(crypto.randomUUID()),
                         agentName: thought.agentName || 'Agent',
-                        agentType: 'agent',
-                        thought: thought.thought || '',
-                        timestamp: new Date(thought.timestamp || Date.now())
+                        agentType: thought.type || 'agent',
+                        thought: thought.message || thought.thought || '',
+                        timestamp: new Date(thought.timestamp || Date.now()),
+                        roleModelId: thought.roleModelId
                       }))}
                       onSendMessage={handleSendMessage}
                     />
