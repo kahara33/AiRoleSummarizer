@@ -352,11 +352,11 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
                             {formatTime(thought.timestamp)}
                           </span>
                         </div>
-                        <p className={`text-sm whitespace-pre-wrap ${
-                          thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-900 rounded p-2' : ''
+                        <div className={`text-sm whitespace-pre-wrap ${
+                          thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-800 rounded p-3 border-l-2 border-blue-400' : ''
                         }`}>
                           {thought.message}
-                        </p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -470,11 +470,11 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
                           {formatTime(thought.timestamp)}
                         </span>
                       </div>
-                      <p className={`text-sm whitespace-pre-wrap ${
-                        thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-900 rounded p-2' : ''
+                      <div className={`text-sm whitespace-pre-wrap ${
+                        thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-800 rounded p-3 border-l-2 border-blue-400' : ''
                       }`}>
                         {thought.message}
-                      </p>
+                      </div>
                     </div>
                   ))}
                 </div>
