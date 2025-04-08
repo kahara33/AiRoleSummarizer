@@ -80,11 +80,20 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute path="/information-dashboard/:id" component={InformationDashboardComponent} />
             <ProtectedRoute path="/notebook/:id" component={NotebookPageComponent} />
             <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
+            {/* デバッグページはProtectedRouteではなく一般的なRouteとして表示 */}
             <Route path="/debug" component={() => {
               const DebugPage = React.lazy(() => import('./pages/debug'));
               return (
                 <React.Suspense fallback={<div>Loading...</div>}>
                   <DebugPage />
+                </React.Suspense>
+              );
+            }} />
+            <Route path="/debug/websocket" component={() => {
+              const WebsocketDebug = React.lazy(() => import('./pages/debug/WebsocketDebug'));
+              return (
+                <React.Suspense fallback={<div>Loading...</div>}>
+                  <WebsocketDebug />
                 </React.Suspense>
               );
             }} />

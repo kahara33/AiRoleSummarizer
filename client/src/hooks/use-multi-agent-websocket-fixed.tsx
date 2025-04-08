@@ -90,13 +90,18 @@ function useMultiAgentWebSocketManager() {
     setConnecting(true);
     setError(null);
     
-    if (!user) {
+    // デバッグモードの一時的なユーザーID
+    const dummyUserId = '0eb64aa6-4b1d-40a8-98df-c1839160232f';
+    
+    // 現在のURLパスが /debug/ で始まるかをチェック - デバッグページで認証をバイパス
+    const isDebugRoute = window.location.pathname.startsWith('/debug/');
+    
+    if (!user && !isDebugRoute) {
       console.warn('ユーザーがログインしていないため、WebSocket接続を確立できません');
       
-      // 開発環境の場合は仮のユーザーIDでダミー接続を試みる
-      if (process.env.NODE_ENV === 'development') {
-        console.log('開発環境: 仮ユーザーIDでWebSocket接続を試みます');
-        const dummyUserId = '0eb64aa6-4b1d-40a8-98df-c1839160232f';
+      // 開発環境の場合や、デバッグルートの場合は仮のユーザーIDでダミー接続を試みる
+      if (process.env.NODE_ENV === 'development' || isDebugRoute) {
+        console.log('開発/デバッグ環境: 仮ユーザーIDでWebSocket接続を試みます');
         
         setCurrentRoleModelId(roleModelId);
         
@@ -125,9 +130,12 @@ function useMultiAgentWebSocketManager() {
     
     setCurrentRoleModelId(roleModelId);
     
+    // ユーザーIDを決定 (通常のユーザーまたはデバッグ用ダミー)
+    const effectiveUserId = isDebugRoute ? dummyUserId : (user ? user.id : dummyUserId);
+    
     console.log(`マルチエージェントWebSocket接続を実行: roleModelId=${roleModelId}`);
     wsManager.connect(
-      user.id,
+      effectiveUserId,
       roleModelId,
       (connected) => {
         setConnecting(false);

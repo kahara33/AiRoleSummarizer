@@ -57,6 +57,9 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   // 認証のセットアップ
   setupAuth(app);
   
+  // デバッグルートの登録
+  registerDebugRoutes(app);
+  
   // Neo4jの初期化 - サーバー起動を遅延させないように非同期で実行
   // リクエストがあった際にNeo4jに接続できるようにする
   initNeo4j().then(() => {
@@ -2227,6 +2230,8 @@ async function createNodeInNeo4j(node: any) {
     throw error; // エラーを上位に伝播させて処理できるようにする
   }
 }
+
+
 
 // Neo4jにエッジを作成する補助関数
 async function createEdgeInNeo4j(edge: any) {

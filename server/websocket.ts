@@ -76,19 +76,29 @@ export function initWebSocket(server: HttpServer): void {
           userId = await verifySession(sessionId);
         }
 
+        // URLパラメータからロールモデルIDとクライアントIDを取得
+        const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
+        
         // 本番環境以外では認証をスキップ
         if (process.env.NODE_ENV !== 'production' && !userId) {
           console.log('開発環境: WebSocket認証をスキップします');
           userId = 'development-user-id';
         } else if (!userId) {
-          // 認証されていない場合は接続を閉じる
-          console.log('認証されていないWebSocket接続を閉じます');
-          ws.close(1008, 'Unauthorized');
-          return;
+          // URLからデバッグパラメータをチェック
+          const isDebugMode = urlParams.get('debug') === 'true';
+          
+          // デバッグモードまたはURLパラメータに明示的なuserIdが含まれている場合は認証をスキップ
+          const paramUserId = urlParams.get('userId');
+          if (isDebugMode || paramUserId) {
+            console.log('デバッグモード: WebSocket認証をスキップします');
+            userId = paramUserId || 'debug-user-id';
+          } else {
+            // 認証されていない場合は接続を閉じる
+            console.log('認証されていないWebSocket接続を閉じます');
+            ws.close(1008, 'Unauthorized');
+            return;
+          }
         }
-
-        // URLパラメータからロールモデルIDとクライアントIDを取得
-        const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
         const roleModelId = urlParams.get('roleModelId');
         const clientId = urlParams.get('clientId');
 
