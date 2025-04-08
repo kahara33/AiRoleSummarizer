@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, AlertCircle, CheckCircle, Brain } from 'lucide-react';
 import useGlobalWebSocket, { AgentThought, ProgressUpdate } from '@/hooks/use-global-websocket';
+import AgentConversation from '@/components/agent-activity/AgentConversation';
 
 // エージェント出力メッセージの型定義
 export interface AgentMessage {
@@ -472,50 +473,12 @@ function AgentThoughtsPanel({
                     <p className="text-xs text-gray-400 mt-1">プロセスを開始すると、ここにAIエージェント間の対話が表示されます</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {filteredThoughts.map((thought, index) => (
-                      <div key={index} className="mb-4 animate-fadeIn">
-                        <div className={`flex gap-3 ${index > 0 && filteredThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
-                          {/* エージェントアイコン (最初のメッセージまたはエージェントが変わった時だけ表示) */}
-                          {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
-                            <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
-                              ${thought.type === 'thinking' ? 'bg-blue-100' : 
-                                thought.type === 'error' ? 'bg-red-100' : 
-                                thought.type === 'success' ? 'bg-green-100' : 'bg-purple-100'}`}>
-                              {getIconForType(thought.type)}
-                            </div>
-                          )}
-                          {/* 空白スペース (続きのメッセージの場合) */}
-                          {index > 0 && filteredThoughts[index-1].agentName === thought.agentName && (
-                            <div className="flex-shrink-0 h-8 w-8"></div>
-                          )}
-                          
-                          {/* メッセージ本体 */}
-                          <div className="flex-1">
-                            {/* エージェント名 (最初のメッセージまたはエージェントが変わった時だけ表示) */}
-                            {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
-                              <div className="flex items-center mb-1">
-                                <span className="font-medium text-sm">{thought.agentName}</span>
-                                <span className="text-xs text-gray-500 ml-2">
-                                  {formatTime(thought.timestamp)}
-                                </span>
-                              </div>
-                            )}
-                            
-                            {/* メッセージコンテンツ */}
-                            <div className={`text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble
-                              ${thought.type === 'thinking' ? 'bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800' : 
-                                thought.type === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800' : 
-                                thought.type === 'success' ? 'bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-800' : 
-                                'bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800'}
-                              ${thought.type === 'thinking' ? 'agent-thinking' : ''}`}>
-                              {thought.message}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <AgentConversation 
+                    roleModelId={roleModelId || ''}
+                    height={height || 'calc(100vh-220px)'}
+                    showHeader={false}
+                    title="AIエージェントとの協調"
+                  />
                 )}
               </ScrollArea>
             </TabsContent>
@@ -609,50 +572,12 @@ function AgentThoughtsPanel({
                   <p className="text-gray-500 dark:text-gray-400">AIエージェント同士の対話がここに表示されます</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {filteredThoughts.map((thought, index) => (
-                    <div key={index} className="mb-4 animate-fadeIn">
-                      <div className={`flex gap-3 ${index > 0 && filteredThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
-                        {/* エージェントアイコン (最初のメッセージまたはエージェントが変わった時だけ表示) */}
-                        {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
-                          <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
-                            ${thought.type === 'thinking' ? 'bg-blue-100' : 
-                              thought.type === 'error' ? 'bg-red-100' : 
-                              thought.type === 'success' ? 'bg-green-100' : 'bg-purple-100'}`}>
-                            {getIconForType(thought.type)}
-                          </div>
-                        )}
-                        {/* 空白スペース (続きのメッセージの場合) */}
-                        {index > 0 && filteredThoughts[index-1].agentName === thought.agentName && (
-                          <div className="flex-shrink-0 h-8 w-8"></div>
-                        )}
-                        
-                        {/* メッセージ本体 */}
-                        <div className="flex-1">
-                          {/* エージェント名 (最初のメッセージまたはエージェントが変わった時だけ表示) */}
-                          {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
-                            <div className="flex items-center mb-1">
-                              <span className="font-medium text-sm">{thought.agentName}</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                                {formatTime(thought.timestamp)}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {/* メッセージコンテンツ */}
-                          <div className={`text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble
-                            ${thought.type === 'thinking' ? 'bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800' : 
-                              thought.type === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800' : 
-                              thought.type === 'success' ? 'bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-800' : 
-                              'bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800'}
-                            ${thought.type === 'thinking' ? 'agent-thinking' : ''}`}>
-                            {thought.message}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AgentConversation 
+                  roleModelId={roleModelId || ''}
+                  height="calc(100vh-320px)"
+                  showHeader={false}
+                  title="AIエージェントとの協調"
+                />
               )}
             </ScrollArea>
           </TabsContent>
