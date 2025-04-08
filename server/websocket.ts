@@ -192,7 +192,7 @@ export function initWebSocket(server: HttpServer): void {
                 }
               }
               // エージェント思考メッセージの処理
-              else if (data.type === 'agent_thought') {
+              else if (data.type === 'agent_thought' || data.type === 'agent_thoughts' || data.type === 'thought') {
                 const agentName = data.agentName || data.agent || 'エージェント';
                 const thought = data.thought || data.message || data.content || '思考内容が記録されませんでした';
                 const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
@@ -214,9 +214,9 @@ export function initWebSocket(server: HttpServer): void {
                 }
               }
               // 進捗更新メッセージの処理
-              else if (data.type === 'progress_update') {
+              else if (data.type === 'progress_update' || data.type === 'progress' || data.type === 'crewai_progress') {
                 const message = data.message || '';
-                const progress = data.progress || 0;
+                const progress = data.progress || data.percent || 0;
                 const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
                 
                 console.log(`進捗更新メッセージを受信: ${progress}%`);

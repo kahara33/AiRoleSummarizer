@@ -343,6 +343,22 @@ export function AgentThoughtsPanel({
           </div>
         </div>
 
+        {progress && (
+          <div className="px-4 py-2">
+            <div className="flex justify-between mb-1">
+              <span className="text-sm font-semibold">{progress.stage}</span>
+              <span className="text-sm">{progress.progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+              <div 
+                className={`${getProgressColor()} h-2.5 rounded-full transition-all progress-bar-animated`} 
+                style={{ width: `${progress.progress}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">{progress.message}</p>
+          </div>
+        )}
+
         <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
           <div className="px-4 pt-2 border-b">
             <TabsList className="mb-2 w-full overflow-x-auto flex flex-wrap space-x-1 pb-1">
@@ -366,26 +382,44 @@ export function AgentThoughtsPanel({
                 ) : (
                   <div className="space-y-3">
                     {filteredThoughts.map((thought, index) => (
-                      <div key={index} className="border p-3 rounded-md bg-white">
-                        <div className="flex justify-between items-start mb-1">
-                          <div className="flex items-center">
-                            {getIconForType(thought.type)}
-                            <Badge variant="outline" className={`ml-2 ${
-                              thought.type === 'thinking' ? 'bg-blue-100 text-blue-800 border-blue-300' : 
-                              thought.type === 'error' ? 'bg-red-100 text-red-800 border-red-300' :
-                              thought.type === 'success' ? 'bg-green-100 text-green-800 border-green-300' : ''
-                            }`}>
-                              {thought.agentName}
-                            </Badge>
+                      <div key={index} className="mb-4 animate-fadeIn">
+                        <div className={`flex gap-3 ${index > 0 && filteredThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
+                          {/* エージェントアイコン (最初のメッセージまたはエージェントが変わった時だけ表示) */}
+                          {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
+                            <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
+                              ${thought.type === 'thinking' ? 'bg-blue-100' : 
+                                thought.type === 'error' ? 'bg-red-100' : 
+                                thought.type === 'success' ? 'bg-green-100' : 'bg-purple-100'}`}>
+                              {getIconForType(thought.type)}
+                            </div>
+                          )}
+                          {/* 空白スペース (続きのメッセージの場合) */}
+                          {index > 0 && filteredThoughts[index-1].agentName === thought.agentName && (
+                            <div className="flex-shrink-0 h-8 w-8"></div>
+                          )}
+                          
+                          {/* メッセージ本体 */}
+                          <div className="flex-1">
+                            {/* エージェント名 (最初のメッセージまたはエージェントが変わった時だけ表示) */}
+                            {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
+                              <div className="flex items-center mb-1">
+                                <span className="font-medium text-sm">{thought.agentName}</span>
+                                <span className="text-xs text-gray-500 ml-2">
+                                  {formatTime(thought.timestamp)}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* メッセージコンテンツ */}
+                            <div className={`text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble
+                              ${thought.type === 'thinking' ? 'bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800' : 
+                                thought.type === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800' : 
+                                thought.type === 'success' ? 'bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-800' : 
+                                'bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800'}
+                              ${thought.type === 'thinking' ? 'agent-thinking' : ''}`}>
+                              {thought.message}
+                            </div>
                           </div>
-                          <span className="text-xs text-gray-500">
-                            {formatTime(thought.timestamp)}
-                          </span>
-                        </div>
-                        <div className={`text-sm whitespace-pre-wrap ${
-                          thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-800 rounded p-3 border-l-2 border-blue-400' : ''
-                        }`}>
-                          {thought.message}
                         </div>
                       </div>
                     ))}
@@ -453,13 +487,13 @@ export function AgentThoughtsPanel({
             <span className="text-sm font-semibold">{progress.stage}</span>
             <span className="text-sm">{progress.progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
             <div 
-              className={`${getProgressColor()} h-2.5 rounded-full transition-all`} 
+              className={`${getProgressColor()} h-2.5 rounded-full transition-all progress-bar-animated`} 
               style={{ width: `${progress.progress}%` }}
             ></div>
           </div>
-          <p className="text-sm text-gray-500 mt-1">{progress.message}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{progress.message}</p>
         </div>
       )}
       
@@ -480,38 +514,49 @@ export function AgentThoughtsPanel({
             <ScrollArea className="h-[calc(100vh-300px)] px-6 pb-4">
               {filteredThoughts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40">
-                  <p className="text-gray-500">思考データがありません</p>
+                  <p className="text-gray-500 dark:text-gray-400">思考データがありません</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {filteredThoughts.map((thought, index) => (
-                    <div key={index} className="border p-3 rounded-md">
-                      <div className="flex justify-between items-start mb-1">
-                        <div className="flex items-center">
-                          {getIconForType(thought.type)}
-                          <Badge variant="outline" className={`ml-2 ${
-                            thought.type === 'thinking' ? 'bg-blue-100 text-blue-800 border-blue-300' : 
-                            thought.type === 'error' ? 'bg-red-100 text-red-800 border-red-300' :
-                            thought.type === 'success' ? 'bg-green-100 text-green-800 border-green-300' : ''
-                          }`}>
-                            {thought.agentName}
-                          </Badge>
-                          {thought.type === 'thinking' && (
-                            <div className="ml-2 inline-flex">
-                              <span className="animate-ping h-2 w-2 rounded-full bg-blue-400 opacity-75 mr-1"></span>
-                              <span className="animate-ping h-2 w-2 rounded-full bg-blue-400 opacity-75 mr-1" style={{ animationDelay: '0.2s' }}></span>
-                              <span className="animate-ping h-2 w-2 rounded-full bg-blue-400 opacity-75" style={{ animationDelay: '0.4s' }}></span>
+                    <div key={index} className="mb-4 animate-fadeIn">
+                      <div className={`flex gap-3 ${index > 0 && filteredThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
+                        {/* エージェントアイコン (最初のメッセージまたはエージェントが変わった時だけ表示) */}
+                        {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
+                          <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
+                            ${thought.type === 'thinking' ? 'bg-blue-100' : 
+                              thought.type === 'error' ? 'bg-red-100' : 
+                              thought.type === 'success' ? 'bg-green-100' : 'bg-purple-100'}`}>
+                            {getIconForType(thought.type)}
+                          </div>
+                        )}
+                        {/* 空白スペース (続きのメッセージの場合) */}
+                        {index > 0 && filteredThoughts[index-1].agentName === thought.agentName && (
+                          <div className="flex-shrink-0 h-8 w-8"></div>
+                        )}
+                        
+                        {/* メッセージ本体 */}
+                        <div className="flex-1">
+                          {/* エージェント名 (最初のメッセージまたはエージェントが変わった時だけ表示) */}
+                          {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
+                            <div className="flex items-center mb-1">
+                              <span className="font-medium text-sm">{thought.agentName}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                                {formatTime(thought.timestamp)}
+                              </span>
                             </div>
                           )}
+                          
+                          {/* メッセージコンテンツ */}
+                          <div className={`text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble
+                            ${thought.type === 'thinking' ? 'bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800' : 
+                              thought.type === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800' : 
+                              thought.type === 'success' ? 'bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-800' : 
+                              'bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800'}
+                            ${thought.type === 'thinking' ? 'agent-thinking' : ''}`}>
+                            {thought.message}
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-500">
-                          {formatTime(thought.timestamp)}
-                        </span>
-                      </div>
-                      <div className={`text-sm whitespace-pre-wrap ${
-                        thought.message.includes('\n') ? 'bg-gray-50 dark:bg-gray-800 rounded p-3 border-l-2 border-blue-400' : ''
-                      }`}>
-                        {thought.message}
                       </div>
                     </div>
                   ))}

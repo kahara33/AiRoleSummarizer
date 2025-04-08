@@ -592,17 +592,18 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
         break;
 
       case 'progress-update':
+      case 'progress': // progressタイプもサポート
         if (message.payload) {
-          console.log('進捗更新を受信:', message.payload);
+          console.log(`進捗更新を受信 (${message.type}):`, message.payload);
           const update: ProgressUpdate = {
             message: message.payload.message,
-            percent: message.payload.percent,
+            percent: message.payload.percent || message.payload.progress || 0,
             timestamp: message.timestamp || new Date().toISOString(),
             roleModelId: message.payload.roleModelId || currentRoleModelId || undefined,
             // AgentThoughtsPanelと互換性を持たせるためのフィールド
-            stage: message.payload.step || 'processing',
-            progress: message.payload.percent,
-            progressPercent: message.payload.percent,
+            stage: message.payload.stage || message.payload.step || 'processing',
+            progress: message.payload.progress || message.payload.percent || 0,
+            progressPercent: message.payload.progress || message.payload.percent || 0,
             details: message.payload
           };
           setProgressUpdates(prev => [...prev, update]);
@@ -722,14 +723,17 @@ export function useMultiAgentWebSocket() {
     const progressMsgs = context.messages.filter(msg => 
       (msg.type === 'progress' || msg.type === 'progress-update' || msg.type === 'crewai_progress') && 
       msg.payload && 
-      typeof msg.payload.progress === 'number'
+      (typeof msg.payload.progress === 'number' || typeof msg.payload.percent === 'number')
     );
     
     if (progressMsgs.length === 0) return null;
     
     const latestMsg = progressMsgs[progressMsgs.length - 1];
+    const progress = typeof latestMsg.payload.progress === 'number' ? latestMsg.payload.progress : 
+                    typeof latestMsg.payload.percent === 'number' ? latestMsg.payload.percent : 0;
+                    
     return {
-      progress: typeof latestMsg.payload.progress === 'number' ? latestMsg.payload.progress : 0,
+      progress: progress,
       message: typeof latestMsg.payload.message === 'string' ? latestMsg.payload.message : 
                typeof latestMsg.payload.stage === 'string' ? latestMsg.payload.stage : '処理中...'
     };
