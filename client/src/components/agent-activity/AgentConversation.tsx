@@ -111,9 +111,9 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
           <AgentMessage
             key={`thought-${index}`}
             agentName={thought.agentName}
-            content={thought.content}
+            content={thought.thought || ''}
             timestamp={thought.timestamp}
-            type={thought.type as any} // AgentMessageTypeへの変換
+            type={((thought.type as string) || 'thought') as any}
           />
         ))}
         
@@ -121,7 +121,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
         {progressUpdates.map((update, index) => (
           <AgentMessage
             key={`progress-${index}`}
-            agentName={update.source || 'システム'}
+            agentName={'システム'}
             content={update.message}
             timestamp={update.timestamp}
             type="info"

@@ -10,6 +10,17 @@ export function registerDebugRoutes(app: Express) {
       session: req.session
     });
   });
+  
+  // デバッグ用にエージェント会話を表示するためのモックロールモデルIDを取得
+  app.get('/api/debug/get-mock-role-model-id', (req, res) => {
+    const mockRoleModelId = 'c2466ca7-5308-4b47-b7e7-5b4849409df2';  // デバッグ用の固定ID
+    
+    res.json({
+      success: true,
+      roleModelId: mockRoleModelId,
+      message: 'デバッグ用のモックロールモデルIDを返しました'
+    });
+  });
 
   // AIエージェント思考のテスト用エンドポイント
   app.post('/api/debug/send-agent-thought', (req: Request, res: Response) => {
@@ -65,7 +76,7 @@ export function registerDebugRoutes(app: Express) {
 
   // AIエージェントシミュレーション用エンドポイント
   app.post('/api/debug/simulate-agents', async (req: Request, res: Response) => {
-    const { roleModelId, industry } = req.body;
+    const { roleModelId, industry, debug } = req.body;
     
     if (!roleModelId) {
       return res.status(400).json({ 
@@ -78,11 +89,12 @@ export function registerDebugRoutes(app: Express) {
       // テストヘルパーをインポート
       const { simulateAgentProcess } = await import('./websocket/test-helper');
       
-      // シミュレーションを非同期で開始
-      console.log(`エージェントシミュレーションを開始: roleModelId=${roleModelId}`);
+      // 追加のデバッグ情報を出力
+      const debugMode = debug === true || debug === 'true';
+      console.log(`エージェントシミュレーションを開始: roleModelId=${roleModelId}, debugMode=${debugMode}`);
       
       // 非同期でシミュレーションを開始し、レスポンスは即時返す
-      simulateAgentProcess(roleModelId, industry || '人工知能')
+      simulateAgentProcess(roleModelId, industry || '人工知能', debugMode)
         .then(() => {
           console.log('エージェントシミュレーションが完了しました');
         })
@@ -96,6 +108,7 @@ export function registerDebugRoutes(app: Express) {
         details: {
           roleModelId,
           industry: industry || '人工知能',
+          debugMode,
           timestamp: new Date().toISOString()
         }
       });
