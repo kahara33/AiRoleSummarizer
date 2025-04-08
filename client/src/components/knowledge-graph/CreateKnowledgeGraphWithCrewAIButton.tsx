@@ -27,7 +27,8 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
     isConnected, 
     progressUpdates,
     sendCreateKnowledgeGraphRequest,
-    sendCancelOperationRequest
+    sendCancelOperationRequest,
+    cancelOperation
   } = useMultiAgentWebSocket();
 
   // 進行状況の更新を監視し、ボタン状態を管理
@@ -159,8 +160,19 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
   // 処理をキャンセルする関数
   const handleCancel = () => {
     try {
-      // 専用の関数を使用してキャンセルリクエストを送信
-      sendCancelOperationRequest('knowledge_graph');
+      // 新しく追加した共通キャンセル機能を優先使用
+      if (typeof cancelOperation === 'function') {
+        const cancelled = cancelOperation();
+        if (cancelled) {
+          console.log('キャンセル操作が正常に実行されました');
+        } else {
+          // フォールバックとして専用の関数を使用
+          sendCancelOperationRequest('knowledge_graph');
+        }
+      } else {
+        // 専用の関数を使用してキャンセルリクエストを送信
+        sendCancelOperationRequest('knowledge_graph');
+      }
       
       // UI状態をリセット
       setIsGenerating(false);

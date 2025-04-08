@@ -17,7 +17,7 @@ export interface AgentMessage {
   timestamp: number;
   agentName: string;
   message: string;
-  type: 'info' | 'error' | 'success' | 'thinking';
+  type: 'info' | 'error' | 'success' | 'thinking' | string;
 }
 
 // 進捗状況の型定義
@@ -73,40 +73,66 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
           : new Date(thought.timestamp).getTime();
         
         // メッセージはthought, messageのどちらかを使用（優先順位はthought > message）
-        const messageText = thought.thought || thought.message || "詳細情報がありません";
+        const messageText = thought.thought || (thought as any).message || "詳細情報がありません";
+        
+        let messageType = 'info';
+        // agentTypeに基づいて表示タイプを決定
+        if (thought.agentType) {
+          if (thought.agentType === 'error' || thought.agentType === 'エラー') {
+            messageType = 'error';
+          } else if (thought.agentType === 'success' || thought.agentType === 'システム') {
+            messageType = 'success';
+          } else if (thought.agentType === 'thinking' || thought.agentType === 'process') {
+            messageType = 'thinking';
+          }
+        } else if ((thought as any).type) {
+          // 型アサーションでtypeプロパティにアクセス
+          const typeValue = (thought as any).type;
+          if (typeValue === 'error' || typeValue === 'エラー') {
+            messageType = 'error';
+          } else if (typeValue === 'success' || typeValue === 'システム') {
+            messageType = 'success';
+          } else if (typeValue === 'thinking' || typeValue === 'process') {
+            messageType = 'thinking';
+          }
+        }
         
         return {
           timestamp,
-          agentName: thought.agentName || "Unknown Agent",
+          agentName: thought.agentName || (thought as any).agent || "AI エージェント",
           message: messageText,
-          type: thought.agentType === 'thinking' ? 'thinking' : 
-                thought.agentType === 'error' ? 'error' :
-                thought.agentType === 'success' ? 'success' : 'info'
+          type: messageType
         };
       });
       
       // ユニークなエージェント名のリストを更新（タブ用）
       const uniqueAgentNames = Array.from(new Set(
-        externalThoughts.map(t => t.agentName || "Unknown Agent")
+        externalThoughts.map(t => t.agentName || (t as any).agent || "AI エージェント")
       ));
       setAgentNames(uniqueAgentNames);
       
       // 既存のthoughtsと結合して重複を排除（idでフィルタリング）
-      const thoughtIds = new Set(externalThoughts.map(t => t.id));
-      const combinedThoughts = [
-        ...internalThoughts, 
-        ...convertedThoughts.filter(t => !internalThoughts.some(it => 
-          it.timestamp === t.timestamp && it.agentName === t.agentName && it.message === t.message
-        ))
-      ];
+      const thoughtsMap = new Map();
+      
+      // 既存の思考情報を先に追加
+      internalThoughts.forEach(thought => {
+        const key = `${thought.agentName}-${thought.timestamp}-${thought.message.substring(0, 20)}`;
+        thoughtsMap.set(key, thought);
+      });
+      
+      // 新しい思考情報を追加（重複する場合は上書き）
+      convertedThoughts.forEach(thought => {
+        const key = `${thought.agentName}-${thought.timestamp}-${thought.message.substring(0, 20)}`;
+        thoughtsMap.set(key, thought);
+      });
       
       // 時間順にソート
-      const sortedThoughts = combinedThoughts.sort((a, b) => a.timestamp - b.timestamp);
+      const sortedThoughts = Array.from(thoughtsMap.values()).sort((a, b) => a.timestamp - b.timestamp);
       
       setInternalThoughts(sortedThoughts);
-      setIsProcessing(true);
+      setIsProcessing(sortedThoughts.length > 0);
     }
-  }, [externalThoughts]);
+  }, [externalThoughts, internalThoughts]);
   
   // マウント時にrefを初期化
   useEffect(() => {

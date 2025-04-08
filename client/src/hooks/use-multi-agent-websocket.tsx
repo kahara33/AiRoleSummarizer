@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { useAuth } from './use-auth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -17,6 +17,8 @@ interface MultiAgentWebSocketContextState {
   sendMessage: (type: string, payload: any) => void;
   sendCreateKnowledgeGraphRequest: (params: CreateKnowledgeGraphParams) => void;
   sendCancelOperationRequest: (operationType: string) => void;
+  cancelOperation: () => boolean;
+  isProcessing: boolean;
   messages: WSMessage[];
   agentThoughts: AgentThought[];
   progressUpdates: ProgressUpdate[];
@@ -61,6 +63,8 @@ const MultiAgentWebSocketContext = createContext<MultiAgentWebSocketContextState
   sendMessage: () => {},
   sendCreateKnowledgeGraphRequest: () => {},
   sendCancelOperationRequest: () => {},
+  cancelOperation: () => false,
+  isProcessing: false,
   messages: [],
   agentThoughts: [],
   progressUpdates: [],
@@ -152,6 +156,11 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
   // ナレッジグラフ生成リクエスト
   const sendCreateKnowledgeGraphRequest = useCallback((params: CreateKnowledgeGraphParams) => {
     sendMessage('create_knowledge_graph', params);
+  }, [sendMessage]);
+  
+  // 操作キャンセルリクエスト
+  const sendCancelOperationRequest = useCallback((operationType: string) => {
+    sendMessage('cancel_operation', { operationType });
   }, [sendMessage]);
 
   // 前回の接続試行時間を記録
@@ -571,10 +580,29 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     }
   }, [currentRoleModelId, toast]);
 
-  // キャンセル操作のリクエスト
-  const sendCancelOperationRequest = useCallback((operationType: string) => {
-    sendMessage('cancel_operation', { operationType });
-  }, [sendMessage]);
+
+  
+  // 処理中かどうかの状態を計算
+  const isProcessing = useMemo(() => {
+    return progressUpdates.some(update => update.percent < 100);
+  }, [progressUpdates]);
+
+  // キャンセル操作の実行関数
+  const cancelOperation = useCallback(() => {
+    if (!isConnected) {
+      console.error('WebSocketが接続されていないため、操作をキャンセルできません');
+      return false;
+    }
+    
+    try {
+      console.log('操作のキャンセルを要求します');
+      sendMessage('cancel_operation', { timestamp: Date.now() });
+      return true;
+    } catch (error) {
+      console.error('操作のキャンセル中にエラーが発生しました:', error);
+      return false;
+    }
+  }, [isConnected, sendMessage]);
   
   // コンテキスト値の構築
   const value = {
@@ -584,6 +612,8 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     sendMessage,
     sendCreateKnowledgeGraphRequest,
     sendCancelOperationRequest,
+    cancelOperation,
+    isProcessing,
     messages,
     agentThoughts,
     progressUpdates,
@@ -603,5 +633,28 @@ export function useMultiAgentWebSocket() {
   if (context === undefined) {
     throw new Error('useMultiAgentWebSocketはMultiAgentWebSocketProviderの中で使用する必要があります');
   }
-  return context;
+  
+  // 最新の進捗状況を計算するロジックを追加
+  const progressStatus = useMemo(() => {
+    const progressMsgs = context.messages.filter(msg => 
+      (msg.type === 'progress' || msg.type === 'progress-update' || msg.type === 'crewai_progress') && 
+      msg.payload && 
+      typeof msg.payload.progress === 'number'
+    );
+    
+    if (progressMsgs.length === 0) return null;
+    
+    const latestMsg = progressMsgs[progressMsgs.length - 1];
+    return {
+      progress: typeof latestMsg.payload.progress === 'number' ? latestMsg.payload.progress : 0,
+      message: typeof latestMsg.payload.message === 'string' ? latestMsg.payload.message : 
+               typeof latestMsg.payload.stage === 'string' ? latestMsg.payload.stage : '処理中...'
+    };
+  }, [context.messages]);
+  
+  // コンテキストを拡張して返す
+  return {
+    ...context,
+    progressStatus
+  };
 }
