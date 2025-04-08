@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './styles.css';
 import { BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
 
-export type AgentMessageType = 'thinking' | 'thought' | 'action' | 'result' | 'error';
+export type AgentMessageType = 'thinking' | 'thought' | 'action' | 'result' | 'error' | 'info' | 'success';
 
 interface AgentMessageProps {
   agentName: string;
@@ -31,13 +31,11 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       setIsVisible(true);
     }, 50);
     
-    // デバッグ用ログ（開発環境のみ）
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`AgentMessage表示: ${agentName} - ${type}`);
-    }
+    // デバッグ用ログ（常に表示）
+    console.log(`AgentMessage表示: ${agentName} - ${type} - コンテンツ: ${content.substring(0, 20)}... - isVisible: ${isVisible}`);
     
     return () => clearTimeout(timer);
-  }, [agentName, type]);
+  }, [agentName, type, content, isVisible]);
   // エージェント名から CSS クラス名を生成
   const getAgentClass = (name: string): string => {
     const normalizedName = name
@@ -97,9 +95,12 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       case 'action':
         return <Zap size={16} />;
       case 'result':
+      case 'success':
         return <CheckCircle2 size={16} />;
       case 'error':
         return <AlertTriangle size={16} />;
+      case 'info':
+        return <Bot size={16} />;
       default:
         return <Bot size={16} />;
     }

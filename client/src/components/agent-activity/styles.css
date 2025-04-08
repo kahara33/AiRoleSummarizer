@@ -59,13 +59,21 @@
 .agent-message-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
+  margin-bottom: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 8px;
+  background-color: #fafafa;
 }
 
 /* エージェントメッセージのスタイル */
 .agent-message-container {
   width: 100%;
-  padding: 2px 0;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
   transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
 }
 
@@ -73,11 +81,29 @@
 .agent-message-hidden {
   opacity: 0;
   transform: translateY(10px);
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
 }
 
 .agent-message-visible {
   opacity: 1;
   transform: translateY(0);
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* フェードイン アニメーション */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out forwards;
 }
 
 .agent-message {
@@ -124,9 +150,11 @@
   word-break: break-word;
   font-size: 14px;
   line-height: 1.5;
-  padding: 8px 12px;
+  padding: 12px 16px;
   background-color: var(--card);
   border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  min-height: 40px;
 }
 
 .agent-message-code {
@@ -166,7 +194,8 @@
   color: var(--primary);
 }
 
-.message-type-result .agent-message-text {
+.message-type-result .agent-message-text,
+.message-type-success .agent-message-text {
   background-color: var(--success-foreground);
   color: var(--success);
 }
@@ -174,6 +203,11 @@
 .message-type-error .agent-message-text {
   background-color: var(--destructive-foreground);
   color: var(--destructive);
+}
+
+.message-type-info .agent-message-text {
+  background-color: var(--card);
+  border: 1px solid var(--border);
 }
 
 /* エージェント種別ごとの色分け */
