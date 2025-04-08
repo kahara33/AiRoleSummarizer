@@ -8,6 +8,7 @@ import {
   Brain, Lightbulb, Network, Layers,
   ChevronRight, Zap
 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 
@@ -58,7 +59,9 @@ export default function MultiAgentChatPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [processes, setProcesses] = useState<AgentProcess[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  // 統合表示なのでタブは不要
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const processesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { isConnected, connect, sendMessage, messages: wsMessages, agentThoughts: wsThoughts } = useMultiAgentWebSocket();
 
@@ -106,8 +109,9 @@ export default function MultiAgentChatPanel({
         const existingIds = new Set(prevProcesses.map(p => p.id));
         const newProcesses = convertedProcesses.filter(p => !existingIds.has(p.id));
         
-        // スクロール処理
+        // タブ切り替えが不要になったので、スクロールのみ行う
         if (newProcesses.length > 0) {
+          // スクロール処理
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }, 100);
@@ -116,7 +120,7 @@ export default function MultiAgentChatPanel({
         return [...prevProcesses, ...newProcesses] as AgentProcess[];
       });
     }
-  }, [externalThoughts]);
+  }, [externalThoughts, currentTab]);
 
   // WebSocketからのメッセージを処理
   useEffect(() => {
@@ -220,10 +224,10 @@ export default function MultiAgentChatPanel({
         console.log('エージェント処理を追加:', newProcess);
         setProcesses(prevProcesses => [...prevProcesses, newProcess]);
         
-        // 自動スクロール処理
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+        // エージェント処理タブに自動的に切り替え
+        if (currentTab !== 'process') {
+          setCurrentTab('process');
+        }
       } 
       // 進捗更新の処理 (複数のメッセージタイプに対応)
       else if (
@@ -275,10 +279,10 @@ export default function MultiAgentChatPanel({
         console.log('進捗処理を追加:', newProcess);
         setProcesses(prevProcesses => [...prevProcesses, newProcess]);
         
-        // 自動スクロール処理
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+        // 進捗メッセージの場合も、エージェント処理タブに自動的に切り替え
+        if (currentTab !== 'process') {
+          setCurrentTab('process');
+        }
       }
       // エラーメッセージの処理
       else if (lastMessage.type === 'error') {
@@ -324,7 +328,7 @@ export default function MultiAgentChatPanel({
     } catch (error) {
       console.error('WebSocketメッセージの処理中にエラーが発生しました:', error);
     }
-  }, [wsMessages, toast, roleModelId, isConnected]);
+  }, [wsMessages, currentTab, toast]);
 
   // チャットミューテーション
   const sendMessageMutation = useMutation({
@@ -380,17 +384,25 @@ export default function MultiAgentChatPanel({
 
   // 新しいメッセージが追加されたらスクロール
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (currentTab === 'chat') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, currentTab]);
 
   // 新しいプロセスが追加されたらスクロール
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [processes]);
+    if (currentTab === 'process') {
+      processesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [processes, currentTab]);
 
-  // 会話をクリア (プロセスも同時にクリア)
+  // 会話をクリア
   const handleClearConversation = () => {
     setMessages([]);
+  };
+
+  // プロセスをクリア
+  const handleClearProcesses = () => {
     setProcesses([]);
   };
 
@@ -400,6 +412,19 @@ export default function MultiAgentChatPanel({
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  // タブ変更時のハンドラ
+  const handleTabChange = (value: string) => {
+    setCurrentTab(value);
+    // タブ切り替え後にスクロール位置を調整
+    setTimeout(() => {
+      if (value === 'chat') {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      } else if (value === 'process') {
+        processesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   // エージェントアイコンを取得
