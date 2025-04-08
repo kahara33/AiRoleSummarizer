@@ -1,0 +1,165 @@
+// client/src/components/agent-activity/AgentMessage.tsx
+
+import React, { useState } from 'react';
+import { AgentMessageType } from './AgentConversation';
+import './styles.css';
+
+interface AgentMessageProps {
+  agentName: string;
+  agentRole: string;
+  agentColor: string;
+  messages: AgentMessageType[];
+  timestamp: Date;
+}
+
+const AgentMessage: React.FC<AgentMessageProps> = ({
+  agentName,
+  agentRole,
+  agentColor,
+  messages,
+  timestamp
+}) => {
+  const [expanded, setExpanded] = useState(true);
+
+  const toggleExpand = () => {
+    setExpanded(!expanded);
+  };
+
+  // メッセージ内容を整形（複数メッセージをマージするため）
+  const formatMessageContent = (message: AgentMessageType) => {
+    // テキスト内の改行を保持
+    return message.content
+      // コードブロックの処理
+      .replace(/```([^`]+)```/g, (match, code) => {
+        return `<div class="code-block"><pre>${code}</pre></div>`;
+      })
+      // リスト項目の処理
+      .replace(/^(\d+\.\s|\*\s|-\s)(.+)$/gm, (match, marker, item) => {
+        return `<li>${item}</li>`;
+      })
+      // 強調テキストの処理
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      // イタリックの処理
+      .replace(/\_([^_]+)\_/g, '<em>$1</em>');
+  };
+
+  // メッセージをタイプごとにグループ化
+  const messagesByType = messages.reduce((groups, message) => {
+    const type = message.type;
+    if (!groups[type]) {
+      groups[type] = [];
+    }
+    groups[type].push(message);
+    return groups;
+  }, {} as {[key: string]: AgentMessageType[]});
+
+  return (
+    <div className="agent-message-container">
+      <div 
+        className="agent-avatar"
+        style={{ backgroundColor: agentColor }}
+        onClick={toggleExpand}
+      >
+        {agentName.substring(0, 2).toUpperCase()}
+      </div>
+      
+      <div className="message-content">
+        <div className="agent-info">
+          <div className="agent-name" style={{ color: agentColor }}>{agentName}</div>
+          <div className="agent-role">{agentRole}</div>
+          <div className="message-timestamp">
+            {timestamp.toLocaleTimeString()}
+          </div>
+          <button 
+            className="expand-toggle"
+            onClick={toggleExpand}
+          >
+            {expanded ? '▲' : '▼'}
+          </button>
+        </div>
+        
+        {expanded && (
+          <div className="messages-body">
+            {/* 思考メッセージ */}
+            {messagesByType.thought && (
+              <div className="thought-messages">
+                {messagesByType.thought.map((message, idx) => (
+                  <div 
+                    key={`thought-${message.id}-${idx}`}
+                    className="message-bubble thought"
+                    dangerouslySetInnerHTML={{ __html: formatMessageContent(message) }}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {/* アクションメッセージ */}
+            {messagesByType.action && (
+              <div className="action-messages">
+                {messagesByType.action.map((message, idx) => (
+                  <div 
+                    key={`action-${message.id}-${idx}`}
+                    className="message-bubble action"
+                  >
+                    <div className="action-header">
+                      <span className="action-icon">⚡</span>
+                      <span className="action-label">アクション実行</span>
+                    </div>
+                    <div 
+                      className="action-content"
+                      dangerouslySetInnerHTML={{ __html: formatMessageContent(message) }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* 結果メッセージ */}
+            {messagesByType.result && (
+              <div className="result-messages">
+                {messagesByType.result.map((message, idx) => (
+                  <div 
+                    key={`result-${message.id}-${idx}`}
+                    className="message-bubble result"
+                  >
+                    <div className="result-header">
+                      <span className="result-icon">✓</span>
+                      <span className="result-label">結果</span>
+                    </div>
+                    <div 
+                      className="result-content"
+                      dangerouslySetInnerHTML={{ __html: formatMessageContent(message) }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* エラーメッセージ */}
+            {messagesByType.error && (
+              <div className="error-messages">
+                {messagesByType.error.map((message, idx) => (
+                  <div 
+                    key={`error-${message.id}-${idx}`}
+                    className="message-bubble error"
+                  >
+                    <div className="error-header">
+                      <span className="error-icon">⚠</span>
+                      <span className="error-label">エラー</span>
+                    </div>
+                    <div 
+                      className="error-content"
+                      dangerouslySetInnerHTML={{ __html: formatMessageContent(message) }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AgentMessage;

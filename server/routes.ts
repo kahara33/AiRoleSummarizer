@@ -1050,18 +1050,27 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       };
 
       // バックグラウンドで処理を継続
-      try {
-        const result = await generateKnowledgeGraphWithCrewAI(
-          input.userId,
-          input.roleModelId,
-          input.roleName,
-          input.keywords,
-          input.description ? [input.description] : [],
-          input.industries || [],
-          input.keywords || []
-        );
-          
-        if (result && result.success) {
+      // すぐにレスポンスを返す
+      res.json({ 
+        success: true, 
+        message: 'CrewAIを使用した知識グラフの生成をバックグラウンドで開始しました',
+        roleModelId: roleModelId
+      });
+      
+      // 非同期処理を実行
+      (async () => {
+        try {
+          const result = await generateKnowledgeGraphWithCrewAI(
+            input.userId,
+            input.roleModelId,
+            input.roleName,
+            input.keywords,
+            input.description ? [input.description] : [],
+            input.industries || [],
+            input.keywords || []
+          );
+            
+          if (result && result.success) {
             // 正常に生成された場合、知識グラフデータをデータベースに保存
             try {
               // 既存のノードとエッジを削除
@@ -1168,6 +1177,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             errorMessage: err.message
           });
         }
+      })();
     } catch (error) {
       console.error('CrewAI知識グラフ生成リクエストエラー:', error);
       res.status(500).json({ error: 'CrewAIを使用した知識グラフの生成に失敗しました' });
@@ -1182,7 +1192,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         return res.status(401).json({ error: '認証が必要です' });
       }
       
-      let validatedData = insertRoleModelSchema.parse(req.body);
+      let validatedData: any = insertRoleModelSchema.parse(req.body);
       
       // 作成者IDを現在のユーザーに設定
       validatedData.createdBy = user.id;
@@ -1229,7 +1239,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         return res.status(403).json({ error: 'このロールモデルを更新する権限がありません' });
       }
       
-      const validatedData = insertRoleModelSchema.parse(req.body);
+      const validatedData: any = insertRoleModelSchema.parse(req.body);
       
       // 作成者は変更不可 (作成者は固定)
       validatedData.createdBy = roleModel.createdBy;
@@ -1438,7 +1448,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   // 知識ノード操作
   app.post('/api/knowledge-nodes', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertKnowledgeNodeSchema.parse(req.body);
+      const validatedData: any = insertKnowledgeNodeSchema.parse(req.body);
       const user = req.user;
       
       if (!user) {
@@ -1485,7 +1495,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   // 知識エッジ操作
   app.post('/api/knowledge-edges', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertKnowledgeEdgeSchema.parse(req.body);
+      const validatedData: any = insertKnowledgeEdgeSchema.parse(req.body);
       const user = req.user;
       
       if (!user) {
@@ -1697,7 +1707,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   // キーワード作成
   app.post('/api/keywords', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertKeywordSchema.parse(req.body);
+      const validatedData: any = insertKeywordSchema.parse(req.body);
       
       // 作成者IDを設定
       validatedData.createdBy = req.user?.id;

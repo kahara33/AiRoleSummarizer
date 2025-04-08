@@ -1,0 +1,107 @@
+// サーバー側のエージェント思考データ送信形式
+
+/**
+ * エージェントの思考・アクション送信の関数
+ * 
+ * @param socket WebSocketインスタンス
+ * @param agentName エージェント名
+ * @param content 思考・アクション内容
+ * @param type メッセージタイプ
+ * @param roleModelId ロールモデルID
+ * @param operationId 操作ID
+ */
+function sendAgentActivity(
+  socket: WebSocket,
+  agentName: string,
+  content: string,
+  type: 'thinking' | 'thought' | 'action' | 'result' | 'error',
+  roleModelId: string,
+  operationId: string
+) {
+  // 各タイプに合わせた詳細情報を設定
+  let detailedType = type;
+  
+  // サーバー側のフォーマットに変換して送信
+  sendToClient(socket, {
+    type: 'agent_thoughts', // WebSocketメッセージタイプ
+    payload: {
+      agentName,
+      thought: content, // 思考・アクション内容
+      type: detailedType, // 詳細タイプ
+      roleModelId,
+      operationId,
+      // 追加メタデータがあれば追加
+      metadata: {
+        category: getCategoryForAgent(agentName),
+        phase: getCurrentPhase()
+      }
+    },
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * エージェントのカテゴリを取得
+ */
+function getCategoryForAgent(agentName: string): string {
+  const categories: {[key: string]: string} = {
+    'ドメインアナリスト': 'analysis',
+    'トレンドリサーチャー': 'research',
+    'コンテキストマッパー': 'mapping',
+    'プランストラテジスト': 'planning',
+    'クリティカルシンカー': 'evaluation'
+  };
+  
+  return categories[agentName] || 'general';
+}
+
+/**
+ * 現在のフェーズを取得
+ */
+function getCurrentPhase(): string {
+  // 実際の実装では現在のプロセスフェーズを返す
+  return 'planning'; // または 'analysis', 'research', 'mapping', 'evaluation'
+}
+
+// 使用例
+/*
+// 思考中の状態を送信
+sendAgentActivity(
+  socket,
+  'ドメインアナリスト',
+  '業界キーワードの関連性を分析しています...',
+  'thinking',
+  roleModelId,
+  operationId
+);
+
+// 思考結果を送信
+sendAgentActivity(
+  socket, 
+  'ドメインアナリスト',
+  '分析の結果、以下のキーワードが重要度順に抽出されました:\n1. コンテンツマーケティング\n2. SEO最適化\n3. ソーシャルメディア戦略',
+  'thought',
+  roleModelId,
+  operationId
+);
+
+// アクションの実行を送信
+sendAgentActivity(
+  socket,
+  'トレンドリサーチャー',
+  'Google Trendsで「Webマーケティング」の過去12ヶ月のトレンドを分析します',
+  'action',
+  roleModelId,
+  operationId
+);
+
+// 結果を送信
+sendAgentActivity(
+  socket,
+  'トレンドリサーチャー',
+  'トレンド分析の結果:\n- 「AIマーケティング」が前年比150%の上昇\n- 「動画コンテンツ」関連検索が安定的に増加\n- 「インフルエンサーマーケティング」は季節変動あり',
+  'result',
+  roleModelId,
+  operationId
+);
+*/

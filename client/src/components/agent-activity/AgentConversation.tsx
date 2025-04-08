@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
-import { AgentThought } from '@/hooks/use-global-websocket';
+import { AgentThought } from '@/hooks/use-multi-agent-websocket';
 import AgentMessage, { AgentMessageType } from './AgentMessage';
 import AgentThinking from './AgentThinking';
 import { X, Maximize2, Minimize2, RefreshCw, Bot, BrainCircuit } from 'lucide-react';

@@ -366,7 +366,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     console.log('送信メッセージ準備:', type, payload);
     
     // 1. ソケットが存在し、接続状態であることを確認
-    if (!socket) {
+    if (!socketManager.getConnectionStatus()) {
       console.error('WebSocketインスタンスが存在しません');
       toast({
         title: '接続エラー',
@@ -376,9 +376,10 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
       return;
     }
     
-    // 2. 接続状態の追加チェック
-    if (socket.readyState !== WebSocket.OPEN) {
-      console.error(`WebSocketが開いていません。現在の状態: ${socket.readyState}`);
+    // 2. 接続状態の追加チェック - グローバルマネージャーを使用
+    const isSocketOpen = socketManager.getConnectionStatus();
+    if (!isSocketOpen) {
+      console.error('WebSocketが開いていません');
       setIsConnected(false);
       
       toast({
@@ -388,13 +389,13 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
       });
       
       // 自動再接続を試みる
-      if (currentRoleModelId) {
+      if (currentRoleModelId && user) {
         console.log('自動再接続を試みます...');
-        connect(currentRoleModelId);
+        socketManager.connect(user.id, currentRoleModelId, setIsConnected);
         
         // 再接続後、少し待ってからメッセージを再送信
         setTimeout(() => {
-          if (socket && socket.readyState === WebSocket.OPEN) {
+          if (socketManager.getConnectionStatus()) {
             try {
               const message = {
                 type,
@@ -402,7 +403,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
                 timestamp: new Date().toISOString()
               };
               console.log('再接続後のメッセージ送信:', message);
-              socket.send(JSON.stringify(message));
+              socketManager.sendMessage(type, payload);
             } catch (e) {
               console.error('再送信エラー:', e);
             }
@@ -421,7 +422,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
         timestamp: new Date().toISOString()
       };
       console.log('WebSocketメッセージ送信:', message);
-      socket.send(JSON.stringify(message));
+      socketManager.sendMessage(type, payload);
     } catch (error) {
       console.error('WebSocketメッセージ送信エラー:', error);
       toast({
@@ -430,7 +431,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
         variant: 'destructive'
       });
     }
-  }, [socket, isConnected, toast]);
+  }, [socketManager, isConnected, toast, user, currentRoleModelId]);
 
   // ナレッジグラフ生成リクエスト
   const sendCreateKnowledgeGraphRequest = useCallback((params: CreateKnowledgeGraphParams) => {

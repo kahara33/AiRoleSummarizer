@@ -1,0 +1,202 @@
+// client/src/components/agent-activity/AgentConversation.tsx
+
+import React, { useState, useEffect, useRef } from 'react';
+import { useMultiAgentWebSocket } from '../../hooks/use-multi-agent-websocket';
+import AgentMessage from './AgentMessage';
+import AgentThinking from './AgentThinking';
+import './styles.css';
+
+export interface AgentMessageType {
+  id: string;
+  agentName: string;
+  agentRole?: string;
+  content: string;
+  type: 'thinking' | 'thought' | 'action' | 'result' | 'error';
+  timestamp: Date;
+}
+
+interface AgentConversationProps {
+  roleModelId: string;
+  height?: string | number;
+  width?: string | number;
+  showHeader?: boolean;
+  title?: string;
+}
+
+const AgentConversation: React.FC<AgentConversationProps> = ({
+  roleModelId,
+  height = '600px',
+  width = '100%',
+  showHeader = true,
+  title = 'AIエージェントアクティビティ'
+}) => {
+  const { agentThoughts, progressUpdates, isProcessing } = useMultiAgentWebSocket();
+  const [messages, setMessages] = useState<AgentMessageType[]>([]);
+  const [activeAgents, setActiveAgents] = useState<{[key: string]: boolean}>({});
+  const conversationEndRef = useRef<HTMLDivElement>(null);
+
+  // WebSocketからのエージェント思考データを処理
+  useEffect(() => {
+    if (agentThoughts && agentThoughts.length > 0) {
+      const formattedMessages: AgentMessageType[] = agentThoughts
+        .filter(thought => thought.roleModelId === roleModelId)
+        .map(thought => {
+          // 思考タイプの判定
+          let messageType: 'thinking' | 'thought' | 'action' | 'result' | 'error' = 'thought';
+          
+          if (thought.type?.toLowerCase().includes('error')) {
+            messageType = 'error';
+          } else if (thought.type?.toLowerCase().includes('thinking')) {
+            messageType = 'thinking';
+          } else if (thought.type?.toLowerCase().includes('action')) {
+            messageType = 'action';
+          } else if (thought.type?.toLowerCase().includes('result') || 
+                    thought.type?.toLowerCase().includes('success')) {
+            messageType = 'result';
+          }
+          
+          return {
+            id: thought.id,
+            agentName: thought.agentName,
+            content: thought.thought,
+            type: messageType,
+            timestamp: new Date(thought.timestamp)
+          };
+        });
+
+      // 重複のないメッセージのみ追加
+      setMessages(prevMessages => {
+        const existingIds = new Set(prevMessages.map(m => m.id));
+        const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
+        if (newMessages.length === 0) return prevMessages;
+        
+        // 時系列順にソート
+        return [...prevMessages, ...newMessages].sort(
+          (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+        );
+      });
+      
+      // アクティブなエージェントを追跡
+      const agents = formattedMessages.reduce((acc, message) => {
+        acc[message.agentName] = true;
+        return acc;
+      }, {} as {[key: string]: boolean});
+      
+      setActiveAgents(prevAgents => ({...prevAgents, ...agents}));
+    }
+  }, [agentThoughts, roleModelId]);
+
+  // 会話の最後に自動スクロール
+  useEffect(() => {
+    if (conversationEndRef.current) {
+      conversationEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // エージェントの役割と色のマッピング
+  const agentRoles: {[key: string]: {role: string, color: string}} = {
+    'ドメインアナリスト': {
+      role: '業界・キーワードの分析',
+      color: '#4C6EF5'
+    },
+    'トレンドリサーチャー': {
+      role: '最新情報収集と予測',
+      color: '#12B886'
+    },
+    'コンテキストマッパー': {
+      role: '概念関連性の分析',
+      color: '#FAB005'
+    },
+    'プランストラテジスト': {
+      role: '情報収集戦略立案',
+      color: '#7950F2'
+    },
+    'クリティカルシンカー': {
+      role: '提案内容の批判的評価',
+      color: '#FD7E14'
+    },
+    'システム': {
+      role: 'プロセス管理',
+      color: '#868E96'
+    }
+  };
+
+  // 思考のグループ化（連続する同じエージェントの思考をグループ化）
+  const groupedMessages = messages.reduce((groups, message) => {
+    const lastGroup = groups[groups.length - 1];
+    
+    // 同じエージェントの連続した思考であれば同じグループに
+    if (lastGroup && 
+        lastGroup.agentName === message.agentName && 
+        message.type !== 'thinking' &&
+        lastGroup.messages[lastGroup.messages.length - 1].type !== 'thinking') {
+      lastGroup.messages.push(message);
+    } else {
+      groups.push({
+        id: message.id,
+        agentName: message.agentName,
+        agentRole: agentRoles[message.agentName]?.role || '情報収集アシスタント',
+        agentColor: agentRoles[message.agentName]?.color || '#495057',
+        messages: [message],
+        timestamp: message.timestamp
+      });
+    }
+    
+    return groups;
+  }, [] as Array<{
+    id: string;
+    agentName: string;
+    agentRole: string;
+    agentColor: string;
+    messages: AgentMessageType[];
+    timestamp: Date;
+  }>);
+
+  // 進行中のエージェントが思考中かどうかを確認
+  const thinkingAgents = Object.keys(activeAgents).filter(agentName => {
+    const latestMessage = [...messages]
+      .filter(m => m.agentName === agentName)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+    
+    return latestMessage?.type === 'thinking';
+  });
+
+  return (
+    <div className="agent-conversation" style={{ height, width }}>
+      {showHeader && (
+        <div className="conversation-header">
+          <h2>{title}</h2>
+          {isProcessing && <span className="processing-indicator">処理中...</span>}
+        </div>
+      )}
+      
+      <div className="conversation-body">
+        {groupedMessages.map(group => (
+          <AgentMessage
+            key={group.id}
+            agentName={group.agentName}
+            agentRole={group.agentRole}
+            agentColor={group.agentColor}
+            messages={group.messages}
+            timestamp={group.timestamp}
+          />
+        ))}
+        
+        {/* 現在思考中のエージェントの表示 */}
+        {thinkingAgents.map(agentName => (
+          <AgentThinking
+            key={`thinking-${agentName}`}
+            agentName={agentName}
+            agentRole={agentRoles[agentName]?.role || '情報収集アシスタント'}
+            agentColor={agentRoles[agentName]?.color || '#495057'}
+          />
+        ))}
+        
+        {/* 自動スクロール用の参照点 */}
+        <div ref={conversationEndRef} />
+      </div>
+    </div>
+  );
+};
+
+export default AgentConversation;
