@@ -449,9 +449,55 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
       return;
     }
     
+    // コンソールに明示的にログを残して、どのようなメッセージが来ているか追跡できるようにする
+    console.log(`WebSocket受信メッセージタイプ: ${message.type}`);
+    
+    // progressやprogress-update関連のメッセージを処理
+    if (message.type === 'progress' || 
+        message.type === 'progress-update' || 
+        message.type === 'crewai_progress') {
+      console.log('進捗更新メッセージを受信:', message);
+      
+      if (message.payload) {
+        // 異なる形式をサポート
+        const percent = typeof message.payload.percent === 'number' ? message.payload.percent : 
+                      (typeof message.payload.progress === 'number' ? message.payload.progress : 50);
+        
+        const msg = message.payload.message || message.payload.text || '処理中...';
+        
+        // 進捗更新オブジェクトを作成して保存
+        const progressUpdate: ProgressUpdate = {
+          message: msg,
+          percent: percent,
+          timestamp: message.timestamp || new Date().toISOString(),
+          roleModelId: message.payload.roleModelId || currentRoleModelId || ''
+        };
+        
+        console.log('進捗更新を追加:', progressUpdate);
+        setProgressUpdates(prev => [...prev, progressUpdate]);
+        
+        // 思考データとしても登録（UI表示のため）
+        const agentThought: AgentThought = {
+          id: message.payload.id || crypto.randomUUID().toString(),
+          agentName: 'システム',
+          thought: `進捗状況: ${percent}% - ${msg}`,
+          message: `進捗状況: ${percent}% - ${msg}`,
+          type: 'progress',
+          roleModelId: message.payload.roleModelId || currentRoleModelId || '',
+          timestamp: message.timestamp || new Date().toISOString(),
+          step: 'progress'
+        };
+        
+        console.log('進捗情報をエージェント思考として追加:', agentThought);
+        setAgentThoughts(prev => [...prev, agentThought]);
+      }
+      return;
+    }
+    
     switch (message.type) {
       case 'agent_thought':
       case 'agent_thoughts': // agent_thoughtsもサポート
+      case 'thought': // thoughtタイプも追加
         if (message.payload) {
           console.log(`エージェント思考を受信 (${message.type})`, message);
           

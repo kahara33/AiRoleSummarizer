@@ -61,7 +61,7 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
   
-  // 外部から渡されたthoughtsを内部形式に変換（初期表示のみ）
+  // 外部から渡されたthoughtsを内部形式に変換
   useEffect(() => {
     if (externalThoughts && externalThoughts.length > 0) {
       console.log("AgentThoughtsPanel: 受信したthoughts:", externalThoughts.length);
@@ -76,7 +76,8 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
             thought: thought.thought, 
             message: thought.message, 
             content: (thought as any).content,
-            timestamp: thought.timestamp
+            timestamp: thought.timestamp,
+            step: thought.step
           });
           
           // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
@@ -99,7 +100,22 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
           // メッセージは複数のフィールドから優先順位をつけて取得
           // どのフィールドが使用可能かを詳細にチェック
           let messageText = "詳細情報がありません";
-          if (typeof thought.thought === 'string' && thought.thought.trim().length > 0) {
+          
+          // stepが「progress」の場合は、特殊な処理を行う
+          if (thought.step === 'progress') {
+            // progress用の進捗情報の作成
+            const progressPercent = typeof (thought as any).percent === 'number' ? (thought as any).percent : 50;
+            messageText = `進捗状況: ${progressPercent}% - ${thought.message || thought.thought}`;
+            
+            // 進捗状況をstateにも反映
+            setProgress({
+              stage: thought.agentName || 'システム',
+              progress: progressPercent,
+              message: thought.message || thought.thought || '処理中...'
+            });
+          }
+          // 通常のメッセージ処理
+          else if (typeof thought.thought === 'string' && thought.thought.trim().length > 0) {
             messageText = thought.thought;
           } else if (typeof thought.message === 'string' && thought.message.trim().length > 0) {
             messageText = thought.message;
@@ -122,14 +138,18 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
           // メッセージタイプの判断を改善
           let messageType = 'info';
           
+          // stepが「progress」の場合は、処理中タイプとして扱う
+          if (thought.step === 'progress') {
+            messageType = 'thinking';
+          }
           // typeプロパティを最優先で使用
-          if (thought.type) {
-            const typeStr = thought.type.toLowerCase();
+          else if (thought.type) {
+            const typeStr = typeof thought.type === 'string' ? thought.type.toLowerCase() : '';
             if (typeStr.includes('error') || typeStr.includes('エラー')) {
               messageType = 'error';
             } else if (typeStr.includes('success') || typeStr.includes('complete') || typeStr === 'システム') {
               messageType = 'success';
-            } else if (typeStr.includes('think') || typeStr.includes('process') || typeStr === 'processing') {
+            } else if (typeStr.includes('think') || typeStr.includes('process') || typeStr === 'processing' || typeStr === 'progress') {
               messageType = 'thinking';
             }
           }
@@ -144,15 +164,33 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
               messageType = 'thinking';
             }
           }
+          // stepで判断
+          else if (thought.step) {
+            const stepStr = thought.step.toLowerCase();
+            if (stepStr.includes('error')) {
+              messageType = 'error';
+            } else if (stepStr.includes('complete') || stepStr.includes('finalization')) {
+              messageType = 'success';
+            } else if (stepStr.includes('process') || stepStr.includes('preparation') || stepStr === 'progress') {
+              messageType = 'thinking';
+            }
+          }
           // メッセージ内容を基にタイプを推測（最終手段）
           else if (messageText.toLowerCase().includes('error') || messageText.toLowerCase().includes('エラー')) {
             messageType = 'error';
           } else if (messageText.toLowerCase().includes('complete') || messageText.toLowerCase().includes('成功')) {
             messageType = 'success';
+          } else if (messageText.toLowerCase().includes('進捗状況') || messageText.toLowerCase().includes('処理中')) {
+            messageType = 'thinking';
           }
           
           // エージェント名の取得方法を改善
-          const agentName = thought.agentName || (thought as any).agent || "AI エージェント";
+          let agentName = thought.agentName || (thought as any).agent || "AI エージェント";
+          
+          // 進捗メッセージは明示的にマーク
+          if (thought.step === 'progress' || thought.type === 'progress') {
+            agentName = '進捗状況';
+          }
           
           return {
             timestamp,
@@ -164,7 +202,13 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
         
         // ユニークなエージェント名のリストを更新（タブ用）
         const uniqueAgentNames = Array.from(new Set(
-          externalThoughts.map(t => t.agentName || (t as any).agent || "AI エージェント")
+          externalThoughts.map(t => {
+            // 進捗メッセージは特別に処理
+            if (t.step === 'progress' || t.type === 'progress') {
+              return '進捗状況';
+            }
+            return t.agentName || (t as any).agent || "AI エージェント";
+          })
         ));
         setAgentNames(uniqueAgentNames);
         
