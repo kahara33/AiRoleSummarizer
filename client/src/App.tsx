@@ -98,10 +98,10 @@ const AppRoutes: React.FC = () => {
               );
             }} />
             <Route path="/debug/websocket-tool" component={() => {
-              const WebSocketDebugTool = React.lazy(() => import('./pages/debug/WebSocketDebugTool'));
+              const WebSocketDebugToolImport = React.lazy(() => import('./pages/debug/WebSocketDebugTool').then(module => ({default: module.default})));
               return (
                 <React.Suspense fallback={<div>Loading...</div>}>
-                  <WebSocketDebugTool />
+                  <WebSocketDebugToolImport />
                 </React.Suspense>
               );
             }} />
