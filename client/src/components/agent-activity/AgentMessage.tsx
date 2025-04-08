@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import './styles.css';
 import { 
   BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle, 
-  Database, Search, Network, BarChart4, Brain, Sparkles
+  Database, Search, Network, BarChart4, Brain, Sparkles,
+  InfoIcon, CheckCircle
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export type AgentMessageType = 'thinking' | 'thought' | 'action' | 'result' | 'error' | 'info' | 'success';
 
@@ -34,11 +36,9 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       setIsVisible(true);
     }, 50);
     
-    // デバッグ用ログ（常に表示）
-    console.log(`AgentMessage表示: ${agentName} - ${type} - コンテンツ: ${content.substring(0, 20)}... - isVisible: ${isVisible}`);
-    
     return () => clearTimeout(timer);
-  }, [agentName, type, content, isVisible]);
+  }, [agentName, type, content]);
+
   // エージェント名から CSS クラス名を生成
   const getAgentClass = (name: string): string => {
     const normalizedName = name
@@ -105,7 +105,7 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
     } else if (name.includes('オーケストレーター') || name.includes('orchestrator')) {
       return <Sparkles size={16} />;
     } else if (name.includes('システム') || name.includes('system')) {
-      return <Bot size={16} />;
+      return <InfoIcon size={16} />;
     } else {
       // メッセージタイプに応じたアイコンをフォールバックとして使用
       switch (type) {
@@ -121,10 +121,54 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
         case 'error':
           return <AlertTriangle size={16} />;
         case 'info':
-          return <Bot size={16} />;
+          return <InfoIcon size={16} />;
         default:
           return <Bot size={16} />;
       }
+    }
+  };
+  
+  // メッセージタイプに応じたバッジを表示
+  const getTypeBadge = () => {
+    switch (type) {
+      case 'thinking':
+        return (
+          <Badge variant="outline" className="ml-2 bg-purple-50 text-purple-600 text-xs border-purple-200">
+            思考中
+          </Badge>
+        );
+      case 'action':
+        return (
+          <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-600 text-xs border-blue-200">
+            アクション
+          </Badge>
+        );
+      case 'result':
+        return (
+          <Badge variant="outline" className="ml-2 bg-green-50 text-green-600 text-xs border-green-200">
+            結果
+          </Badge>
+        );
+      case 'success':
+        return (
+          <Badge variant="outline" className="ml-2 bg-green-50 text-green-600 text-xs border-green-200">
+            成功
+          </Badge>
+        );
+      case 'error':
+        return (
+          <Badge variant="outline" className="ml-2 bg-red-50 text-red-600 text-xs border-red-200">
+            エラー
+          </Badge>
+        );
+      case 'info':
+        return (
+          <Badge variant="outline" className="ml-2 bg-gray-50 text-gray-600 text-xs border-gray-200">
+            情報
+          </Badge>
+        );
+      default:
+        return null;
     }
   };
   
@@ -165,10 +209,13 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
             {getIconForAgent(agentName)}
           </div>
         )}
-        <div className="agent-message-content">
+        <div className="agent-message-content shadow-sm">
           <div className="agent-message-header">
-            <span className="agent-message-name">{agentName}</span>
-            <span className="agent-message-time">{formatTimestamp(timestamp)}</span>
+            <div className="flex items-center">
+              <span className="agent-message-name font-medium">{agentName}</span>
+              {getTypeBadge()}
+            </div>
+            <span className="agent-message-time text-gray-500">{formatTimestamp(timestamp)}</span>
           </div>
           <div 
             className="agent-message-text"

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
-import { Bot, AlertCircle } from 'lucide-react';
+import { Bot, AlertCircle, WifiIcon, WifiOffIcon } from 'lucide-react';
 import AgentMessage from './AgentMessage';
 import AgentThinking from './AgentThinking';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import { Badge } from '@/components/ui/badge';
 
 interface AgentConversationProps {
   roleModelId?: string;
@@ -73,9 +74,9 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
     if (!error) return null;
     
     return (
-      <div className="flex items-center gap-2 p-4 mt-2 bg-destructive-muted text-destructive rounded-md">
+      <div className="flex items-center gap-2 p-4 mt-2 bg-red-50 text-red-600 rounded-md border border-red-200">
         <AlertCircle size={16} />
-        <span>{error}</span>
+        <span className="text-sm">{error}</span>
       </div>
     );
   };
@@ -84,9 +85,11 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   const renderEmpty = () => {
     return (
       <div className="agent-conversation-empty">
-        <Bot size={40} />
-        <h3>AIエージェント会話</h3>
-        <p>
+        <div className="p-3 rounded-full bg-blue-50">
+          <Bot size={40} className="text-blue-500" />
+        </div>
+        <h3 className="text-gray-800">AIエージェント会話</h3>
+        <p className="text-gray-600">
           {connecting 
             ? 'エージェントに接続しています...' 
             : roleModelId 
@@ -139,7 +142,27 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   return (
     <div className="agent-conversation" style={containerStyle}>
       <div className="agent-conversation-header">
-        <h3>{isConnected ? '接続中' : '未接続'}</h3>
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <>
+              <WifiIcon size={14} className="text-green-600" />
+              <h3 className="text-green-600">接続済み</h3>
+              <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 text-xs font-medium">
+                リアルタイム同期
+              </Badge>
+            </>
+          ) : (
+            <>
+              <WifiOffIcon size={14} className="text-gray-400" />
+              <h3 className="text-gray-500">未接続</h3>
+            </>
+          )}
+        </div>
+        {roleModelId && (
+          <div className="text-xs text-gray-500">
+            ID: {roleModelId.substring(0, 8)}...
+          </div>
+        )}
       </div>
       
       <div className="agent-conversation-content" ref={contentRef}>
