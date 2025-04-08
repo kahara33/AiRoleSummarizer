@@ -98,43 +98,76 @@
 
 /* エージェントアバターのスタイル */
 .agent-message-avatar {
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   color: white;
+  transition: all 0.2s ease;
+}
+.agent-message-avatar:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
 }
 
 /* 各エージェントタイプのカラー */
 .agent-domain-analyst {
   background-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
+}
+.agent-message-container .agent-domain-analyst + .agent-message-content {
+  border-left: 2px solid rgba(79, 70, 229, 0.5);
 }
 
 .agent-trend-researcher {
   background-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+.agent-message-container .agent-trend-researcher + .agent-message-content {
+  border-left: 2px solid rgba(14, 165, 233, 0.5);
 }
 
 .agent-context-mapper {
   background-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+}
+.agent-message-container .agent-context-mapper + .agent-message-content {
+  border-left: 2px solid rgba(16, 185, 129, 0.5);
 }
 
 .agent-plan-strategist {
   background-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+}
+.agent-message-container .agent-plan-strategist + .agent-message-content {
+  border-left: 2px solid rgba(245, 158, 11, 0.5);
 }
 
 .agent-critical-thinker {
   background-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+}
+.agent-message-container .agent-critical-thinker + .agent-message-content {
+  border-left: 2px solid rgba(239, 68, 68, 0.5);
 }
 
 .agent-orchestrator {
   background-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+}
+.agent-message-container .agent-orchestrator + .agent-message-content {
+  border-left: 2px solid rgba(139, 92, 246, 0.5);
 }
 
 .agent-knowledge-graph {
   background-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+.agent-message-container .agent-knowledge-graph + .agent-message-content {
+  border-left: 2px solid rgba(99, 102, 241, 0.5);
 }
 
 /* エージェントメッセージコンテンツのスタイル */

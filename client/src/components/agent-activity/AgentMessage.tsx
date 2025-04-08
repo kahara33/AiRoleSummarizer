@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './styles.css';
-import { BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { 
+  BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle, 
+  Database, Search, Network, BarChart4, Brain, Sparkles
+} from 'lucide-react';
 
 export type AgentMessageType = 'thinking' | 'thought' | 'action' | 'result' | 'error' | 'info' | 'success';
 
@@ -85,24 +88,43 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
     });
   };
   
-  // メッセージタイプに応じたアイコンを表示
-  const getIconForType = () => {
-    switch (type) {
-      case 'thinking':
-        return <BrainCircuit size={16} />;
-      case 'thought':
-        return <Bot size={16} />;
-      case 'action':
-        return <Zap size={16} />;
-      case 'result':
-      case 'success':
-        return <CheckCircle2 size={16} />;
-      case 'error':
-        return <AlertTriangle size={16} />;
-      case 'info':
-        return <Bot size={16} />;
-      default:
-        return <Bot size={16} />;
+  // エージェント名に応じたアイコンを表示
+  const getIconForAgent = (agentName: string) => {
+    const name = agentName.toLowerCase();
+    
+    if (name.includes('ドメイン') || name.includes('domain')) {
+      return <Database size={16} />;
+    } else if (name.includes('トレンド') || name.includes('trend')) {
+      return <Search size={16} />;
+    } else if (name.includes('コンテキスト') || name.includes('context')) {
+      return <Network size={16} />;
+    } else if (name.includes('プラン') || name.includes('plan')) {
+      return <BarChart4 size={16} />;
+    } else if (name.includes('クリティカル') || name.includes('critical')) {
+      return <Brain size={16} />;
+    } else if (name.includes('オーケストレーター') || name.includes('orchestrator')) {
+      return <Sparkles size={16} />;
+    } else if (name.includes('システム') || name.includes('system')) {
+      return <Bot size={16} />;
+    } else {
+      // メッセージタイプに応じたアイコンをフォールバックとして使用
+      switch (type) {
+        case 'thinking':
+          return <BrainCircuit size={16} />;
+        case 'thought':
+          return <Bot size={16} />;
+        case 'action':
+          return <Zap size={16} />;
+        case 'result':
+        case 'success':
+          return <CheckCircle2 size={16} />;
+        case 'error':
+          return <AlertTriangle size={16} />;
+        case 'info':
+          return <Bot size={16} />;
+        default:
+          return <Bot size={16} />;
+      }
     }
   };
   
@@ -140,7 +162,7 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       <div className="agent-message">
         {showAvatar && (
           <div className={`agent-message-avatar agent-${agentClass}`}>
-            {getIconForType()}
+            {getIconForAgent(agentName)}
           </div>
         )}
         <div className="agent-message-content">
