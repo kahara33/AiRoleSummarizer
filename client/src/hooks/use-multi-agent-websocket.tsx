@@ -516,27 +516,36 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           const payload = message.payload || message;
           
           // データからエージェント名と思考内容を安全に取得
-          const agentName = payload.agentName || payload.agent || message.agentName || message.agent || '未知のエージェント';
+          // anyを使用してTypescriptエラーを回避
+          const payloadAny = payload as any;
+          const messageAny = message as any;
+          
+          // エージェント名の取得を改善（複数のソースから安全に取得）
+          const agentName = payloadAny.agentName || 
+                            payloadAny.agent || 
+                            messageAny.agentName || 
+                            messageAny.agent || 
+                            '未知のエージェント';
           
           // 思考内容をさまざまなフィールドから可能な限り取得
           let thought = '';
-          if (typeof payload.thought === 'string') {
-            thought = payload.thought;
-          } else if (typeof payload.thoughts === 'string') {
-            thought = payload.thoughts;
-          } else if (typeof payload.message === 'string') {
-            thought = payload.message;
-          } else if (typeof payload.content === 'string') {
-            thought = payload.content;
-          } else if (typeof payload === 'string') {
-            thought = payload;
-          } else if (message.thought || message.thoughts) {
-            thought = message.thought || message.thoughts || '';
+          if (typeof payloadAny.thought === 'string') {
+            thought = payloadAny.thought;
+          } else if (typeof payloadAny.thoughts === 'string') {
+            thought = payloadAny.thoughts;
+          } else if (typeof payloadAny.message === 'string') {
+            thought = payloadAny.message;
+          } else if (typeof payloadAny.content === 'string') {
+            thought = payloadAny.content;
+          } else if (typeof payloadAny === 'string') {
+            thought = payloadAny;
+          } else if (messageAny.thought || messageAny.thoughts) {
+            thought = messageAny.thought || messageAny.thoughts || '';
           } else {
             // オブジェクトの場合は文字列化して適切なエラーメッセージを表示
             try {
-              thought = typeof payload === 'object' ? 
-                JSON.stringify(payload, null, 2) : 
+              thought = typeof payloadAny === 'object' ? 
+                JSON.stringify(payloadAny, null, 2) : 
                 '不明なデータ形式';
             } catch (e) {
               thought = '不明なデータ形式';
@@ -544,14 +553,14 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
           }
           
           const agentThought: AgentThought = {
-            id: payload.id || crypto.randomUUID().toString(),
+            id: payloadAny.id || crypto.randomUUID().toString(),
             agentName,
             thought,
             message: thought, // 互換性のため両方のフィールドにセット
-            type: payload.type || message.type || 'generic',
-            roleModelId: payload.roleModelId || currentRoleModelId || '',
+            type: payloadAny.type || message.type || 'generic',
+            roleModelId: payloadAny.roleModelId || currentRoleModelId || '',
             timestamp: message.timestamp || new Date().toISOString(),
-            step: payload.step || payload.stage || 'thinking'
+            step: payloadAny.step || payloadAny.stage || 'thinking'
           };
           
           console.log('エージェント思考を追加:', agentThought);
@@ -571,17 +580,17 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
             };
             
             // ステップに基づいてプログレスを決定
-            const step = payload.step || payload.stage;
+            const step = payloadAny.step || payloadAny.stage;
             const percent = step && stepToProgress[step] 
               ? stepToProgress[step] 
               : (Math.floor(Math.random() * 5) + 5) * 10; // ステップ不明なら10〜50%のランダム値
             
             // エラーの場合は0%に設定
-            const isError = payload.error === true || step === 'error';
+            const isError = payloadAny.error === true || step === 'error';
             
             const progressUpdate: ProgressUpdate = {
               message: isError 
-                ? `エラーが発生しました: ${payload.message || '不明なエラー'}` 
+                ? `エラーが発生しました: ${payloadAny.message || '不明なエラー'}` 
                 : `${agentName}が処理中: ${thought.substring(0, 30)}...`,
               percent: isError ? 0 : percent,
               timestamp: new Date().toISOString(),
@@ -590,7 +599,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
               stage: step || 'processing',
               progress: isError ? 0 : percent,
               progressPercent: isError ? 0 : percent,
-              details: payload
+              details: payloadAny
             };
             
             setProgressUpdates(prev => [...prev, progressUpdate]);

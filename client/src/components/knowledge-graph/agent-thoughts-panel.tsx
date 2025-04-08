@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, AlertCircle, CheckCircle, Brain } from 'lucide-react';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 
 // エージェント出力メッセージの型定義
 export interface AgentMessage {
@@ -69,6 +70,9 @@ export function AgentThoughtsPanel({
   const [isProcessing, setIsProcessing] = useState(false);
   const [agentNames, setAgentNames] = useState<string[]>([]);
   
+  // グローバルWebSocketフックを利用
+  const { agentThoughts: wsAgentThoughts, progressUpdates: wsProgressUpdates } = useMultiAgentWebSocket();
+  
   // WebSocketインスタンスをrefに保存
   const socketRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
@@ -89,7 +93,86 @@ export function AgentThoughtsPanel({
     }
   }, [progressUpdates]);
   
-  // 外部から渡されたthoughtsを内部形式に変換
+  // WebSocketフックからのエージェント思考を処理
+  useEffect(() => {
+    if (wsAgentThoughts && wsAgentThoughts.length > 0) {
+      console.log("AgentThoughtsPanel: WebSocketから思考データを受信:", wsAgentThoughts.length);
+      
+      // WebSocketから受け取ったデータを外部から渡されたデータと同様に処理
+      try {
+        const convertedThoughts: AgentMessage[] = wsAgentThoughts.map(thought => {
+          // デバッグログ
+          console.log("WebSocket思考データを変換中:", JSON.stringify({
+            id: thought.id, 
+            agentName: thought.agentName, 
+            type: thought.type,
+            thought: thought.thought, 
+            timestamp: thought.timestamp
+          }, null, 2));
+          
+          // timestamp処理
+          let timestamp;
+          try {
+            timestamp = thought.timestamp instanceof Date 
+              ? thought.timestamp.getTime() 
+              : new Date(thought.timestamp).getTime();
+            
+            if (isNaN(timestamp)) {
+              timestamp = Date.now();
+            }
+          } catch (e) {
+            timestamp = Date.now();
+          }
+          
+          // メッセージテキスト処理
+          let messageText = "詳細情報がありません";
+          if (typeof thought.thought === 'string' && thought.thought.trim().length > 0) {
+            messageText = thought.thought;
+          } else if (typeof thought.message === 'string' && thought.message.trim().length > 0) {
+            messageText = thought.message;
+          }
+          
+          // メッセージタイプ処理
+          let messageType = 'info';
+          if (thought.type) {
+            const typeStr = typeof thought.type === 'string' ? thought.type.toLowerCase() : '';
+            if (typeStr.includes('error') || typeStr.includes('エラー')) {
+              messageType = 'error';
+            } else if (typeStr.includes('success') || typeStr.includes('complete')) {
+              messageType = 'success';
+            } else if (typeStr.includes('think') || typeStr.includes('process')) {
+              messageType = 'thinking';
+            }
+          }
+          
+          // エージェント名の処理
+          const agentName = thought.agentName || "AI エージェント";
+          
+          return {
+            timestamp,
+            agentName,
+            message: messageText,
+            type: messageType
+          };
+        });
+        
+        // ユニークなエージェント名のリストを更新
+        const uniqueAgentNames = Array.from(new Set(
+          wsAgentThoughts.map(t => t.agentName || "AI エージェント")
+        ));
+        setAgentNames(prev => [...new Set([...prev, ...uniqueAgentNames])]);
+        
+        // 時間順にソートして内部データに設定
+        const sortedThoughts = convertedThoughts.sort((a, b) => a.timestamp - b.timestamp);
+        setInternalThoughts(prev => [...prev, ...sortedThoughts]);
+        setIsProcessing(true);
+      } catch (e) {
+        console.error("WebSocket思考データの変換エラー:", e);
+      }
+    }
+  }, [wsAgentThoughts]);
+
+// 外部から渡されたthoughtsを内部形式に変換
   useEffect(() => {
     if (externalThoughts && externalThoughts.length > 0) {
       console.log("AgentThoughtsPanel: 受信したthoughts:", externalThoughts.length);
@@ -257,14 +340,19 @@ export function AgentThoughtsPanel({
     }
   }, [externalThoughts]);
   
-  // マウント時にrefを初期化
+  // マウント時にrefを初期化とWebSocketの状態処理
   useEffect(() => {
     isComponentMountedRef.current = true;
+    
+    // roleModelIdが存在する場合は、親コンポーネントで既に設定されているはずなのでログだけ出力
+    if (roleModelId) {
+      console.log(`AgentThoughtsPanel: roleModelId=${roleModelId}が設定されました`);
+    }
     
     return () => {
       isComponentMountedRef.current = false;
     };
-  }, []);
+  }, [roleModelId]);
   
   // アクティブタブが変更されたときにメッセージをフィルタリング
   useEffect(() => {
