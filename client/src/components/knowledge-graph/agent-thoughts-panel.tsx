@@ -421,8 +421,8 @@ function AgentThoughtsPanel({
         <div className="p-3 bg-white border-b">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="font-semibold text-base">エージェント処理ログ</h2>
-              <p className="text-sm text-gray-500">AIエージェントの処理内容をリアルタイムで表示します</p>
+              <h2 className="font-semibold text-base">AIエージェントとの協調</h2>
+              <p className="text-sm text-gray-500">AIエージェント間の対話を通じて知識構造を構築していきます</p>
             </div>
             {isProcessing && onCancel && (
               <button 
@@ -468,8 +468,8 @@ function AgentThoughtsPanel({
               <ScrollArea className={`${height || 'h-[calc(100vh-200px)]'} px-4 py-4`}>
                 {filteredThoughts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40">
-                    <p className="text-gray-500">エージェント処理データがありません</p>
-                    <p className="text-xs text-gray-400 mt-1">プロセスを開始すると、ここにエージェントの思考過程が表示されます</p>
+                    <p className="text-gray-500">AIエージェント間の対話データがありません</p>
+                    <p className="text-xs text-gray-400 mt-1">プロセスを開始すると、ここにAIエージェント間の対話が表示されます</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -523,7 +523,7 @@ function AgentThoughtsPanel({
         </Tabs>
         
         <div className="p-2 text-xs text-gray-500 border-t">
-          {filteredThoughts.length} 件のエージェント処理ログを表示
+          {filteredThoughts.length} 件のAIエージェント対話を表示
         </div>
       </div>
     );
@@ -539,7 +539,7 @@ function AgentThoughtsPanel({
     <Card className="fixed right-4 top-20 h-[calc(100vh-120px)] flex flex-col z-50 shadow-lg w-96">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
-          <CardTitle>エージェント思考パネル</CardTitle>
+          <CardTitle>AIエージェントとの協調</CardTitle>
           <div className="flex items-center gap-2">
             {isProcessing && (
               <div className="flex items-center">
@@ -569,7 +569,7 @@ function AgentThoughtsPanel({
           </div>
         </div>
         <CardDescription>
-          AIエージェントの思考プロセスをリアルタイムで観察できます
+          AIエージェント間の対話を通じて知識構造を構築していきます
         </CardDescription>
       </CardHeader>
       
@@ -606,7 +606,7 @@ function AgentThoughtsPanel({
             <ScrollArea className="h-[calc(100vh-300px)] px-6 pb-4">
               {filteredThoughts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40">
-                  <p className="text-gray-500 dark:text-gray-400">思考データがありません</p>
+                  <p className="text-gray-500 dark:text-gray-400">AIエージェント同士の対話がここに表示されます</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -660,7 +660,7 @@ function AgentThoughtsPanel({
       </Tabs>
       
       <CardFooter className="pt-2 pb-4 text-xs text-muted-foreground">
-        {filteredThoughts.length} 件の思考データを表示しています
+        {filteredThoughts.length} 件のAIエージェント対話を表示しています
       </CardFooter>
     </Card>
   );
