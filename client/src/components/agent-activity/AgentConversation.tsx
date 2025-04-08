@@ -44,8 +44,44 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
     connect, 
     isConnected,
     isProcessing,
-    clearMessages
+    clearMessages,
+    sendMessage
   } = useMultiAgentWebSocket();
+  
+  // デバッグ: 初期データがない場合のテストデータを追加
+  useEffect(() => {
+    console.log("AgentConversation: 現在のエージェント思考データ", agentThoughts.length, "件");
+    
+    if (agentThoughts.length === 0 && roleModelId) {
+      // 開発環境の場合のみテスト用データを生成
+      if (process.env.NODE_ENV === 'development') {
+        console.log("AgentConversation: デバッグ用のテストデータを追加します");
+        // テスト用のエージェント思考を追加
+        const testAgents = ['ドメイン分析エージェント', 'トレンド調査エージェント'];
+        setTimeout(() => {
+          const updatedThoughts: AgentThought[] = [];
+          
+          testAgents.forEach(agent => {
+            const testThought: AgentThought = {
+              id: crypto.randomUUID(),
+              agentName: agent,
+              thought: `${agent}のテスト思考メッセージです。このメッセージはクライアント側で生成されました。`,
+              message: `${agent}のテスト思考メッセージです。`,
+              timestamp: new Date().toISOString(),
+              roleModelId: roleModelId || '',
+              type: 'info'
+            };
+            updatedThoughts.push(testThought);
+            console.log("テスト思考を追加:", testThought);
+          });
+          
+          // クライアント側でデータを直接追加
+          console.log("テスト用に状態を直接更新:", updatedThoughts.length, "件");
+          setAgentThoughts(prev => [...prev, ...updatedThoughts]);
+        }, 1000);
+      }
+    }
+  }, [agentThoughts.length, roleModelId]);
   
   // ロールモデルIDが変更されたら再接続
   useEffect(() => {

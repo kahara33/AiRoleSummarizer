@@ -66,6 +66,18 @@
 .agent-message-container {
   width: 100%;
   padding: 2px 0;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* アニメーション用クラス */
+.agent-message-hidden {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.agent-message-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .agent-message {

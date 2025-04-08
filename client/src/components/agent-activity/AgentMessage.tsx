@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './styles.css';
 import { BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
 
@@ -22,6 +22,22 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
   type, 
   showAvatar = true 
 }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  
+  // コンポーネントがマウントされたらアニメーション表示
+  useEffect(() => {
+    // コンポーネントのマウント後に少し遅れてアニメーション表示
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 50);
+    
+    // デバッグ用ログ（開発環境のみ）
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`AgentMessage表示: ${agentName} - ${type}`);
+    }
+    
+    return () => clearTimeout(timer);
+  }, [agentName, type]);
   // エージェント名から CSS クラス名を生成
   const getAgentClass = (name: string): string => {
     const normalizedName = name
@@ -119,7 +135,7 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
   const agentClass = getAgentClass(agentName);
   
   return (
-    <div className={`agent-message-container message-type-${type}`}>
+    <div className={`agent-message-container message-type-${type} ${isVisible ? 'agent-message-visible' : 'agent-message-hidden'}`}>
       <div className="agent-message">
         {showAvatar && (
           <div className={`agent-message-avatar agent-${agentClass}`}>
