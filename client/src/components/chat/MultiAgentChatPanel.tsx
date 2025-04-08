@@ -27,6 +27,7 @@ interface MultiAgentChatPanelProps {
     timestamp: Date;
   }[];
   onSendMessage?: (message: string) => void;
+  compact?: boolean; // コンパクトモード表示するかどうか
 }
 
 // メッセージタイプ
@@ -52,7 +53,8 @@ export default function MultiAgentChatPanel({
   roleModelId, 
   messages: externalMessages, 
   agentThoughts: externalThoughts,
-  onSendMessage
+  onSendMessage,
+  compact = false // コンパクトモードのデフォルト値はfalse
 }: MultiAgentChatPanelProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -538,36 +540,38 @@ export default function MultiAgentChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white rounded-md shadow">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between p-3 border-b bg-white">
-        <div className="flex items-center">
-          <Network className="h-4 w-4 mr-1 text-primary" />
-          <span className="font-medium text-sm">マルチAIエージェント思考</span>
+    <div className={`flex flex-col h-full overflow-hidden bg-white rounded-md shadow ${compact ? 'border-t' : ''}`}>
+      {/* ヘッダー - コンパクトモードでは表示しない */}
+      {!compact && (
+        <div className="flex items-center justify-between p-3 border-b bg-white">
+          <div className="flex items-center">
+            <Network className="h-4 w-4 mr-1 text-primary" />
+            <span className="font-medium text-sm">マルチAIエージェント思考</span>
+          </div>
+          <div className="flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleClearConversation}
+              disabled={messages.length === 0 || isGenerating}
+              title="会話をクリア"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
-        <div className="flex">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={handleClearConversation}
-            disabled={messages.length === 0 || isGenerating}
-            title="会話をクリア"
-          >
-            <RefreshCw className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* チャットとエージェント処理を単一のスクロールエリアに統合 */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        <div className="h-full overflow-y-auto p-6 space-y-3">
+        <div className={`h-full overflow-y-auto ${compact ? 'p-3' : 'p-6'} space-y-3`}>
           {/* メッセージ表示 */}
           {messages.length === 0 && processes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-              <Network className="h-12 w-12 mb-4" />
+              <Network className={`${compact ? 'h-8 w-8 mb-2' : 'h-12 w-12 mb-4'}`} />
               <p>AIエージェントチームが情報収集のお手伝いをします</p>
-              <p className="text-sm">質問や指示を入力してください</p>
+              {!compact && <p className="text-sm">質問や指示を入力してください</p>}
             </div>
           ) : (
             <>
@@ -584,7 +588,7 @@ export default function MultiAgentChatPanel({
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
-                    } rounded-lg p-3`}
+                    } rounded-lg ${compact ? 'p-2 text-sm' : 'p-3'}`}
                   >
                     <div className="mr-2 mt-0.5">
                       {message.role === 'user' ? (
@@ -613,7 +617,7 @@ export default function MultiAgentChatPanel({
               {/* エージェント処理データを表示 */}
               {processes.map((process) => (
                 <div key={process.id} className="flex justify-start">
-                  <div className="flex max-w-[80%] bg-muted rounded-lg p-3">
+                  <div className={`flex max-w-[80%] bg-muted rounded-lg ${compact ? 'p-2 text-sm' : 'p-3'}`}>
                     <div className="mr-2 mt-0.5">
                       {getAgentIcon(process.agentType)}
                     </div>
@@ -635,7 +639,7 @@ export default function MultiAgentChatPanel({
           {/* 生成中のインジケーター */}
           {isGenerating && (
             <div className="flex justify-start">
-              <div className="bg-muted rounded-lg p-3 flex items-center">
+              <div className={`bg-muted rounded-lg ${compact ? 'p-2' : 'p-3'} flex items-center`}>
                 <Bot className="h-4 w-4 mr-2" />
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
@@ -646,18 +650,18 @@ export default function MultiAgentChatPanel({
       </div>
 
       {/* 入力エリア - 常に下部に表示される */}
-      <div className="p-4 border-t bg-white">
+      <div className={`${compact ? 'p-2' : 'p-4'} border-t bg-white`}>
         <div className="flex items-end gap-2">
           <Textarea
             placeholder="メッセージを入力..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[36px] max-h-[60px] resize-none text-sm border border-gray-300 rounded-md flex-1"
+            className={`min-h-[36px] ${compact ? 'max-h-[50px]' : 'max-h-[60px]'} resize-none text-sm border border-gray-300 rounded-md flex-1`}
             disabled={isGenerating}
           />
           <Button
-            size="icon"
+            size={compact ? "sm" : "icon"}
             onClick={handleSendMessage}
             disabled={!input.trim() || isGenerating}
             className="flex-shrink-0"

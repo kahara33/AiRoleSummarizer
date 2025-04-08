@@ -90,12 +90,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     return () => clearInterval(checkInterval);
   }, [roleModelId, isConnected, connect]);
   
-  // エージェントの思考が届いたらパネルを表示し、エージェントプロセスタブに切り替える
+  // エージェントの思考が届いたらパネルを表示する
   useEffect(() => {
     if (agentThoughts.length > 0) {
       setShowAgentPanel(true);
-      // エージェントプロセスタブに自動的に切り替え
-      setActiveTab('agentProcess');
+      // エージェントプロセスはタブではなく、右パネルに表示されるようになったため
+      // タブの自動切り替えは行わない
     }
   }, [agentThoughts]);
   
@@ -549,27 +549,40 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <div className="h-full flex flex-col bg-gray-50">
                   {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
                   
-                  <div className="flex-1 overflow-hidden">
-                    <MultiAgentChatPanel 
-                      roleModelId={roleModelId} 
-                      messages={messages.map(msg => ({
-                        id: crypto.randomUUID(),
-                        content: typeof msg.payload === 'string' ? msg.payload : 
-                               typeof msg.payload?.message === 'string' ? msg.payload.message : 
-                               JSON.stringify(msg.payload),
-                        sender: msg.type === 'chat_message' && msg.payload?.roleModelId ? 'ai' : 'user',
-                        timestamp: new Date(msg.timestamp || Date.now())
-                      }))}
-                      agentThoughts={agentThoughts.map(thought => ({
-                        id: thought.id || String(crypto.randomUUID()),
-                        agentName: thought.agentName || (thought as any).agent || 'AI エージェント',
-                        agentType: thought.agentType || (thought as any).type || (thought as any).agent_type || 'agent',
-                        thought: thought.thought || (thought as any).message || (thought as any).thoughts || ((thought as any).payload ? JSON.stringify((thought as any).payload) : ''),
-                        timestamp: new Date(thought.timestamp || Date.now()),
-                        roleModelId: thought.roleModelId || (thought as any).roleModelId
-                      }))}
-                      onSendMessage={handleSendMessage}
-                    />
+                  <div className="flex-1 overflow-hidden flex flex-col">
+                    {/* エージェント思考パネル */}
+                    <div className="flex-1 overflow-hidden pb-1">
+                      <AgentThoughtsPanel 
+                        roleModelId={roleModelId}
+                        isVisible={true}
+                        height="100%"
+                        thoughts={agentThoughts.map(thought => ({
+                          id: thought.id || String(crypto.randomUUID()),
+                          agentName: thought.agentName || (thought as any).agent || 'AI エージェント',
+                          agentType: thought.agentType || (thought as any).type || (thought as any).agent_type || 'agent',
+                          thought: thought.thought || (thought as any).message || (thought as any).thoughts || ((thought as any).payload ? JSON.stringify((thought as any).payload) : ''),
+                          timestamp: new Date(thought.timestamp || Date.now()),
+                          roleModelId: thought.roleModelId || (thought as any).roleModelId
+                        }))}
+                      />
+                    </div>
+
+                    {/* マルチエージェントチャットパネル */}
+                    <div className="border-t">
+                      <MultiAgentChatPanel 
+                        roleModelId={roleModelId} 
+                        messages={messages.map(msg => ({
+                          id: crypto.randomUUID(),
+                          content: typeof msg.payload === 'string' ? msg.payload : 
+                                typeof msg.payload?.message === 'string' ? msg.payload.message : 
+                                JSON.stringify(msg.payload),
+                          sender: msg.type === 'chat_message' && msg.payload?.roleModelId ? 'ai' : 'user',
+                          timestamp: new Date(msg.timestamp || Date.now())
+                        }))}
+                        onSendMessage={handleSendMessage}
+                        compact={true} // コンパクトモードで表示
+                      />
+                    </div>
                   </div>
                 </div>
               </Panel>
