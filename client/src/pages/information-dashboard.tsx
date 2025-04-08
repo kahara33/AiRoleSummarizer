@@ -463,40 +463,17 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       </div>
                       
                       <div>
-                        <h3 className="text-sm font-medium">利用するツール</h3>
-                        <div className="space-y-0.5 mt-1">
+                        <h3 className="text-sm font-medium">使用ツール</h3>
+                        <div className="flex flex-wrap gap-1 mt-1">
                           {mockPlanDetails.tools.map((tool, index) => (
-                            <div key={index} className="text-sm">{tool}</div>
+                            <Badge key={index} variant="outline" className="text-xs">{tool}</Badge>
                           ))}
                         </div>
                       </div>
                       
                       <div>
-                        <div className="flex items-center justify-between mt-2">
-                          <table className="w-full text-xs mt-1 border-collapse border">
-                            <thead>
-                              <tr className="bg-gray-100">
-                                <th className="text-left px-2 py-0.5 font-medium text-xs">ソース</th>
-                                <th className="text-left px-1 py-0.5 font-medium w-10 text-center text-xs">詳細</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {mockPlanDetails.sources.map((source) => (
-                                <tr key={source.id} className="border-t">
-                                  <td className="px-2 py-0.5 truncate text-xs" style={{ maxWidth: "120px" }}>
-                                    メディア https://
-                                  </td>
-                                  <td className="px-1 py-0.5 text-center">
-                                    <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
-                                      <ExternalLink className="h-3 w-3" />
-                                    </Button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="text-right mt-1">
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-sm font-medium">情報ソース</h3>
                           <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
                             <Plus className="h-3 w-3 mr-1" />
                             追加
@@ -514,139 +491,122 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           {/* メインコンテンツエリア */}
           <Panel 
             id="main-panel"
-            defaultSize={showAgentPanel ? 50 : 80}
-            className={`flex flex-col z-10 ${mainPanelMaximized ? 'flex-grow' : ''}`}
+            className="overflow-hidden"
+            defaultSize={leftPanelCollapsed ? (showAgentPanel ? 70 : 100) : (showAgentPanel ? 50 : 80)}
           >
-            <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="border-b bg-white flex justify-between items-center px-4 py-3">
-                <TabsList className="h-8 border-b-0 bg-transparent">
-                  <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
-                    ナレッジグラフ
-                  </TabsTrigger>
-                  {/* 「エージェントプロセス」タブを削除 */}
-                  <TabsTrigger value="summarizedResults" className="data-[state=active]:bg-white">
-                    要約結果
-                  </TabsTrigger>
-                  <TabsTrigger value="memo" className="data-[state=active]:bg-white">
-                    メモ
-                  </TabsTrigger>
-                </TabsList>
-                
-                <div className="flex items-center gap-2">
-                  {/* CrewAIボタンと情報収集プラン作成ボタン - 順序変更 */}
-                  {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
-                    <>
-                      {isProcessing ? (
-                        <Button
-                          onClick={() => {
-                            // 操作のキャンセル処理
-                            send('cancel', { roleModelId });
-                            toast({
-                              title: "処理をキャンセル",
-                              description: "AIエージェント処理をキャンセルしました"
-                            });
-                          }}
-                          variant="outline"
-                          className="text-sm"
-                          size="sm"
-                        >
-                          <RefreshCw className="h-4 w-4 mr-1 text-red-600 animate-spin" />
-                          処理中... キャンセル
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => generateGraphMutation.mutate()}
-                          disabled={generateGraphMutation.isPending || isProcessing}
-                          variant="outline"
-                          className="text-sm"
-                          size="sm"
-                        >
-                          <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                          {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフと情報収集プランを生成"}
-                        </Button>
+            <div className="h-full flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 border-b bg-white">
+                <Tabs 
+                  value={activeTab} 
+                  onValueChange={setActiveTab}
+                  className="w-full"
+                >
+                  <div className="flex justify-between items-center w-full">
+                    <TabsList className="h-8">
+                      <TabsTrigger 
+                        value="knowledgeGraph" 
+                        className="text-xs px-3 h-7"
+                      >
+                        <FileText className="h-3.5 w-3.5 mr-1" />
+                        知識グラフ
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <div className="flex gap-2">
+                      {(roleModelId && roleModelId !== 'default') && (
+                        <>
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => {
+                              generateGraphMutation.mutate();
+                            }}
+                            disabled={generateGraphMutation.isPending}
+                          >
+                            {generateGraphMutation.isPending ? (
+                              <>
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                処理中...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-3.5 w-3.5" />
+                                CrewAIでナレッジグラフと情報収集プランを生成
+                              </>
+                            )}
+                          </Button>
+                          
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 px-2" 
+                            onClick={() => {
+                              // メインパネルの最大化／最小化を切り替え
+                              const newState = !mainPanelMaximized;
+                              setMainPanelMaximized(newState);
+                              
+                              if (newState) {
+                                toast({
+                                  title: "メインパネルを最大化",
+                                  description: "メインパネルを最大化しました"
+                                });
+                              } else {
+                                toast({
+                                  title: "メインパネルを元に戻す",
+                                  description: "メインパネルを元のサイズに戻しました"
+                                });
+                              }
+                            }}
+                            title={mainPanelMaximized ? "メインパネルを元に戻す" : "メインパネルを最大化"}
+                          >
+                            {mainPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                          </Button>
+                        </>
                       )}
-                      
-                      {/* 情報収集プラン作成ボタン - 単独コンポーネント化してここに配置 */}
-                      {!isProcessing && (
-                        <CreateCollectionPlanWithCrewAIButton 
-                          size="sm"
-                          variant="outline"
-                          className="text-sm"
-                          onStart={showAgentPanelHandler}
-                          defaultKeywords={roleModel?.keywords || []}
-                          defaultIndustry={roleModel?.industry || ''}
-                          disabled={isProcessing || generateGraphMutation.isPending}
+                    </div>
+                  </div>
+                  
+                  <TabsContent value="knowledgeGraph" className="mt-0 border-0 data-[state=active]:flex-1 h-full overflow-hidden flex flex-col">
+                    <div className="flex-1 overflow-hidden">
+                      {(roleModelId && roleModelId !== 'default') ? (
+                        <KnowledgeGraphViewer 
+                          roleModelId={roleModelId} 
+                          hasData={hasKnowledgeGraph}
+                          onDataLoaded={() => setHasKnowledgeGraph(true)}
                         />
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                          <FileText className="h-12 w-12 mb-4 opacity-20" />
+                          <p>ロールモデルが選択されていません。</p>
+                          <p className="mt-2">
+                            <Button variant="outline" size="sm">
+                              <FileText className="h-4 w-4 mr-2" />
+                              ロールモデルを選択
+                            </Button>
+                          </p>
+                        </div>
                       )}
-                    </>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+              
+              <div className="flex-1 overflow-hidden bg-gray-100">
+                {/* コンテンツエリア */}
+                <div className="h-full">
+                  {activeTab === 'knowledgeGraph' && (
+                    <div className="h-full relative">
+                      {/* 知識グラフビューワーはKnowledgeGraphViewerコンポーネントで表示済み */}
+                    </div>
                   )}
                 </div>
               </div>
-              
-              {/* ナレッジグラフタブ */}
-              <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <div className="p-2">
-                  <KnowledgeGraphViewer
-                    roleModelId={roleModelId}
-                    width="100%"
-                    height="calc(100vh - 130px)"
-                    onGraphDataChange={setHasKnowledgeGraph}
-                  />
-                </div>
-              </TabsContent>
-              
-              {/* エージェントプロセスタブは削除 - 右パネルに統合 */}
-              
-              {/* 要約結果タブ */}
-              <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="p-6">
-                  <div className="h-[calc(100vh-160px)] overflow-auto">
-                    <div className="text-center text-gray-500 mt-20">
-                      <p>要約結果は現在開発中です</p>
-                      <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-              
-              {/* メモタブ */}
-              <TabsContent value="memo" className="p-0 m-0">
-                <div className="p-6">
-                  <div className="h-[calc(100vh-160px)] overflow-auto">
-                    <div className="text-center text-gray-500 mt-20">
-                      <p>メモ機能は現在開発中です</p>
-                      <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </Panel>
-          
-          {/* 右側パネルが最小化されているときのアイコン */}
-          {!showAgentPanel && (
-            <div className="w-8 border-l bg-gray-50 flex flex-col items-center">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 w-8 p-0 mt-2" 
-                onClick={() => {
-                  setShowAgentPanel(true);
-                  // メインパネルが最大化されていたら元に戻す
-                  if (mainPanelMaximized) {
-                    setMainPanelMaximized(false);
-                  }
-                  toast({
-                    title: "パネルを展開",
-                    description: "AIエージェント思考パネルを展開しました"
-                  });
-                }}
-                title="AIエージェントパネルを表示"
-              >
-                <BrainCircuit className="h-4 w-4" />
-              </Button>
             </div>
-          )}
+          </Panel>
           
           {/* 右側パネル: マルチAIエージェント思考パネル */}
           {showAgentPanel && (
