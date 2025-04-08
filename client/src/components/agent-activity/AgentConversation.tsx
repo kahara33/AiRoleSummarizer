@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
-import { Bot, AlertCircle, WifiIcon, WifiOffIcon } from 'lucide-react';
+import { Bot, AlertCircle, WifiIcon, WifiOffIcon, Loader2 } from 'lucide-react';
 import AgentMessage from './AgentMessage';
 import AgentThinking from './AgentThinking';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
@@ -84,18 +84,30 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   // 空の状態を表示
   const renderEmpty = () => {
     return (
-      <div className="agent-conversation-empty">
-        <div className="p-3 rounded-full bg-blue-50">
-          <Bot size={40} className="text-blue-500" />
-        </div>
-        <h3 className="text-gray-800">AIエージェント会話</h3>
-        <p className="text-gray-600">
-          {connecting 
-            ? 'エージェントに接続しています...' 
-            : roleModelId 
-              ? 'エージェントからのメッセージがここに表示されます' 
-              : 'ロールモデルIDを指定してエージェントに接続してください'}
-        </p>
+      <div className="flex flex-col items-center justify-center h-full text-center p-6">
+        {connecting ? (
+          <>
+            <div className="bg-blue-50 p-3 rounded-full mb-4">
+              <Loader2 size={40} className="text-blue-500 animate-spin" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">接続中...</h3>
+            <p className="text-gray-600 max-w-sm">
+              AIエージェントへの接続を確立しています
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="bg-blue-50 p-3 rounded-full mb-4">
+              <Bot size={40} className="text-blue-500" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">AIエージェント会話</h3>
+            <p className="text-gray-600 max-w-sm">
+              {roleModelId 
+                ? 'エージェントからのメッセージがここに表示されます' 
+                : 'ロールモデルIDを指定してエージェントに接続してください'}
+            </p>
+          </>
+        )}
       </div>
     );
   };
@@ -108,7 +120,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
     }
     
     return (
-      <>
+      <div className="p-4">
         {/* エージェントの思考メッセージ */}
         {agentThoughts.map((thought, index) => (
           <AgentMessage
@@ -135,26 +147,26 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
         {showThinking && thinkingAgentName && (
           <AgentThinking agentName={thinkingAgentName} />
         )}
-      </>
+      </div>
     );
   };
   
   return (
-    <div className="agent-conversation" style={containerStyle}>
-      <div className="agent-conversation-header">
+    <div className="border border-gray-200 rounded-md overflow-hidden bg-white" style={containerStyle}>
+      <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white">
         <div className="flex items-center gap-2">
           {isConnected ? (
             <>
               <WifiIcon size={14} className="text-green-600" />
-              <h3 className="text-green-600">接続済み</h3>
-              <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 text-xs font-medium">
-                リアルタイム同期
+              <span className="text-sm font-medium text-green-600">接続済み</span>
+              <Badge variant="outline" className="ml-1 bg-green-50 text-green-700 text-xs border-green-200">
+                リアルタイム
               </Badge>
             </>
           ) : (
             <>
               <WifiOffIcon size={14} className="text-gray-400" />
-              <h3 className="text-gray-500">未接続</h3>
+              <span className="text-sm font-medium text-gray-500">未接続</span>
             </>
           )}
         </div>
@@ -165,7 +177,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
         )}
       </div>
       
-      <div className="agent-conversation-content" ref={contentRef}>
+      <div className="h-full overflow-y-auto bg-white" ref={contentRef}>
         {renderError()}
         {renderMessages()}
       </div>

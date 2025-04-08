@@ -32,35 +32,6 @@
 }
 
 /* エージェント会話コンテナのスタイル */
-.agent-conversation {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  overflow: hidden;
-  height: 500px;
-  width: 100%;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  background-color: var(--background);
-}
-
-/* エージェント会話ヘッダーのスタイル */
-.agent-conversation-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(to right, #f0f9ff, #e6f3ff);
-  color: #3b82f6;
-}
-
-.agent-conversation-header h3 {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
 /* エージェント会話コンテンツのスタイル */
 .agent-conversation-content {
   flex-grow: 1;
@@ -69,7 +40,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  background-color: #f9fafb;
+  background-color: #ffffff;
 }
 
 /* エージェントメッセージコンテナのスタイル */

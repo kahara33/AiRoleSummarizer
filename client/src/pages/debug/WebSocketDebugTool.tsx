@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import { Separator } from '@/components/ui/separator';
 import MainLayout from '@/components/layout/MainLayout';
+import { Loader2 } from 'lucide-react';
 
 /**
  * WebSocketデバッグツール
@@ -153,11 +154,13 @@ const WebSocketDebugTool: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-6 px-4 sm:px-6">
+      <div className="bg-blue-50 py-6 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
           {/* ヘッダー */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">WebSocketデバッグツール</h1>
+          <div className="text-center mb-10">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              WebSocketデバッグツール
+            </h1>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               エージェントとのリアルタイム通信をテストするためのツール
             </p>
@@ -166,12 +169,12 @@ const WebSocketDebugTool: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* 左側のコントロールパネル */}
             <div className="lg:col-span-5 space-y-6">
-              <Card className="shadow-md">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-white pb-4">
+              <Card className="border border-gray-200">
+                <CardHeader className="pb-4 bg-white">
                   <CardTitle>接続設定</CardTitle>
                   <CardDescription>WebSocket接続とテストの基本設定</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 pt-4">
+                <CardContent className="space-y-4 pt-4 bg-white">
                   <div className="space-y-2">
                     <Label htmlFor="role-model-id">ロールモデルID</Label>
                     <Input
@@ -179,7 +182,6 @@ const WebSocketDebugTool: React.FC = () => {
                       value={roleModelId}
                       onChange={(e) => setRoleModelId(e.target.value)}
                       placeholder="ロールモデルIDを入力"
-                      className="border-2 focus:border-blue-400"
                     />
                   </div>
 
@@ -196,24 +198,24 @@ const WebSocketDebugTool: React.FC = () => {
 
               <Tabs defaultValue="single" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full mb-4">
-                  <TabsTrigger value="single" className="text-sm">単一メッセージ</TabsTrigger>
-                  <TabsTrigger value="simulation" className="text-sm">シミュレーション</TabsTrigger>
+                  <TabsTrigger value="single">単一メッセージ</TabsTrigger>
+                  <TabsTrigger value="simulation">シミュレーション</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="single">
-                  <Card className="shadow-md">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-white pb-4">
+                  <Card className="border border-gray-200">
+                    <CardHeader className="pb-4 bg-white">
                       <CardTitle>単一エージェントメッセージ</CardTitle>
                       <CardDescription>特定のエージェントからのテストメッセージを送信</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 pt-4">
+                    <CardContent className="space-y-4 pt-4 bg-white">
                       <div className="space-y-2">
                         <Label htmlFor="agent-name">エージェント名</Label>
                         <Select
                           value={agentName}
                           onValueChange={setAgentName}
                         >
-                          <SelectTrigger className="border-2 focus:border-blue-400">
+                          <SelectTrigger>
                             <SelectValue placeholder="エージェントを選択" />
                           </SelectTrigger>
                           <SelectContent>
@@ -233,7 +235,7 @@ const WebSocketDebugTool: React.FC = () => {
                           value={messageType}
                           onValueChange={setMessageType}
                         >
-                          <SelectTrigger className="border-2 focus:border-blue-400">
+                          <SelectTrigger>
                             <SelectValue placeholder="タイプを選択" />
                           </SelectTrigger>
                           <SelectContent>
@@ -256,36 +258,40 @@ const WebSocketDebugTool: React.FC = () => {
                           onChange={(e) => setMessageContent(e.target.value)}
                           placeholder="メッセージ内容を入力"
                           rows={6}
-                          className="border-2 focus:border-blue-400"
                         />
                       </div>
                     </CardContent>
-                    <CardFooter className="bg-gray-50 pt-4">
+                    <CardFooter className="bg-white p-4">
                       <Button 
                         onClick={sendTestThought} 
                         disabled={isLoading || !roleModelId}
-                        className="w-full bg-blue-600 hover:bg-blue-700"
+                        className="w-full"
                       >
-                        {isLoading ? '送信中...' : 'テストメッセージを送信'}
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            送信中...
+                          </>
+                        ) : 'テストメッセージを送信'}
                       </Button>
                     </CardFooter>
                   </Card>
                 </TabsContent>
                 
                 <TabsContent value="simulation">
-                  <Card className="shadow-md">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-white pb-4">
+                  <Card className="border border-gray-200">
+                    <CardHeader className="pb-4 bg-white">
                       <CardTitle>エージェントシミュレーション</CardTitle>
                       <CardDescription>複数エージェントの自動プロセスをシミュレート</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 pt-4">
+                    <CardContent className="space-y-4 pt-4 bg-white">
                       <div className="space-y-2">
                         <Label htmlFor="industry-type">業界タイプ</Label>
                         <Select
                           value={industryType}
                           onValueChange={setIndustryType}
                         >
-                          <SelectTrigger className="border-2 focus:border-blue-400">
+                          <SelectTrigger>
                             <SelectValue placeholder="業界を選択" />
                           </SelectTrigger>
                           <SelectContent>
@@ -299,13 +305,18 @@ const WebSocketDebugTool: React.FC = () => {
                         </Select>
                       </div>
                     </CardContent>
-                    <CardFooter className="bg-gray-50 pt-4">
+                    <CardFooter className="bg-white p-4">
                       <Button 
                         onClick={startAgentSimulation} 
                         disabled={isLoading || !roleModelId}
-                        className="w-full bg-blue-600 hover:bg-blue-700"
+                        className="w-full"
                       >
-                        {isLoading ? '開始中...' : 'シミュレーションを開始'}
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            開始中...
+                          </>
+                        ) : 'シミュレーションを開始'}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -314,13 +325,13 @@ const WebSocketDebugTool: React.FC = () => {
 
               {/* ログとレスポンス */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="shadow-md">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-white pb-2">
+                <Card className="border border-gray-200">
+                  <CardHeader className="pb-2 bg-white">
                     <CardTitle className="text-base">APIレスポンス</CardTitle>
                     <CardDescription className="text-xs">最後のAPIリクエスト結果</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-4">
-                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md max-h-40 overflow-y-auto">
+                  <CardContent className="p-4 bg-white">
+                    <div className="bg-gray-100 p-3 rounded-md max-h-40 overflow-y-auto">
                       <p className="font-mono text-xs whitespace-pre-wrap">
                         {responseMessage || 'レスポンスはまだありません'}
                       </p>
@@ -328,13 +339,13 @@ const WebSocketDebugTool: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-md">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-white pb-2">
+                <Card className="border border-gray-200">
+                  <CardHeader className="pb-2 bg-white">
                     <CardTitle className="text-base">デバッグログ</CardTitle>
                     <CardDescription className="text-xs">操作とイベントの記録</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-4">
-                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md max-h-40 overflow-y-auto">
+                  <CardContent className="p-4 bg-white">
+                    <div className="bg-gray-100 p-3 rounded-md max-h-40 overflow-y-auto">
                       {logs.length > 0 ? (
                         logs.map((log, index) => (
                           <p key={index} className="font-mono text-xs mb-1">{log}</p>
@@ -351,13 +362,13 @@ const WebSocketDebugTool: React.FC = () => {
 
             {/* 右側のエージェント会話表示 */}
             <div className="lg:col-span-7">
-              <Card className="shadow-lg h-full">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-white pb-4">
-                  <CardTitle>エージェント会話表示</CardTitle>
-                  <CardDescription>WebSocketで受信したエージェントメッセージの可視化</CardDescription>
+              <Card className="border border-gray-200 h-full">
+                <CardHeader className="pb-4 bg-white">
+                  <CardTitle>AIエージェント会話</CardTitle>
+                  <CardDescription>エージェントからのメッセージがここに表示されます</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="h-[70vh] bg-gray-50 rounded-md overflow-hidden">
+                  <div className="h-[70vh] bg-white rounded-md overflow-hidden">
                     <AgentConversation roleModelId={roleModelId} height="100%" />
                   </div>
                 </CardContent>

@@ -209,7 +209,7 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
             {getIconForAgent(agentName)}
           </div>
         )}
-        <div className="agent-message-content shadow-sm">
+        <div className="agent-message-content bg-white shadow-sm border border-gray-100 rounded-lg">
           <div className="agent-message-header">
             <div className="flex items-center">
               <span className="agent-message-name font-medium">{agentName}</span>
