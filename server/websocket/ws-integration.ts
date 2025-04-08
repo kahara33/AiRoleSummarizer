@@ -3,6 +3,17 @@ import { sendProgressUpdate, sendAgentThoughts, initWebSocketServer, getWebSocke
 // CrewAIサービスをインポート
 import { generateKnowledgeGraphWithCrewAI, CrewAIService } from '../services/crew-ai/crew-ai-service';
 
+// WebSocketサーバーのクライアントへの送信関数を取得
+const wsServer = {
+  sendToClient: (clientId: string, message: any) => {
+    const server = getWebSocketServer();
+    if (server) {
+      return server.sendToClient(clientId, message);
+    }
+    return false;
+  }
+};
+
 // WebSocketとCrewAIを統合する関数
 export function setupWebSocketIntegration(server: Server): void {
   const wsServer = initWebSocketServer(server);
@@ -32,39 +43,17 @@ export function setupWebSocketIntegration(server: Server): void {
           // クライアントからのping応答
           console.log('Ping received from client');
           
-          // 開発環境のみでデバッグメッセージを送信する場合はここで条件分岐
           // 本番環境ではデバッグメッセージを送信しない
-          if (process.env.NODE_ENV === 'development' && process.env.SEND_DEBUG_MESSAGES === 'true') {
-            console.log('開発モード: デバッグ用エージェント思考メッセージを送信します');
-            
-            // デバッグ用: テストエージェント思考データを送信
-            setTimeout(() => {
-              sendAgentThoughts(
-                'デバッグエージェント',
-                'デバッグ用エージェント思考メッセージです。このメッセージが表示されていれば、WebSocket接続とエージェント思考表示機能は正常に動作しています。',
-                roleModelId,
-                {
-                  step: 'debug_test',
-                  reasoning: `WebSocketサーバー診断プロセス:
-1. WebSocket接続の確立を確認
-2. メッセージ送受信の整合性チェック
-3. UI表示確認と思考プロセスのリアルタイム更新テスト
+          // NODE_ENVとSEND_DEBUG_MESSAGESの環境変数がセットされていなかったので、通常の処理を有効にする
+          // if (process.env.NODE_ENV === 'development' && process.env.SEND_DEBUG_MESSAGES === 'true') {
+          // デバッグ用のテストエージェント思考は送信せず、ping応答のみを返す
+          
+          // pong応答を返す
+          wsServer.sendToClient(clientId, {
+            type: 'pong',
+            timestamp: new Date().toISOString()
+          });
 
-診断結果:
-- サーバー側WebSocket設定: OK
-- クライアント側接続状態: OK
-- メッセージフォーマット: OK 
-- 表示レンダリング: OK`,
-                  details: {
-                    connectionState: "正常",
-                    messageFormat: "JSON正常",
-                    renderingStatus: "レンダリング正常",
-                    timestamp: new Date().toISOString()
-                  }
-                }
-              );
-            }, 1000);
-          }
           
           break;
           
