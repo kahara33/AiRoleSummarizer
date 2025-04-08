@@ -66,56 +66,119 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
     if (externalThoughts && externalThoughts.length > 0) {
       console.log("AgentThoughtsPanel: 受信したthoughts:", externalThoughts.length);
       
-      const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => {
-        // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
-        const timestamp = thought.timestamp instanceof Date 
-          ? thought.timestamp.getTime() 
-          : new Date(thought.timestamp).getTime();
-        
-        // メッセージはthought, messageのどちらかを使用（優先順位はthought > message）
-        const messageText = thought.thought || thought.message || (thought as any).content || "詳細情報がありません";
-        
-        let messageType = 'info';
-        // typeプロパティを優先的に使用
-        if (thought.type) {
-          if (thought.type === 'error' || thought.type === 'エラー') {
-            messageType = 'error';
-          } else if (thought.type === 'success' || thought.type === 'システム') {
-            messageType = 'success';
-          } else if (thought.type === 'thinking' || thought.type === 'process') {
-            messageType = 'thinking';
+      try {
+        const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => {
+          // 詳細なデバッグロギングで問題を診断
+          console.log("変換中のthought:", {
+            id: thought.id, 
+            agentName: thought.agentName || (thought as any).agent, 
+            type: thought.type,
+            thought: thought.thought, 
+            message: thought.message, 
+            content: (thought as any).content,
+            timestamp: thought.timestamp
+          });
+          
+          // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
+          let timestamp;
+          try {
+            timestamp = thought.timestamp instanceof Date 
+              ? thought.timestamp.getTime() 
+              : new Date(thought.timestamp).getTime();
+            
+            // timestampが無効な場合は現在時刻を使用
+            if (isNaN(timestamp)) {
+              console.warn("無効なタイムスタンプ:", thought.timestamp);
+              timestamp = Date.now();
+            }
+          } catch (e) {
+            console.error("タイムスタンプ変換エラー:", e);
+            timestamp = Date.now();
           }
-        }
-        // agentTypeがある場合は次に使用
-        else if (thought.agentType) {
-          if (thought.agentType === 'error' || thought.agentType === 'エラー') {
-            messageType = 'error';
-          } else if (thought.agentType === 'success' || thought.agentType === 'システム') {
-            messageType = 'success';
-          } else if (thought.agentType === 'thinking' || thought.agentType === 'process') {
-            messageType = 'thinking';
+          
+          // メッセージは複数のフィールドから優先順位をつけて取得
+          // どのフィールドが使用可能かを詳細にチェック
+          let messageText = "詳細情報がありません";
+          if (typeof thought.thought === 'string' && thought.thought.trim().length > 0) {
+            messageText = thought.thought;
+          } else if (typeof thought.message === 'string' && thought.message.trim().length > 0) {
+            messageText = thought.message;
+          } else if (typeof (thought as any).content === 'string' && (thought as any).content.trim().length > 0) {
+            messageText = (thought as any).content;
+          } else if (typeof thought.thought === 'object' && thought.thought !== null) {
+            try {
+              messageText = JSON.stringify(thought.thought, null, 2);
+            } catch (e) {
+              console.error("思考オブジェクトのシリアル化エラー:", e);
+            }
+          } else if (typeof thought.message === 'object' && thought.message !== null) {
+            try {
+              messageText = JSON.stringify(thought.message, null, 2);
+            } catch (e) {
+              console.error("メッセージオブジェクトのシリアル化エラー:", e);
+            }
           }
-        }
+          
+          // メッセージタイプの判断を改善
+          let messageType = 'info';
+          
+          // typeプロパティを最優先で使用
+          if (thought.type) {
+            const typeStr = thought.type.toLowerCase();
+            if (typeStr.includes('error') || typeStr.includes('エラー')) {
+              messageType = 'error';
+            } else if (typeStr.includes('success') || typeStr.includes('complete') || typeStr === 'システム') {
+              messageType = 'success';
+            } else if (typeStr.includes('think') || typeStr.includes('process') || typeStr === 'processing') {
+              messageType = 'thinking';
+            }
+          }
+          // agentTypeがある場合は次に使用
+          else if (thought.agentType) {
+            const agentTypeStr = thought.agentType.toLowerCase();
+            if (agentTypeStr.includes('error') || agentTypeStr.includes('エラー')) {
+              messageType = 'error';
+            } else if (agentTypeStr.includes('success') || agentTypeStr === 'システム') {
+              messageType = 'success';
+            } else if (agentTypeStr.includes('think') || agentTypeStr.includes('process')) {
+              messageType = 'thinking';
+            }
+          }
+          // メッセージ内容を基にタイプを推測（最終手段）
+          else if (messageText.toLowerCase().includes('error') || messageText.toLowerCase().includes('エラー')) {
+            messageType = 'error';
+          } else if (messageText.toLowerCase().includes('complete') || messageText.toLowerCase().includes('成功')) {
+            messageType = 'success';
+          }
+          
+          // エージェント名の取得方法を改善
+          const agentName = thought.agentName || (thought as any).agent || "AI エージェント";
+          
+          return {
+            timestamp,
+            agentName,
+            message: messageText,
+            type: messageType
+          };
+        });
         
-        return {
-          timestamp,
-          agentName: thought.agentName || (thought as any).agent || "AI エージェント",
-          message: messageText,
-          type: messageType
-        };
-      });
-      
-      // ユニークなエージェント名のリストを更新（タブ用）
-      const uniqueAgentNames = Array.from(new Set(
-        externalThoughts.map(t => t.agentName || (t as any).agent || "AI エージェント")
-      ));
-      setAgentNames(uniqueAgentNames);
-      
-      // 時間順にソート
-      const sortedThoughts = convertedThoughts.sort((a, b) => a.timestamp - b.timestamp);
-      
-      setInternalThoughts(sortedThoughts);
-      setIsProcessing(sortedThoughts.length > 0);
+        // ユニークなエージェント名のリストを更新（タブ用）
+        const uniqueAgentNames = Array.from(new Set(
+          externalThoughts.map(t => t.agentName || (t as any).agent || "AI エージェント")
+        ));
+        setAgentNames(uniqueAgentNames);
+        
+        // 時間順にソート
+        const sortedThoughts = convertedThoughts.sort((a, b) => a.timestamp - b.timestamp);
+        
+        console.log("変換後のthoughts:", sortedThoughts.length);
+        setInternalThoughts(sortedThoughts);
+        setIsProcessing(sortedThoughts.length > 0);
+      } catch (e) {
+        console.error("思考データの変換エラー:", e);
+      }
+    } else {
+      console.log("AgentThoughtsPanel: thoughtsが空です");
     }
   }, [externalThoughts]);
   

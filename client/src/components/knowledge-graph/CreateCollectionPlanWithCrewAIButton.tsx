@@ -145,18 +145,50 @@ export function CreateCollectionPlanWithCrewAIButton({
     // 完了メッセージは別途WebSocket通信で受け取る
   }, [industry, keywords, sources, constraints, requirements, connected, send, onStart, toast]);
   
-  // WebSocketからのメッセージで処理状態を更新
+  // WebSocketからのメッセージで処理状態を改善された方法で更新
   useEffect(() => {
-    // progressタイプのメッセージを探して100%完了したら処理中状態を解除
-    const progressMessage = messages.find(msg => 
-      msg.type === 'progress' && msg.payload && 
-      typeof msg.payload === 'object' && msg.payload.percent === 100
+    // progress関連のメッセージを検索
+    const progressMessages = messages.filter(msg => 
+      (msg.type === 'progress' || msg.type === 'progress-update' || msg.type === 'crewai_progress') && 
+      msg.payload && 
+      typeof msg.payload === 'object'
     );
     
-    if (progressMessage) {
+    if (progressMessages.length === 0) return;
+    
+    // 最新のプログレスメッセージを取得
+    const latestProgress = progressMessages[progressMessages.length - 1];
+    
+    console.log('情報収集プラン - 進捗更新を検出:', latestProgress);
+    
+    // 明示的な状態管理ロジック
+    if (latestProgress.payload.percent === 100) {
+      // 完了
+      console.log('情報収集プラン - 処理完了を検出');
+      setTimeout(() => {
+        setIsProcessing(false);
+        toast({
+          title: "情報収集プラン作成完了",
+          description: "CrewAIでの情報収集プラン作成が完了しました",
+        });
+      }, 1000);
+    } else if (latestProgress.payload.percent === 0 && isProcessing) {
+      // エラー
+      console.log('情報収集プラン - エラーを検出');
       setIsProcessing(false);
+      toast({
+        title: "エラー",
+        description: latestProgress.payload.message || "処理中にエラーが発生しました",
+        variant: "destructive"
+      });
+    } else if (latestProgress.payload.percent > 0 && latestProgress.payload.percent < 100) {
+      // 処理中（既に処理中状態でない場合のみ更新）
+      if (!isProcessing) {
+        console.log('情報収集プラン - 処理開始を検出');
+        setIsProcessing(true);
+      }
     }
-  }, [messages]);
+  }, [messages, isProcessing, toast]);
   
   const renderBadges = (items: string[], onRemove: (item: string) => void) => {
     return items.map((item, index) => (

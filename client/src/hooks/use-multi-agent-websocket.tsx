@@ -583,8 +583,25 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
 
   
   // 処理中かどうかの状態を計算
+  // 処理中の状態をより明確に判定
   const isProcessing = useMemo(() => {
-    return progressUpdates.some(update => update.percent < 100);
+    // 進捗が存在し、かつそのうち1つでも100%未満のものがあれば処理中と判断
+    if (progressUpdates.length === 0) {
+      return false;
+    }
+    
+    // 最新の進捗が100%未満なら処理中と判断
+    const latestUpdate = progressUpdates[progressUpdates.length - 1];
+    if (latestUpdate && latestUpdate.percent < 100) {
+      return true;
+    }
+
+    // 過去20秒以内に更新された進捗で100%未満のものがあれば処理中と判断
+    const twentySecondsAgo = new Date(Date.now() - 20000).toISOString();
+    return progressUpdates.some(update => 
+      update.percent < 100 && 
+      update.timestamp > twentySecondsAgo
+    );
   }, [progressUpdates]);
 
   // キャンセル操作の実行関数

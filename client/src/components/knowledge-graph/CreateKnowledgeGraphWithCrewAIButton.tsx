@@ -34,47 +34,58 @@ export default function CreateKnowledgeGraphWithCrewAIButton({
   // 進行状況の更新を監視し、ボタン状態を管理
   useEffect(() => {
     if (progressUpdates.length > 0) {
-      const latestUpdate = progressUpdates[progressUpdates.length - 1];
+      // フィルタリング：現在のロールモデルの進捗のみを対象とする
+      const relevantUpdates = progressUpdates.filter(
+        update => update.roleModelId === roleModelId
+      );
       
-      // 現在のロールモデルに関連する進捗更新のみを処理
-      if (latestUpdate.roleModelId === roleModelId) {
-        console.log(`進捗更新を処理: ${latestUpdate.percent}%, ${latestUpdate.message}`);
-        
-        // 進捗状態を更新
-        setProgress(latestUpdate.percent);
-        setStatusMessage(latestUpdate.message);
-        
-        // 処理中フラグを設定 (0%でないあらゆる進捗は処理中と見なす)
-        if (latestUpdate.percent > 0 && latestUpdate.percent < 100) {
+      if (relevantUpdates.length === 0) return;
+      
+      // 最新の進捗を取得
+      const latestUpdate = relevantUpdates[relevantUpdates.length - 1];
+      
+      console.log(`進捗更新を処理: ${latestUpdate.percent}%, ${latestUpdate.message}`, {
+        generatingState: isGenerating,
+        allUpdatesCount: progressUpdates.length,
+        relevantUpdatesCount: relevantUpdates.length,
+        timestamp: latestUpdate.timestamp
+      });
+      
+      // 進捗状態を更新
+      setProgress(latestUpdate.percent);
+      setStatusMessage(latestUpdate.message);
+      
+      // 明示的な状態管理：進捗のパーセントに基づいてボタン状態を更新
+      if (latestUpdate.percent > 0 && latestUpdate.percent < 100) {
+        // 処理進行中
+        if (!isGenerating) {
+          console.log('処理状態をtrueに更新 (0% < 進捗 < 100%)');
           setIsGenerating(true);
         }
-        
-        // 進行状況が100%に達したらボタンを再有効化
-        if (latestUpdate.percent >= 100) {
-          console.log('処理が完了しました (100%)');
-          setTimeout(() => {
-            setIsGenerating(false);
-            setProgress(0);
-            setStatusMessage('');
-            toast({
-              title: '処理完了',
-              description: 'ナレッジグラフと情報収集プランの生成が完了しました。',
-              variant: 'default',
-            });
-          }, 1000);
-        }
-
-        // エラーが発生した場合（progressが0%に戻った場合）
-        if (latestUpdate.percent === 0 && isGenerating) {
-          console.log('エラーが発生しました (0%)');
+      } else if (latestUpdate.percent >= 100) {
+        // 完了
+        console.log('処理が完了しました (100%)');
+        // 少し遅延させて完了状態を表示してからリセット
+        setTimeout(() => {
           setIsGenerating(false);
           setProgress(0);
+          setStatusMessage('');
           toast({
-            title: 'エラー',
-            description: latestUpdate.message || '処理中にエラーが発生しました。',
-            variant: 'destructive',
+            title: '処理完了',
+            description: 'ナレッジグラフと情報収集プランの生成が完了しました。',
+            variant: 'default',
           });
-        }
+        }, 1000);
+      } else if (latestUpdate.percent === 0 && isGenerating) {
+        // エラー（0%に戻った）
+        console.log('エラーが発生しました (0%)');
+        setIsGenerating(false);
+        setProgress(0);
+        toast({
+          title: 'エラー',
+          description: latestUpdate.message || '処理中にエラーが発生しました。',
+          variant: 'destructive',
+        });
       }
     }
   }, [progressUpdates, roleModelId, isGenerating, toast]);
