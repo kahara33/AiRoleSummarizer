@@ -9,20 +9,13 @@ import { Badge } from '@/components/ui/badge';
 interface AgentConversationProps {
   roleModelId?: string;
   height?: string;
-  showHeader?: boolean;
-  title?: string;
 }
 
 /**
  * AIエージェントの会話を表示するコンポーネント
  * WebSocketを使用してリアルタイムにエージェントからのメッセージを受信し、表示します
  */
-const AgentConversation: React.FC<AgentConversationProps> = ({ 
-  roleModelId, 
-  height = '500px',
-  showHeader = true,
-  title = 'AIエージェントアクティビティ'
-}) => {
+const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, height = '500px' }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [showThinking, setShowThinking] = useState(false);
   const [thinkingAgentName, setThinkingAgentName] = useState<string | null>(null);
@@ -107,7 +100,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
             <div className="bg-blue-50 p-3 rounded-full mb-4">
               <Bot size={40} className="text-blue-500" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">{title}</h3>
+            <h3 className="text-xl font-semibold mb-2">AIエージェント会話</h3>
             <p className="text-gray-600 max-w-sm">
               {roleModelId 
                 ? 'エージェントからのメッセージがここに表示されます' 
@@ -160,31 +153,29 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
   
   return (
     <div className="border border-gray-200 rounded-md overflow-hidden bg-white" style={containerStyle}>
-      {showHeader && (
-        <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white">
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <>
-                <WifiIcon size={14} className="text-green-600" />
-                <span className="text-sm font-medium text-green-600">接続済み</span>
-                <Badge variant="outline" className="ml-1 bg-green-50 text-green-700 text-xs border-green-200">
-                  リアルタイム
-                </Badge>
-              </>
-            ) : (
-              <>
-                <WifiOffIcon size={14} className="text-gray-400" />
-                <span className="text-sm font-medium text-gray-500">未接続</span>
-              </>
-            )}
-          </div>
-          {roleModelId && (
-            <div className="text-xs text-gray-500">
-              ID: {roleModelId.substring(0, 8)}...
-            </div>
+      <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white">
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <>
+              <WifiIcon size={14} className="text-green-600" />
+              <span className="text-sm font-medium text-green-600">接続済み</span>
+              <Badge variant="outline" className="ml-1 bg-green-50 text-green-700 text-xs border-green-200">
+                リアルタイム
+              </Badge>
+            </>
+          ) : (
+            <>
+              <WifiOffIcon size={14} className="text-gray-400" />
+              <span className="text-sm font-medium text-gray-500">未接続</span>
+            </>
           )}
         </div>
-      )}
+        {roleModelId && (
+          <div className="text-xs text-gray-500">
+            ID: {roleModelId.substring(0, 8)}...
+          </div>
+        )}
+      </div>
       
       <div className="h-full overflow-y-auto bg-white" ref={contentRef}>
         {renderError()}
