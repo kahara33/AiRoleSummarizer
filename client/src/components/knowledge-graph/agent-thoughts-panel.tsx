@@ -94,10 +94,13 @@ export function AgentThoughtsPanel({
     if (externalThoughts && externalThoughts.length > 0) {
       console.log("AgentThoughtsPanel: 受信したthoughts:", externalThoughts.length);
       
+      // テスト用の強制挿入（デバッグ用）
+      console.log("思考パネルにデータが渡されています！");
+      
       try {
         const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => {
-          // 詳細なデバッグロギングで問題を診断
-          console.log("変換中のthought:", {
+          // デバッグログは詳細に出力
+          console.log("変換中のthought:", JSON.stringify({
             id: thought.id, 
             agentName: thought.agentName || (thought as any).agent, 
             type: thought.type,
@@ -106,7 +109,7 @@ export function AgentThoughtsPanel({
             content: (thought as any).content,
             timestamp: thought.timestamp,
             step: thought.step
-          });
+          }, null, 2));
           
           // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
           let timestamp;

@@ -79,7 +79,39 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     console.log("エージェント思考の数:", agentThoughts.length);
     console.log("進捗更新の数:", progressUpdates.length);
     console.log("処理中フラグ:", isProcessing);
-  }, [agentThoughts.length, progressUpdates.length, isProcessing]);
+    
+    // テスト用の処理（この実装はテスト後に削除してください）
+    if (agentThoughts.length === 0 && roleModelId) {
+      console.log("WebSocketメッセージングのテスト");
+      
+      // テスト用にWebSocketメッセージを追加する代わりに、WebSocketメッセージを手動で送信
+      if (send) {
+        setTimeout(() => {
+          // エージェント思考メッセージを送信
+          send('agent_thought', {
+            id: "test-thought-1",
+            roleModelId: roleModelId,
+            agentName: "ドメイン分析エージェント",
+            agentType: "domain_analyst",
+            thought: "業界分析を開始しています。主要なトレンドと特性を評価中...",
+            message: "業界分析を開始",
+            type: "info",
+            timestamp: new Date()
+          });
+          
+          // 進捗更新メッセージを送信
+          send('progress_update', {
+            roleModelId: roleModelId,
+            stage: "分析フェーズ",
+            progress: 30,
+            message: "業界分析が30%完了しました",
+            details: { step: "industry_analysis" },
+            percent: 30
+          });
+        }, 1000);
+      }
+    }
+  }, [agentThoughts.length, progressUpdates.length, isProcessing, roleModelId, send]);
   
   // roleModelIdが設定されたらWebSocketを接続
   useEffect(() => {
