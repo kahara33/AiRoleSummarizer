@@ -296,12 +296,28 @@ function useMultiAgentWebSocketManager() {
       }
     };
     
+    // すべてのメッセージを受け取るハンドラー
+    const handleAllMessages = (message: any) => {
+      console.log('すべてのメッセージリスナーが受信:', message);
+      
+      // メッセージタイプに基づいて適切なハンドラーに転送
+      const type = message.type || '';
+      
+      if (type === 'agent_thought' || type === 'agent_thoughts' || type === 'thought') {
+        handleAgentThought(message);
+      } else if (type === 'progress' || type === 'progress_update') {
+        handleProgress(message);
+      }
+    };
+    
     // リスナーを追加
     wsManager.addMessageListener('agent_thought', handleAgentThought);
     wsManager.addMessageListener('agent_thoughts', handleAgentThought);
     wsManager.addMessageListener('thought', handleAgentThought);
     wsManager.addMessageListener('progress', handleProgress);
     wsManager.addMessageListener('progress_update', handleProgress);
+    // すべてのメッセージを受け取るリスナーを追加
+    wsManager.addMessageListener('all', handleAllMessages);
     
     // クリーンアップ
     return () => {
@@ -310,6 +326,7 @@ function useMultiAgentWebSocketManager() {
       wsManager.removeMessageListener('thought', handleAgentThought);
       wsManager.removeMessageListener('progress', handleProgress);
       wsManager.removeMessageListener('progress_update', handleProgress);
+      wsManager.removeMessageListener('all', handleAllMessages);
     };
   }, [currentRoleModelId, wsManager]);
   
