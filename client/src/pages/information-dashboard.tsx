@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
-import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
@@ -16,12 +15,13 @@ import {
   RefreshCw,
   BrainCircuit,
   Sparkles,
+  Minimize2
 } from 'lucide-react';
 
-const InformationDashboard: React.FC<{ id?: string }> = () => {
+const InformationDashboard: React.FC<{ id?: string }> = ({ id: propId }) => {
   const params = useParams();
   const { id } = params;
-  const roleModelId = id || 'default';
+  const roleModelId = id || propId || 'default';
   const [activeTab, setActiveTab] = useState<string>('knowledgeGraph');
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
   const [showAIThoughts, setShowAIThoughts] = useState<boolean>(false);
@@ -225,10 +225,7 @@ const InformationDashboard: React.FC<{ id?: string }> = () => {
                       className="h-6 w-6 p-0"
                       onClick={() => setShowAIThoughts(false)}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
+                      <Minimize2 className="h-4 w-4" />
                     </Button>
                   </div>
                   
