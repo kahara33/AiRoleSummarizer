@@ -32,7 +32,7 @@ interface AgentThoughtsPanelProps {
   onCancel?: () => boolean;
 }
 
-export function AgentThoughtsPanel({ 
+function AgentThoughtsPanel({ 
   roleModelId, 
   isVisible = true, 
   onClose, 
