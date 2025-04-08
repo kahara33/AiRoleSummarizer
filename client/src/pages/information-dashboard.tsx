@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
@@ -466,7 +467,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         <h3 className="text-sm font-medium">使用ツール</h3>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {mockPlanDetails.tools.map((tool, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">{tool}</Badge>
+                            <span key={index} className="text-xs inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-gray-800 mr-1 mb-1 border">{tool}</span>
                           ))}
                         </div>
                       </div>
@@ -575,8 +576,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       {(roleModelId && roleModelId !== 'default') ? (
                         <KnowledgeGraphViewer 
                           roleModelId={roleModelId} 
-                          hasData={hasKnowledgeGraph}
-                          onDataLoaded={() => setHasKnowledgeGraph(true)}
+                          onGraphDataChange={(hasData) => setHasKnowledgeGraph(hasData)}
                         />
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center text-gray-500">
