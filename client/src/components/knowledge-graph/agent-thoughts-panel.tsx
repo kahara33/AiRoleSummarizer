@@ -197,13 +197,38 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
           const data = JSON.parse(event.data);
           
           if (data.type === 'agent_thoughts') {
+            console.log('エージェント思考メッセージ受信:', data.payload);
             const newThought: AgentMessage = {
               timestamp: data.payload.timestamp || Date.now(),
               agentName: data.payload.agentName || 'System',
-              message: data.payload.message || data.payload.thoughts || '',
-              type: data.payload.type || 'info'
+              message: data.payload.message || data.payload.thought || '',
+              type: data.payload.agentType || data.payload.type || 'info'
             };
             
+            // 詳細情報がある場合は表示内容を強化
+            if (data.payload.details || data.payload.steps || data.payload.reasoning) {
+              let enhancedMessage = newThought.message;
+              
+              if (data.payload.reasoning) {
+                enhancedMessage += '\n\n**推論プロセス:**\n' + data.payload.reasoning;
+              }
+              
+              if (data.payload.steps && Array.isArray(data.payload.steps)) {
+                enhancedMessage += '\n\n**詳細ステップ:**\n' + data.payload.steps.map((step: string, i: number) => `${i+1}. ${step}`).join('\n');
+              }
+              
+              if (data.payload.details) {
+                if (typeof data.payload.details === 'string') {
+                  enhancedMessage += '\n\n**詳細情報:**\n' + data.payload.details;
+                } else {
+                  enhancedMessage += '\n\n**詳細情報:**\n' + JSON.stringify(data.payload.details, null, 2);
+                }
+              }
+              
+              newThought.message = enhancedMessage;
+            }
+            
+            console.log('処理されたエージェント思考:', newThought);
             setInternalThoughts((prev: AgentMessage[]) => [...prev, newThought]);
           } 
           else if (data.type === 'progress_update' || data.type === 'progress') {

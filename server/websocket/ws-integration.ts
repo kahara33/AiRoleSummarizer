@@ -37,7 +37,25 @@ export function setupWebSocketIntegration(server: Server): void {
               'デバッグエージェント',
               'デバッグ用エージェント思考メッセージです。このメッセージが表示されていれば、WebSocket接続とエージェント思考表示機能は正常に動作しています。',
               roleModelId,
-              { step: 'debug_test' }
+              {
+                step: 'debug_test',
+                reasoning: `WebSocketサーバー診断プロセス:
+1. WebSocket接続の確立を確認
+2. メッセージ送受信の整合性チェック
+3. UI表示確認と思考プロセスのリアルタイム更新テスト
+
+診断結果:
+- サーバー側WebSocket設定: OK
+- クライアント側接続状態: OK
+- メッセージフォーマット: OK 
+- 表示レンダリング: OK`,
+                details: {
+                  connectionState: "正常",
+                  messageFormat: "JSON正常",
+                  renderingStatus: "レンダリング正常",
+                  timestamp: new Date().toISOString()
+                }
+              }
             );
           }, 1000);
           
@@ -46,7 +64,30 @@ export function setupWebSocketIntegration(server: Server): void {
               'ドメイン分析者',
               'ドメイン分析を開始します。収集した情報を基に分析を進めています。',
               roleModelId,
-              { step: 'domain_analysis' }
+              { 
+                step: 'domain_analysis',
+                agentType: 'thinking',
+                reasoning: `分析対象の業界構造とバリューチェーンを把握するため、以下の点に注目しています：
+
+1. 市場セグメンテーション - B2B/B2Cの比率、顧客企業規模別の市場特性
+2. 主要プレイヤーの戦略ポジショニング - 差別化要因、競争優位性、提供価値
+3. 顧客ニーズと未解決課題 - 潜在的痛点、表面化していない要求事項
+4. デジタル化/AI導入の阻害要因 - 技術的制約、組織的課題、コスト構造
+
+これらの情報を統合して、AIエージェントが提供できる具体的な価値と導入障壁を特定します。`,
+                steps: [
+                  "業界構造分析とバリューチェーン把握",
+                  "競合分析と差別化要因の特定",
+                  "顧客セグメント別ニーズマッピング",
+                  "AIエージェント適用領域の優先順位付け",
+                  "導入シナリオと価値創出プロセスのモデル化"
+                ],
+                details: {
+                  analysisMethod: "Porter's Five Forces + VRIO分析フレームワーク",
+                  dataPoints: "112件の既存市場調査レポート、24件の業界インタビュー",
+                  completionEstimate: "42%完了"
+                }
+              }
             );
           }, 2000);
           
@@ -55,7 +96,30 @@ export function setupWebSocketIntegration(server: Server): void {
               'トレンド調査者',
               '業界トレンドを調査しています。最新の動向を確認中です。',
               roleModelId,
-              { step: 'trend_research' }
+              { 
+                step: 'trend_research',
+                agentType: 'thinking',
+                reasoning: `業界動向調査においては、以下の観点からデータを収集・分析しています：
+
+1. 技術採用トレンド - 先進企業におけるAI/ML技術の実装状況と効果測定
+2. 規制環境の変化 - データプライバシーやAI倫理に関する新たな法規制
+3. スタートアップエコシステム - 新たなビジネスモデルや破壊的イノベーション
+4. 消費者行動変化 - デジタルチャネル利用パターンとオムニチャネル戦略への影響
+
+これらのトレンドデータをもとに、短期・中期・長期の予測モデルを構築し、戦略的意思決定に活用可能な形に整理します。`,
+                steps: [
+                  "グローバル技術採用パターンの時系列分析",
+                  "規制動向と将来影響予測",
+                  "イノベーション・ホットスポットの特定",
+                  "消費者行動変化の兆候と加速要因分析",
+                  "戦略的示唆と行動推奨事項のまとめ"
+                ],
+                details: {
+                  primarySources: ["業界カンファレンス発表", "専門家インタビュー", "投資動向", "特許申請データ"],
+                  timeHorizon: "2024-2027 (3年)",
+                  confidenceLevel: "中～高 (データ充足度による)"
+                }
+              }
             );
           }, 3000);
           
