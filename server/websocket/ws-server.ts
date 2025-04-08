@@ -422,46 +422,11 @@ export function sendAgentThoughts(
     timestamp: new Date().toISOString()
   };
   
-  // デバッグ用: 同じメッセージを2つの異なるイベント名で送信して確実に認識されるようにする
-  const backupMessage: WSMessage = {
-    type: 'thought', // 代替ハンドラ名
-    payload: {
-      id: crypto.randomUUID(), // バックアップメッセージ用に別のIDを生成
-      agentName,
-      thought,
-      message: thought,
-      roleModelId,
-      timestamp: new Date().toISOString(),
-      ...additionalData
-    },
-    timestamp: new Date().toISOString()
-  };
-  
   // 高頻度で発生するエージェント思考メッセージのログは最小限に抑える
   console.log(`エージェント思考メッセージを送信します: agentName=${agentName}, roleModelId=${roleModelId}, type=${message.type}`);
   
-  // 主要メッセージとバックアップメッセージの両方を送信して確実に受信を保証
-  let sentCount = wss.sendToRoleModelViewers(roleModelId, message);
-  
-  // バックアップメッセージも送信
-  sentCount += wss.sendToRoleModelViewers(roleModelId, backupMessage);
-  
-  // 3つ目のイベント名でもメッセージを送信（完全な互換性のため）
-  const compatMessage: WSMessage = {
-    type: 'agent_thoughts', // 複数形のハンドラ名
-    payload: {
-      id: crypto.randomUUID(),
-      agentName,
-      thought,
-      message: thought,
-      roleModelId,
-      timestamp: new Date().toISOString(),
-      ...additionalData
-    },
-    timestamp: new Date().toISOString()
-  };
-  
-  sentCount += wss.sendToRoleModelViewers(roleModelId, compatMessage);
+  // 単一のメッセージタイプで送信（クライアント側のallリスナーがすべて処理するため）
+  const sentCount = wss.sendToRoleModelViewers(roleModelId, message);
   
   return sentCount;
 }
