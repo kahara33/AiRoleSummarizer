@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { X } from 'lucide-react';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 import { useToast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
