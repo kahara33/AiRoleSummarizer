@@ -51,14 +51,20 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
   // デバッグ用の表示データ
   const [localThoughts, setLocalThoughts] = useState<AgentThought[]>([]);
   
-  // デバッグ: 初期データがない場合のテストデータを追加
+  // テストデータ: 常に表示するデモデータ（一時的な対応）
   useEffect(() => {
-    console.log("AgentConversation: 現在のエージェント思考データ", agentThoughts.length, "件");
+    console.log("AgentConversation: テストデータを強制表示します");
     
-    // ※テスト用データの強制表示
-    if (roleModelId && process.env.NODE_ENV === 'development') {
-      console.log("AgentConversation: デバッグ用のテストデータを追加します");
-      
+    // Replitの環境情報をログ出力
+    console.log("環境変数:", {
+      nodeEnv: process.env.NODE_ENV,
+      isDevelopment: process.env.NODE_ENV === 'development',
+      hasRoleModelId: Boolean(roleModelId),
+      agentThoughtsCount: agentThoughts.length
+    });
+    
+    // 本番環境とは関係なく必ずテストデータを表示
+    if (roleModelId) {
       // テスト用のエージェント思考を追加
       const testAgents = [
         { name: 'ドメイン分析エージェント', type: 'info' },
@@ -74,7 +80,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
       // 各エージェントのテストデータを作成
       testAgents.forEach((agent, index) => {
         const testThought: AgentThought = {
-          id: crypto.randomUUID(),
+          id: `test-thought-${index}`,
           agentName: agent.name,
           thought: `${agent.name}のテスト思考メッセージです。このメッセージはクライアント側で生成されました。(${index + 1})`,
           message: `${agent.name}のテスト思考メッセージです。(${index + 1})`,
@@ -88,15 +94,19 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
         console.log("テスト思考を追加:", testThought);
       });
       
-      // ローカルの状態を設定
-      setLocalThoughts(generatedThoughts);
-    } else {
-      // 実際のデータがある場合はそれを使用
-      if (agentThoughts.length > 0) {
-        setLocalThoughts(agentThoughts);
+      // ローカルの状態を設定（初回のみ）
+      if (localThoughts.length === 0) {
+        console.log("ローカル状態にテストデータを設定します:", generatedThoughts.length);
+        setLocalThoughts(generatedThoughts);
       }
     }
-  }, [roleModelId, agentThoughts]);
+
+    // 実際のデータがある場合はそれを使用
+    if (agentThoughts.length > 0) {
+      console.log("実データを検出:", agentThoughts.length);
+      setLocalThoughts(prevThoughts => [...prevThoughts, ...agentThoughts]);
+    }
+  }, [roleModelId]);
   
   // ロールモデルIDが変更されたら再接続
   useEffect(() => {
