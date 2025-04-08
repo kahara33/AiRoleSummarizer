@@ -48,40 +48,55 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
     sendMessage
   } = useMultiAgentWebSocket();
   
+  // デバッグ用の表示データ
+  const [localThoughts, setLocalThoughts] = useState<AgentThought[]>([]);
+  
   // デバッグ: 初期データがない場合のテストデータを追加
   useEffect(() => {
     console.log("AgentConversation: 現在のエージェント思考データ", agentThoughts.length, "件");
     
-    if (agentThoughts.length === 0 && roleModelId) {
-      // 開発環境の場合のみテスト用データを生成
-      if (process.env.NODE_ENV === 'development') {
-        console.log("AgentConversation: デバッグ用のテストデータを追加します");
-        // テスト用のエージェント思考を追加
-        const testAgents = ['ドメイン分析エージェント', 'トレンド調査エージェント'];
-        setTimeout(() => {
-          const updatedThoughts: AgentThought[] = [];
-          
-          testAgents.forEach(agent => {
-            const testThought: AgentThought = {
-              id: crypto.randomUUID(),
-              agentName: agent,
-              thought: `${agent}のテスト思考メッセージです。このメッセージはクライアント側で生成されました。`,
-              message: `${agent}のテスト思考メッセージです。`,
-              timestamp: new Date().toISOString(),
-              roleModelId: roleModelId || '',
-              type: 'info'
-            };
-            updatedThoughts.push(testThought);
-            console.log("テスト思考を追加:", testThought);
-          });
-          
-          // クライアント側でデータを直接追加
-          console.log("テスト用に状態を直接更新:", updatedThoughts.length, "件");
-          setAgentThoughts(prev => [...prev, ...updatedThoughts]);
-        }, 1000);
+    // ※テスト用データの強制表示
+    if (roleModelId && process.env.NODE_ENV === 'development') {
+      console.log("AgentConversation: デバッグ用のテストデータを追加します");
+      
+      // テスト用のエージェント思考を追加
+      const testAgents = [
+        { name: 'ドメイン分析エージェント', type: 'info' },
+        { name: 'トレンド調査エージェント', type: 'info' },
+        { name: 'コンテキストマッパー', type: 'thinking' },
+        { name: '計画立案エージェント', type: 'success' },
+        { name: '批判的思考エージェント', type: 'error' }
+      ];
+      
+      // 更新用の配列
+      const generatedThoughts: AgentThought[] = [];
+      
+      // 各エージェントのテストデータを作成
+      testAgents.forEach((agent, index) => {
+        const testThought: AgentThought = {
+          id: crypto.randomUUID(),
+          agentName: agent.name,
+          thought: `${agent.name}のテスト思考メッセージです。このメッセージはクライアント側で生成されました。(${index + 1})`,
+          message: `${agent.name}のテスト思考メッセージです。(${index + 1})`,
+          timestamp: new Date(Date.now() + index * 20000).toISOString(), // 順番にずらして表示
+          roleModelId: roleModelId || '',
+          type: agent.type,
+          step: 'thinking'
+        };
+        
+        generatedThoughts.push(testThought);
+        console.log("テスト思考を追加:", testThought);
+      });
+      
+      // ローカルの状態を設定
+      setLocalThoughts(generatedThoughts);
+    } else {
+      // 実際のデータがある場合はそれを使用
+      if (agentThoughts.length > 0) {
+        setLocalThoughts(agentThoughts);
       }
     }
-  }, [agentThoughts.length, roleModelId]);
+  }, [roleModelId, agentThoughts]);
   
   // ロールモデルIDが変更されたら再接続
   useEffect(() => {
@@ -92,21 +107,21 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
 
   // 新しいメッセージが来たら自動スクロール
   useEffect(() => {
-    if (contentRef.current && agentThoughts.length > 0) {
+    if (contentRef.current && localThoughts.length > 0) {
       contentRef.current.scrollTop = contentRef.current.scrollHeight;
     }
-  }, [agentThoughts]);
+  }, [localThoughts]);
 
   // アクティブなエージェントを追跡
   useEffect(() => {
     const agents = new Set<string>();
-    agentThoughts.forEach(thought => {
+    localThoughts.forEach(thought => {
       if (thought.agentName) {
         agents.add(thought.agentName);
       }
     });
     setActiveAgents(agents);
-  }, [agentThoughts]);
+  }, [localThoughts]);
 
   // エージェントの思考をメッセージとしてマッピング
   const mapThoughtsToMessages = () => {
@@ -256,21 +271,20 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
       )}
       
       <div className="agent-conversation-content" ref={contentRef}>
-        {agentThoughts.length === 0 ? (
+        {localThoughts.length === 0 ? (
           renderEmptyState()
         ) : (
-          groupMessagesByAgent().map(group => (
-            <div key={group.agentName} className="agent-message-group">
-              {group.messages.map((message, idx) => (
-                <AgentMessage
-                  key={message.id}
-                  agentName={group.agentName}
-                  content={message.content}
-                  timestamp={message.timestamp}
-                  type={message.type}
-                  showAvatar={idx === 0}
-                />
-              ))}
+          // テスト用テストデータまたはWebSocketデータを表示
+          localThoughts.map((thought, index) => (
+            <div key={thought.id || index} className="agent-message-group">
+              <AgentMessage
+                key={thought.id || `thought-${index}`}
+                agentName={thought.agentName || '不明なエージェント'}
+                content={thought.thought || thought.message || '内容なし'}
+                timestamp={thought.timestamp || new Date().toISOString()}
+                type={thought.type as AgentMessageType || 'info'}
+                showAvatar={true}
+              />
             </div>
           ))
         )}
