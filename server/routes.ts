@@ -6,6 +6,7 @@ import {
   sendAgentThoughts,
   sendMessageToRoleModelViewers
 } from './websocket';
+import { registerDebugRoutes } from './debug-routes';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
@@ -2185,6 +2186,9 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   
   // 特定の情報収集プラン取得API
   app.get('/api/information-collection-plans/:planId', isAuthenticated, getInformationCollectionPlan);
+
+  // デバッグルートを登録
+  registerDebugRoutes(app);
 
   return httpServer;
 }

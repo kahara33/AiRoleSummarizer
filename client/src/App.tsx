@@ -80,6 +80,14 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute path="/information-dashboard/:id" component={InformationDashboardComponent} />
             <ProtectedRoute path="/notebook/:id" component={NotebookPageComponent} />
             <ProtectedRoute path="/settings" component={() => <SettingsPage />} />
+            <Route path="/debug" component={() => {
+              const DebugPage = React.lazy(() => import('./pages/debug'));
+              return (
+                <React.Suspense fallback={<div>Loading...</div>}>
+                  <DebugPage />
+                </React.Suspense>
+              );
+            }} />
             <Route component={NotFoundPage} />
           </Switch>
         </MainLayout>

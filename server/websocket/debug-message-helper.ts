@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { sendAgentThoughts } from '../websocket';
+import { sendAgentThoughts, sendProgressUpdate } from '../websocket/ws-server';
 
 /**
  * 役割名から適切なエージェント名のリストを取得

@@ -30,8 +30,32 @@ export class CrewAIService {
       const processType = skipGraphUpdate ? '情報収集プラン作成' : 'ナレッジグラフと情報収集プラン生成';
       console.log(`CrewAI ${processType}プロセスを開始: roleModelId=${roleModelId}, industry=${industry}, keywords=${initialKeywords.join(', ')}`);
       
-      // デバッグメッセージを送信
+      // デバッグメッセージを送信 - より詳細なメッセージを追加
       sendDebugAgentThought(roleModelId, `CrewAI ${processType}を開始しています。WebSocketメッセージのテスト。`);
+      
+      // 追加のデバッグメッセージを送信
+      sendAgentThoughts(
+        'デバッグエージェント',
+        `WebSocket接続テスト: CrewAI ${processType}プロセスが開始されました。エージェント間の会話がここに表示されます。`,
+        roleModelId,
+        {
+          industry,
+          keywords: initialKeywords,
+          step: 'startup',
+          timestamp: new Date().toISOString()
+        }
+      );
+      
+      // ドメイン分析者からのメッセージ送信
+      sendAgentThoughts(
+        'ドメイン分析者',
+        `新しい分析タスクを開始しています。業界: ${industry}、キーワード: ${initialKeywords.join(', ')}`,
+        roleModelId,
+        {
+          step: 'domain_analysis_start',
+          timestamp: new Date().toISOString()
+        }
+      );
       
       // 進捗状況を送信
       const initialMessage = skipGraphUpdate

@@ -1,225 +1,328 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode, useRef, useMemo } from 'react';
+/**
+ * マルチエージェントWebSocket接続のためのカスタムフック（改良版）
+ * AgentConversationコンポーネントで使用するために最適化されています
+ * 
+ * GlobalWebSocketManagerに基づく高い信頼性を持つ実装です
+ */
+
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { useAuth } from './use-auth';
-import { useToast } from '@/hooks/use-toast';
-import { useGlobalWebSocket, GlobalWebSocketManager } from './use-global-websocket';
+import { 
+  GlobalWebSocketManager, 
+  AgentThought as GlobalAgentThought,
+  ProgressUpdate as GlobalProgressUpdate 
+} from './use-global-websocket';
 
-// WebSocketメッセージの型定義
-interface WSMessage {
-  type: string;
-  payload: any;
-  timestamp?: string;
-}
+// AgentThought型の再エクスポート
+export interface AgentThought extends GlobalAgentThought {}
 
-// WebSocketコンテキストの状態の型定義
-interface MultiAgentWebSocketContextState {
+// ProgressUpdate型の再エクスポート
+export interface ProgressUpdate extends GlobalProgressUpdate {}
+
+// WebSocketコンテキスト型
+interface MultiAgentWebSocketContextType {
   isConnected: boolean;
-  connect: (roleModelId: string) => void;
-  disconnect: () => void;
-  sendMessage: (type: string, payload: any) => void;
-  sendCreateKnowledgeGraphRequest: (params: CreateKnowledgeGraphParams) => void;
-  sendCancelOperationRequest: (operationType: string) => void;
-  cancelOperation: () => boolean;
-  isProcessing: boolean;
-  messages: WSMessage[];
+  connecting: boolean;
+  error: string | null;
   agentThoughts: AgentThought[];
   progressUpdates: ProgressUpdate[];
+  isProcessing: boolean;
+  connect: (roleModelId: string) => void;
+  disconnect: () => void;
+  sendMessage: (type: string, payload: any) => boolean;
   clearMessages: () => void;
 }
 
-// ナレッジグラフ生成リクエストパラメータの型定義
-interface CreateKnowledgeGraphParams {
-  industry: string;
-  keywords: string[];
-  sources?: string[];
-  constraints?: string[];
-  requirements?: string[];
-}
+/**
+ * マルチエージェントWebSocketカスタムフック
+ * 
+ * 機能:
+ * - 特定のroleModelIdに対するWebSocket接続
+ * - エージェント思考メッセージの受信と管理
+ * - 進捗状況の追跡
+ * - 処理状態の管理
+ * - 接続状態の通知
+ */
+// MultiAgentWebSocketコンテキスト
+const MultiAgentWebSocketContext = createContext<MultiAgentWebSocketContextType | null>(null);
 
-// エージェント思考の型定義
-export interface AgentThought {
-  id?: string;
-  agentName: string;
-  thought: string;
-  message?: string;
-  timestamp: string;
-  roleModelId: string;
-  step?: string;
-  type?: string;
-  agentType?: string;
-}
-
-// 進捗更新の型定義
-export interface ProgressUpdate {
-  message: string;
-  percent: number;
-  timestamp: string;
-  roleModelId?: string;
-  // AgentThoughtsPanelと互換性を持たせるためのフィールド
-  stage?: string;
-  progress?: number;
-  details?: any;
-  progressPercent?: number;
-}
-
-// デフォルト値を持つコンテキスト作成
-const MultiAgentWebSocketContext = createContext<MultiAgentWebSocketContextState>({
-  isConnected: false,
-  connect: () => {},
-  disconnect: () => {},
-  sendMessage: () => {},
-  sendCreateKnowledgeGraphRequest: () => {},
-  sendCancelOperationRequest: () => {},
-  cancelOperation: () => false,
-  isProcessing: false,
-  messages: [],
-  agentThoughts: [],
-  progressUpdates: [],
-  clearMessages: () => {}
-});
-
-// WebSocketプロバイダーコンポーネント（新しいグローバルWebSocketを使用）
-export function MultiAgentWebSocketProvider({ children }: { children: ReactNode }) {
-  const [currentRoleModelId, setCurrentRoleModelId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<WSMessage[]>([]);
-  const { user } = useAuth();
-  const { toast } = useToast();
-
-  // グローバルWebSocketフックを使用
-  const { 
-    isConnected, 
-    connect,
-    disconnect,
-    sendMessage: globalSendMessage,
-    agentThoughts,
-    progressUpdates,
-    clearMessages
-  } = useGlobalWebSocket(currentRoleModelId || undefined);
-
-  // WebSocketへのメッセージ送信
-  const sendMessage = useCallback((type: string, payload: any) => {
-    if (!currentRoleModelId) {
-      console.error('ロールモデルIDが設定されていないため、メッセージを送信できません');
-      toast({
-        title: 'エラー',
-        description: 'ロールモデルが選択されていません',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    return globalSendMessage(type, payload);
-  }, [currentRoleModelId, globalSendMessage, toast]);
-
-  // ナレッジグラフ生成リクエスト
-  const sendCreateKnowledgeGraphRequest = useCallback((params: CreateKnowledgeGraphParams) => {
-    sendMessage('create_knowledge_graph', params);
-  }, [sendMessage]);
+/**
+ * MultiAgentWebSocketプロバイダコンポーネント
+ */
+export function MultiAgentWebSocketProvider({ children }: { children: React.ReactNode }) {
+  const multiAgentWebSocket = useMultiAgentWebSocketManager();
   
-  // 操作キャンセルリクエスト
-  const sendCancelOperationRequest = useCallback((operationType: string) => {
-    sendMessage('cancel_operation', { operationType });
-  }, [sendMessage]);
-
-  // WebSocket接続関数
-  const connectToWebSocket = useCallback((roleModelId: string) => {
-    if (!user) {
-      console.warn('ユーザーがログインしていないため、WebSocket接続を確立できません');
-      return;
-    }
-    
-    setCurrentRoleModelId(roleModelId);
-    connect();
-  }, [user, connect]);
-
-  // キャンセル操作の実行関数
-  const cancelOperation = useCallback(() => {
-    if (!isConnected) {
-      console.error('WebSocketが接続されていないため、操作をキャンセルできません');
-      return false;
-    }
-    
-    try {
-      console.log('操作のキャンセルを要求します');
-      sendMessage('cancel_operation', { timestamp: Date.now() });
-      return true;
-    } catch (error) {
-      console.error('操作のキャンセル中にエラーが発生しました:', error);
-      return false;
-    }
-  }, [isConnected, sendMessage]);
-  
-  // 処理中かどうかの状態を計算
-  const isProcessing = useMemo(() => {
-    // 進捗が存在し、かつそのうち1つでも100%未満のものがあれば処理中と判断
-    if (progressUpdates.length === 0) {
-      return false;
-    }
-    
-    // 最新の進捗が100%未満なら処理中と判断
-    const latestUpdate = progressUpdates[progressUpdates.length - 1];
-    if (latestUpdate && (latestUpdate.percent < 100 && latestUpdate.progress || 0) < 100) {
-      return true;
-    }
-
-    // 過去20秒以内に更新された進捗で100%未満のものがあれば処理中と判断
-    const twentySecondsAgo = new Date(Date.now() - 20000).toISOString();
-    return progressUpdates.some(update => 
-      (update.percent < 100 || (update.progress || 0) < 100) && 
-      update.timestamp > twentySecondsAgo
-    );
-  }, [progressUpdates]);
-  
-  // メッセージタイプによってreactiveな処理を行う
-  useEffect(() => {
-    // 受信したメッセージをmessages配列に追加
-    const handleOtherMessage = (message: any) => {
-      if (message.type && message.type !== 'agent_thoughts' && message.type !== 'progress' && 
-          message.type !== 'pong' && message.type !== 'connection') {
-        console.log('その他のメッセージを受信:', message.type);
-        setMessages(prev => [...prev, message]);
-      }
-    };
-    
-    // メッセージリスナーを設定
-    // 直接インポートしたグローバルマネージャーを使用
-    const globalManager = GlobalWebSocketManager.getInstance();
-    globalManager.addMessageListener('all', handleOtherMessage);
-    
-    return () => {
-      globalManager.removeMessageListener('all', handleOtherMessage);
-    };
-  }, []);
-  
-  // コンテキスト値の構築
-  const value = {
-    isConnected,
-    connect: connectToWebSocket,
-    disconnect,
-    sendMessage,
-    sendCreateKnowledgeGraphRequest,
-    sendCancelOperationRequest,
-    cancelOperation,
-    isProcessing,
-    messages,
-    agentThoughts,
-    progressUpdates,
-    clearMessages
-  };
-
   return (
-    <MultiAgentWebSocketContext.Provider value={value}>
+    <MultiAgentWebSocketContext.Provider value={multiAgentWebSocket}>
       {children}
     </MultiAgentWebSocketContext.Provider>
   );
 }
 
-// カスタムフック
+/**
+ * マルチエージェントWebSocketフックを使用する
+ */
 export function useMultiAgentWebSocket() {
   const context = useContext(MultiAgentWebSocketContext);
-  if (context === undefined) {
-    throw new Error('useMultiAgentWebSocketはMultiAgentWebSocketProviderの中で使用する必要があります');
+  if (!context) {
+    throw new Error('useMultiAgentWebSocket must be used within a MultiAgentWebSocketProvider');
   }
   return context;
 }
 
-export default useMultiAgentWebSocket;
+// 実際のWebSocket管理ロジック
+function useMultiAgentWebSocketManager() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [agentThoughts, setAgentThoughts] = useState<AgentThought[]>([]);
+  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentRoleModelId, setCurrentRoleModelId] = useState<string | null>(null);
+  const { user } = useAuth();
+  
+  // グローバルWebSocket管理インスタンスの取得
+  const wsManager = GlobalWebSocketManager.getInstance();
+  
+  // WebSocket接続
+  const connect = useCallback((roleModelId: string) => {
+    console.log('接続試行: user=', user, 'roleModelId=', roleModelId);
+    setConnecting(true);
+    setError(null);
+    
+    if (!user) {
+      console.warn('ユーザーがログインしていないため、WebSocket接続を確立できません');
+      
+      // 開発環境の場合は仮のユーザーIDでダミー接続を試みる
+      if (process.env.NODE_ENV === 'development') {
+        console.log('開発環境: 仮ユーザーIDでWebSocket接続を試みます');
+        const dummyUserId = '0eb64aa6-4b1d-40a8-98df-c1839160232f';
+        
+        setCurrentRoleModelId(roleModelId);
+        
+        console.log(`マルチエージェントWebSocket接続を実行 (開発モード): roleModelId=${roleModelId}`);
+        wsManager.connect(
+          dummyUserId,
+          roleModelId,
+          (connected) => {
+            setConnecting(false);
+            setIsConnected(connected);
+            if (connected) {
+              console.log('マルチエージェントWebSocket接続状態の変更: 接続済み');
+            } else {
+              console.log('マルチエージェントWebSocket接続状態の変更: 切断');
+              setError('WebSocket接続に失敗しました');
+            }
+          }
+        );
+        return;
+      }
+      
+      setConnecting(false);
+      setError('ユーザーが認証されていません');
+      return;
+    }
+    
+    setCurrentRoleModelId(roleModelId);
+    
+    console.log(`マルチエージェントWebSocket接続を実行: roleModelId=${roleModelId}`);
+    wsManager.connect(
+      user.id,
+      roleModelId,
+      (connected) => {
+        setConnecting(false);
+        setIsConnected(connected);
+        if (connected) {
+          console.log('マルチエージェントWebSocket接続状態の変更: 接続済み');
+        } else {
+          console.log('マルチエージェントWebSocket接続状態の変更: 切断');
+          setError('WebSocket接続に失敗しました');
+        }
+      }
+    );
+  }, [user, wsManager]);
+  
+  // WebSocket切断
+  const disconnect = useCallback(() => {
+    wsManager.disconnect();
+    setIsConnected(false);
+    setCurrentRoleModelId(null);
+    setError(null);
+  }, [wsManager]);
+  
+  // メッセージ送信
+  const sendMessage = useCallback((type: string, payload: any) => {
+    if (!isConnected) {
+      console.log('WebSocketが接続されていないため、メッセージを送信できません');
+      return false;
+    }
+    
+    return wsManager.sendMessage(type, payload);
+  }, [isConnected, wsManager]);
+  
+  // メッセージの消去
+  const clearMessages = useCallback(() => {
+    setAgentThoughts([]);
+    setProgressUpdates([]);
+  }, []);
+  
+  // WebSocketメッセージリスナーの設定
+  useEffect(() => {
+    if (!currentRoleModelId) return;
+    
+    const handleAgentThought = (message: any) => {
+      console.log('エージェント思考メッセージを受信:', message);
+      
+      // メッセージからエージェント思考データを抽出
+      try {
+        // ペイロードを取得（直接メッセージがペイロードの場合もある）
+        const payload = message.payload || message;
+        const payloadAny = payload as any;
+        
+        // エージェント名を取得
+        const agentName = payloadAny.agentName || 
+                          payloadAny.agent || 
+                          message.agentName || 
+                          message.agent || 
+                          '未知のエージェント';
+        
+        // 思考内容を取得（複数の可能なフィールドから）
+        let thought = '';
+        if (typeof payloadAny.thought === 'string') {
+          thought = payloadAny.thought;
+        } else if (typeof payloadAny.thoughts === 'string') {
+          thought = payloadAny.thoughts;
+        } else if (typeof payloadAny.message === 'string') {
+          thought = payloadAny.message;
+        } else if (typeof payloadAny.content === 'string') {
+          thought = payloadAny.content;
+        } else if (typeof message.thought === 'string') {
+          thought = message.thought;
+        } else if (typeof message.message === 'string') {
+          thought = message.message;
+        } else {
+          thought = '思考内容が見つかりません';
+        }
+        
+        // 一意のIDを生成（存在すればそれを使用）
+        const id = payloadAny.id || message.id || crypto.randomUUID().toString();
+        
+        // エージェント思考オブジェクトを作成
+        const agentThought: AgentThought = {
+          id,
+          agentName,
+          thought,
+          message: thought,
+          timestamp: message.timestamp || new Date().toISOString(),
+          roleModelId: payloadAny.roleModelId || message.roleModelId || currentRoleModelId || '',
+          step: payloadAny.step || message.step || 'thinking',
+          type: payloadAny.type || message.type || 'generic',
+          agentType: payloadAny.agentType || message.agentType || 'generic'
+        };
+        
+        console.log('エージェント思考を追加:', agentThought);
+        setAgentThoughts(prev => [...prev, agentThought]);
+        
+        // 処理中状態を更新
+        setIsProcessing(true);
+      } catch (error) {
+        console.error('エージェント思考の処理エラー:', error);
+      }
+    };
+    
+    const handleProgress = (message: any) => {
+      console.log('進捗メッセージを受信:', message);
+      
+      // メッセージから進捗データを抽出
+      try {
+        // ペイロードを取得（直接メッセージがペイロードの場合もある）
+        const payload = message.payload || message;
+        const payloadAny = payload as any;
+        
+        // 進捗メッセージを取得
+        const progressMessage = payloadAny.message || 
+                              message.message || 
+                              payloadAny.stage ||
+                              message.stage ||
+                              '処理中...';
+        
+        // 進捗率を取得（複数の可能なフィールドから）
+        let percent = 0;
+        if (typeof payloadAny.percent === 'number') {
+          percent = payloadAny.percent;
+        } else if (typeof payloadAny.progress === 'number') {
+          percent = payloadAny.progress;
+        } else if (typeof message.percent === 'number') {
+          percent = message.percent;
+        } else if (typeof message.progress === 'number') {
+          percent = message.progress;
+        }
+        
+        // 進捗更新オブジェクトを作成
+        const progressUpdate: ProgressUpdate = {
+          message: progressMessage,
+          percent,
+          progress: percent,
+          progressPercent: percent,
+          timestamp: message.timestamp || new Date().toISOString(),
+          roleModelId: payloadAny.roleModelId || message.roleModelId || currentRoleModelId || '',
+          stage: payloadAny.stage || message.stage || 'processing',
+          details: payloadAny.details || message.details || null
+        };
+        
+        console.log('進捗更新を追加:', progressUpdate);
+        setProgressUpdates(prev => [...prev, progressUpdate]);
+        
+        // 完了状態を検出（100%の場合）
+        if (percent >= 100) {
+          // 処理が完全に完了した場合
+          setTimeout(() => {
+            setIsProcessing(false);
+          }, 1000); // 完了メッセージを表示するための短い遅延
+        } else {
+          // 処理中の場合
+          setIsProcessing(true);
+        }
+      } catch (error) {
+        console.error('進捗更新の処理エラー:', error);
+      }
+    };
+    
+    // リスナーを追加
+    wsManager.addMessageListener('agent_thought', handleAgentThought);
+    wsManager.addMessageListener('agent_thoughts', handleAgentThought);
+    wsManager.addMessageListener('thought', handleAgentThought);
+    wsManager.addMessageListener('progress', handleProgress);
+    wsManager.addMessageListener('progress_update', handleProgress);
+    
+    // クリーンアップ
+    return () => {
+      wsManager.removeMessageListener('agent_thought', handleAgentThought);
+      wsManager.removeMessageListener('agent_thoughts', handleAgentThought);
+      wsManager.removeMessageListener('thought', handleAgentThought);
+      wsManager.removeMessageListener('progress', handleProgress);
+      wsManager.removeMessageListener('progress_update', handleProgress);
+    };
+  }, [currentRoleModelId, wsManager]);
+  
+  // 初期接続と切断
+  useEffect(() => {
+    return () => {
+      // コンポーネントのアンマウント時に切断
+      disconnect();
+    };
+  }, [disconnect]);
+  
+  return {
+    isConnected,
+    connecting,
+    error,
+    connect,
+    disconnect,
+    sendMessage,
+    agentThoughts,
+    progressUpdates,
+    isProcessing,
+    clearMessages
+  };
+}
