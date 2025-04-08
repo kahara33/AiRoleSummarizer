@@ -41,6 +41,7 @@ interface AgentThought {
   roleModelId: string;
   step?: string;
   type?: string;
+  agentType?: string;
 }
 
 // 進捗更新の型定義

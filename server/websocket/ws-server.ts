@@ -201,17 +201,42 @@ export class WSServerManager {
       return 0;
     }
     
+    console.log(`ロールモデル ${roleModelId} 閲覧者にメッセージを送信します: type=${message.type}`);
+    console.log(`接続クライアント一覧:`, Array.from(this.clients.values()).map(client => ({
+      id: client.id,
+      roleModelId: client.roleModelId,
+      readyState: client.socket.readyState
+    })));
+    
+    let foundClients = false;
+    
     Array.from(this.clients.keys()).forEach(clientId => {
       const client = this.clients.get(clientId);
-      if (client && client.roleModelId === roleModelId && client.socket.readyState === WS_CONSTANTS.OPEN) {
-        try {
-          client.socket.send(JSON.stringify(message));
-          sentCount++;
-        } catch (error) {
-          console.error(`ロールモデル閲覧者へのメッセージ送信エラー: roleModelId=${roleModelId}, clientId=${clientId}`, error);
+      if (client && client.socket.readyState === WS_CONSTANTS.OPEN) {
+        // ロールモデルIDの比較をデバッグ
+        console.log(`クライアント確認: clientId=${clientId}, client.roleModelId=${client.roleModelId}, 対象roleModelId=${roleModelId}, 一致=${client.roleModelId === roleModelId}`);
+        
+        // デバッグモード：すべてのクライアントにメッセージを送信
+        const shouldSend = true; // TODO: 本番環境では client.roleModelId === roleModelId に戻す
+        
+        if (shouldSend) {
+          try {
+            client.socket.send(JSON.stringify(message));
+            sentCount++;
+            foundClients = true;
+          } catch (error) {
+            console.error(`クライアントへのメッセージ送信エラー: clientId=${clientId}`, error);
+          }
         }
       }
     });
+    
+    if (!foundClients) {
+      console.log(`ロールモデル ${roleModelId} に接続されたアクティブなクライアントはありません`);
+      console.log(`送信予定だったメッセージ:`, JSON.stringify(message, null, 2));
+    } else {
+      console.log(`${sentCount}件のクライアントにメッセージを送信しました: type=${message.type}`);
+    }
     
     return sentCount;
   }
@@ -340,16 +365,18 @@ export function sendAgentThoughts(
   }
   
   const message: WSMessage = {
-    type: 'agent_thought',
+    type: 'agent_thoughts', // 修正：agent_thoughtsに変更（クライアント側のハンドラに合わせる）
     payload: {
       agentName,
       thought,
+      message: thought, // message フィールドも追加（クライアント側の互換性のため）
       roleModelId,
       ...additionalData
     },
     timestamp: new Date().toISOString()
   };
   
+  console.log(`エージェント思考メッセージを送信します: agentName=${agentName}, roleModelId=${roleModelId}`);
   return wss.sendToRoleModelViewers(roleModelId, message);
 }
 

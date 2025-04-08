@@ -30,13 +30,13 @@ export interface ProgressUpdate {
 
 // Thoughts型定義
 export interface AgentThought {
-  id: string;
+  id?: string;
   agentName: string;
-  agentType: string;
+  agentType?: string;
   thought: string;
   message?: string;
   type?: string;
-  timestamp: Date;
+  timestamp: string | Date;
   roleModelId?: string;
   step?: string;
 }
@@ -64,14 +64,21 @@ export function AgentThoughtsPanel({ roleModelId, isVisible = true, onClose, tho
   // 外部から渡されたthoughtsを内部形式に変換
   useEffect(() => {
     if (externalThoughts && externalThoughts.length > 0) {
-      const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => ({
-        timestamp: thought.timestamp.getTime(),
-        agentName: thought.agentName,
-        message: thought.thought,
-        type: thought.agentType === 'thinking' ? 'thinking' : 
-              thought.agentType === 'error' ? 'error' :
-              thought.agentType === 'success' ? 'success' : 'info'
-      }));
+      const convertedThoughts: AgentMessage[] = externalThoughts.map(thought => {
+        // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
+        const timestamp = thought.timestamp instanceof Date 
+          ? thought.timestamp.getTime() 
+          : new Date(thought.timestamp).getTime();
+        
+        return {
+          timestamp,
+          agentName: thought.agentName,
+          message: thought.thought,
+          type: thought.agentType === 'thinking' ? 'thinking' : 
+                thought.agentType === 'error' ? 'error' :
+                thought.agentType === 'success' ? 'success' : 'info'
+        };
+      });
       
       setInternalThoughts(convertedThoughts);
     }

@@ -28,6 +28,39 @@ export function setupWebSocketIntegration(server: Server): void {
           console.log(`チャットメッセージを受信: ${message.payload.message}`);
           break;
           
+        case 'ping':
+          console.log('Ping received from client, sending debug agent thoughts');
+          
+          // デバッグ用: テストエージェント思考データを送信
+          setTimeout(() => {
+            sendAgentThoughts(
+              'デバッグエージェント',
+              'デバッグ用エージェント思考メッセージです。このメッセージが表示されていれば、WebSocket接続とエージェント思考表示機能は正常に動作しています。',
+              roleModelId,
+              { step: 'debug_test' }
+            );
+          }, 1000);
+          
+          setTimeout(() => {
+            sendAgentThoughts(
+              'ドメイン分析者',
+              'ドメイン分析を開始します。収集した情報を基に分析を進めています。',
+              roleModelId,
+              { step: 'domain_analysis' }
+            );
+          }, 2000);
+          
+          setTimeout(() => {
+            sendAgentThoughts(
+              'トレンド調査者',
+              '業界トレンドを調査しています。最新の動向を確認中です。',
+              roleModelId,
+              { step: 'trend_research' }
+            );
+          }, 3000);
+          
+          break;
+          
         default:
           console.log(`未処理のメッセージタイプ: ${message.type}`);
           break;
