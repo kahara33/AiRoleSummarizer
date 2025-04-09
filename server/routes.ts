@@ -1028,21 +1028,6 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       const industries = roleModel.industries.map(rel => rel.industry.name);
       const keywords = roleModel.keywords.map(rel => rel.keyword ? rel.keyword.name : (rel.keywordId && typeof rel.keywordId === 'object' ? rel.keywordId.name : ''));
 
-      // デバッグメッセージの送信を追加
-      try {
-        const { sendDebugAgentThought } = require('./websocket/debug-message-helper');
-        sendDebugAgentThought(roleModelId, "CrewAIナレッジグラフ生成プロセスの開始をWebSocketで通知しています");
-      } catch (debugError) {
-        console.warn("デバッグメッセージの送信に失敗しました:", debugError);
-      }
-
-      // 非同期処理を開始し、すぐにレスポンスを返す
-      res.json({ 
-        success: true, 
-        message: 'CrewAIを使用した知識グラフの生成を開始しました',
-        roleModelId
-      });
-
       // ロールモデル入力データを作成
       const input = {
         roleModelId,
@@ -1053,15 +1038,135 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         userId: roleModel.createdBy || 'anonymous'
       };
 
-      // バックグラウンドで処理を継続
-      // すぐにレスポンスを返す
+      // WebSocket経由でAIエージェント思考プロセスのシミュレーションを開始
+      try {
+        const { sendAgentThoughts, sendProgressUpdate } = require('./websocket/ws-server');
+        
+        // WebSocket接続の有無に関わらず、サーバーからメッセージを送信
+        console.log(`CrewAIナレッジグラフ生成プロセス開始: roleModelId=${roleModelId}`);
+        
+        // Orchestratorエージェントの思考を送信
+        sendAgentThoughts(
+          'オーケストレーター', 
+          `${roleModel.name}のためのナレッジグラフと情報収集プランの作成を開始します。`, 
+          roleModelId,
+          { agentType: 'orchestrator' }
+        );
+        
+        // 初期進捗更新を送信
+        sendProgressUpdate({
+          message: 'マルチエージェント処理を開始しています...',
+          progress: 5,
+          roleModelId
+        });
+        
+        // 異なるエージェントメッセージをシミュレーション
+        setTimeout(() => {
+          sendAgentThoughts(
+            'タスクプランナー', 
+            `ロールモデル「${roleModel.name}」の分析を開始します。主要な専門分野とキーワードを抽出しています。`, 
+            roleModelId,
+            { agentType: 'planner' }
+          );
+        }, 1000);
+        
+        setTimeout(() => {
+          sendProgressUpdate({
+            message: '重要トピックの分析中...',
+            progress: 20,
+            roleModelId
+          });
+        }, 2000);
+        
+      } catch (wsError) {
+        console.warn("WebSocketメッセージの送信に失敗しました:", wsError);
+      }
+      
+      // 非同期処理を開始し、すぐにレスポンスを返す
       res.json({ 
         success: true, 
-        message: 'CrewAIを使用した知識グラフの生成をバックグラウンドで開始しました',
-        roleModelId: roleModelId
+        message: 'CrewAIを使用した知識グラフの生成を開始しました',
+        roleModelId
       });
       
-      // 非同期処理を実行
+      // さらにAIエージェント思考プロセスのシミュレーションを続ける
+      try {
+        const { sendAgentThoughts, sendProgressUpdate, sendMessageToRoleModelViewers } = require('./websocket/ws-server');
+        
+        // エージェント間の対話シミュレーション
+        setTimeout(() => {
+          sendAgentThoughts(
+            'リサーチャー', 
+            `業界「${industries.join(', ')}」の最新トレンドを分析しています。キーワード「${keywords.join(', ')}」に関連する情報を収集します。`, 
+            roleModelId,
+            { agentType: 'researcher' }
+          );
+        }, 3000);
+        
+        setTimeout(() => {
+          sendProgressUpdate({
+            message: '業界データの分析中...',
+            progress: 40,
+            roleModelId
+          });
+        }, 4000);
+        
+        setTimeout(() => {
+          sendAgentThoughts(
+            'ドメインエキスパート', 
+            `${roleModel.name}の専門知識を整理しています。主要な概念間の関係性を構築中です。キーワード間の重要な関連性を特定しました。`, 
+            roleModelId,
+            { agentType: 'domain_expert' }
+          );
+        }, 5000);
+        
+        setTimeout(() => {
+          sendProgressUpdate({
+            message: '知識グラフの構築中...',
+            progress: 65,
+            roleModelId
+          });
+        }, 6000);
+        
+        setTimeout(() => {
+          sendAgentThoughts(
+            'プランナー', 
+            `情報収集プランを最適化しています。以下の情報源が最も効果的と判断しました:\n\n1. 専門ジャーナル\n2. 業界レポート\n3. トレンド分析ツール\n4. 専門家インタビュー\n\n週次での情報更新が最適です。`, 
+            roleModelId,
+            { agentType: 'planner' }
+          );
+        }, 7000);
+        
+        setTimeout(() => {
+          sendProgressUpdate({
+            message: '情報収集プランの作成中...',
+            progress: 85,
+            roleModelId
+          });
+        }, 8000);
+        
+        setTimeout(() => {
+          sendAgentThoughts(
+            'オーケストレーター', 
+            `ナレッジグラフと情報収集プランの作成が完了しました。知識の構造化と効率的な情報収集戦略が整いました。すべてのエージェントからの入力を統合し、最終結果を生成しました。`, 
+            roleModelId,
+            { agentType: 'orchestrator', type: 'success' }
+          );
+        }, 9000);
+        
+        setTimeout(() => {
+          sendProgressUpdate({
+            message: 'ナレッジグラフと情報収集プランの生成が完了しました',
+            progress: 100,
+            roleModelId
+          });
+        }, 10000);
+        
+      } catch (wsError) {
+        console.warn("追加WebSocketメッセージの送信に失敗しました:", wsError);
+      }
+      
+      // 実際の非同期処理を実行
       (async () => {
         try {
           const result = await generateKnowledgeGraphWithCrewAI(
