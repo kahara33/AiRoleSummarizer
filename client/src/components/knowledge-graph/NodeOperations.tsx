@@ -65,6 +65,7 @@ export const useNodeOperations = (
     try {
       const level = (parentNode.level || 0) + 1;
       
+      // ノード作成リクエスト
       const response = await fetch(`/api/knowledge-nodes`, {
         method: 'POST',
         headers: {
@@ -84,6 +85,27 @@ export const useNodeOperations = (
         throw new Error('子ノードの追加に失敗しました');
       }
       
+      // 作成されたノードを取得
+      const newNode = await response.json();
+      
+      // エッジを作成して親子関係を設定
+      const edgeResponse = await fetch(`/api/knowledge-edges`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceId: parentId,
+          targetId: newNode.id,
+          type: 'parent_child',
+          roleModelId,
+        }),
+      });
+      
+      if (!edgeResponse.ok) {
+        console.warn('親子関係のエッジ作成に失敗しました');
+      }
+      
       // Undo用に情報を保存
       undoStackSetter(prev => [...prev, {
         action: 'add-child',
@@ -94,19 +116,28 @@ export const useNodeOperations = (
             description: data.description,
             type: data.nodeType,
             level,
+            id: newNode.id,
           },
         },
         timestamp: Date.now(),
       }]);
       
-      // 成功したらデータを再読み込み
-      await fetchGraphData();
-      return true;
+      // シームレスなUIを実現するため、ローカルデータを更新して返す
+      return {
+        success: true,
+        node: newNode,
+        edge: {
+          id: `e${parentId}-${newNode.id}`,
+          sourceId: parentId,
+          targetId: newNode.id,
+          type: 'parent_child',
+        }
+      };
     } catch (error) {
       console.error('子ノード追加エラー:', error);
-      return false;
+      return { success: false };
     }
-  }, [roleModelId, fetchGraphData, undoStackSetter]);
+  }, [roleModelId, undoStackSetter]);
   
   // 兄弟ノード追加
   const addSiblingNode = useCallback(async (
@@ -118,6 +149,12 @@ export const useNodeOperations = (
       const level = siblingNode.level || 0;
       const parentId = siblingNode.parentId;
       
+      // parentIdがない場合は処理できない
+      if (!parentId) {
+        throw new Error('親ノードが見つかりません。兄弟ノードの追加には親ノードが必要です。');
+      }
+      
+      // ノード作成リクエスト
       const response = await fetch(`/api/knowledge-nodes`, {
         method: 'POST',
         headers: {
@@ -137,6 +174,27 @@ export const useNodeOperations = (
         throw new Error('兄弟ノードの追加に失敗しました');
       }
       
+      // 作成されたノードを取得
+      const newNode = await response.json();
+      
+      // エッジを作成して親子関係を設定
+      const edgeResponse = await fetch(`/api/knowledge-edges`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceId: parentId,
+          targetId: newNode.id,
+          type: 'parent_child',
+          roleModelId,
+        }),
+      });
+      
+      if (!edgeResponse.ok) {
+        console.warn('親子関係のエッジ作成に失敗しました');
+      }
+      
       // Undo用に情報を保存
       undoStackSetter(prev => [...prev, {
         action: 'add-sibling',
@@ -147,19 +205,28 @@ export const useNodeOperations = (
             description: data.description,
             type: data.nodeType,
             level,
+            id: newNode.id,
           },
         },
         timestamp: Date.now(),
       }]);
       
-      // 成功したらデータを再読み込み
-      await fetchGraphData();
-      return true;
+      // シームレスなUIを実現するため、ローカルデータを更新して返す
+      return {
+        success: true,
+        node: newNode,
+        edge: {
+          id: `e${parentId}-${newNode.id}`,
+          sourceId: parentId,
+          targetId: newNode.id,
+          type: 'parent_child',
+        }
+      };
     } catch (error) {
       console.error('兄弟ノード追加エラー:', error);
-      return false;
+      return { success: false };
     }
-  }, [roleModelId, fetchGraphData, undoStackSetter]);
+  }, [roleModelId, undoStackSetter]);
   
   // ノード削除
   const deleteNode = useCallback(async (

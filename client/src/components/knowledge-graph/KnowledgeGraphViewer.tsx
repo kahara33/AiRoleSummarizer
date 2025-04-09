@@ -459,22 +459,111 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             }, 
             nodeData
           );
+          // 編集の場合は再取得
+          await fetchGraphData();
           break;
           
         case 'add-child':
-          await nodeOperations.addChildNode(nodeId, data, nodeData);
+          const childResult = await nodeOperations.addChildNode(nodeId, data, nodeData);
+          
+          // シームレスに追加（サーバー取得なし）
+          if (childResult.success) {
+            // 新しいノードを作成
+            const newNode = {
+              id: childResult.node.id,
+              type: data.nodeType === 'concept' ? 'conceptNode' : 'agentNode',
+              position: {
+                x: nodeData.position?.x || 0,
+                y: (nodeData.position?.y || 0) + 150 // 親ノードより下に配置
+              },
+              data: {
+                ...childResult.node,
+                // ReactFlowのノードデータに必要な追加情報
+                position: {
+                  x: nodeData.position?.x || 0,
+                  y: (nodeData.position?.y || 0) + 150
+                },
+                color: getNodeColor(data.nodeType)
+              }
+            };
+            
+            // 新しいエッジを作成
+            const newEdge = {
+              id: childResult.edge.id,
+              source: childResult.edge.sourceId,
+              target: childResult.edge.targetId,
+              type: 'dataFlowEdge',
+              data: childResult.edge
+            };
+            
+            // ReactFlowノードとエッジを更新
+            setNodes(oldNodes => [...oldNodes, newNode]);
+            setEdges(oldEdges => [...oldEdges, newEdge]);
+          } else {
+            await fetchGraphData(); // 失敗時は全体を再取得
+          }
           break;
           
         case 'add-sibling':
-          await nodeOperations.addSiblingNode(nodeId, data, nodeData);
+          const siblingResult = await nodeOperations.addSiblingNode(nodeId, data, nodeData);
+          
+          // シームレスに追加（サーバー取得なし）
+          if (siblingResult.success) {
+            // 新しいノードを作成
+            const newNode = {
+              id: siblingResult.node.id,
+              type: data.nodeType === 'concept' ? 'conceptNode' : 'agentNode',
+              position: {
+                x: (nodeData.position?.x || 0) + 180, // 兄弟ノードの横に配置
+                y: nodeData.position?.y || 0
+              },
+              data: {
+                ...siblingResult.node,
+                // ReactFlowのノードデータに必要な追加情報
+                position: {
+                  x: (nodeData.position?.x || 0) + 180,
+                  y: nodeData.position?.y || 0
+                },
+                color: getNodeColor(data.nodeType)
+              }
+            };
+            
+            // 新しいエッジを作成
+            const newEdge = {
+              id: siblingResult.edge.id,
+              source: siblingResult.edge.sourceId,
+              target: siblingResult.edge.targetId,
+              type: 'dataFlowEdge',
+              data: siblingResult.edge
+            };
+            
+            // ReactFlowノードとエッジを更新
+            setNodes(oldNodes => [...oldNodes, newNode]);
+            setEdges(oldEdges => [...oldEdges, newEdge]);
+          } else {
+            await fetchGraphData(); // 失敗時は全体を再取得
+          }
           break;
       }
       
     } catch (error) {
       console.error('ノード操作エラー:', error);
       alert('操作中にエラーが発生しました');
+      await fetchGraphData(); // エラー時は全体を再取得
     }
-  }, [nodeDialog, nodes, nodeOperations]);
+  }, [nodeDialog, nodes, nodeOperations, fetchGraphData, setNodes, setEdges]);
+  
+  // ノードタイプに基づいて色を取得する関数
+  const getNodeColor = useCallback((nodeType: string) => {
+    switch (nodeType) {
+      case 'concept': return '#47c1ff';
+      case 'keyword': return '#77dd77';
+      case 'task': return '#ff6961';
+      case 'question': return '#fdfd96';
+      case 'info': return '#b19cd9';
+      default: return '#47c1ff';
+    }
+  }, []);
   
   // Undo（元に戻す）処理
   const handleUndo = useCallback(async () => {
