@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
@@ -20,7 +21,8 @@ import {
   BrainCircuit,
   Sparkles,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Send
 } from 'lucide-react';
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 
@@ -76,6 +78,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   
   // チャットメッセージ用の状態
   const [messages, setMessages] = useState<any[]>([]);
+  const [userInput, setUserInput] = useState<string>('');
   
   // デバッグ用のログ出力
   useEffect(() => {
@@ -733,7 +736,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </div>
           )}
           
-          {/* 右側パネル: マルチAIエージェント思考パネル */}
+          {/* 右側パネル: マルチAIエージェント会話パネル */}
           {showAgentPanel && (
             <>
               <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
@@ -748,13 +751,13 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     setShowAgentPanel(false);
                     toast({
                       title: "パネルを最小化",
-                      description: "AIエージェント思考パネルを最小化しました"
+                      description: "AIエージェント会話パネルを最小化しました"
                     });
                   }
                 }}
               >
-                <div className="h-full flex flex-col bg-gray-50">
-                  <div className="px-4 py-2 border-b bg-white flex justify-between items-center">
+                <div className="h-full flex flex-col">
+                  <div className="px-4 py-2 border-b flex justify-between items-center">
                     <h2 className="font-semibold text-sm">AIエージェントとの対話</h2>
                     <Button 
                       variant="ghost" 
@@ -764,7 +767,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         setShowAgentPanel(false);
                         toast({
                           title: "パネルを最小化",
-                          description: "AIエージェント思考パネルを最小化しました"
+                          description: "AIエージェント会話パネルを最小化しました"
                         });
                       }}
                       title="AIエージェントパネルを最小化"
@@ -773,12 +776,39 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto">
-                    <AgentConversation
-                      roleModelId={roleModelId}
-                      height="100%"
-                      onSendMessage={handleSendMessage}
-                    />
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex-1 flex items-center justify-center relative">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
+                        <div className="bg-blue-50 p-3 rounded-full mb-4">
+                          <BrainCircuit size={40} className="text-blue-500" />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2">AIエージェント会話</h3>
+                        <p className="text-gray-600">エージェントからのメッセージがここに表示されます</p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 border-t mt-auto">
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder="メッセージを入力..."
+                          className="min-h-[40px] resize-none text-sm flex-1"
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                        />
+                        <Button
+                          size="icon"
+                          onClick={() => {
+                            if (userInput.trim() && roleModelId) {
+                              handleSendMessage(userInput);
+                              setUserInput('');
+                            }
+                          }}
+                          disabled={!userInput.trim() || !roleModelId}
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Panel>
