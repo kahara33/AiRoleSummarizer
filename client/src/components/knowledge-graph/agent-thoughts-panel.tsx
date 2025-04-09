@@ -564,31 +564,6 @@ function AgentThoughtsPanel({
                   </div>
                 )}
               </ScrollArea>
-              
-              {/* チャット入力エリア - 下部固定 */}
-              <div className="p-4 border-t mt-auto">
-                <div className="flex gap-2">
-                  <Textarea
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    placeholder="メッセージを入力..."
-                    className="min-h-[40px] resize-none text-sm flex-1"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  />
-                  <Button
-                    size="icon"
-                    onClick={handleSendMessage}
-                    disabled={!userInput.trim()}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
             </TabsContent>
           </div>
         </Tabs>
