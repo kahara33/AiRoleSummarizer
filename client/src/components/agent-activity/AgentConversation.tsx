@@ -248,31 +248,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   };
   
   return (
-    <div className="border border-gray-200 rounded-md overflow-hidden bg-white flex flex-col" style={containerStyle}>
-      <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white">
-        <div className="flex items-center gap-2">
-          {isConnected ? (
-            <>
-              <WifiIcon size={14} className="text-green-600" />
-              <span className="text-sm font-medium text-green-600">接続済み</span>
-              <Badge variant="outline" className="ml-1 bg-green-50 text-green-700 text-xs border-green-200">
-                リアルタイム
-              </Badge>
-            </>
-          ) : (
-            <>
-              <WifiOffIcon size={14} className="text-gray-400" />
-              <span className="text-sm font-medium text-gray-500">未接続</span>
-            </>
-          )}
-        </div>
-        {roleModelId && (
-          <div className="text-xs text-gray-500">
-            ID: {roleModelId.substring(0, 8)}...
-          </div>
-        )}
-      </div>
-      
+    <div className="h-full flex flex-col" style={containerStyle}>      
       {/* メッセージ表示エリア */}
       <div className="flex-1 overflow-y-auto bg-white" ref={contentRef}>
         {renderError()}

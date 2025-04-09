@@ -755,7 +755,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
               >
                 <div className="h-full flex flex-col bg-gray-50">
                   <div className="px-4 py-2 border-b bg-white flex justify-between items-center">
-                    <h2 className="font-semibold text-sm">AIエージェント連携</h2>
+                    <h2 className="font-semibold text-sm">AIエージェントとの対話</h2>
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -773,16 +773,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
                   
-                  <div className="flex-1 overflow-hidden flex flex-col">
-                    {/* 統合されたエージェント対話パネル */}
-                    <div className="flex-1 overflow-hidden pb-1">
-                      {/* エージェントとユーザーの対話を一元管理するパネル */}
-                      <AgentConversation
-                        roleModelId={roleModelId}
-                        height="100%"
-                        onSendMessage={handleSendMessage}
-                      />
-                    </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <AgentConversation
+                      roleModelId={roleModelId}
+                      height="100%"
+                      onSendMessage={handleSendMessage}
+                    />
                   </div>
                 </div>
               </Panel>
