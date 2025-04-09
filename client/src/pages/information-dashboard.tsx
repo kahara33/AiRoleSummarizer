@@ -12,7 +12,7 @@ import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed'
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
-import { CreateCollectionPlanWithCrewAIButton } from '@/components/knowledge-graph/CreateCollectionPlanWithCrewAIButton';
+// UIコンポーネントではなく、直接ボタンを使用
 import { 
   Plus, 
   FileText, 
@@ -231,11 +231,32 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
   
   // メッセージ送信関数
   const handleSendMessage = (message: string) => {
+    if (!send || !roleModelId) return;
+    
     // チャットメッセージを送信
     send('chat_message', {
       roleModelId,
       message
     });
+    
+    // 送信したメッセージをエージェント思考リストに追加して表示
+    // ユーザーメッセージをUIに表示するために擬似的なエージェント思考メッセージを作成
+    const userMessageThought = {
+      id: `user-message-${Date.now()}`,
+      roleModelId: roleModelId,
+      agentName: "ユーザー", // ユーザーメッセージとして識別
+      agentType: "user",
+      thought: message,
+      message: message,
+      type: "user-message",
+      timestamp: new Date().toISOString()
+    };
+    
+    // エージェント思考リストに追加（このためには別途ステート更新関数が必要）
+    // agentThoughtsは読み取り専用なので、代わりにWebSocketコンテキストに対して送信
+    send('agent_thoughts', userMessageThought);
+    
+    console.log("ユーザーメッセージを送信:", message);
   };
   
   // CrewAIで知識グラフを生成する関数
@@ -614,29 +635,36 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           エクスポート
                         </Button>
                       )}
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-7 text-xs whitespace-nowrap"
-                        onClick={() => {
-                          // CrewAIによるグラフ生成を開始
-                          generateGraphMutation.mutate();
-                        }}
-                        disabled={generateGraphMutation.isPending || isProcessing}
-                      >
-                        <BrainCircuit className="h-3.5 w-3.5 mr-1" />
-                        CrewAIでナレッジグラフと情報収集プランを生成
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-7 text-xs whitespace-nowrap"
+                          onClick={() => {
+                            // CrewAIによるグラフ生成を開始
+                            generateGraphMutation.mutate();
+                          }}
+                          disabled={generateGraphMutation.isPending || isProcessing}
+                        >
+                          <BrainCircuit className="h-3.5 w-3.5 mr-1" />
+                          {generateGraphMutation.isPending || isProcessing ? '実行中...' : 'CrewAIでナレッジグラフと情報収集プランを生成'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs whitespace-nowrap"
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          CrewAIで情報収集プランを作成
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
                 <TabsContent value="knowledgeGraph" className="flex-1 overflow-hidden p-0">
                   <div className="h-full relative">
                     {/* 知識グラフビューワー */}
-                    <KnowledgeGraphViewer 
-                      roleModelId={roleModelId} 
-                      onHasData={handleKnowledgeGraphData}
-                    />
+                    <KnowledgeGraphViewer roleModelId={roleModelId} />
                   </div>
                 </TabsContent>
                 
