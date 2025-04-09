@@ -8,7 +8,6 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
-import AgentThoughtsPanel from '@/components/knowledge-graph/agent-thoughts-panel';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
@@ -755,7 +754,24 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 }}
               >
                 <div className="h-full flex flex-col bg-gray-50">
-                  {/* 右パネルのヘッダーは削除 - MultiAgentChatPanelのヘッダーだけを使用 */}
+                  <div className="px-4 py-2 border-b bg-white flex justify-between items-center">
+                    <h2 className="font-semibold text-sm">AIエージェント連携</h2>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-5 w-5 p-0" 
+                      onClick={() => {
+                        setShowAgentPanel(false);
+                        toast({
+                          title: "パネルを最小化",
+                          description: "AIエージェント思考パネルを最小化しました"
+                        });
+                      }}
+                      title="AIエージェントパネルを最小化"
+                    >
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                   
                   <div className="flex-1 overflow-hidden flex flex-col">
                     {/* 統合されたエージェント対話パネル */}
