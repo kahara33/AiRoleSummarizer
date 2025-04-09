@@ -537,59 +537,50 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     <div className="p-4 space-y-2">
                       <div>
                         <h3 className="text-sm font-medium">収集プラン</h3>
-                        <p className="text-sm">{mockPlanDetails.name}</p>
+                        <p className="text-xs text-gray-600">
+                          次回の収集予定: 2025年4月10日
+                        </p>
                       </div>
-                      
                       <div>
-                        <h3 className="text-sm font-medium">実行頻度</h3>
-                        <p className="text-sm">{mockPlanDetails.status}</p>
+                        <h3 className="text-sm font-medium">実行単位</h3>
+                        <p className="text-xs text-gray-600">
+                          週次（毎週月曜日）
+                        </p>
                       </div>
-                      
                       <div>
                         <h3 className="text-sm font-medium">通知先</h3>
-                        <p className="text-sm">{mockPlanDetails.completion}</p>
+                        <p className="text-xs text-gray-600">
+                          user@example.com
+                        </p>
                       </div>
-                      
                       <div>
-                        <h3 className="text-sm font-medium">利用するツール</h3>
-                        <div className="space-y-0.5 mt-1">
+                        <h3 className="text-sm font-medium flex justify-between items-center">
+                          <span>利用ツール</span>
+                        </h3>
+                        <ul className="text-xs text-gray-600 list-disc list-inside">
                           {mockPlanDetails.tools.map((tool, index) => (
-                            <div key={index} className="text-sm">{tool}</div>
+                            <li key={index}>{tool}</li>
                           ))}
-                        </div>
+                        </ul>
                       </div>
-                      
                       <div>
-                        <div className="flex items-center justify-between mt-2">
-                          <table className="w-full text-xs mt-1 border-collapse border">
-                            <thead>
-                              <tr className="bg-gray-100">
-                                <th className="text-left px-2 py-0.5 font-medium text-xs">ソース</th>
-                                <th className="text-left px-1 py-0.5 font-medium w-10 text-center text-xs">詳細</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {mockPlanDetails.sources.map((source) => (
-                                <tr key={source.id} className="border-t">
-                                  <td className="px-2 py-0.5 truncate text-xs" style={{ maxWidth: "120px" }}>
-                                    メディア https://
-                                  </td>
-                                  <td className="px-1 py-0.5 text-center">
-                                    <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
-                                      <ExternalLink className="h-3 w-3" />
-                                    </Button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="text-right mt-1">
-                          <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleAddSource}>
+                        <h3 className="text-sm font-medium flex justify-between items-center">
+                          <span>情報ソース</span>
+                          <Button variant="outline" size="sm" className="h-6 text-xs" onClick={handleAddSource}>
                             <Plus className="h-3 w-3 mr-1" />
                             追加
                           </Button>
-                        </div>
+                        </h3>
+                        <ul className="text-xs text-gray-600 list-disc list-inside">
+                          {mockPlanDetails.sources.map((source) => (
+                            <li key={source.id} className="flex items-start space-x-1 my-1">
+                              <span className="truncate flex-1">{source.media}</span>
+                              <a href={source.media} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                                <ExternalLink className="h-3 w-3 text-blue-500" />
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   </div>
@@ -599,143 +590,75 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </>
           )}
 
-          {/* メインコンテンツエリア */}
-          <Panel 
-            id="main-panel"
-            defaultSize={showAgentPanel ? 50 : 80}
-            className={`flex flex-col z-10 ${mainPanelMaximized ? 'flex-grow' : ''}`}
-          >
-            <Tabs defaultValue="knowledgeGraph" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="border-b bg-white flex justify-between items-center px-4 py-3">
-                <TabsList className="h-8 border-b-0 bg-transparent">
-                  <TabsTrigger value="knowledgeGraph" className="data-[state=active]:bg-white">
-                    ナレッジグラフ
-                  </TabsTrigger>
-                  {/* 「エージェントプロセス」タブを削除 */}
-                  <TabsTrigger value="summarizedResults" className="data-[state=active]:bg-white">
-                    要約結果
-                  </TabsTrigger>
-                  <TabsTrigger value="memo" className="data-[state=active]:bg-white">
-                    メモ
-                  </TabsTrigger>
-                </TabsList>
-                
-                <div className="flex items-center gap-2">
-                  {/* CrewAIボタンと情報収集プラン作成ボタン - 順序変更 */}
-                  {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
-                    <>
-                      {isProcessing ? (
-                        <Button
-                          onClick={() => {
-                            // 操作のキャンセル処理
-                            send('cancel', { roleModelId });
-                            toast({
-                              title: "処理をキャンセル",
-                              description: "AIエージェント処理をキャンセルしました"
-                            });
-                          }}
-                          variant="outline"
-                          className="text-sm"
-                          size="sm"
-                        >
-                          <RefreshCw className="h-4 w-4 mr-1 text-red-600 animate-spin" />
-                          処理中... キャンセル
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => generateGraphMutation.mutate()}
-                          disabled={generateGraphMutation.isPending || isProcessing}
-                          variant="outline"
-                          className="text-sm"
-                          size="sm"
-                        >
-                          <Sparkles className="h-4 w-4 mr-1 text-purple-600" />
-                          {generateGraphMutation.isPending ? "生成中..." : "CrewAIでナレッジグラフと情報収集プランを生成"}
+          {/* 中央パネル: グラフビューワー */}
+          <Panel id="main-panel" defaultSize={leftPanelCollapsed && !showAgentPanel ? 100 : 50}>
+            <div className="h-full flex flex-col">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+                <div className="bg-white px-4 border-b flex justify-between items-center">
+                  <TabsList>
+                    <TabsTrigger value="knowledgeGraph">ナレッジグラフ</TabsTrigger>
+                  </TabsList>
+                  
+                  {roleModelId !== 'default' && (
+                    <div className="flex gap-2">
+                      {hasKnowledgeGraph && (
+                        <Button variant="outline" size="sm" className="h-7 text-xs">
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          エクスポート
                         </Button>
                       )}
-                      
-                      {/* 情報収集プラン作成ボタン - 単独コンポーネント化してここに配置 */}
-                      {!isProcessing && (
-                        <CreateCollectionPlanWithCrewAIButton 
-                          size="sm"
-                          variant="outline"
-                          className="text-sm"
-                          onStart={showAgentPanelHandler}
-                          defaultKeywords={roleModel?.keywords || []}
-                          defaultIndustry={roleModel?.industry || ''}
-                          disabled={isProcessing || generateGraphMutation.isPending}
-                        />
-                      )}
-                    </>
+                      <CreateCollectionPlanWithCrewAIButton
+                        roleModelId={roleModelId}
+                        onGenerateStart={() => {
+                          // CrewAIによるグラフ生成を開始
+                          generateGraphMutation.mutate();
+                        }}
+                        isPending={generateGraphMutation.isPending || isProcessing}
+                      />
+                    </div>
                   )}
                 </div>
-              </div>
-              
-              {/* ナレッジグラフタブ */}
-              <TabsContent value="knowledgeGraph" className="flex-1 h-full overflow-hidden p-0 m-0">
-                <div className="p-2">
-                  <KnowledgeGraphViewer
-                    roleModelId={roleModelId}
-                    width="100%"
-                    height="calc(100vh - 130px)"
-                    onGraphDataChange={setHasKnowledgeGraph}
-                  />
-                </div>
-              </TabsContent>
-              
-              {/* エージェントプロセスタブは削除 - 右パネルに統合 */}
-              
-              {/* 要約結果タブ */}
-              <TabsContent value="summarizedResults" className="p-0 m-0">
-                <div className="p-6">
-                  <div className="h-[calc(100vh-160px)] overflow-auto">
-                    <div className="text-center text-gray-500 mt-20">
-                      <p>要約結果は現在開発中です</p>
-                      <p className="text-sm mt-2">情報収集プランを実行すると、ここに要約結果が表示されます</p>
-                    </div>
+                <TabsContent value="knowledgeGraph" className="flex-1 overflow-hidden p-0">
+                  <div className="h-full relative">
+                    {/* 知識グラフビューワー */}
+                    <KnowledgeGraphViewer 
+                      roleModelId={roleModelId} 
+                      onHasData={(hasData) => setHasKnowledgeGraph(hasData)}
+                    />
+                    
+                    {/* 生成中の表示 */}
+                    {isProcessing && (
+                      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-white border border-gray-300 rounded-lg shadow-lg px-4 py-2 flex items-center gap-2">
+                        <div className="animate-pulse flex gap-1">
+                          <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
+                          <div className="h-2 w-2 bg-blue-600 rounded-full animation-delay-200"></div>
+                          <div className="h-2 w-2 bg-blue-600 rounded-full animation-delay-400"></div>
+                        </div>
+                        <span className="text-sm font-medium">処理中... {progressUpdates[progressUpdates.length - 1]?.percent || 0}%</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-gray-500 hover:text-red-500"
+                          onClick={() => {
+                            // 処理のキャンセル
+                            toast({
+                              title: "処理をキャンセル",
+                              description: "処理がキャンセルされました",
+                              variant: "destructive"
+                            });
+                          }}
+                          title="処理をキャンセル"
+                        >
+                          <Minimize2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </TabsContent>
-              
-              {/* メモタブ */}
-              <TabsContent value="memo" className="p-0 m-0">
-                <div className="p-6">
-                  <div className="h-[calc(100vh-160px)] overflow-auto">
-                    <div className="text-center text-gray-500 mt-20">
-                      <p>メモ機能は現在開発中です</p>
-                      <p className="text-sm mt-2">ここに重要な情報をメモすることができるようになります</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </Panel>
-          
-          {/* 右側パネルが最小化されているときのアイコン */}
-          {!showAgentPanel && (
-            <div className="w-8 border-l bg-gray-50 flex flex-col items-center">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 w-8 p-0 mt-2" 
-                onClick={() => {
-                  setShowAgentPanel(true);
-                  // メインパネルが最大化されていたら元に戻す
-                  if (mainPanelMaximized) {
-                    setMainPanelMaximized(false);
-                  }
-                  toast({
-                    title: "パネルを展開",
-                    description: "AIエージェント思考パネルを展開しました"
-                  });
-                }}
-                title="AIエージェントパネルを表示"
-              >
-                <BrainCircuit className="h-4 w-4" />
-              </Button>
+                </TabsContent>
+              </Tabs>
             </div>
-          )}
-          
+          </Panel>
+
           {/* 右側パネル: マルチAIエージェント会話パネル */}
           {showAgentPanel && (
             <>
@@ -788,33 +711,87 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         </div>
                       ) : (
                         <div className="space-y-3 pb-4">
-                          {agentThoughts.map((thought, index) => (
-                            <div key={index} className="mb-4 animate-fadeIn">
-                              <div className={`flex gap-3 ${index > 0 && agentThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
-                                {(index === 0 || agentThoughts[index-1].agentName !== thought.agentName) && (
-                                  <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
-                                    ${thought.type === 'thinking' ? 'bg-blue-100' : thought.type === 'success' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                                    <BrainCircuit className={`h-4 w-4 
-                                      ${thought.type === 'thinking' ? 'text-blue-500' : thought.type === 'success' ? 'text-green-500' : 'text-gray-500'}`} />
-                                  </div>
-                                )}
-                                <div className="flex-1">
-                                  {(index === 0 || agentThoughts[index-1].agentName !== thought.agentName) && (
-                                    <div className="flex items-center mb-1">
-                                      <span className="font-medium text-sm">{thought.agentName || "AIエージェント"}</span>
-                                      <span className="text-xs text-gray-500 ml-2">
-                                        {new Date(thought.timestamp).toLocaleTimeString('ja-JP')}
-                                      </span>
+                          {agentThoughts.map((thought, index) => {
+                            // エージェント名を分かりやすく変更
+                            let displayName = thought.agentName || "AIエージェント";
+                            let agentIcon = BrainCircuit;
+                            let iconColorClass = "text-blue-500";
+                            let bgColorClass = "bg-blue-100";
+                            
+                            // エージェント名によってカスタマイズ
+                            if (displayName.includes("オーケストレーター") || displayName.includes("orchestrator")) {
+                              displayName = "調整役";
+                              iconColorClass = "text-purple-500";
+                              bgColorClass = "bg-purple-100";
+                            } else if (displayName.includes("ドメイン分析") || displayName.includes("domain_analyst")) {
+                              displayName = "専門分析";
+                              agentIcon = FileText;
+                              iconColorClass = "text-blue-500";
+                              bgColorClass = "bg-blue-100";
+                            } else if (displayName.includes("トレンド調査") || displayName.includes("trend_researcher")) {
+                              displayName = "トレンド調査";
+                              agentIcon = Sparkles;
+                              iconColorClass = "text-green-500";
+                              bgColorClass = "bg-green-100";
+                            } else if (displayName.includes("コンテキストマッパー") || displayName.includes("context_mapper")) {
+                              displayName = "情報構造化";
+                              agentIcon = RefreshCw;
+                              iconColorClass = "text-orange-500";
+                              bgColorClass = "bg-orange-100";
+                            } else if (displayName.includes("プランストラテジスト") || displayName.includes("plan_strategist")) {
+                              displayName = "計画立案";
+                              agentIcon = FileText;
+                              iconColorClass = "text-cyan-500";
+                              bgColorClass = "bg-cyan-100";
+                            } else if (displayName.includes("クリティカルシンカー") || displayName.includes("critical_thinker")) {
+                              displayName = "評価検証";
+                              agentIcon = RefreshCw;
+                              iconColorClass = "text-red-500";
+                              bgColorClass = "bg-red-100";
+                            } else if (displayName.includes("デバッグ") || displayName.includes("debug")) {
+                              displayName = "システム";
+                              agentIcon = RefreshCw;
+                              iconColorClass = "text-gray-500";
+                              bgColorClass = "bg-gray-100";
+                            }
+                            
+                            // メッセージの表示状態を決定（前のメッセージと同じエージェントからの場合はアイコンを省略）
+                            const showAgentHeader = index === 0 || agentThoughts[index-1].agentName !== thought.agentName;
+                            const messageType = thought.type || "thinking";
+                            const messageText = thought.message || thought.thought || "";
+                            
+                            // メッセージの背景色
+                            let messageBgClass = "bg-blue-50";
+                            if (messageType === "success") messageBgClass = "bg-green-50";
+                            else if (messageType === "error") messageBgClass = "bg-red-50";
+                            
+                            const IconComponent = agentIcon;
+                            
+                            return (
+                              <div key={index} className="mb-4 animate-fadeIn">
+                                <div className={`flex gap-3 ${showAgentHeader ? 'mt-4' : 'mt-2'}`}>
+                                  {showAgentHeader && (
+                                    <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${bgColorClass}`}>
+                                      <IconComponent className={`h-4 w-4 ${iconColorClass}`} />
                                     </div>
                                   )}
-                                  <div className={`p-3 rounded-lg text-sm
-                                    ${thought.type === 'thinking' ? 'bg-blue-50' : thought.type === 'success' ? 'bg-green-50' : 'bg-gray-50'}`}>
-                                    {thought.message || thought.thought}
+                                  <div className="flex-1">
+                                    {showAgentHeader && (
+                                      <div className="flex items-center mb-1">
+                                        <span className="font-medium text-sm">{displayName}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          {new Date(thought.timestamp).toLocaleTimeString('ja-JP')}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className={`p-3 rounded-lg text-sm ${messageBgClass}`}>
+                                      {messageText}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
