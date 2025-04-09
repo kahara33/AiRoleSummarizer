@@ -15,7 +15,8 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { KnowledgeNode } from '@shared/schema';
+import { KnowledgeNode as BaseKnowledgeNode } from '@shared/schema';
+import { ExtendedKnowledgeNode, ReactFlowKnowledgeEdge } from './types';
 import { getHierarchicalLayout } from '@/lib/graph-layout';
 import { getImprovedHierarchicalLayout, getImprovedLayoutedElements } from '@/lib/improved-graph-layout';
 import { initSocket, addSocketListener, removeSocketListener, sendSocketMessage } from '@/lib/socket';
@@ -30,6 +31,8 @@ import { NodeEditDialog } from './NodeEditDialog';
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNodeOperations } from './NodeOperations';
 
+
+type KnowledgeNode = ExtendedKnowledgeNode;
 
 interface KnowledgeGraphViewerProps {
   roleModelId: string;
@@ -467,33 +470,54 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           const childResult = await nodeOperations.addChildNode(nodeId, data, nodeData);
           
           // シームレスに追加（サーバー取得なし）
-          if (childResult.success) {
-            // 新しいノードを作成
+          if (childResult.success && childResult.node) {
+            // ノードの位置を設定
+            // nodeData.positionは存在しない可能性があるためデフォルト値を設定
+            const nodePosition = {x: 0, y: 0};
+            if (typeof nodeData.position === 'object' && nodeData.position !== null) {
+              nodePosition.x = nodeData.position.x || 0;
+              nodePosition.y = nodeData.position.y || 0;
+            }
+            
+            // 新しいノードを作成（完全なカスタムノードに）
+            const newPos = {
+              x: nodePosition.x,
+              y: nodePosition.y + 150 // 親ノードより下に配置
+            };
+            
             const newNode = {
               id: childResult.node.id,
               type: data.nodeType === 'concept' ? 'conceptNode' : 'agentNode',
-              position: {
-                x: nodeData.position?.x || 0,
-                y: (nodeData.position?.y || 0) + 150 // 親ノードより下に配置
-              },
+              position: newPos,
               data: {
                 ...childResult.node,
                 // ReactFlowのノードデータに必要な追加情報
-                position: {
-                  x: nodeData.position?.x || 0,
-                  y: (nodeData.position?.y || 0) + 150
-                },
-                color: getNodeColor(data.nodeType)
+                position: newPos,
+                color: getNodeColor(data.nodeType),
+                name: childResult.node.name,
+                description: childResult.node.description,
+                type: childResult.node.type,
+                onEditNode: handleEditNode,
+                onAddChildNode: handleAddChildNode,
+                onAddSiblingNode: handleAddSiblingNode,
+                onDeleteNode: handleDeleteNode,
+                onExpandNode: handleExpandNode,
+                level: childResult.node.level,
+                roleModelId: roleModelId
               }
             };
-            
-            // 新しいエッジを作成
+
+            // 新しいエッジを作成（edge が undefined の場合のフォールバック対応）
             const newEdge = {
-              id: childResult.edge.id,
-              source: childResult.edge.sourceId,
-              target: childResult.edge.targetId,
+              id: childResult.edge?.id || `e-${Math.random().toString(36).substring(2)}`,
+              source: childResult.edge?.sourceId || nodeId,
+              target: childResult.edge?.targetId || childResult.node.id,
               type: 'dataFlowEdge',
-              data: childResult.edge
+              data: childResult.edge || {
+                type: 'parent_child',
+                sourceId: nodeId,
+                targetId: childResult.node.id
+              }
             };
             
             // ReactFlowノードとエッジを更新
@@ -508,33 +532,54 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           const siblingResult = await nodeOperations.addSiblingNode(nodeId, data, nodeData);
           
           // シームレスに追加（サーバー取得なし）
-          if (siblingResult.success) {
-            // 新しいノードを作成
+          if (siblingResult.success && siblingResult.node) {
+            // ノードの位置を設定
+            // nodeData.positionは存在しない可能性があるためデフォルト値を設定
+            const nodePosition = {x: 0, y: 0};
+            if (typeof nodeData.position === 'object' && nodeData.position !== null) {
+              nodePosition.x = nodeData.position.x || 0;
+              nodePosition.y = nodeData.position.y || 0;
+            }
+            
+            // 新しいノードを作成（完全なカスタムノードに）
+            const newPos = {
+              x: nodePosition.x + 180, // 兄弟ノードの横に配置
+              y: nodePosition.y
+            };
+            
             const newNode = {
               id: siblingResult.node.id,
               type: data.nodeType === 'concept' ? 'conceptNode' : 'agentNode',
-              position: {
-                x: (nodeData.position?.x || 0) + 180, // 兄弟ノードの横に配置
-                y: nodeData.position?.y || 0
-              },
+              position: newPos,
               data: {
                 ...siblingResult.node,
                 // ReactFlowのノードデータに必要な追加情報
-                position: {
-                  x: (nodeData.position?.x || 0) + 180,
-                  y: nodeData.position?.y || 0
-                },
-                color: getNodeColor(data.nodeType)
+                position: newPos,
+                color: getNodeColor(data.nodeType),
+                name: siblingResult.node.name,
+                description: siblingResult.node.description,
+                type: siblingResult.node.type,
+                onEditNode: handleEditNode,
+                onAddChildNode: handleAddChildNode,
+                onAddSiblingNode: handleAddSiblingNode,
+                onDeleteNode: handleDeleteNode, 
+                onExpandNode: handleExpandNode,
+                level: siblingResult.node.level,
+                roleModelId: roleModelId
               }
             };
-            
-            // 新しいエッジを作成
+
+            // 新しいエッジを作成（edge が undefined の場合のフォールバック対応）
             const newEdge = {
-              id: siblingResult.edge.id,
-              source: siblingResult.edge.sourceId,
-              target: siblingResult.edge.targetId,
+              id: siblingResult.edge?.id || `e-${Math.random().toString(36).substring(2)}`,
+              source: siblingResult.edge?.sourceId || (nodeData.parentId || nodeId),
+              target: siblingResult.edge?.targetId || siblingResult.node.id,
               type: 'dataFlowEdge',
-              data: siblingResult.edge
+              data: siblingResult.edge || {
+                type: 'sibling',
+                sourceId: nodeData.parentId || nodeId,
+                targetId: siblingResult.node.id
+              }
             };
             
             // ReactFlowノードとエッジを更新

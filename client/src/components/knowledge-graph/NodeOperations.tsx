@@ -1,5 +1,8 @@
 import React, { useCallback } from 'react';
-import { KnowledgeNode } from '@shared/schema';
+import { KnowledgeNode as BaseKnowledgeNode } from '@shared/schema';
+import { ExtendedKnowledgeNode } from './types';
+
+type KnowledgeNode = ExtendedKnowledgeNode;
 
 // ノード操作のヘルパー関数を提供するカスタムフック
 export const useNodeOperations = (
