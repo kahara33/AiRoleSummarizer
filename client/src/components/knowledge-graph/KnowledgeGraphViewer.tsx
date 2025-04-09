@@ -487,7 +487,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             
             const newNode = {
               id: childResult.node.id,
-              type: data.nodeType === 'concept' ? 'conceptNode' : 'agentNode',
+              type: data.nodeType === 'concept' ? 'concept' : 'agent',
               position: newPos,
               data: {
                 ...childResult.node,
@@ -508,16 +508,17 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             };
 
             // 新しいエッジを作成（edge が undefined の場合のフォールバック対応）
+            const targetId = childResult.node?.id || '';
             const newEdge = {
               id: childResult.edge?.id || `e-${Math.random().toString(36).substring(2)}`,
               source: childResult.edge?.sourceId || nodeId,
-              target: childResult.edge?.targetId || childResult.node.id,
+              target: childResult.edge?.targetId || targetId,
               type: 'dataFlowEdge',
               data: childResult.edge || {
                 type: 'parent_child',
                 sourceId: nodeId,
-                targetId: childResult.node.id
-              }
+                targetId: targetId
+              } as any
             };
             
             // ReactFlowノードとエッジを更新
@@ -549,7 +550,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             
             const newNode = {
               id: siblingResult.node.id,
-              type: data.nodeType === 'concept' ? 'conceptNode' : 'agentNode',
+              type: data.nodeType === 'concept' ? 'concept' : 'agent',
               position: newPos,
               data: {
                 ...siblingResult.node,
@@ -570,16 +571,18 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             };
 
             // 新しいエッジを作成（edge が undefined の場合のフォールバック対応）
+            const targetId = siblingResult.node?.id || '';
+            const sourceId = nodeData.parentId || nodeId;
             const newEdge = {
               id: siblingResult.edge?.id || `e-${Math.random().toString(36).substring(2)}`,
-              source: siblingResult.edge?.sourceId || (nodeData.parentId || nodeId),
-              target: siblingResult.edge?.targetId || siblingResult.node.id,
+              source: siblingResult.edge?.sourceId || sourceId,
+              target: siblingResult.edge?.targetId || targetId,
               type: 'dataFlowEdge',
               data: siblingResult.edge || {
                 type: 'sibling',
-                sourceId: nodeData.parentId || nodeId,
-                targetId: siblingResult.node.id
-              }
+                sourceId: sourceId,
+                targetId: targetId
+              } as any
             };
             
             // ReactFlowノードとエッジを更新
