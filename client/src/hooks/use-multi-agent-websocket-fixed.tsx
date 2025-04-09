@@ -306,7 +306,7 @@ function useMultiAgentWebSocketManager() {
           // 処理が完全に完了した場合
           setTimeout(() => {
             setIsProcessing(false);
-          }, 1000); // 完了メッセージを表示するための短い遅延
+          }, 2000); // 完了メッセージを表示するための短い遅延（時間を増やして確実に変更されるように）
         } else {
           // 処理中の場合
           setIsProcessing(true);
