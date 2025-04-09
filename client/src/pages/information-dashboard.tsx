@@ -757,6 +757,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 }}
               >
                 <div className="h-full flex flex-col">
+                  {/* ヘッダー部分 */}
                   <div className="px-4 py-2 border-b flex justify-between items-center">
                     <h2 className="font-semibold text-sm">AIエージェントとの対話</h2>
                     <Button 
@@ -776,12 +777,46 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
                   
+                  {/* メッセージ表示エリア */}
                   <div className="flex-1 overflow-auto">
                     <AgentConversation
                       roleModelId={roleModelId}
-                      height="100%"
+                      height="calc(100% - 48px)" /* 入力エリアの高さを引いた分 */
                       onSendMessage={handleSendMessage}
                     />
+                  </div>
+                  
+                  {/* メッセージ入力エリア */}
+                  <div className="p-3 border-t mt-auto">
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="メッセージを入力..."
+                        className="min-h-[40px] resize-none text-sm flex-1"
+                        value={userInput}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserInput(e.target.value)}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (userInput.trim() && roleModelId) {
+                              handleSendMessage(userInput);
+                              setUserInput('');
+                            }
+                          }
+                        }}
+                      />
+                      <Button
+                        size="icon"
+                        onClick={() => {
+                          if (userInput.trim() && roleModelId) {
+                            handleSendMessage(userInput);
+                            setUserInput('');
+                          }
+                        }}
+                        disabled={!userInput.trim() || !roleModelId}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Panel>
