@@ -48,7 +48,7 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
 
   return (
     <div className="flex flex-col h-screen">
-      <div className="bg-white border-b px-4 py-2 flex justify-between items-center">
+      <div className="bg-white border-b px-4 py-2 flex justify-between items-center h-14">
         <h1 className="text-xl font-semibold">
           ナレッジグラフビューアー
           {selectedNode && (
@@ -95,9 +95,9 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-[calc(100vh-56px)]">
         <div
-          className={`flex-1 transition-all duration-300 ${
+          className={`flex-1 transition-all duration-300 h-full ${
             isPanelOpen ? 'w-2/3' : 'w-full'
           }`}
         >
@@ -105,7 +105,7 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
             roleModelId={roleModelId}
             onNodeSelect={handleNodeSelect}
             width="100%"
-            height="calc(100vh - 50px)"
+            height="100%"
             onGraphDataChange={setHasKnowledgeGraph}
           />
         </div>
