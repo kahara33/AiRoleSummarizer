@@ -736,7 +736,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </div>
           )}
           
-          {/* 右側パネル: AIエージェントとの対話 */}
+          {/* 右側パネル: マルチAIエージェント会話パネル */}
           {showAgentPanel && (
             <>
               <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
@@ -751,13 +751,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     setShowAgentPanel(false);
                     toast({
                       title: "パネルを最小化",
-                      description: "AIエージェント対話パネルを最小化しました"
+                      description: "AIエージェント会話パネルを最小化しました"
                     });
                   }
                 }}
               >
-                <div className="h-full flex flex-col bg-white">
-                  {/* ヘッダー部分 */}
+                <div className="h-full flex flex-col">
                   <div className="px-4 py-2 border-b flex justify-between items-center">
                     <h2 className="font-semibold text-sm">AIエージェントとの対話</h2>
                     <Button 
@@ -768,7 +767,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         setShowAgentPanel(false);
                         toast({
                           title: "パネルを最小化",
-                          description: "AIエージェント対話パネルを最小化しました"
+                          description: "AIエージェント会話パネルを最小化しました"
                         });
                       }}
                       title="AIエージェントパネルを最小化"
@@ -777,59 +776,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
                   
-                  {/* コンテンツ部分 */}
-                  <div className="flex-1 flex flex-col bg-gray-50 relative">
-                    <div className="flex-1 flex items-center justify-center text-center">
-                      <div className="absolute inset-0 overflow-auto">
-                        {/* メッセージ表示エリア - 実際のエージェント対話メッセージを表示 */}
-                        <div style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 10 }}>
-                          <AgentConversation
-                            roleModelId={roleModelId}
-                            height="calc(100% - 48px)"
-                            onSendMessage={handleSendMessage}
-                          />
-                        </div>
-                        
-                        {/* デザイン表示用の背景要素 - 元のスクリーンショットと同じデザイン */}
-                        <div className="p-8 flex flex-col items-center justify-center h-full">
-                          <p className="text-gray-500 text-sm mb-4">AIエージェントからの対話履歴がここに表示されます</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* メッセージ入力エリア */}
-                    <div className="p-2 border-t mt-auto">
-                      <div className="flex items-center gap-1">
-                        <Textarea
-                          placeholder="メッセージを入力..."
-                          className="min-h-[34px] resize-none text-sm flex-1 py-1 px-2"
-                          value={userInput}
-                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserInput(e.target.value)}
-                          onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              if (userInput.trim() && roleModelId) {
-                                handleSendMessage(userInput);
-                                setUserInput('');
-                              }
-                            }
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          className="bg-purple-600 hover:bg-purple-700 h-8 w-8 p-0 rounded-lg"
-                          onClick={() => {
-                            if (userInput.trim() && roleModelId) {
-                              handleSendMessage(userInput);
-                              setUserInput('');
-                            }
-                          }}
-                          disabled={!userInput.trim() || !roleModelId}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
+                  <div className="flex-1 overflow-auto">
+                    <AgentConversation
+                      roleModelId={roleModelId}
+                      height="100%"
+                      onSendMessage={handleSendMessage}
+                    />
                   </div>
                 </div>
               </Panel>

@@ -250,13 +250,13 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   return (
     <div className="h-full flex flex-col" style={containerStyle}>      
       {/* メッセージ表示エリア */}
-      <div className="flex-1 overflow-y-auto" ref={contentRef}>
+      <div className="flex-1 overflow-y-auto bg-white" ref={contentRef}>
         {renderError()}
         {renderMessages()}
       </div>
       
-      {/* ユーザー入力エリア - information-dashboard.tsxから分離したため非表示 */}
-      {/* <div className="p-3 border-t border-gray-200 mt-auto">
+      {/* ユーザー入力エリア */}
+      <div className="p-3 border-t border-gray-200 bg-white mt-auto">
         <div className="flex gap-2">
           <Textarea
             value={userInput}
@@ -273,7 +273,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
             <Send className="h-4 w-4" />
           </Button>
         </div>
-      </div> */}
+      </div>
     </div>
   );
 };
