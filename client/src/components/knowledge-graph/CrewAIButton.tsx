@@ -32,7 +32,7 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
       const snapshotName = `生成前のグラフ - ${new Date().toLocaleString('ja-JP')}`;
       const response = await apiRequest(
         'POST',
-        `/api/knowledge-graph/snapshots/${roleModelId}`,
+        `/api/knowledge-graph/${roleModelId}/snapshots`,
         {
           name: snapshotName,
           description: 'CrewAI生成前の自動保存されたグラフ'

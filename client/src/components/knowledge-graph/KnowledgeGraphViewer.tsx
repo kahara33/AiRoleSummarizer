@@ -103,13 +103,28 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       const response = await fetch(`/api/knowledge-graph/${roleModelId}`);
       
       if (!response.ok) {
+        if (response.status === 404) {
+          // データが存在しない場合は正常に処理
+          console.log('グラフデータはまだ存在しません');
+          setHasKnowledgeGraph(false);
+          if (onGraphDataChange) {
+            onGraphDataChange(false);
+          }
+          setLoading(false);
+          return;
+        }
         throw new Error(`グラフデータの取得に失敗しました: ${response.statusText}`);
       }
       
       const graphData = await response.json();
       
       if (!graphData || !graphData.nodes || !graphData.edges) {
-        throw new Error('無効なグラフデータ形式です');
+        setHasKnowledgeGraph(false);
+        if (onGraphDataChange) {
+          onGraphDataChange(false);
+        }
+        setLoading(false);
+        return;
       }
       
       console.log('Received graph data:', graphData);
@@ -308,6 +323,27 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setLoading(false);
     }
   }, [roleModelId]);
+
+  // 初期ナレッジグラフの存在確認
+  useEffect(() => {
+    // ナレッジグラフが存在するか確認
+    const checkKnowledgeGraphExists = async () => {
+      try {
+        const response = await fetch(`/api/knowledge-graph/${roleModelId}/exists`);
+        if (response.ok) {
+          const { exists } = await response.json();
+          setHasKnowledgeGraph(exists);
+          if (onGraphDataChange) {
+            onGraphDataChange(exists);
+          }
+        }
+      } catch (error) {
+        console.error('ナレッジグラフ確認エラー:', error);
+      }
+    };
+    
+    checkKnowledgeGraphExists();
+  }, [roleModelId, onGraphDataChange]);
 
   // ノード操作ユーティリティのセットアップ
   const nodeOperations = useNodeOperations(roleModelId, fetchGraphData, setUndoStack);

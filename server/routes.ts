@@ -11,7 +11,7 @@ import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
 import neo4j from 'neo4j-driver';
-import { eq, and, or, not, sql, inArray, desc } from 'drizzle-orm';
+import { eq, and, or, not, sql, inArray, desc, count } from 'drizzle-orm';
 import { 
   createInformationCollectionPlan,
   getInformationCollectionPlan
@@ -1553,6 +1553,47 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
     } catch (error) {
       console.error('知識グラフ取得エラー:', error);
       res.status(500).json({ error: '知識グラフの取得に失敗しました' });
+    }
+  });
+
+  // ナレッジグラフが存在するか確認
+  app.get('/api/knowledge-graph/:roleModelId/exists', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // アクセス権のチェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+
+      // Neo4jからグラフデータの存在を確認
+      try {
+        const graphData = await getKnowledgeGraph(roleModelId);
+        if (graphData.nodes.length > 0) {
+          return res.json({ exists: true });
+        }
+      } catch (neo4jError) {
+        console.error('Neo4jグラフ確認エラー:', neo4jError);
+      }
+      
+      // PostgreSQLからノードの存在を確認
+      const nodeCount = await db.select({ count: count() }).from(knowledgeNodes)
+        .where(eq(knowledgeNodes.roleModelId, roleModelId));
+      
+      const exists = nodeCount.length > 0 && nodeCount[0].count > 0;
+      return res.json({ exists });
+    } catch (error) {
+      console.error('知識グラフ確認エラー:', error);
+      res.status(500).json({ error: '知識グラフの確認に失敗しました' });
     }
   });
 
