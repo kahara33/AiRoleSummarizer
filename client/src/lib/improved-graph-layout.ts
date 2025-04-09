@@ -1,10 +1,10 @@
 import dagre from 'dagre';
 import { Edge, Node, Position } from 'reactflow';
 
-// ノードの大きさを定義（より大きめに設定）
-const nodeWidth = 250; // サイズを拡張して文字が収まるようにする
-const nodeHeight = 100; // サイズを拡張して文字が収まるようにする
-const DEFAULT_NODE_SPACING = 180; // ノード間の最小スペースを大幅に増加
+// ノードの大きさを定義（コンパクトに設定）
+const nodeWidth = 180; // よりコンパクトなサイズに
+const nodeHeight = 70; // よりコンパクトなサイズに
+const DEFAULT_NODE_SPACING = 100; // ノード間の間隔を縮小
 
 export interface LayoutOptions {
   direction?: 'TB' | 'LR' | 'RL' | 'BT';
@@ -482,10 +482,10 @@ export function getImprovedHierarchicalLayout(
   const graphAreaWidth = windowWidth - 150; // 余白を確保
   const graphAreaHeight = windowHeight - 250; // ヘッダーなどの領域を考慮
   
-  // レベル間の垂直間隔を計算（最大レベル数に基づく）
+  // レベル間の垂直間隔を計算（最大レベル数に基づく）- より小さな間隔に
   const verticalSpacing = Math.max(
-    180, // 最小間隔
-    Math.min(300, graphAreaHeight / (maxLevel + 1)) // 最大間隔を制限
+    120, // より小さな最小間隔
+    Math.min(200, graphAreaHeight / (maxLevel + 1)) // より小さな最大間隔
   );
   
   console.log(`Graph area: ${graphAreaWidth}x${graphAreaHeight}, vertical spacing: ${verticalSpacing}`);

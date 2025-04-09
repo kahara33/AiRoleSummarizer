@@ -1,29 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ReactFlow, {
-  Background,
-  Controls,
   MiniMap,
+  Controls,
+  Background,
   useNodesState,
   useEdgesState,
   Node,
   Edge,
-  NodeTypes,
-  EdgeTypes,
   NodeChange,
   EdgeChange,
   ConnectionLineType,
-  ReactFlowProvider,
   OnConnect,
+  ReactFlowProvider,
+  Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-
 import { KnowledgeNode } from '@shared/schema';
 import { getHierarchicalLayout } from '@/lib/graph-layout';
 import { getImprovedHierarchicalLayout, getImprovedLayoutedElements } from '@/lib/improved-graph-layout';
 import { initSocket, addSocketListener, removeSocketListener, sendSocketMessage } from '@/lib/socket';
-import ConceptNode from '@/components/nodes/ConceptNode';
-import AgentNode from '@/components/nodes/AgentNode';
-import DataFlowEdge from '@/components/edges/DataFlowEdge';
+import ConceptNode from './ConceptNode';
+import AgentNode from './AgentNode';
+import DataFlowEdge from './DataFlowEdge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Loader2, ZapIcon } from 'lucide-react';
@@ -39,13 +37,13 @@ interface KnowledgeGraphViewerProps {
 }
 
 // カスタムノードタイプの定義
-const nodeTypes: NodeTypes = {
+const nodeTypes = {
   concept: ConceptNode,
   agent: AgentNode,
 };
 
 // カスタムエッジタイプの定義
-const edgeTypes: EdgeTypes = {
+const edgeTypes = {
   dataFlow: DataFlowEdge,
 };
 
@@ -61,6 +59,19 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
+
+  // ノード操作関連の状態
+  const [nodeDialog, setNodeDialog] = useState<{
+    open: boolean;
+    type: 'edit' | 'add-child' | 'add-sibling';
+    nodeId: string | null;
+    node: KnowledgeNode | null;
+  }>({
+    open: false,
+    type: 'edit',
+    nodeId: null,
+    node: null
+  });
 
   // サーバーからグラフデータを取得
   const fetchGraphData = useCallback(async () => {
@@ -99,9 +110,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       const centerX = graphAreaWidth / 2;
       const centerY = 150; // 上から少し下にずらす
       
-      // 階層ごとの設定
-      const levelHeight = 250; // 階層間の垂直距離
-      const minHorizontalSpacing = 350; // ノード間の最小水平距離
+      // 階層ごとの設定（よりコンパクトなレイアウト）
+      const levelHeight = 180; // 階層間の垂直距離を縮小
+      const minHorizontalSpacing = 220; // ノード間の水平距離を縮小
       
       // カラーマップ（レベルごとに異なる色を割り当て）
       const colorMap = [
@@ -155,6 +166,12 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             ...node,
             label: node.name,
             color: node.color || color,
+            // ノード操作ハンドラを追加
+            onEdit: handleEditNode,
+            onDelete: handleDeleteNode,
+            onAddChild: handleAddChildNode,
+            onAddSibling: handleAddSiblingNode,
+            onExpand: handleExpandNode,
           },
           style: {
             background: node.color || color,
@@ -228,10 +245,10 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           flowEdges,
           { 
             direction: 'TB',
-            nodesep: 180, // より広いスペース
-            ranksep: 200, // より広いスペース
-            marginx: 50,
-            marginy: 80
+            nodesep: 120, // コンパクトなスペース
+            ranksep: 150, // コンパクトなスペース
+            marginx: 30,
+            marginy: 50
           }
         );
         setNodes(layoutedNodes);
@@ -269,7 +286,77 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
       setLoading(false);
     }
-  }, [roleModelId, setNodes, setEdges]);
+  }, [roleModelId]);
+
+  // ノード操作ダイアログを開く
+  const openNodeDialog = useCallback((type: 'edit' | 'add-child' | 'add-sibling', nodeId: string) => {
+    const node = nodes.find((n: Node) => n.id === nodeId)?.data as KnowledgeNode | undefined;
+    setNodeDialog({
+      open: true,
+      type,
+      nodeId,
+      node: node || null
+    });
+  }, [nodes]);
+  
+  // ノード編集
+  const handleEditNode = useCallback((nodeId: string) => {
+    openNodeDialog('edit', nodeId);
+  }, [openNodeDialog]);
+  
+  // 子ノード追加
+  const handleAddChildNode = useCallback((parentId: string) => {
+    openNodeDialog('add-child', parentId);
+  }, [openNodeDialog]);
+  
+  // 兄弟ノード追加
+  const handleAddSiblingNode = useCallback((siblingId: string) => {
+    openNodeDialog('add-sibling', siblingId);
+  }, [openNodeDialog]);
+  
+  // ノード削除
+  const handleDeleteNode = useCallback(async (nodeId: string) => {
+    if (!window.confirm('このノードを削除してもよろしいですか？子ノードもすべて削除されます。')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/knowledge-graph/nodes/${nodeId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('ノードの削除に失敗しました');
+      }
+      
+      // 成功したら再読み込み
+      fetchGraphData();
+    } catch (error) {
+      console.error('ノード削除エラー:', error);
+      alert('ノードの削除中にエラーが発生しました');
+    }
+  }, [fetchGraphData]);
+  
+  // ノード拡張（AI）
+  const handleExpandNode = useCallback(async (nodeId: string) => {
+    try {
+      const response = await fetch(`/api/knowledge-graph/nodes/${nodeId}/expand`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error('ノードの拡張に失敗しました');
+      }
+      
+      // 成功したら再読み込み
+      fetchGraphData();
+    } catch (error) {
+      console.error('ノード拡張エラー:', error);
+      alert('ノードの拡張中にエラーが発生しました');
+    }
+  }, [fetchGraphData]);
+  
+
 
   // グラフデータの初期ロード
   useEffect(() => {
@@ -552,6 +639,11 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               connectionLineType={ConnectionLineType.SmoothStep}
               fitView
               attributionPosition="bottom-right"
+              onNodeContextMenu={(e, node) => {
+                // コンテキストメニューは各ノードコンポーネント内で処理
+                e.preventDefault();
+              }}
+              defaultViewport={{ x: 0, y: 0, zoom: 1 }}
             >
               <Background color="#aaa" gap={16} />
               <Controls 
