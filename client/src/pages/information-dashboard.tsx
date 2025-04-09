@@ -777,14 +777,46 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   </div>
                   
                   <div className="flex-1 flex flex-col">
-                    <div className="flex-1 flex items-center justify-center relative">
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
-                        <div className="bg-blue-50 p-3 rounded-full mb-4">
-                          <BrainCircuit size={40} className="text-blue-500" />
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {agentThoughts.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="bg-blue-50 p-3 rounded-full mb-4">
+                            <BrainCircuit size={40} className="text-blue-500" />
+                          </div>
+                          <h3 className="text-xl font-semibold mb-2">AIエージェント会話</h3>
+                          <p className="text-gray-600">エージェントからのメッセージがここに表示されます</p>
                         </div>
-                        <h3 className="text-xl font-semibold mb-2">AIエージェント会話</h3>
-                        <p className="text-gray-600">エージェントからのメッセージがここに表示されます</p>
-                      </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {agentThoughts.map((thought, index) => (
+                            <div key={index} className="mb-4 animate-fadeIn">
+                              <div className={`flex gap-3 ${index > 0 && agentThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
+                                {(index === 0 || agentThoughts[index-1].agentName !== thought.agentName) && (
+                                  <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
+                                    ${thought.type === 'thinking' ? 'bg-blue-100' : thought.type === 'success' ? 'bg-green-100' : 'bg-gray-100'}`}>
+                                    <BrainCircuit className={`h-4 w-4 
+                                      ${thought.type === 'thinking' ? 'text-blue-500' : thought.type === 'success' ? 'text-green-500' : 'text-gray-500'}`} />
+                                  </div>
+                                )}
+                                <div className="flex-1">
+                                  {(index === 0 || agentThoughts[index-1].agentName !== thought.agentName) && (
+                                    <div className="flex items-center mb-1">
+                                      <span className="font-medium text-sm">{thought.agentName || "AIエージェント"}</span>
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        {new Date(thought.timestamp).toLocaleTimeString('ja-JP')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className={`p-3 rounded-lg text-sm
+                                    ${thought.type === 'thinking' ? 'bg-blue-50' : thought.type === 'success' ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                    {thought.message || thought.thought}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="p-3 border-t mt-auto">
