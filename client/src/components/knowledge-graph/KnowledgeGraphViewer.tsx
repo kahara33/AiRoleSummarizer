@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -24,8 +24,11 @@ import AgentNode from './AgentNode';
 import DataFlowEdge from './DataFlowEdge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, ZapIcon } from 'lucide-react';
+import { Loader2, ZapIcon, RotateCcw } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
+import { NodeEditDialog } from './NodeEditDialog';
+import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useNodeOperations } from './NodeOperations';
 
 
 interface KnowledgeGraphViewerProps {
@@ -71,6 +74,21 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     type: 'edit',
     nodeId: null,
     node: null
+  });
+  
+  // Undo操作のための履歴スタック
+  const [undoStack, setUndoStack] = useState<{
+    action: string;
+    data: any;
+    timestamp: number;
+  }[]>([]);
+  
+  // ダイアログ関連のステート
+  const [alertDialog, setAlertDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    confirmAction: () => {},
   });
 
   // サーバーからグラフデータを取得
@@ -288,6 +306,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     }
   }, [roleModelId]);
 
+  // ノード操作ユーティリティのセットアップ
+  const nodeOperations = useNodeOperations(roleModelId, fetchGraphData, setUndoStack);
+  
   // ノード操作ダイアログを開く
   const openNodeDialog = useCallback((type: 'edit' | 'add-child' | 'add-sibling', nodeId: string) => {
     const node = nodes.find((n: Node) => n.id === nodeId)?.data as KnowledgeNode | undefined;
@@ -316,30 +337,78 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   
   // ノード削除
   const handleDeleteNode = useCallback(async (nodeId: string) => {
-    if (!window.confirm('このノードを削除してもよろしいですか？子ノードもすべて削除されます。')) {
-      return;
-    }
-    
-    try {
-      const response = await fetch(`/api/knowledge-graph/nodes/${nodeId}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('ノードの削除に失敗しました');
-      }
-      
-      // 成功したら再読み込み
-      fetchGraphData();
-    } catch (error) {
-      console.error('ノード削除エラー:', error);
-      alert('ノードの削除中にエラーが発生しました');
-    }
-  }, [fetchGraphData]);
+    // 確認ダイアログ表示
+    setAlertDialog({
+      open: true,
+      title: 'ノードの削除確認',
+      message: 'このノードを削除してもよろしいですか？子ノードもすべて削除されます。',
+      confirmAction: async () => {
+        try {
+          // GraphQLから全データ取得（Undo用に保存するため）
+          const graphData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
+          
+          // 削除対象のノードとその子孫を特定
+          const nodeToDelete = graphData.nodes.find((n: any) => n.id === nodeId);
+          if (!nodeToDelete) {
+            throw new Error('削除対象のノードが見つかりません');
+          }
+          
+          // 削除リクエスト
+          const response = await fetch(`/api/knowledge-nodes/${nodeId}`, {
+            method: 'DELETE',
+          });
+          
+          if (!response.ok) {
+            throw new Error('ノードの削除に失敗しました');
+          }
+          
+          // 削除情報をUndoスタックに追加
+          const nodesToDelete = [nodeToDelete];
+          const relatedEdges = graphData.edges.filter(
+            (e: any) => e.sourceId === nodeId || e.targetId === nodeId
+          );
+          
+          // 再帰的に子ノードを検索
+          const findChildNodes = (parentId: string, allNodes: any[]) => {
+            const children = allNodes.filter(n => n.parentId === parentId);
+            let result = [...children];
+            
+            for (const child of children) {
+              result = [...result, ...findChildNodes(child.id, allNodes)];
+            }
+            
+            return result;
+          };
+          
+          const childNodes = findChildNodes(nodeId, graphData.nodes);
+          
+          // UndoスタックにPush
+          setUndoStack(prev => [...prev, {
+            action: 'delete',
+            data: {
+              nodes: [nodeToDelete, ...childNodes],
+              edges: relatedEdges,
+            },
+            timestamp: Date.now(),
+          }]);
+          
+          // 成功したら再読み込み
+          fetchGraphData();
+        } catch (error) {
+          console.error('ノード削除エラー:', error);
+          alert('ノードの削除中にエラーが発生しました');
+        }
+      },
+    });
+  }, [roleModelId, fetchGraphData]);
   
   // ノード拡張（AI）
   const handleExpandNode = useCallback(async (nodeId: string) => {
     try {
+      // 既存のノードデータを保存
+      const existingData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
+      
+      // 拡張リクエスト
       const response = await fetch(`/api/knowledge-graph/nodes/${nodeId}/expand`, {
         method: 'POST',
       });
@@ -348,13 +417,156 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         throw new Error('ノードの拡張に失敗しました');
       }
       
+      // Undo用に保存（拡張前の状態を記録）
+      setUndoStack(prev => [...prev, {
+        action: 'expand',
+        data: {
+          nodeId,
+          prevState: existingData,
+        },
+        timestamp: Date.now(),
+      }]);
+      
       // 成功したら再読み込み
       fetchGraphData();
     } catch (error) {
       console.error('ノード拡張エラー:', error);
       alert('ノードの拡張中にエラーが発生しました');
     }
-  }, [fetchGraphData]);
+  }, [roleModelId, fetchGraphData]);
+  
+  // ノードダイアログで保存ボタンが押されたときの処理
+  const handleNodeSave = useCallback(async (data: { name: string; description: string; color?: string }) => {
+    const { type, nodeId } = nodeDialog;
+    
+    if (!nodeId) return;
+    
+    try {
+      const nodeData = nodes.find(n => n.id === nodeId)?.data as KnowledgeNode;
+      
+      if (!nodeData) {
+        throw new Error('対象ノードが見つかりません');
+      }
+      
+      switch (type) {
+        case 'edit':
+          await nodeOperations.updateNode(nodeId, data, nodeData);
+          break;
+          
+        case 'add-child':
+          await nodeOperations.addChildNode(nodeId, data, nodeData);
+          break;
+          
+        case 'add-sibling':
+          await nodeOperations.addSiblingNode(nodeId, data, nodeData);
+          break;
+      }
+      
+    } catch (error) {
+      console.error('ノード操作エラー:', error);
+      alert('操作中にエラーが発生しました');
+    }
+  }, [nodeDialog, nodes, nodeOperations]);
+  
+  // Undo（元に戻す）処理
+  const handleUndo = useCallback(async () => {
+    if (undoStack.length === 0) return;
+    
+    try {
+      // スタックから最新の操作を取得
+      const lastAction = undoStack[undoStack.length - 1];
+      console.log('元に戻す操作:', lastAction);
+      
+      // 操作に応じた処理
+      switch (lastAction.action) {
+        case 'edit':
+          // 編集を元に戻す
+          await fetch(`/api/knowledge-nodes/${lastAction.data.nodeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(lastAction.data.prevData),
+          });
+          break;
+          
+        case 'add-child':
+        case 'add-sibling':
+          // 新規追加を元に戻す（最後に追加されたノードを削除）
+          const graphData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
+          
+          // 親IDと名前から新しく追加されたノードを特定
+          const addedNode = graphData.nodes.find((n: any) => 
+            n.name === lastAction.data.nodeData.name && 
+            n.parentId === lastAction.data.parentId
+          );
+          
+          if (addedNode) {
+            await fetch(`/api/knowledge-nodes/${addedNode.id}`, {
+              method: 'DELETE',
+            });
+          }
+          break;
+          
+        case 'delete':
+          // 削除を元に戻す（ノードを復元）
+          for (const node of lastAction.data.nodes) {
+            await fetch(`/api/knowledge-nodes`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...node,
+                id: undefined, // 新しいIDを自動生成
+              }),
+            });
+          }
+          break;
+          
+        case 'expand':
+          // 拡張を元に戻す（追加されたノードを削除）
+          // 拡張前と後の差分を特定
+          const currentData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
+          const prevNodes = lastAction.data.prevState.nodes.map((n: any) => n.id);
+          
+          // 拡張後に追加されたノードを特定
+          const newNodes = currentData.nodes.filter((n: any) => !prevNodes.includes(n.id));
+          
+          // 拡張で追加されたノードを削除
+          for (const node of newNodes) {
+            await fetch(`/api/knowledge-nodes/${node.id}`, {
+              method: 'DELETE',
+            });
+          }
+          break;
+      }
+      
+      // 操作履歴からポップ
+      setUndoStack(prev => prev.slice(0, -1));
+      
+      // グラフデータを再取得
+      await fetchGraphData();
+      
+    } catch (error) {
+      console.error('Undo処理エラー:', error);
+      alert('操作を元に戻す際にエラーが発生しました');
+    }
+  }, [undoStack, roleModelId, fetchGraphData]);
+  
+  // キーボードショートカット処理（Ctrl+Z）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z で元に戻す
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        console.log('Ctrl+Z キーが押されました');
+        handleUndo();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleUndo]);
   
 
 
@@ -658,8 +870,69 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                   return node.data?.color || '#1a192b';
                 }}
               />
+              
+              {/* 元に戻すボタン - Undoスタックに操作がある場合のみ表示 */}
+              {undoStack.length > 0 && (
+                <div 
+                  style={{ 
+                    position: 'absolute', 
+                    top: 10, 
+                    right: 10, 
+                    zIndex: 10 
+                  }}
+                  className="bg-white dark:bg-gray-800 shadow-md rounded-md p-1"
+                >
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={handleUndo}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">
+                        <p>元に戻す (Ctrl+Z)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              )}
             </ReactFlow>
           </ReactFlowProvider>
+          
+          {/* ノード編集ダイアログ */}
+          <NodeEditDialog
+            open={nodeDialog.open}
+            onOpenChange={(open) => setNodeDialog(prev => ({ ...prev, open }))}
+            type={nodeDialog.type}
+            node={nodeDialog.node}
+            onSave={handleNodeSave}
+          />
+          
+          {/* アラートダイアログ */}
+          <AlertDialog 
+            open={alertDialog.open} 
+            onOpenChange={(open) => setAlertDialog(prev => ({ ...prev, open }))}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{alertDialog.title}</AlertDialogTitle>
+              </AlertDialogHeader>
+              <AlertDialogDescription>
+                {alertDialog.message}
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                <AlertDialogAction onClick={alertDialog.confirmAction}>
+                  確認
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </div>
