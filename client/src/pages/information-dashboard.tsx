@@ -239,23 +239,6 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
       message
     });
     
-    // 送信したメッセージをエージェント思考リストに追加して表示
-    // ユーザーメッセージをUIに表示するために擬似的なエージェント思考メッセージを作成
-    const userMessageThought = {
-      id: `user-message-${Date.now()}`,
-      roleModelId: roleModelId,
-      agentName: "ユーザー", // ユーザーメッセージとして識別
-      agentType: "user",
-      thought: message,
-      message: message,
-      type: "user-message",
-      timestamp: new Date().toISOString()
-    };
-    
-    // エージェント思考リストに追加（このためには別途ステート更新関数が必要）
-    // agentThoughtsは読み取り専用なので、代わりにWebSocketコンテキストに対して送信
-    send('agent_thoughts', userMessageThought);
-    
     console.log("ユーザーメッセージを送信:", message);
   };
   

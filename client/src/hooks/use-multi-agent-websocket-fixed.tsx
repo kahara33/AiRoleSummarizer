@@ -165,8 +165,28 @@ function useMultiAgentWebSocketManager() {
       return false;
     }
     
+    // ユーザーメッセージの場合、ローカルの状態にも追加する
+    if (type === 'chat_message' || type === 'user_message') {
+      console.log('ユーザーメッセージを送信します:', payload);
+      
+      // ユーザーメッセージをエージェント思考形式に変換して追加
+      const userMessageThought: AgentThought = {
+        id: `user-message-${Date.now()}`,
+        agentName: 'ユーザー',
+        thought: typeof payload === 'string' ? payload : payload.message || '',
+        message: typeof payload === 'string' ? payload : payload.message || '',
+        timestamp: new Date().toISOString(),
+        roleModelId: payload.roleModelId || currentRoleModelId || '',
+        type: 'user-message',
+        agentType: 'user'
+      };
+      
+      // エージェント思考リストに追加
+      setAgentThoughts(prevThoughts => [...prevThoughts, userMessageThought]);
+    }
+    
     return wsManager.sendMessage(type, payload);
-  }, [isConnected, wsManager]);
+  }, [isConnected, wsManager, currentRoleModelId]);
   
   // メッセージの消去
   const clearMessages = useCallback(() => {
