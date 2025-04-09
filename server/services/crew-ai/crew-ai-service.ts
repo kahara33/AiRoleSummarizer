@@ -257,61 +257,95 @@ export class CrewAIService {
         }
       );
       
-      const result = await crewManager.generateKnowledgeGraph(skipGraphUpdate);
-      console.log(`CrewAI ${processType}プロセスが完了しました`);
-      
-      sendAgentThoughts(
-        'オーケストレーター',
-        `CrewAI ${processType}プロセスが完了しました。全エージェントのタスクが正常に終了しました。`,
-        roleModelId,
-        {
-          timestamp: new Date().toISOString(),
-          type: 'success'
+      // 非同期でCrewAIプロセスを実行し、エラーハンドリングを強化
+      try {
+        // CrewAIのナレッジグラフ生成を実行
+        const result = await crewManager.generateKnowledgeGraph(skipGraphUpdate);
+        console.log(`CrewAI ${processType}プロセスが完了しました`);
+        
+        // 正常終了時のメッセージを送信
+        sendAgentThoughts(
+          'オーケストレーター',
+          `CrewAI ${processType}プロセスが完了しました。全エージェントのタスクが正常に終了しました。`,
+          roleModelId,
+          {
+            timestamp: new Date().toISOString(),
+            type: 'success'
+          }
+        );
+        
+        // 結果のメッセージを送信
+        if (result) {
+          if (skipGraphUpdate) {
+            // 情報収集プランの結果を送信
+            sendAgentThoughts(
+              'クリティカルシンカー',
+              '情報収集プランが完成しました。このプランには、情報収集の優先順位、リソース配分、スケジュール、成功指標が含まれています。',
+              roleModelId,
+              {
+                result: result.collectionPlan,
+                isCollectionPlan: true,
+                timestamp: new Date().toISOString()
+              }
+            );
+          } else {
+            // ナレッジグラフと情報収集プランの両方の結果を送信
+            sendAgentThoughts(
+              'クリティカルシンカー',
+              '最終的なナレッジグラフと情報収集プランが完成しました。改善サイクルによって品質が向上しています。',
+              roleModelId,
+              {
+                result: result,
+                isComplete: true,
+                hasImprovements: !!result.improvementNotes,
+                timestamp: new Date().toISOString()
+              }
+            );
+          }
         }
-      );
-      
-      // 完了メッセージを送信
-      const completionMessage = skipGraphUpdate
-        ? '情報収集プランの作成が完了しました'
-        : 'ナレッジグラフ生成と情報収集プラン作成が完了しました';
-      
-      sendProgressUpdate({
-        message: completionMessage,
-        percent: 100,
-        roleModelId
-      });
-      
-      // 最終結果をエージェント思考として送信（より詳細に）
-      if (result) {
-        if (skipGraphUpdate) {
-          // 情報収集プランの結果を送信
-          sendAgentThoughts(
-            'クリティカルシンカー',
-            '情報収集プランが完成しました。このプランには、情報収集の優先順位、リソース配分、スケジュール、成功指標が含まれています。',
-            roleModelId,
-            {
-              result: result.collectionPlan,
-              isCollectionPlan: true,
-              timestamp: new Date().toISOString()
-            }
-          );
-        } else {
-          // ナレッジグラフと情報収集プランの両方の結果を送信
-          sendAgentThoughts(
-            'クリティカルシンカー',
-            '最終的なナレッジグラフと情報収集プランが完成しました。改善サイクルによって品質が向上しています。',
-            roleModelId,
-            {
-              result: result,
-              isComplete: true,
-              hasImprovements: !!result.improvementNotes,
-              timestamp: new Date().toISOString()
-            }
-          );
-        }
+        
+        // 完了を示す進捗更新を送信（クライアントでボタン状態をリセットするため）
+        sendProgressUpdate({
+          message: `${processType}が正常に完了しました`,
+          percent: 100,
+          roleModelId,
+          status: 'completed' // 状態フラグを追加
+        });
+        
+        return result;
+      } catch (error) {
+        // エラー発生時のログとメッセージ処理
+        console.error(`CrewAI ${processType}プロセスでエラーが発生しました:`, error);
+        
+        // エラーメッセージをより詳細に設定
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : (typeof error === 'object' && error !== null)
+            ? JSON.stringify(error)
+            : '不明なエラーが発生しました';
+        
+        // エラーメッセージをエージェント思考として送信
+        sendAgentThoughts(
+          'オーケストレーター',
+          `処理中にエラーが発生しました: ${errorMessage}`,
+          roleModelId,
+          {
+            timestamp: new Date().toISOString(),
+            type: 'error',
+            error: errorMessage
+          }
+        );
+        
+        // エラー進捗を送信（クライアントでボタン状態をリセットするため）
+        sendProgressUpdate({
+          message: `エラーが発生しました: ${errorMessage}`,
+          percent: 0,
+          roleModelId,
+          status: 'error' // 状態フラグを追加
+        });
+        
+        throw error;
       }
-      
-      return result;
     } catch (error) {
       console.error('CrewAI処理エラー:', error);
       
@@ -320,7 +354,8 @@ export class CrewAIService {
       sendProgressUpdate({
         message: `処理中にエラーが発生しました: ${errorMessage}`,
         percent: 0,
-        roleModelId
+        roleModelId,
+        status: 'error'
       });
       
       throw error;

@@ -23,6 +23,7 @@ export interface ProgressUpdateData {
   message: string;
   percent: number;
   roleModelId?: string;
+  status?: string; // 'completed', 'error'などの状態を示す
 }
 
 // WebSocketメッセージの型定義
@@ -387,7 +388,8 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
     payload: {
       message: data.message,
       percent: data.percent,
-      roleModelId: data.roleModelId
+      roleModelId: data.roleModelId,
+      status: data.status // statusフィールドが存在する場合のみ追加される
     },
     timestamp: new Date().toISOString()
   };

@@ -36,6 +36,10 @@ export function CrewAIButton({ roleModelId, onStart, onComplete }: CrewAIButtonP
         title: 'マルチエージェント処理開始',
         description: 'CrewAIを使用した知識グラフの生成を開始しました。生成が完了するまでお待ちください。',
       });
+      
+      // APIリクエスト自体は成功しているが、処理はWebSocketで非同期に続くため
+      // ボタンの状態はAPI呼び出し完了時点ではリセットしない
+      // WebSocket側のイベントハンドラで完了またはエラー発生時にリセットされる
     } catch (error) {
       console.error('CrewAIによる知識グラフ生成エラー:', error);
       toast({
@@ -43,7 +47,8 @@ export function CrewAIButton({ roleModelId, onStart, onComplete }: CrewAIButtonP
         description: error instanceof Error ? error.message : '知識グラフの生成に失敗しました',
         variant: 'destructive',
       });
-    } finally {
+      
+      // APIリクエスト自体が失敗した場合は即座にローディング状態をリセット
       setLoading(false);
       if (onComplete) onComplete();
     }

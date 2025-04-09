@@ -287,6 +287,9 @@ function useMultiAgentWebSocketManager() {
           percent = message.progress;
         }
         
+        // ステータスの検出（エラーまたは完了）
+        const status = payloadAny.status || message.status || null;
+        
         // 進捗更新オブジェクトを作成
         const progressUpdate: ProgressUpdate = {
           message: progressMessage,
@@ -296,20 +299,26 @@ function useMultiAgentWebSocketManager() {
           timestamp: message.timestamp || new Date().toISOString(),
           roleModelId: payloadAny.roleModelId || message.roleModelId || currentRoleModelId || '',
           stage: payloadAny.stage || message.stage || 'processing',
-          details: payloadAny.details || message.details || null
+          details: payloadAny.details || message.details || null,
+          status
         };
         
         console.log('進捗更新を追加:', progressUpdate);
         setProgressUpdates(prev => [...prev, progressUpdate]);
         
-        // 完了状態を検出（100%の場合）
-        if (percent >= 100) {
-          // 処理が完全に完了した場合
+        // 処理状態の更新
+        if (status === 'error' || percent === 0) {
+          // エラー時には即座に処理状態をリセット
+          console.log('エラーが発生したため処理状態をリセットします');
+          setIsProcessing(false);
+        } else if (status === 'completed' || percent >= 100) {
+          // 完了時には少し遅延してから処理状態をリセット
+          console.log('処理が完了しました、状態をリセットします');
           setTimeout(() => {
             setIsProcessing(false);
-          }, 2000); // 完了メッセージを表示するための短い遅延（時間を増やして確実に変更されるように）
+          }, 2000); // 完了メッセージを表示するための短い遅延
         } else {
-          // 処理中の場合
+          // それ以外は処理中と判断
           setIsProcessing(true);
         }
       } catch (error) {
