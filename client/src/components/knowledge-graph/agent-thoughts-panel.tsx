@@ -56,7 +56,19 @@ function AgentThoughtsPanel({
   const [userMessages, setUserMessages] = useState<{ content: string; timestamp: number }[]>([]);
   
   // グローバルWebSocketフックから追加のメソッドを取得
-  const { sendUserMessage } = useGlobalWebSocket(roleModelId);
+  const { sendMessage } = useGlobalWebSocket(roleModelId);
+  
+  // ユーザーメッセージ送信用のラッパー関数
+  const sendUserMessage = (message: string) => {
+    if (roleModelId) {
+      return sendMessage('user_message', {
+        content: message,
+        roleModelId,
+        timestamp: new Date().toISOString()
+      });
+    }
+    return false;
+  };
   
   // メッセージ送信処理
   const handleSendMessage = () => {
@@ -105,17 +117,19 @@ function AgentThoughtsPanel({
   useEffect(() => {
     if (wsProgressUpdates && wsProgressUpdates.length > 0) {
       const latestProgress = wsProgressUpdates[wsProgressUpdates.length - 1];
+      const progressValue = latestProgress.progress !== undefined ? latestProgress.progress : (latestProgress.percent || 0);
       setProgress({
         stage: latestProgress.stage || 'processing',
-        progress: latestProgress.progress || latestProgress.percent || 0,
+        progress: progressValue,
         message: latestProgress.message || '処理中...',
         details: latestProgress.details,
-        percent: latestProgress.percent,
+        percent: latestProgress.percent || 0,
         timestamp: latestProgress.timestamp
       });
       
       // 進捗状況に基づいて処理中フラグを更新
-      if (latestProgress.progress >= 100 || latestProgress.percent >= 100 || latestProgress.stage === 'complete') {
+      const progressComplete = (progressValue >= 100) || (latestProgress.percent && latestProgress.percent >= 100) || latestProgress.stage === 'complete';
+      if (progressComplete) {
         setIsProcessing(false);
       } else {
         setIsProcessing(true);
@@ -494,8 +508,8 @@ function AgentThoughtsPanel({
           </div>
           
           <div className="flex-1 p-0 overflow-hidden">
-            <TabsContent value={activeTab} className="m-0 h-full">
-              <ScrollArea className="agent-thoughts-scroll px-4 py-4" style={{height: "100%"}}>
+            <TabsContent value={activeTab} className="m-0 h-full flex flex-col">
+              <ScrollArea className="agent-thoughts-scroll px-4 py-4 flex-1" style={{height: "calc(100% - 70px)"}}>
                 {filteredThoughts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40">
                     <p className="text-gray-500">AIエージェント間の対話データがありません</p>
@@ -548,6 +562,31 @@ function AgentThoughtsPanel({
                   </div>
                 )}
               </ScrollArea>
+              
+              {/* ユーザーチャット入力エリア (最初のパネル用) */}
+              <div className="p-4 border-t">
+                <div className="flex gap-2">
+                  <Textarea
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    placeholder="メッセージを入力..."
+                    className="min-h-[40px] resize-none text-sm flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSendMessage}
+                    disabled={!userInput.trim()}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </TabsContent>
           </div>
         </Tabs>
