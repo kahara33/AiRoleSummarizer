@@ -31,9 +31,10 @@
 .agent-thoughts-scroll {
   height: 100% !important;
   max-height: calc(100% - 10px) !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   display: block !important;
   padding-right: 5px !important;
+  scrollbar-width: thin !important;
 }
 
 /* スクロールバー表示の強制 */
@@ -41,10 +42,23 @@
 .agent-thoughts-scroll > div,
 .agent-thoughts-scroll > div > div {
   height: 100% !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   display: block !important;
   border-radius: 0 !important;
   max-height: unset !important;
+}
+
+/* カスタムWebkitスクロールバー */
+.agent-thoughts-scroll::-webkit-scrollbar,
+.agent-thoughts-scroll div::-webkit-scrollbar {
+  width: 8px !important;
+  background-color: transparent !important;
+}
+
+.agent-thoughts-scroll::-webkit-scrollbar-thumb,
+.agent-thoughts-scroll div::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 4px !important;
 }
 
 /* エージェント思考パネルのコンテナスタイル調整 */

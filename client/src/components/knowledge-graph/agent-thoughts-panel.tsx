@@ -157,9 +157,10 @@ function AgentThoughtsPanel({
           // timestamp処理
           let timestamp;
           try {
-            timestamp = thought.timestamp instanceof Date 
-              ? thought.timestamp.getTime() 
-              : new Date(thought.timestamp).getTime();
+            const tmpDate = thought.timestamp;
+            timestamp = (typeof tmpDate === 'object' && tmpDate !== null && 'getTime' in tmpDate) 
+              ? tmpDate.getTime() 
+              : new Date(String(tmpDate)).getTime();
             
             if (isNaN(timestamp)) {
               timestamp = Date.now();
@@ -241,9 +242,10 @@ function AgentThoughtsPanel({
           // timestampがDateオブジェクトの場合はgetTime()を使用し、文字列の場合は日付に変換してからgetTime()を使用
           let timestamp;
           try {
-            timestamp = thought.timestamp instanceof Date 
-              ? thought.timestamp.getTime() 
-              : new Date(thought.timestamp).getTime();
+            const tmpDate = thought.timestamp;
+            timestamp = (typeof tmpDate === 'object' && tmpDate !== null && 'getTime' in tmpDate) 
+              ? tmpDate.getTime() 
+              : new Date(String(tmpDate)).getTime();
             
             // timestampが無効な場合は現在時刻を使用
             if (isNaN(timestamp)) {
@@ -461,7 +463,7 @@ function AgentThoughtsPanel({
   // 情報整理ダッシュボードのタブとして表示する場合
   if (height) {
     return (
-      <div className="w-full h-full flex flex-col">
+      <div className="w-full h-full flex flex-col agent-thoughts-container">
         <div className="p-3 bg-white border-b">
           <div className="flex justify-between items-center">
             <div>
@@ -507,9 +509,9 @@ function AgentThoughtsPanel({
             </TabsList>
           </div>
           
-          <div className="flex-1 p-0 overflow-hidden">
-            <TabsContent value={activeTab} className="m-0 h-full flex flex-col">
-              <ScrollArea className="agent-thoughts-scroll px-4 py-4 flex-1" style={{height: "calc(100% - 70px)"}}>
+          <div className="flex-1 p-0 overflow-hidden flex flex-col">
+            <TabsContent value={activeTab} className="m-0 flex-1 flex flex-col">
+              <ScrollArea className="agent-thoughts-scroll px-4 py-4 flex-1">
                 {filteredThoughts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40">
                     <p className="text-gray-500">AIエージェント間の対話データがありません</p>
@@ -564,7 +566,7 @@ function AgentThoughtsPanel({
               </ScrollArea>
               
               {/* ユーザーチャット入力エリア (最初のパネル用) */}
-              <div className="p-4 border-t">
+              <div className="p-4 border-t mt-auto">
                 <div className="flex gap-2">
                   <Textarea
                     value={userInput}
@@ -670,85 +672,87 @@ function AgentThoughtsPanel({
           </TabsList>
         </div>
         
-        <CardContent className="flex-1 p-0">
-          <TabsContent value={activeTab} className="m-0 h-full flex flex-col">
-            <ScrollArea className="agent-thoughts-scroll px-6 pb-4 flex-1">
-              {filteredThoughts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40">
-                  <p className="text-gray-500 dark:text-gray-400">AIエージェント同士の対話がここに表示されます</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredThoughts.map((thought, index) => (
-                    <div key={index} className="mb-4 animate-fadeIn">
-                      <div className={`flex gap-3 ${index > 0 && filteredThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
-                        {/* エージェントアイコン (最初のメッセージまたはエージェントが変わった時だけ表示) */}
-                        {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
-                          <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
-                            ${thought.type === 'thinking' ? 'bg-blue-100' : 
-                              thought.type === 'error' ? 'bg-red-100' : 
-                              thought.type === 'success' ? 'bg-green-100' : 'bg-purple-100'}`}>
-                            {getIconForType(thought.type)}
-                          </div>
-                        )}
-                        {/* 空白スペース (続きのメッセージの場合) */}
-                        {index > 0 && filteredThoughts[index-1].agentName === thought.agentName && (
-                          <div className="flex-shrink-0 h-8 w-8"></div>
-                        )}
-                        
-                        {/* メッセージ本体 */}
-                        <div className="flex-1">
-                          {/* エージェント名 (最初のメッセージまたはエージェントが変わった時だけ表示) */}
+        <CardContent className="flex-1 p-0 flex flex-col">
+          <TabsContent value={activeTab} className="m-0 h-full flex flex-col flex-1">
+            <div className="flex-1 overflow-hidden">
+              <ScrollArea className="agent-thoughts-scroll px-6 pb-4 flex-1 h-full">
+                {filteredThoughts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40">
+                    <p className="text-gray-500 dark:text-gray-400">AIエージェント同士の対話がここに表示されます</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredThoughts.map((thought, index) => (
+                      <div key={index} className="mb-4 animate-fadeIn">
+                        <div className={`flex gap-3 ${index > 0 && filteredThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
+                          {/* エージェントアイコン (最初のメッセージまたはエージェントが変わった時だけ表示) */}
                           {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
-                            <div className="flex items-center mb-1">
-                              <span className="font-medium text-sm">{thought.agentName}</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                                {formatTime(thought.timestamp)}
-                              </span>
+                            <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
+                              ${thought.type === 'thinking' ? 'bg-blue-100' : 
+                                thought.type === 'error' ? 'bg-red-100' : 
+                                thought.type === 'success' ? 'bg-green-100' : 'bg-purple-100'}`}>
+                              {getIconForType(thought.type)}
                             </div>
                           )}
+                          {/* 空白スペース (続きのメッセージの場合) */}
+                          {index > 0 && filteredThoughts[index-1].agentName === thought.agentName && (
+                            <div className="flex-shrink-0 h-8 w-8"></div>
+                          )}
                           
-                          {/* メッセージコンテンツ */}
-                          <div className={`text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble
-                            ${thought.type === 'thinking' ? 'bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800' : 
-                              thought.type === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800' : 
-                              thought.type === 'success' ? 'bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-800' : 
-                              'bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800'}
-                            ${thought.type === 'thinking' ? 'agent-thinking' : ''}`}>
-                            {thought.message}
+                          {/* メッセージ本体 */}
+                          <div className="flex-1">
+                            {/* エージェント名 (最初のメッセージまたはエージェントが変わった時だけ表示) */}
+                            {(index === 0 || filteredThoughts[index-1].agentName !== thought.agentName) && (
+                              <div className="flex items-center mb-1">
+                                <span className="font-medium text-sm">{thought.agentName}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                                  {formatTime(thought.timestamp)}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* メッセージコンテンツ */}
+                            <div className={`text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble
+                              ${thought.type === 'thinking' ? 'bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800' : 
+                                thought.type === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800' : 
+                                thought.type === 'success' ? 'bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-800' : 
+                                'bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800'}
+                              ${thought.type === 'thinking' ? 'agent-thinking' : ''}`}>
+                              {thought.message}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  
-                  {/* ユーザーからのメッセージがあれば表示 */}
-                  {userMessages && userMessages.map((msg, index) => (
-                    <div key={`user-${index}`} className="mb-4 animate-fadeIn">
-                      <div className="flex gap-3 mt-4 justify-end">
-                        <div className="flex-1 max-w-3/4">
-                          <div className="flex items-center mb-1 justify-end">
-                            <span className="font-medium text-sm">ユーザー</span>
-                            <span className="text-xs text-gray-500 ml-2">
-                              {formatTime(msg.timestamp)}
-                            </span>
+                    ))}
+                    
+                    {/* ユーザーからのメッセージがあれば表示 */}
+                    {userMessages && userMessages.map((msg, index) => (
+                      <div key={`user-${index}`} className="mb-4 animate-fadeIn">
+                        <div className="flex gap-3 mt-4 justify-end">
+                          <div className="flex-1 max-w-3/4">
+                            <div className="flex items-center mb-1 justify-end">
+                              <span className="font-medium text-sm">ユーザー</span>
+                              <span className="text-xs text-gray-500 ml-2">
+                                {formatTime(msg.timestamp)}
+                              </span>
+                            </div>
+                            <div className="text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble bg-primary text-primary-foreground">
+                              {msg.content}
+                            </div>
                           </div>
-                          <div className="text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble bg-primary text-primary-foreground">
-                            {msg.content}
+                          <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-primary">
+                            <User className="h-4 w-4 text-primary-foreground" />
                           </div>
-                        </div>
-                        <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-primary">
-                          <User className="h-4 w-4 text-primary-foreground" />
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
             
             {/* ユーザーチャット入力エリア */}
-            <div className="p-4 border-t mt-auto">
+            <div className="border-t mt-auto p-4">
               <div className="flex gap-2">
                 <Textarea
                   value={userInput}
