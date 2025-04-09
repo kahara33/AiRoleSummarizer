@@ -736,7 +736,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
             </div>
           )}
           
-          {/* 右側パネル: マルチAIエージェント会話パネル */}
+          {/* 右側パネル: AIエージェントとの対話 */}
           {showAgentPanel && (
             <>
               <PanelResizeHandle className="w-1.5 bg-gray-200 hover:bg-blue-500 transition-colors duration-200 cursor-col-resize" />
@@ -751,12 +751,12 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     setShowAgentPanel(false);
                     toast({
                       title: "パネルを最小化",
-                      description: "AIエージェント会話パネルを最小化しました"
+                      description: "AIエージェント対話パネルを最小化しました"
                     });
                   }
                 }}
               >
-                <div className="h-full flex flex-col">
+                <div className="h-full flex flex-col bg-white">
                   {/* ヘッダー部分 */}
                   <div className="px-4 py-2 border-b flex justify-between items-center">
                     <h2 className="font-semibold text-sm">AIエージェントとの対話</h2>
@@ -768,13 +768,22 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         setShowAgentPanel(false);
                         toast({
                           title: "パネルを最小化",
-                          description: "AIエージェント会話パネルを最小化しました"
+                          description: "AIエージェント対話パネルを最小化しました"
                         });
                       }}
                       title="AIエージェントパネルを最小化"
                     >
                       <Minimize2 className="h-3.5 w-3.5" />
                     </Button>
+                  </div>
+                  
+                  {/* タブ切り替え部分 */}
+                  <div className="px-4 py-2 border-b flex justify-between items-center">
+                    <Tabs defaultValue="all" className="w-full">
+                      <TabsList className="h-8 w-full bg-gray-50">
+                        <TabsTrigger value="all" className="flex-1">すべて</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
                   </div>
                   
                   {/* メッセージ表示エリア */}
@@ -806,6 +815,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       />
                       <Button
                         size="icon"
+                        className="bg-purple-600 hover:bg-purple-700"
                         onClick={() => {
                           if (userInput.trim() && roleModelId) {
                             handleSendMessage(userInput);
