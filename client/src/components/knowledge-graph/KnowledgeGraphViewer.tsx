@@ -987,7 +987,53 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     <div className="flex flex-col w-full h-full" style={{ height: '100%' }}>
       <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
-        {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
+        <div className="flex space-x-2">
+          {hasKnowledgeGraph && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const snapshotName = `手動保存 - ${new Date().toLocaleString('ja-JP')}`;
+                        const response = await fetch(`/api/knowledge-graph/${roleModelId}/snapshots`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            name: snapshotName,
+                            description: '手動で保存されたグラフ'
+                          }),
+                        });
+                        
+                        if (response.ok) {
+                          // 成功メッセージ
+                          alert('グラフが保存されました');
+                        } else {
+                          const errorData = await response.json();
+                          console.error('保存エラー:', errorData);
+                          alert('保存に失敗しました');
+                        }
+                      } catch (error) {
+                        console.error('保存中にエラーが発生しました:', error);
+                        alert('保存処理中にエラーが発生しました');
+                      }
+                    }}
+                  >
+                    保存
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>現在のグラフをスナップショットとして保存します</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
+        </div>
       </div>
       
       {generating ? (
