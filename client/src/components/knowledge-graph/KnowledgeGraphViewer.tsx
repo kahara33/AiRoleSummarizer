@@ -436,7 +436,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   }, [roleModelId, fetchGraphData]);
   
   // ノードダイアログで保存ボタンが押されたときの処理
-  const handleNodeSave = useCallback(async (data: { name: string; description: string; color?: string }) => {
+  const handleNodeSave = useCallback(async (data: { name: string; description: string; nodeType: string }) => {
     const { type, nodeId } = nodeDialog;
     
     if (!nodeId) return;
@@ -450,7 +450,15 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       
       switch (type) {
         case 'edit':
-          await nodeOperations.updateNode(nodeId, data, nodeData);
+          await nodeOperations.updateNode(nodeId, 
+            { 
+              name: data.name, 
+              description: data.description, 
+              color: nodeData.color ? nodeData.color : undefined,
+              nodeType: data.nodeType
+            }, 
+            nodeData
+          );
           break;
           
         case 'add-child':

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KnowledgeNode } from '@shared/schema';
 
 interface NodeEditDialogProps {
@@ -11,8 +12,17 @@ interface NodeEditDialogProps {
   onOpenChange: (open: boolean) => void;
   type: 'edit' | 'add-child' | 'add-sibling';
   node: KnowledgeNode | null;
-  onSave: (data: { name: string; description: string; color?: string }) => void;
+  onSave: (data: { name: string; description: string; nodeType: string }) => void;
 }
+
+// 利用可能なノードタイプ
+const NODE_TYPES = [
+  { id: 'concept', label: '概念' },
+  { id: 'keyword', label: 'キーワード' },
+  { id: 'task', label: 'タスク' },
+  { id: 'question', label: '質問' },
+  { id: 'info', label: '情報' },
+];
 
 export const NodeEditDialog: React.FC<NodeEditDialogProps> = ({
   open,
@@ -23,18 +33,18 @@ export const NodeEditDialog: React.FC<NodeEditDialogProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState('');
+  const [nodeType, setNodeType] = useState('concept');
 
   useEffect(() => {
     if (type === 'edit' && node) {
       setName(node.name);
       setDescription(node.description || '');
-      setColor(node.color || '');
+      setNodeType(node.type || 'concept');
     } else {
       // 子ノードと兄弟ノードの場合は新規作成なので、初期値をクリア
       setName('');
       setDescription('');
-      setColor('');
+      setNodeType('concept');
     }
   }, [type, node, open]);
 
@@ -44,7 +54,7 @@ export const NodeEditDialog: React.FC<NodeEditDialogProps> = ({
     onSave({
       name,
       description,
-      color: color || undefined,
+      nodeType
     });
     
     onOpenChange(false);
@@ -95,20 +105,22 @@ export const NodeEditDialog: React.FC<NodeEditDialogProps> = ({
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="color" className="text-right">
-              色
+            <Label htmlFor="nodeType" className="text-right">
+              ノードタイプ
             </Label>
-            <div className="col-span-3 flex items-center gap-2">
-              <Input
-                id="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                placeholder="#RRGGBB"
-              />
-              <div
-                className="w-8 h-8 rounded-full border"
-                style={{ backgroundColor: color || 'transparent' }}
-              />
+            <div className="col-span-3">
+              <Select value={nodeType} onValueChange={setNodeType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="ノードタイプを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {NODE_TYPES.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

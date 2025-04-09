@@ -10,7 +10,7 @@ export const useNodeOperations = (
   // ノード編集
   const updateNode = useCallback(async (
     nodeId: string,
-    data: { name: string; description: string; color?: string },
+    data: { name: string; description: string; color?: string; nodeType?: string },
     prevNode: KnowledgeNode
   ) => {
     try {
@@ -19,7 +19,12 @@ export const useNodeOperations = (
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          color: data.color,
+          type: data.nodeType || prevNode.type
+        }),
       });
       
       if (!response.ok) {
@@ -35,6 +40,7 @@ export const useNodeOperations = (
             name: prevNode.name,
             description: prevNode.description || '',
             color: prevNode.color,
+            type: prevNode.type
           },
           newData: data,
         },
@@ -53,7 +59,7 @@ export const useNodeOperations = (
   // 子ノード追加
   const addChildNode = useCallback(async (
     parentId: string,
-    data: { name: string; description: string; color?: string },
+    data: { name: string; description: string; nodeType: string },
     parentNode: KnowledgeNode
   ) => {
     try {
@@ -67,9 +73,8 @@ export const useNodeOperations = (
         body: JSON.stringify({
           name: data.name,
           description: data.description,
-          color: data.color,
           level,
-          type: 'concept',
+          type: data.nodeType,
           roleModelId,
           parentId,
         }),
@@ -87,7 +92,7 @@ export const useNodeOperations = (
           nodeData: {
             name: data.name,
             description: data.description,
-            color: data.color,
+            type: data.nodeType,
             level,
           },
         },
@@ -106,7 +111,7 @@ export const useNodeOperations = (
   // 兄弟ノード追加
   const addSiblingNode = useCallback(async (
     siblingId: string,
-    data: { name: string; description: string; color?: string },
+    data: { name: string; description: string; nodeType: string },
     siblingNode: KnowledgeNode
   ) => {
     try {
@@ -121,9 +126,8 @@ export const useNodeOperations = (
         body: JSON.stringify({
           name: data.name,
           description: data.description,
-          color: data.color,
           level,
-          type: 'concept',
+          type: data.nodeType,
           roleModelId,
           parentId,
         }),
@@ -141,7 +145,7 @@ export const useNodeOperations = (
           nodeData: {
             name: data.name,
             description: data.description,
-            color: data.color,
+            type: data.nodeType,
             level,
           },
         },
