@@ -777,7 +777,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                   </div>
                   
                   <div className="flex-1 flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-4">
+                    <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 180px)' }}>
                       {agentThoughts.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center">
                           <div className="bg-blue-50 p-3 rounded-full mb-4">
@@ -787,7 +787,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           <p className="text-gray-600">エージェントからのメッセージがここに表示されます</p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-3 pb-4">
                           {agentThoughts.map((thought, index) => (
                             <div key={index} className="mb-4 animate-fadeIn">
                               <div className={`flex gap-3 ${index > 0 && agentThoughts[index-1].agentName === thought.agentName ? 'mt-2' : 'mt-4'}`}>
@@ -819,7 +819,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                       )}
                     </div>
                     
-                    <div className="p-3 border-t mt-auto">
+                    <div className="p-3 border-t sticky bottom-0 bg-white">
                       <div className="flex gap-2">
                         <Textarea
                           placeholder="メッセージを入力..."
