@@ -36,6 +36,14 @@ interface Snapshot {
   isActive: boolean;
 }
 
+interface Snapshot {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
 export function SnapshotSelector({ roleModelId, onRestore }: SnapshotSelectorProps) {
   const [open, setOpen] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
@@ -118,105 +126,106 @@ export function SnapshotSelector({ roleModelId, onRestore }: SnapshotSelectorPro
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        {/* スナップショット保存ボタン */}
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
-              <Save className="h-4 w-4" />
-              <span>保存</span>
-            </Button>
-          </DialogTrigger>
-
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>現在のグラフをスナップショットとして保存</DialogTitle>
-              <DialogDescription>
-                現在のナレッジグラフの状態を名前を付けて保存します。
-                後で復元することができます。
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="snapshot-name">スナップショット名</Label>
-                <Input
-                  id="snapshot-name"
-                  placeholder="マイスナップショット"
-                  value={saveSnapshotName}
-                  onChange={(e) => setSaveSnapshotName(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="snapshot-desc">説明 (任意)</Label>
-                <Input
-                  id="snapshot-desc"
-                  placeholder="このスナップショットの内容や目的"
-                  value={saveSnapshotDesc}
-                  onChange={(e) => setSaveSnapshotDesc(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
-              <Button 
-                onClick={() => {
-                  saveSnapshotMutation.mutate({
-                    name: saveSnapshotName || `スナップショット ${new Date().toLocaleString('ja-JP')}`,
-                    description: saveSnapshotDesc
-                  });
-                }}
-                disabled={saveSnapshotMutation.isPending}
-              >
-                {saveSnapshotMutation.isPending ? "保存中..." : "保存する"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* スナップショット選択・復元 */}
-        <div className="flex items-center gap-2">
-          <Select 
-            value={selectedSnapshot || ''} 
-            onValueChange={(value) => {
-              setSelectedSnapshot(value);
-              if (value) {
-                setRestoreDialogOpen(true);
-              }
-            }}
+      {/* 保存ダイアログ - ボタンは外部から表示 */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="hidden"
+            data-save-dialog-trigger
           >
-            <SelectTrigger className="w-auto min-w-[200px]">
-              <SelectValue placeholder="履歴から復元" />
-            </SelectTrigger>
-            <SelectContent>
-              {isLoading ? (
-                <SelectItem value="loading" disabled>読み込み中...</SelectItem>
-              ) : error ? (
-                <SelectItem value="error" disabled>エラーが発生しました</SelectItem>
-              ) : data?.length === 0 ? (
-                <SelectItem value="empty" disabled>スナップショットがありません</SelectItem>
-              ) : (
-                data?.map((snapshot: Snapshot) => (
-                  <SelectItem key={snapshot.id} value={snapshot.id} className="flex items-center">
-                    <div className="flex items-center gap-1">
-                      {snapshot.isActive ? (
-                        <Bookmark className="h-4 w-4 text-primary" />
-                      ) : (
-                        <History className="h-4 w-4" />
-                      )}
-                      <span>{snapshot.name}</span>
-                      <span className="text-xs text-gray-500 ml-1">
-                        {new Date(snapshot.createdAt).toLocaleDateString('ja-JP')}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+            <Save className="h-4 w-4" />
+            <span>保存</span>
+          </Button>
+        </DialogTrigger>
+          
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>現在のグラフをスナップショットとして保存</DialogTitle>
+            <DialogDescription>
+              現在のナレッジグラフの状態を名前を付けて保存します。
+              後で復元することができます。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="snapshot-name">スナップショット名</Label>
+              <Input
+                id="snapshot-name"
+                placeholder="マイスナップショット"
+                value={saveSnapshotName}
+                onChange={(e) => setSaveSnapshotName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="snapshot-desc">説明 (任意)</Label>
+              <Input
+                id="snapshot-desc"
+                placeholder="このスナップショットの内容や目的"
+                value={saveSnapshotDesc}
+                onChange={(e) => setSaveSnapshotDesc(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
+            <Button 
+              onClick={() => {
+                saveSnapshotMutation.mutate({
+                  name: saveSnapshotName || `スナップショット ${new Date().toLocaleString('ja-JP')}`,
+                  description: saveSnapshotDesc
+                });
+              }}
+              disabled={saveSnapshotMutation.isPending}
+            >
+              {saveSnapshotMutation.isPending ? "保存中..." : "保存する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* スナップショット選択・復元 */}
+      <Select 
+        value={selectedSnapshot || ''} 
+        onValueChange={(value) => {
+          setSelectedSnapshot(value);
+          if (value) {
+            setRestoreDialogOpen(true);
+          }
+        }}
+      >
+        <SelectTrigger className="w-auto min-w-[200px]">
+          <SelectValue placeholder="履歴から復元" />
+        </SelectTrigger>
+        <SelectContent>
+          {isLoading ? (
+            <SelectItem value="loading" disabled>読み込み中...</SelectItem>
+          ) : error ? (
+            <SelectItem value="error" disabled>エラーが発生しました</SelectItem>
+          ) : data?.length === 0 ? (
+            <SelectItem value="empty" disabled>スナップショットがありません</SelectItem>
+          ) : (
+            data?.map((snapshot: Snapshot) => (
+              <SelectItem key={snapshot.id} value={snapshot.id} className="flex items-center">
+                <div className="flex items-center gap-1">
+                  {snapshot.isActive ? (
+                    <Bookmark className="h-4 w-4 text-primary" />
+                  ) : (
+                    <History className="h-4 w-4" />
+                  )}
+                  <span>{snapshot.name}</span>
+                  <span className="text-xs text-gray-500 ml-1">
+                    {new Date(snapshot.createdAt).toLocaleDateString('ja-JP')}
+                  </span>
+                </div>
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
 
       {/* 復元確認ダイアログ */}
       <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>

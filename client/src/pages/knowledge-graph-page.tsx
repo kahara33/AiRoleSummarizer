@@ -10,7 +10,7 @@ import { SnapshotSelector } from '@/components/knowledge-graph/SnapshotSelector'
 import { KnowledgeNode } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Zap, FileText } from 'lucide-react';
+import { Zap, FileText, Save } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 
@@ -73,16 +73,35 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
 
               {/* スナップショット セレクター */}
               {hasKnowledgeGraph && (
-                <div className="w-auto">
-                  <SnapshotSelector 
-                    roleModelId={roleModelId} 
-                    onRestore={() => {
-                      setSelectedNode(null);
-                      // Viewerに更新を通知するための処理は、KnowledgeGraphViewerで
-                      // useQueryを使用しており、queryClient.invalidateQueriesで自動的に再取得されるので不要
-                    }}
-                  />
-                </div>
+                <>
+                  {/* 保存ボタン */}
+                  <div className="w-auto mr-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex items-center gap-1"
+                      onClick={() => {
+                        const saveDialog = document.querySelector('[data-save-dialog-trigger]') as HTMLButtonElement;
+                        if (saveDialog) saveDialog.click();
+                      }}
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>保存</span>
+                    </Button>
+                  </div>
+                  
+                  {/* 履歴から復元セレクター */}
+                  <div className="w-auto">
+                    <SnapshotSelector 
+                      roleModelId={roleModelId} 
+                      onRestore={() => {
+                        setSelectedNode(null);
+                        // Viewerに更新を通知するための処理は、KnowledgeGraphViewerで
+                        // useQueryを使用しており、queryClient.invalidateQueriesで自動的に再取得されるので不要
+                      }}
+                    />
+                  </div>
+                </>
               )}
 
               {/* 情報収集プラン作成ボタン */}
