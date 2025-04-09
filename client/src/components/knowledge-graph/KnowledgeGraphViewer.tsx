@@ -480,10 +480,20 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             }
             
             // 新しいノードを作成（完全なカスタムノードに）
-            const newPos = {
+            // 親ノードの位置を基準にして、子ノードは親の真下に配置
+            const parentNode = nodes.find(n => n.id === nodeId);
+            let newPos = {
               x: nodePosition.x,
-              y: nodePosition.y + 150 // 親ノードより下に配置
+              y: nodePosition.y + 150
             };
+            
+            // 親ノードが見つかった場合はその位置を基準に配置する
+            if (parentNode) {
+              newPos = {
+                x: parentNode.position.x,
+                y: parentNode.position.y + 150
+              };
+            }
             
             const newNode = {
               id: childResult.node.id,
@@ -543,10 +553,20 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             }
             
             // 新しいノードを作成（完全なカスタムノードに）
-            const newPos = {
-              x: nodePosition.x + 180, // 兄弟ノードの横に配置
+            // 兄弟ノードは元ノードの右側に配置
+            const siblingNode = nodes.find(n => n.id === nodeId);
+            let newPos = {
+              x: nodePosition.x + 180,
               y: nodePosition.y
             };
+            
+            // 兄弟の元となるノードが見つかった場合はその位置を基準に配置する
+            if (siblingNode) {
+              newPos = {
+                x: siblingNode.position.x + 180, // 元ノードより右に配置
+                y: siblingNode.position.y
+              };
+            }
             
             const newNode = {
               id: siblingResult.node.id,
