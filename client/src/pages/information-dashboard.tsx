@@ -76,6 +76,11 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     progressUpdates,
   } = useMultiAgentWebSocket();
   
+  // KnowledgeGraphViewerからのデータ有無状態を更新する関数
+  const handleKnowledgeGraphData = (hasData: boolean) => {
+    setHasKnowledgeGraph(hasData);
+  };
+  
   // チャットメッセージ用の状態
   const [messages, setMessages] = useState<any[]>([]);
   const [userInput, setUserInput] = useState<string>('');
@@ -597,6 +602,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <div className="bg-white px-4 border-b flex justify-between items-center">
                   <TabsList>
                     <TabsTrigger value="knowledgeGraph">ナレッジグラフ</TabsTrigger>
+                    <TabsTrigger value="summaryResults">要約結果</TabsTrigger>
+                    <TabsTrigger value="notes">メモ</TabsTrigger>
                   </TabsList>
                   
                   {roleModelId !== 'default' && (
@@ -607,14 +614,19 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           エクスポート
                         </Button>
                       )}
-                      <CreateCollectionPlanWithCrewAIButton
-                        roleModelId={roleModelId}
-                        onGenerateStart={() => {
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-7 text-xs whitespace-nowrap"
+                        onClick={() => {
                           // CrewAIによるグラフ生成を開始
                           generateGraphMutation.mutate();
                         }}
-                        isPending={generateGraphMutation.isPending || isProcessing}
-                      />
+                        disabled={generateGraphMutation.isPending || isProcessing}
+                      >
+                        <BrainCircuit className="h-3.5 w-3.5 mr-1" />
+                        CrewAIでナレッジグラフと情報収集プランを生成
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -623,7 +635,28 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     {/* 知識グラフビューワー */}
                     <KnowledgeGraphViewer 
                       roleModelId={roleModelId} 
-                      onHasData={(hasData) => setHasKnowledgeGraph(hasData)}
+                      onHasData={handleKnowledgeGraphData}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="summaryResults" className="flex-1 overflow-auto p-4">
+                  <div className="h-full">
+                    <h3 className="text-lg font-medium mb-4">要約結果</h3>
+                    <div className="bg-white rounded-lg border p-4">
+                      <p className="text-gray-600 text-sm">
+                        AIエージェント分析による要約結果がここに表示されます。
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="notes" className="flex-1 overflow-auto p-4">
+                  <div className="h-full">
+                    <h3 className="text-lg font-medium mb-4">メモ</h3>
+                    <Textarea 
+                      placeholder="重要なポイントのメモをここに残せます..." 
+                      className="min-h-[300px] w-full"
                     />
                     
                     {/* 生成中の表示 */}
