@@ -318,11 +318,19 @@ export class CrewAIService {
         console.error(`CrewAI ${processType}プロセスでエラーが発生しました:`, error);
         
         // エラーメッセージをより詳細に設定
-        const errorMessage = error instanceof Error 
-          ? error.message 
-          : (typeof error === 'object' && error !== null)
-            ? JSON.stringify(error)
-            : '不明なエラーが発生しました';
+        let errorMessage = '不明なエラーが発生しました';
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+          try {
+            errorMessage = JSON.stringify(error);
+          } catch (e) {
+            errorMessage = 'エラーオブジェクトを文字列化できませんでした';
+          }
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        }
         
         // エラーメッセージをエージェント思考として送信
         sendAgentThoughts(
@@ -350,7 +358,19 @@ export class CrewAIService {
       console.error('CrewAI処理エラー:', error);
       
       // エラーメッセージを送信
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      let errorMessage = '不明なエラーが発生しました';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        try {
+          errorMessage = JSON.stringify(error);
+        } catch (e) {
+          errorMessage = 'エラーオブジェクトを文字列化できませんでした';
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
       sendProgressUpdate({
         message: `処理中にエラーが発生しました: ${errorMessage}`,
         percent: 0,

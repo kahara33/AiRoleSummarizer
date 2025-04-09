@@ -309,16 +309,21 @@ function useMultiAgentWebSocketManager() {
         // 処理状態の更新
         if (status === 'error' || percent === 0) {
           // エラー時には即座に処理状態をリセット
-          console.log('エラーが発生したため処理状態をリセットします');
+          console.log('エラーが発生したため処理状態をリセットします', progressUpdate);
           setIsProcessing(false);
         } else if (status === 'completed' || percent >= 100) {
           // 完了時には少し遅延してから処理状態をリセット
-          console.log('処理が完了しました、状態をリセットします');
+          console.log('処理が完了しました、状態をリセットします', progressUpdate);
+          // 確実に状態をリセットするため、即座に更新し、遅延後にも更新
+          setIsProcessing(false);
+          
+          // バックアップとして2秒後に再度確認
           setTimeout(() => {
+            console.log('処理完了の遅延リセット確認');
             setIsProcessing(false);
-          }, 2000); // 完了メッセージを表示するための短い遅延
-        } else {
-          // それ以外は処理中と判断
+          }, 2000);
+        } else if (percent > 0 && percent < 100) {
+          // 途中経過の場合は処理中と判断
           setIsProcessing(true);
         }
       } catch (error) {

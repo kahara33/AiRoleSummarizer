@@ -628,28 +628,40 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                             // CrewAIによるグラフ生成を開始
                             generateGraphMutation.mutate();
                             
+                            // 3秒後に状態をチェック（正常ケースで早期リセット）
+                            setTimeout(() => {
+                              console.log("3秒後のチェック: ボタン状態のリセット確認");
+                              if (isProcessing) {
+                                if (progressUpdates.length > 0) {
+                                  // 最後の進捗が100%なら処理完了と判断し状態をリセット
+                                  const lastProgress = progressUpdates[progressUpdates.length - 1];
+                                  if ((lastProgress.percent || 0) >= 100 || (lastProgress.status === 'completed')) {
+                                    console.log("処理は完了しているようです - 強制リセット");
+                                    forceResetProcessing();
+                                  }
+                                }
+                              }
+                            }, 3000);
+                            
                             // 最大10秒後に強制的に処理中ステータスをリセット（安全策）
                             setTimeout(() => {
                               // バックアップ: 最大処理時間をオーバーした場合は強制的にリセット
                               if (isProcessing) {
-                                if (progressUpdates.length > 0) {
-                                  // 進捗が登録されている場合、最後の進捗に100%を送信
-                                  console.log("10秒タイムアウト: 強制リセット - 進捗完了イベントを送信");
-                                  if (send) {
-                                    send('progress', {
-                                      roleModelId: roleModelId,
-                                      stage: "完了",
-                                      progress: 100,
-                                      message: "処理が完了しました",
-                                      details: { step: "completion" },
-                                      percent: 100
-                                    });
-                                  }
-                                } else {
-                                  // 進捗がない場合、直接WebSocketフックのリセット関数を呼び出す
-                                  console.log("10秒タイムアウト: 強制リセット - WebSocketリセット");
-                                  forceResetProcessing();
+                                console.log("10秒タイムアウト: 強制リセット - 進捗完了イベントを送信");
+                                if (send) {
+                                  send('progress', {
+                                    roleModelId: roleModelId,
+                                    stage: "完了",
+                                    progress: 100,
+                                    message: "処理が完了しました",
+                                    details: { step: "completion" },
+                                    status: "completed",
+                                    percent: 100
+                                  });
                                 }
+                                
+                                // 直接リセット関数を呼び出す
+                                forceResetProcessing();
                               }
                             }, 10000);
                           }}
