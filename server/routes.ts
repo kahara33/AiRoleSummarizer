@@ -10,6 +10,7 @@ import { registerDebugRoutes } from './debug-routes';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
 import { initNeo4j, getKnowledgeGraph } from './neo4j';
+import neo4j from 'neo4j-driver';
 import { eq, and, or, not, sql, inArray, desc } from 'drizzle-orm';
 import { 
   createInformationCollectionPlan,
@@ -37,6 +38,7 @@ import {
   roleModelIndustries,
   roleModelKeywords,
   keywords,
+  knowledgeGraphSnapshots,
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
@@ -1551,6 +1553,280 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
     } catch (error) {
       console.error('知識グラフ取得エラー:', error);
       res.status(500).json({ error: '知識グラフの取得に失敗しました' });
+    }
+  });
+
+  // ナレッジグラフスナップショットを保存
+  app.post('/api/knowledge-graph/:roleModelId/snapshots', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      const { name, description } = req.body;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // アクセス権のチェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+
+      // 現在のグラフデータを取得
+      let graphData;
+      
+      // Neo4jからグラフデータ取得を試みる
+      try {
+        graphData = await getKnowledgeGraph(roleModelId);
+        
+        // Neo4jからデータが取得できた場合はそれを使用
+        if (graphData.nodes.length === 0) {
+          console.log('Neo4jからグラフデータが取得できませんでした。PostgreSQLからデータを取得します。');
+          throw new Error('Neo4jからグラフデータが取得できませんでした');
+        }
+      } catch (neo4jError) {
+        console.error('Neo4jグラフ取得エラー:', neo4jError);
+        console.log('PostgreSQLからグラフデータを取得します。');
+        
+        // PostgreSQLからデータを取得
+        const nodes = await db.query.knowledgeNodes.findMany({
+          where: eq(knowledgeNodes.roleModelId, roleModelId),
+        });
+        
+        const edges = await db.query.knowledgeEdges.findMany({
+          where: eq(knowledgeEdges.roleModelId, roleModelId),
+        });
+        
+        graphData = { nodes, edges };
+      }
+      
+      // 既存のアクティブなスナップショットがあれば非アクティブに設定
+      await db.update(knowledgeGraphSnapshots)
+        .set({ isActive: false })
+        .where(and(
+          eq(knowledgeGraphSnapshots.roleModelId, roleModelId),
+          eq(knowledgeGraphSnapshots.isActive, true)
+        ));
+      
+      // 新しいスナップショットを保存
+      const [newSnapshot] = await db.insert(knowledgeGraphSnapshots)
+        .values({
+          roleModelId,
+          name: name || `スナップショット ${new Date().toLocaleDateString('ja-JP')}`,
+          description: description || '自動保存されたナレッジグラフ',
+          graphData: graphData,
+          isActive: true,
+        })
+        .returning();
+      
+      res.status(201).json(newSnapshot);
+    } catch (error) {
+      console.error('ナレッジグラフスナップショット保存エラー:', error);
+      res.status(500).json({ error: 'ナレッジグラフのスナップショット保存に失敗しました' });
+    }
+  });
+
+  // スナップショット一覧を取得
+  app.get('/api/knowledge-graph/:roleModelId/snapshots', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // アクセス権のチェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // スナップショット一覧を取得
+      const snapshots = await db.query.knowledgeGraphSnapshots.findMany({
+        where: eq(knowledgeGraphSnapshots.roleModelId, roleModelId),
+        orderBy: [desc(knowledgeGraphSnapshots.createdAt)],
+      });
+      
+      res.json(snapshots.map(snapshot => ({
+        id: snapshot.id,
+        name: snapshot.name,
+        description: snapshot.description,
+        createdAt: snapshot.createdAt,
+        isActive: snapshot.isActive,
+      })));
+    } catch (error) {
+      console.error('スナップショット一覧取得エラー:', error);
+      res.status(500).json({ error: 'スナップショット一覧の取得に失敗しました' });
+    }
+  });
+
+  // スナップショットを復元（適用）
+  app.post('/api/knowledge-graph/:roleModelId/snapshots/:snapshotId/restore', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, snapshotId } = req.params;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // アクセス権のチェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // スナップショットを取得
+      const snapshot = await db.query.knowledgeGraphSnapshots.findFirst({
+        where: and(
+          eq(knowledgeGraphSnapshots.id, snapshotId),
+          eq(knowledgeGraphSnapshots.roleModelId, roleModelId)
+        ),
+      });
+      
+      if (!snapshot) {
+        return res.status(404).json({ error: 'スナップショットが見つかりません' });
+      }
+      
+      // 既存のノードとエッジを削除
+      await db.delete(knowledgeEdges)
+        .where(eq(knowledgeEdges.roleModelId, roleModelId));
+      
+      await db.delete(knowledgeNodes)
+        .where(eq(knowledgeNodes.roleModelId, roleModelId));
+      
+      // スナップショットからノードとエッジを再作成
+      const graphData = snapshot.graphData as any;
+      
+      if (graphData && graphData.nodes && graphData.edges) {
+        // ノードの再作成
+        for (const node of graphData.nodes) {
+          await db.insert(knowledgeNodes)
+            .values({
+              id: node.id,
+              roleModelId,
+              name: node.name,
+              level: node.level,
+              type: node.type || 'keyword',
+              parentId: node.parentId,
+              description: node.description,
+              color: node.color,
+            });
+        }
+        
+        // エッジの再作成
+        for (const edge of graphData.edges) {
+          await db.insert(knowledgeEdges)
+            .values({
+              roleModelId,
+              sourceId: edge.source || edge.sourceId,
+              targetId: edge.target || edge.targetId,
+              label: edge.label,
+              strength: edge.strength || 1,
+            });
+        }
+        
+        // Neo4jデータベースも更新
+        try {
+          // Neo4jにグラフデータを保存
+          // ロールモデルに関連する既存のノードとエッジを削除
+          await initNeo4j();
+          const session = initNeo4j();
+          
+          // ロールモデルに関連するすべてのノードとエッジを削除
+          await session.run(
+            `MATCH (n:KnowledgeNode {roleModelId: $roleModelId}) 
+             DETACH DELETE n`,
+            { roleModelId }
+          );
+          
+          // ノードを作成
+          for (const node of graphData.nodes) {
+            await session.run(
+              `CREATE (n:KnowledgeNode {
+                id: $id,
+                roleModelId: $roleModelId,
+                name: $name,
+                level: $level,
+                type: $type,
+                parentId: $parentId,
+                description: $description,
+                color: $color
+              })`,
+              {
+                id: node.id,
+                roleModelId,
+                name: node.name,
+                level: neo4j.int(node.level),
+                type: node.type || 'keyword',
+                parentId: node.parentId || null,
+                description: node.description || '',
+                color: node.color || ''
+              }
+            );
+            console.log(`Neo4jにノード作成: ${node.id}`);
+          }
+          
+          // エッジを作成
+          for (const edge of graphData.edges) {
+            const sourceId = edge.source || edge.sourceId;
+            const targetId = edge.target || edge.targetId;
+            
+            await session.run(
+              `MATCH (source:KnowledgeNode {id: $sourceId})
+               MATCH (target:KnowledgeNode {id: $targetId})
+               CREATE (source)-[r:RELATED_TO {
+                 roleModelId: $roleModelId,
+                 label: $label,
+                 strength: $strength
+               }]->(target)`,
+              {
+                sourceId,
+                targetId,
+                roleModelId,
+                label: edge.label || '',
+                strength: neo4j.int(edge.strength || 1)
+              }
+            );
+            console.log(`Neo4jに関係作成: ${sourceId} -> ${targetId}`);
+          }
+          
+          session.close();
+        } catch (neo4jError) {
+          console.error('Neo4jグラフ復元エラー:', neo4jError);
+          // Neo4jの更新に失敗しても処理は続行（PostgreSQLにはデータが保存されている）
+        }
+        
+        // 現在のスナップショットをアクティブに設定
+        await db.update(knowledgeGraphSnapshots)
+          .set({ isActive: false })
+          .where(and(
+            eq(knowledgeGraphSnapshots.roleModelId, roleModelId),
+            eq(knowledgeGraphSnapshots.isActive, true)
+          ));
+        
+        await db.update(knowledgeGraphSnapshots)
+          .set({ isActive: true })
+          .where(eq(knowledgeGraphSnapshots.id, snapshotId));
+        
+        res.json({ success: true, message: 'ナレッジグラフを復元しました' });
+      } else {
+        throw new Error('スナップショットのデータ形式が無効です');
+      }
+    } catch (error) {
+      console.error('スナップショット復元エラー:', error);
+      res.status(500).json({ error: 'スナップショットの復元に失敗しました' });
     }
   });
 

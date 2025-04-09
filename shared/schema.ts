@@ -82,6 +82,17 @@ export const knowledgeEdges = pgTable('knowledge_edges', {
   strength: integer('strength').default(1)
 });
 
+// ナレッジグラフスナップショット (保存された状態)
+export const knowledgeGraphSnapshots = pgTable('knowledge_graph_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roleModelId: uuid('role_model_id').references(() => roleModels.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  graphData: jsonb('graph_data').notNull(), // ノードとエッジの完全なスナップショット
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  isActive: boolean('is_active').default(false) // 現在アクティブなスナップショットか
+});
+
 // キーワード
 export const keywords = pgTable('keywords', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -275,6 +286,12 @@ export const insertCollectionSummarySchema = createInsertSchema(collectionSummar
   generatedAt: true
 });
 
+// ナレッジグラフスナップショットのインサートスキーマ
+export const insertKnowledgeGraphSnapshotSchema = createInsertSchema(knowledgeGraphSnapshots).omit({
+  id: true,
+  createdAt: true
+});
+
 // インサート型定義
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -293,6 +310,7 @@ export type InsertSummary = z.infer<typeof insertSummarySchema>;
 export type InsertCollectionPlan = z.infer<typeof insertCollectionPlanSchema>;
 export type InsertCollectionSource = z.infer<typeof insertCollectionSourceSchema>;
 export type InsertCollectionSummary = z.infer<typeof insertCollectionSummarySchema>;
+export type InsertKnowledgeGraphSnapshot = z.infer<typeof insertKnowledgeGraphSnapshotSchema>;
 
 // セレクト型定義
 export type User = typeof users.$inferSelect;
@@ -312,6 +330,7 @@ export type Summary = typeof summaries.$inferSelect;
 export type CollectionPlan = typeof collectionPlans.$inferSelect;
 export type CollectionSource = typeof collectionSources.$inferSelect;
 export type CollectionSummary = typeof collectionSummaries.$inferSelect;
+export type KnowledgeGraphSnapshot = typeof knowledgeGraphSnapshots.$inferSelect;
 
 // カスタム型定義
 export type RoleModelWithIndustriesAndKeywords = RoleModel & {
@@ -379,6 +398,7 @@ export const roleModelsRelations = relations(roleModels, ({ one, many }) => ({
   keywords: many(roleModelKeywords),
   industries: many(roleModelIndustries),
   knowledgeNodes: many(knowledgeNodes),
+  knowledgeGraphSnapshots: many(knowledgeGraphSnapshots),
 }));
 
 // 知識ノードの関係
@@ -449,6 +469,14 @@ export const roleModelIndustriesRelations = relations(roleModelIndustries, ({ on
   industry: one(industrySubcategories, {
     fields: [roleModelIndustries.industryId],
     references: [industrySubcategories.id],
+  }),
+}));
+
+// ナレッジグラフスナップショットの関係
+export const knowledgeGraphSnapshotsRelations = relations(knowledgeGraphSnapshots, ({ one }) => ({
+  roleModel: one(roleModels, {
+    fields: [knowledgeGraphSnapshots.roleModelId],
+    references: [roleModels.id],
   }),
 }));
 

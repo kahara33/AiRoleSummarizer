@@ -6,6 +6,7 @@ import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphVie
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import CreateCollectionPlanButton from '@/components/collection-plan/CreateCollectionPlanButton';
 import { CrewAIButton } from '@/components/knowledge-graph/CrewAIButton';
+import { SnapshotSelector } from '@/components/knowledge-graph/SnapshotSelector';
 import { KnowledgeNode } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -66,8 +67,23 @@ const KnowledgeGraphPage: React.FC<KnowledgeGraphPageProps> = ({ id }) => {
                   roleModelId={roleModelId}
                   onStart={() => setIsGenerating(true)}
                   onComplete={() => setIsGenerating(false)}
+                  hasKnowledgeGraph={hasKnowledgeGraph}
                 />
               </div>
+
+              {/* スナップショット セレクター */}
+              {hasKnowledgeGraph && (
+                <div className="w-auto">
+                  <SnapshotSelector 
+                    roleModelId={roleModelId} 
+                    onRestore={() => {
+                      setSelectedNode(null);
+                      // Viewerに更新を通知するための処理は、KnowledgeGraphViewerで
+                      // useQueryを使用しており、queryClient.invalidateQueriesで自動的に再取得されるので不要
+                    }}
+                  />
+                </div>
+              )}
 
               {/* 情報収集プラン作成ボタン */}
               <div className="w-auto">
