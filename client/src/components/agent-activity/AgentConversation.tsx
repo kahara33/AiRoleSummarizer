@@ -1,24 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
-import { Bot, AlertCircle, WifiIcon, WifiOffIcon, Loader2 } from 'lucide-react';
+import { Bot, AlertCircle, WifiIcon, WifiOffIcon, Loader2, Send, User } from 'lucide-react';
 import AgentMessage from './AgentMessage';
 import AgentThinking from './AgentThinking';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface AgentConversationProps {
   roleModelId?: string;
   height?: string;
+  onSendMessage?: (message: string) => void;
 }
 
 /**
  * AIエージェントの会話を表示するコンポーネント
  * WebSocketを使用してリアルタイムにエージェントからのメッセージを受信し、表示します
  */
-const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, height = '500px' }) => {
+const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, height = '500px', onSendMessage }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [showThinking, setShowThinking] = useState(false);
   const [thinkingAgentName, setThinkingAgentName] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState<string>('');
+  const [userMessages, setUserMessages] = useState<{content: string, timestamp: Date}[]>([]);
   
   const { 
     isConnected,
@@ -28,7 +33,8 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
     progressUpdates,
     isProcessing,
     connect,
-    disconnect
+    disconnect,
+    sendMessage
   } = useMultiAgentWebSocket();
   
   // roleModelIdが変更されたらWebSocket接続を確立
@@ -112,35 +118,125 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
     );
   };
   
+  // ユーザーメッセージ送信ハンドラー
+  const handleSendMessage = () => {
+    if (!userInput.trim() || !roleModelId) return;
+    
+    // 新しいユーザーメッセージを作成
+    const newUserMessage = {
+      content: userInput.trim(),
+      timestamp: new Date()
+    };
+    
+    // ユーザーメッセージをローカル配列に追加
+    setUserMessages(prev => [...prev, newUserMessage]);
+    
+    // WebSocketを通じてサーバーにメッセージを送信
+    if (roleModelId) {
+      // 親コンポーネントから渡されたハンドラがあれば使用
+      if (onSendMessage) {
+        onSendMessage(userInput);
+      } else {
+        // WebSocketを直接使用
+        sendMessage('user_message', {
+          content: userInput,
+          roleModelId,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      console.log("ユーザーメッセージ送信:", userInput);
+    }
+    
+    // 入力フィールドをクリア
+    setUserInput('');
+  };
+  
+  // Enterキーでメッセージを送信
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
   // メッセージ一覧を表示
   const renderMessages = () => {
     // 表示するメッセージが無い場合
-    if (!agentThoughts.length && !progressUpdates.length) {
+    if (!agentThoughts.length && !progressUpdates.length && !userMessages.length) {
       return renderEmpty();
     }
     
+    // すべてのメッセージを一つの配列にまとめて時系列順にソート
+    const allMessages = [
+      // エージェントの思考メッセージ
+      ...agentThoughts.map(thought => ({
+        id: thought.id || `thought-${thought.timestamp}`,
+        type: 'agent',
+        agentName: thought.agentName,
+        content: thought.thought || '',
+        timestamp: thought.timestamp,
+        messageType: ((thought.type as string) || 'thought') as any
+      })),
+      
+      // 進捗更新メッセージ
+      ...progressUpdates.map(update => ({
+        id: `progress-${update.timestamp}`,
+        type: 'system',
+        agentName: 'システム',
+        content: update.message,
+        timestamp: update.timestamp,
+        messageType: 'info'
+      })),
+      
+      // ユーザーメッセージ
+      ...userMessages.map((msg, index) => ({
+        id: `user-${index}-${msg.timestamp.getTime()}`,
+        type: 'user',
+        agentName: 'ユーザー',
+        content: msg.content,
+        timestamp: msg.timestamp,
+        messageType: 'user'
+      }))
+    ].sort((a, b) => {
+      // タイムスタンプでソート
+      const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+      const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+      return timeA - timeB;
+    });
+    
     return (
       <div className="p-4">
-        {/* エージェントの思考メッセージ */}
-        {agentThoughts.map((thought, index) => (
-          <AgentMessage
-            key={`thought-${index}`}
-            agentName={thought.agentName}
-            content={thought.thought || ''}
-            timestamp={thought.timestamp}
-            type={((thought.type as string) || 'thought') as any}
-          />
-        ))}
-        
-        {/* 進捗更新メッセージ */}
-        {progressUpdates.map((update, index) => (
-          <AgentMessage
-            key={`progress-${index}`}
-            agentName={'システム'}
-            content={update.message}
-            timestamp={update.timestamp}
-            type="info"
-          />
+        {/* 統合されたすべてのメッセージを表示 */}
+        {allMessages.map((message) => (
+          message.type === 'user' ? (
+            // ユーザーメッセージ
+            <div key={message.id} className="flex justify-end mb-4">
+              <div className="flex items-start max-w-[80%]">
+                <div className="bg-primary text-primary-foreground rounded-lg p-3">
+                  <div className="flex items-center mb-1">
+                    <User size={16} className="mr-2" />
+                    <span className="text-sm font-medium">ユーザー</span>
+                  </div>
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  <div className="text-xs opacity-80 mt-1 text-right">
+                    {message.timestamp instanceof Date
+                      ? message.timestamp.toLocaleTimeString() 
+                      : new Date(message.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // エージェントまたはシステムメッセージ
+            <AgentMessage
+              key={message.id}
+              agentName={message.agentName}
+              content={message.content}
+              timestamp={message.timestamp}
+              type={message.messageType}
+            />
+          )
         ))}
         
         {/* エージェントが思考中の表示 */}
@@ -152,7 +248,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   };
   
   return (
-    <div className="border border-gray-200 rounded-md overflow-hidden bg-white" style={containerStyle}>
+    <div className="border border-gray-200 rounded-md overflow-hidden bg-white flex flex-col" style={containerStyle}>
       <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white">
         <div className="flex items-center gap-2">
           {isConnected ? (
@@ -177,9 +273,30 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
         )}
       </div>
       
-      <div className="h-full overflow-y-auto bg-white" ref={contentRef}>
+      {/* メッセージ表示エリア */}
+      <div className="flex-1 overflow-y-auto bg-white" ref={contentRef}>
         {renderError()}
         {renderMessages()}
+      </div>
+      
+      {/* ユーザー入力エリア */}
+      <div className="p-3 border-t border-gray-200 bg-white mt-auto">
+        <div className="flex gap-2">
+          <Textarea
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            placeholder="メッセージを入力..."
+            className="min-h-[40px] resize-none text-sm flex-1"
+            onKeyDown={handleKeyDown}
+          />
+          <Button
+            size="icon"
+            onClick={handleSendMessage}
+            disabled={!userInput.trim() || !roleModelId}
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
