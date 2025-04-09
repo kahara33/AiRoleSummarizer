@@ -948,7 +948,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   }, [roleModelId, fetchGraphData, generating]);
 
   return (
-    <div className="flex flex-col w-full" style={{ height }}>
+    <div className="flex flex-col w-full h-full" style={{ height: '100%' }}>
       <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
         {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
@@ -1002,9 +1002,10 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex-1">
+        <div className="flex-1 h-full" style={{ height: 'calc(100% - 36px)' }}>
           <ReactFlowProvider>
             <ReactFlow
+              style={{ height: '100%', width: '100%' }}
               nodes={nodes}
               edges={edges}
               onNodesChange={handleNodesChange}
