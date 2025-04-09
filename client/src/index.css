@@ -3,150 +3,156 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
   * {
     @apply border-border;
   }
-
-  html, body, #root {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply bg-background text-foreground;
   }
 }
 
-/* チャット入力部分のカスタムスタイル */
-.chat-input-container {
-  margin-top: auto;
-  padding: 12px;
-  border-top: 1px solid #e2e8f0;
-  background-color: white;
-}
-
-/* エージェント対話パネルのスクロールエリアスタイル */
 .agent-thoughts-scroll {
-  height: 100% !important;
-  max-height: calc(100% - 10px) !important;
-  overflow-y: scroll !important;
-  display: block !important;
-  padding-right: 5px !important;
-  scrollbar-width: thin !important;
-}
-
-/* スクロールバー表示の強制 */
-.agent-thoughts-scroll [data-radix-scroll-area-viewport],
-.agent-thoughts-scroll > div,
-.agent-thoughts-scroll > div > div {
-  height: 100% !important;
-  overflow-y: scroll !important;
-  display: block !important;
-  border-radius: 0 !important;
-  max-height: unset !important;
-}
-
-/* カスタムWebkitスクロールバー */
-.agent-thoughts-scroll::-webkit-scrollbar,
-.agent-thoughts-scroll div::-webkit-scrollbar {
-  width: 8px !important;
-  background-color: transparent !important;
-}
-
-.agent-thoughts-scroll::-webkit-scrollbar-thumb,
-.agent-thoughts-scroll div::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2) !important;
-  border-radius: 4px !important;
-}
-
-/* エージェント思考パネルのコンテナスタイル調整 */
-.agent-thoughts-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
   max-height: 100%;
-  overflow: hidden;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
 }
 
-/* エージェント思考パネルのコンテンツエリア */
-.agent-thoughts-content {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-/* RadixUI ScrollAreaのカスタムスタイル */
-[data-radix-scroll-area-viewport]::-webkit-scrollbar {
-  width: 8px !important;
-  height: 8px !important;
-}
-
-[data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-
-[data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2) !important;
-  border-radius: 4px !important;
-}
-
-[data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.3) !important;
-}
-
-/* チャットメッセージエリアのスクロールスタイル */
-.chat-message-container {
-  height: 100% !important;
-  overflow: auto !important;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-message-list {
-  flex-grow: 1;
-  overflow-y: visible;
-}
-
-/* リサイズパネルのスタイル */
-[data-panel] {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  max-height: 100vh;
-}
-
-.panel-container {
-  height: 100%;
-  max-height: 100vh;
-  overflow: hidden;
-}
-
-[data-panel-resize-handle][data-panel-group-direction='horizontal'] {
-  width: 4px;
-  margin-left: -2px;
-  margin-right: -2px;
-  cursor: col-resize;
+.agent-thoughts-scroll::-webkit-scrollbar {
+  width: 8px;
   background-color: transparent;
-  transition: background-color 0.2s;
 }
 
-[data-panel-resize-handle][data-panel-group-direction='horizontal']:hover {
-  background-color: #3b82f6;
+.agent-thoughts-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
 }
 
-[data-panel-resize-handle][data-panel-group-direction='horizontal'][data-panel-resize-handle-active] {
-  background-color: #3b82f6;
+.agent-thoughts-scroll::-webkit-scrollbar-track {
+  background-color: transparent;
 }
 
-/* アニメーション効果 */
+.agent-thinking {
+  position: relative;
+}
+
+.agent-thinking::after {
+  content: '';
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: currentColor;
+  border-radius: 50%;
+  opacity: 0.5;
+  animation: thinking 1.5s infinite;
+}
+
+@keyframes thinking {
+  0%, 100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.progress-bar-animated {
+  background-size: 30px 30px;
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  animation: animate-stripes 1s linear infinite;
+}
+
+@keyframes animate-stripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 60px 0;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -154,87 +160,30 @@
   }
 }
 
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.agent-thoughts-container .scrollbar {
+  width: 8px !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
 }
 
-@keyframes pulseBackground {
-  0% {
-    background-color: rgba(219, 234, 254, 0.3);
-  }
-  50% {
-    background-color: rgba(219, 234, 254, 0.7);
-  }
-  100% {
-    background-color: rgba(219, 234, 254, 0.3);
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
-}
-
-.animate-slideInRight {
-  animation: slideInRight 0.4s ease-out forwards;
-}
-
-.animate-pulse-bg {
-  animation: pulseBackground 2s infinite;
-}
-
-/* エージェント思考パネル用スタイル */
-.agent-thinking {
-  position: relative;
-}
-
-.agent-thinking:after {
-  content: "...";
-  position: absolute;
-  right: -12px;
-  animation: ellipsis 1.5s infinite;
-  font-weight: bold;
-}
-
-@keyframes ellipsis {
-  0% { content: "."; }
-  33% { content: ".."; }
-  66% { content: "..."; }
+.agent-thoughts-container .thumb {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 4px !important;
 }
 
 .thought-bubble {
   position: relative;
-  border-radius: 12px;
-  transition: all 0.3s ease;
+  z-index: 1;
 }
 
-.thought-bubble:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+.agent-thoughts-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-/* 特殊なアニメーション効果 (進捗バー用) */
-.progress-bar-animated {
-  transition: width 0.5s ease-in-out;
-  background-image: linear-gradient(45deg, 
-    rgba(255, 255, 255, 0.15) 25%, 
-    transparent 25%, 
-    transparent 50%, 
-    rgba(255, 255, 255, 0.15) 50%, 
-    rgba(255, 255, 255, 0.15) 75%, 
-    transparent 75%, 
-    transparent);
-  background-size: 1rem 1rem;
-  animation: progress-bar-stripes 1s linear infinite;
-}
-
-@keyframes progress-bar-stripes {
-  from { background-position: 1rem 0; }
-  to { background-position: 0 0; }
+.agent-thoughts-container .scrollbar-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
