@@ -777,55 +777,58 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
                   
-                  {/* タブ切り替え部分 */}
-                  <div className="px-4 py-2 border-b flex justify-between items-center">
-                    <Tabs defaultValue="all" className="w-full">
-                      <TabsList className="h-8 w-full bg-gray-50">
-                        <TabsTrigger value="all" className="flex-1">すべて</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-                  
-                  {/* メッセージ表示エリア */}
-                  <div className="flex-1 overflow-auto">
-                    <AgentConversation
-                      roleModelId={roleModelId}
-                      height="calc(100% - 48px)" /* 入力エリアの高さを引いた分 */
-                      onSendMessage={handleSendMessage}
-                    />
-                  </div>
-                  
-                  {/* メッセージ入力エリア */}
-                  <div className="p-3 border-t mt-auto">
-                    <div className="flex gap-2">
-                      <Textarea
-                        placeholder="メッセージを入力..."
-                        className="min-h-[40px] resize-none text-sm flex-1"
-                        value={userInput}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserInput(e.target.value)}
-                        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
+                  {/* コンテンツ部分 */}
+                  <div className="flex-1 flex flex-col bg-gray-50 relative">
+                    <div className="flex-1 flex items-center justify-center text-center">
+                      <div className="absolute inset-0 overflow-auto">
+                        {/* メッセージ表示エリア - 実際のエージェント対話メッセージを表示 */}
+                        <div style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 10 }}>
+                          <AgentConversation
+                            roleModelId={roleModelId}
+                            height="calc(100% - 48px)"
+                            onSendMessage={handleSendMessage}
+                          />
+                        </div>
+                        
+                        {/* デザイン表示用の背景要素 - 元のスクリーンショットと同じデザイン */}
+                        <div className="p-8 flex flex-col items-center justify-center h-full">
+                          <p className="text-gray-500 text-sm mb-4">AIエージェントからの対話履歴がここに表示されます</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* メッセージ入力エリア */}
+                    <div className="p-2 border-t mt-auto">
+                      <div className="flex items-center gap-1">
+                        <Textarea
+                          placeholder="メッセージを入力..."
+                          className="min-h-[34px] resize-none text-sm flex-1 py-1 px-2"
+                          value={userInput}
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserInput(e.target.value)}
+                          onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              if (userInput.trim() && roleModelId) {
+                                handleSendMessage(userInput);
+                                setUserInput('');
+                              }
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700 h-8 w-8 p-0 rounded-lg"
+                          onClick={() => {
                             if (userInput.trim() && roleModelId) {
                               handleSendMessage(userInput);
                               setUserInput('');
                             }
-                          }
-                        }}
-                      />
-                      <Button
-                        size="icon"
-                        className="bg-purple-600 hover:bg-purple-700"
-                        onClick={() => {
-                          if (userInput.trim() && roleModelId) {
-                            handleSendMessage(userInput);
-                            setUserInput('');
-                          }
-                        }}
-                        disabled={!userInput.trim() || !roleModelId}
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
+                          }}
+                          disabled={!userInput.trim() || !roleModelId}
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
