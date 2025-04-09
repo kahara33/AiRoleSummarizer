@@ -27,6 +27,32 @@
   background-color: white;
 }
 
+/* エージェント対話パネルのスクロールエリアスタイル */
+.agent-thoughts-scroll {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* スクロールバー表示の強制 */
+.agent-thoughts-scroll [data-radix-scroll-area-viewport] {
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* チャットメッセージエリアのスクロールスタイル */
+.chat-message-container {
+  height: 100% !important;
+  overflow: auto !important;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-message-list {
+  flex-grow: 1;
+  overflow-y: visible;
+}
+
 /* リサイズパネルのスタイル */
 [data-panel] {
   display: flex;
