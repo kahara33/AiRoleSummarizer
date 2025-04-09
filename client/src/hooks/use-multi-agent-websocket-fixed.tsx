@@ -31,6 +31,7 @@ interface MultiAgentWebSocketContextType {
   disconnect: () => void;
   sendMessage: (type: string, payload: any) => boolean;
   clearMessages: () => void;
+  forceResetProcessing: () => void;
 }
 
 /**
@@ -348,6 +349,12 @@ function useMultiAgentWebSocketManager() {
     };
   }, [disconnect]);
   
+  // 処理状態を強制的にリセットする関数
+  const forceResetProcessing = useCallback(() => {
+    console.log('処理状態を強制的にリセットします');
+    setIsProcessing(false);
+  }, []);
+  
   return {
     isConnected,
     connecting,
@@ -358,6 +365,7 @@ function useMultiAgentWebSocketManager() {
     agentThoughts,
     progressUpdates,
     isProcessing,
-    clearMessages
+    clearMessages,
+    forceResetProcessing
   };
 }

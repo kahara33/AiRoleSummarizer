@@ -74,6 +74,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     connect, 
     isProcessing, 
     progressUpdates,
+    forceResetProcessing
   } = useMultiAgentWebSocket();
   
   // KnowledgeGraphViewerからのデータ有無状態を更新する関数
@@ -626,6 +627,31 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           onClick={() => {
                             // CrewAIによるグラフ生成を開始
                             generateGraphMutation.mutate();
+                            
+                            // 最大10秒後に強制的に処理中ステータスをリセット（安全策）
+                            setTimeout(() => {
+                              // バックアップ: 最大処理時間をオーバーした場合は強制的にリセット
+                              if (isProcessing) {
+                                if (progressUpdates.length > 0) {
+                                  // 進捗が登録されている場合、最後の進捗に100%を送信
+                                  console.log("10秒タイムアウト: 強制リセット - 進捗完了イベントを送信");
+                                  if (send) {
+                                    send('progress', {
+                                      roleModelId: roleModelId,
+                                      stage: "完了",
+                                      progress: 100,
+                                      message: "処理が完了しました",
+                                      details: { step: "completion" },
+                                      percent: 100
+                                    });
+                                  }
+                                } else {
+                                  // 進捗がない場合、直接WebSocketフックのリセット関数を呼び出す
+                                  console.log("10秒タイムアウト: 強制リセット - WebSocketリセット");
+                                  forceResetProcessing();
+                                }
+                              }
+                            }, 10000);
                           }}
                           disabled={generateGraphMutation.isPending || isProcessing}
                         >
@@ -685,6 +711,7 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                           className="h-6 w-6 p-0 text-gray-500 hover:text-red-500"
                           onClick={() => {
                             // 処理のキャンセル
+                            forceResetProcessing();
                             toast({
                               title: "処理をキャンセル",
                               description: "処理がキャンセルされました",

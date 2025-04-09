@@ -50,20 +50,33 @@ export class CrewManager extends EventEmitter {
     // ロールモデルIDを保持（WebSocket通信に必要）
     (this as any).roleModelId = roleModelId;
     
-    // Crewの初期化
-    this.crew = new Crew({
-      name: "KnowledgeGraphCrewAI",
-      agents: AllAgents as any, // 型の互換性問題を一時的に回避
-      tasks: [
-        AnalyzeIndustryTask,
-        EvaluateSourcesTask,
-        DesignGraphStructureTask,
-        DevelopCollectionPlanTask,
-        EvaluateQualityTask,
-        IntegrateAndDocumentTask
-      ] as any, // 型の互換性問題を一時的に回避
-      verbose: true
-    });
+    try {
+      // Crewの初期化
+      this.crew = new Crew({
+        name: "KnowledgeGraphCrewAI",
+        agents: AllAgents as any, // 型の互換性問題を一時的に回避
+        tasks: [
+          AnalyzeIndustryTask,
+          EvaluateSourcesTask,
+          DesignGraphStructureTask,
+          DevelopCollectionPlanTask,
+          EvaluateQualityTask,
+          IntegrateAndDocumentTask
+        ] as any, // 型の互換性問題を一時的に回避
+        verbose: true
+      });
+      console.log('Crewインスタンス初期化成功');
+    } catch (error) {
+      console.error('Crewインスタンスの初期化に失敗しました:', error);
+      // フォールバックとして、EventEmitterとしての基本機能を維持
+      this.crew = {
+        on: () => console.log('EventEmitterのフォールバックが呼び出されました'),
+        runTask: async () => { 
+          console.error('Crewインスタンスがないためタスクを実行できません'); 
+          return {}; 
+        }
+      } as any;
+    }
     
     // WebSocket関連のデバッグログ
     console.log(`CrewManagerが初期化されました。roleModelId=${roleModelId}`);
@@ -79,140 +92,161 @@ export class CrewManager extends EventEmitter {
   private setupAgentEventListeners() {
     // 各エージェントの思考プロセスをモニタリング
     // 元のイベントリスナーを強化
-    this.crew.on('agentThinking', (data: any) => {
-      console.log('CrewAI エージェント思考イベント検出:', data);
-      
-      // 日本語名とタスクタイプのマッピング
-      let japaneseAgentName = data.agentName;
-      if (data.agentName === 'Domain Analyst') {
-        japaneseAgentName = 'ドメイン分析者';
-      } else if (data.agentName === 'Trend Researcher') {
-        japaneseAgentName = 'トレンドリサーチャー';
-      } else if (data.agentName === 'Context Mapper') {
-        japaneseAgentName = 'コンテキストマッパー';
-      } else if (data.agentName === 'Plan Strategist') {
-        japaneseAgentName = 'プランストラテジスト';
-      } else if (data.agentName === 'Critical Thinker') {
-        japaneseAgentName = 'クリティカルシンカー';
-      }
-      
-      // 思考内容がない場合は、既定の思考内容を提供
-      const thoughtContent = data.thought || `${japaneseAgentName}がタスク「${data.taskName || "未知のタスク"}」を処理中...`;
-      
-      // 直接サーバーのWebSocketインターフェースを使ってエージェント思考を送信
-      // これにより、イベントのデッドロックやリスナー問題を回避
-      const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
-      
+    // イベントリスナーを安全に登録するためのチェック
+    if (this.crew && typeof this.crew.on === 'function') {
       try {
-        // WebSocketサーバー関数を使用して直接送信
-        if (typeof sendAgentThoughts === 'function') {
-          // roleModelIdがなくて送信されない場合があるため、
-          // ダミーのIDを設定（後でフィルタリングされる）
-          const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-          sendAgentThoughts(
-            japaneseAgentName,
-            thoughtContent,
-            roleModelId,
-            {
-              taskName: data.taskName,
-              type: 'thinking', // 思考中タイプを明示的に設定
-              timestamp: new Date().toISOString()
+        this.crew.on('agentThinking', (data: any) => {
+          console.log('CrewAI エージェント思考イベント検出:', data);
+          
+          // 日本語名とタスクタイプのマッピング
+          let japaneseAgentName = data.agentName;
+          if (data.agentName === 'Domain Analyst') {
+            japaneseAgentName = 'ドメイン分析者';
+          } else if (data.agentName === 'Trend Researcher') {
+            japaneseAgentName = 'トレンドリサーチャー';
+          } else if (data.agentName === 'Context Mapper') {
+            japaneseAgentName = 'コンテキストマッパー';
+          } else if (data.agentName === 'Plan Strategist') {
+            japaneseAgentName = 'プランストラテジスト';
+          } else if (data.agentName === 'Critical Thinker') {
+            japaneseAgentName = 'クリティカルシンカー';
+          }
+          
+          // 思考内容がない場合は、既定の思考内容を提供
+          const thoughtContent = data.thought || `${japaneseAgentName}がタスク「${data.taskName || "未知のタスク"}」を処理中...`;
+          
+          // 直接サーバーのWebSocketインターフェースを使ってエージェント思考を送信
+          // これにより、イベントのデッドロックやリスナー問題を回避
+          try {
+            const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
+            
+            // WebSocketサーバー関数を使用して直接送信
+            if (typeof sendAgentThoughts === 'function') {
+              // roleModelIdがなくて送信されない場合があるため、
+              // ダミーのIDを設定（後でフィルタリングされる）
+              const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+              sendAgentThoughts(
+                japaneseAgentName,
+                thoughtContent,
+                roleModelId,
+                {
+                  taskName: data.taskName,
+                  type: 'thinking', // 思考中タイプを明示的に設定
+                  timestamp: new Date().toISOString()
+                }
+              );
+              console.log(`WebSocketを介してエージェント思考を直接送信: ${japaneseAgentName}`);
+            } else {
+              console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
             }
-          );
-          console.log(`WebSocketを介してエージェント思考を直接送信: ${japaneseAgentName}`);
-        } else {
-          console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
-        }
-      } catch (wsError) {
-        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+          } catch (wsError) {
+            console.error('WebSocket送信中にエラーが発生しました:', wsError);
+          }
+          
+          // 従来のイベントエミッターも維持（互換性のため）
+          this.emit('agentThought', {
+            agentName: japaneseAgentName,
+            taskName: data.taskName,
+            thought: thoughtContent,
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID() // 一意のIDを必ず設定
+          });
+          
+          // クリティカルなログも出力して、イベントの発行を確認
+          console.log(`エージェント思考イベントを発行: ${japaneseAgentName} - ${thoughtContent.substring(0, 50)}...`);
+        });
+      } catch (error) {
+        console.error('エージェント思考イベントリスナーの登録中にエラーが発生しました:', error);
       }
-      
-      // 従来のイベントエミッターも維持（互換性のため）
-      this.emit('agentThought', {
-        agentName: japaneseAgentName,
-        taskName: data.taskName,
-        thought: thoughtContent,
-        timestamp: new Date().toISOString(),
-        id: crypto.randomUUID() // 一意のIDを必ず設定
-      });
-      
-      // クリティカルなログも出力して、イベントの発行を確認
-      console.log(`エージェント思考イベントを発行: ${japaneseAgentName} - ${thoughtContent.substring(0, 50)}...`);
-    });
+    
+    }
     
     // タスク完了イベント
-    this.crew.on('taskCompleted', (data: any) => {
-      console.log('CrewAI タスク完了イベント検出:', data);
-      
-      // タスク名から担当エージェントを決定
-      let agentName = 'タスクマネージャー';
-      if (data.taskName === 'AnalyzeIndustryTask') {
-        agentName = 'ドメイン分析者';
-      } else if (data.taskName === 'EvaluateSourcesTask') {
-        agentName = 'トレンドリサーチャー';
-      } else if (data.taskName === 'DesignGraphStructureTask') {
-        agentName = 'コンテキストマッパー';
-      } else if (data.taskName === 'DevelopCollectionPlanTask') {
-        agentName = 'プランストラテジスト';
-      } else if (data.taskName === 'EvaluateQualityTask' || data.taskName === 'IntegrateAndDocumentTask') {
-        agentName = 'クリティカルシンカー';
-      }
-      
-      // 直接WebSocketインターフェースを使用してタスク完了メッセージを送信
-      const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
+    if (this.crew && typeof this.crew.on === 'function') {
       try {
-        if (typeof sendAgentThoughts === 'function') {
-          const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-          const thought = `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`;
+        this.crew.on('taskCompleted', (data: any) => {
+          console.log('CrewAI タスク完了イベント検出:', data);
           
-          sendAgentThoughts(
-            agentName,
-            thought,
-            roleModelId,
-            {
-              taskName: data.taskName,
-              type: 'success', // 成功タイプを明示的に設定
-              timestamp: new Date().toISOString(),
-              id: crypto.randomUUID() // 一意のIDを必ず設定
+          // タスク名から担当エージェントを決定
+          let agentName = 'タスクマネージャー';
+          if (data.taskName === 'AnalyzeIndustryTask') {
+            agentName = 'ドメイン分析者';
+          } else if (data.taskName === 'EvaluateSourcesTask') {
+            agentName = 'トレンドリサーチャー';
+          } else if (data.taskName === 'DesignGraphStructureTask') {
+            agentName = 'コンテキストマッパー';
+          } else if (data.taskName === 'DevelopCollectionPlanTask') {
+            agentName = 'プランストラテジスト';
+          } else if (data.taskName === 'EvaluateQualityTask' || data.taskName === 'IntegrateAndDocumentTask') {
+            agentName = 'クリティカルシンカー';
+          }
+          
+          // 直接WebSocketインターフェースを使用してタスク完了メッセージを送信
+          try {
+            const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
+            if (typeof sendAgentThoughts === 'function') {
+              const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+              const thought = `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`;
+              
+              sendAgentThoughts(
+                agentName,
+                thought,
+                roleModelId,
+                {
+                  taskName: data.taskName,
+                  type: 'success', // 成功タイプを明示的に設定
+                  timestamp: new Date().toISOString(),
+                  id: crypto.randomUUID() // 一意のIDを必ず設定
+                }
+              );
+              console.log(`タスク完了メッセージをWebSocketで直接送信: ${agentName} - ${data.taskName}`);
+            } else {
+              console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
             }
-          );
-          console.log(`タスク完了メッセージをWebSocketで直接送信: ${agentName} - ${data.taskName}`);
-        } else {
-          console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
-        }
-      } catch (wsError) {
-        console.error('WebSocket送信中にエラーが発生しました(タスク完了):', wsError);
+          } catch (wsError) {
+            console.error('WebSocket送信中にエラーが発生しました(タスク完了):', wsError);
+          }
+          
+          // 元のイベントエミッターも維持（互換性のため）
+          this.emit('agentThought', {
+            agentName: agentName,
+            thought: `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`,
+            taskName: data.taskName,
+            timestamp: new Date().toISOString(),
+            type: 'success',
+            id: crypto.randomUUID() // 一意のIDを必ず設定
+          });
+          
+          // 元のタスク完了イベントも発行
+          this.emit('taskCompleted', {
+            taskName: data.taskName,
+            result: data.result,
+            agentName: agentName, // 担当エージェント情報を追加
+            timestamp: new Date().toISOString()
+          });
+          
+          console.log(`タスク完了イベントを発行: ${agentName} - ${data.taskName}`);
+        });
+      } catch (error) {
+        console.error('タスク完了イベントリスナーの登録中にエラーが発生しました:', error);
       }
-      
-      // 元のイベントエミッターも維持（互換性のため）
-      this.emit('agentThought', {
-        agentName: agentName,
-        thought: `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`,
-        taskName: data.taskName,
-        timestamp: new Date().toISOString(),
-        type: 'success',
-        id: crypto.randomUUID() // 一意のIDを必ず設定
-      });
-      
-      // 元のタスク完了イベントも発行
-      this.emit('taskCompleted', {
-        taskName: data.taskName,
-        result: data.result,
-        agentName: agentName, // 担当エージェント情報を追加
-        timestamp: new Date().toISOString()
-      });
-      
-      console.log(`タスク完了イベントを発行: ${agentName} - ${data.taskName}`);
-    });
+    
+    }
     
     // エラーイベント
-    this.crew.on('error', (error: any) => {
-      this.emit('error', {
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      });
-    });
+    if (this.crew && typeof this.crew.on === 'function') {
+      try {
+        this.crew.on('error', (error: any) => {
+          this.emit('error', {
+            message: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+          });
+        });
+      } catch (error) {
+        console.error('エラーイベントリスナーの登録中にエラーが発生しました:', error);
+      }
+    }
   }
   
   /**
