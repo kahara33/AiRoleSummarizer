@@ -776,12 +776,39 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
                   
-                  <div className="flex-1 overflow-auto">
-                    <AgentConversation
-                      roleModelId={roleModelId}
-                      height="100%"
-                      onSendMessage={handleSendMessage}
-                    />
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex-1 flex items-center justify-center relative">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
+                        <div className="bg-blue-50 p-3 rounded-full mb-4">
+                          <BrainCircuit size={40} className="text-blue-500" />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2">AIエージェント会話</h3>
+                        <p className="text-gray-600">エージェントからのメッセージがここに表示されます</p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 border-t mt-auto">
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder="メッセージを入力..."
+                          className="min-h-[40px] resize-none text-sm flex-1"
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                        />
+                        <Button
+                          size="icon"
+                          onClick={() => {
+                            if (userInput.trim() && roleModelId) {
+                              handleSendMessage(userInput);
+                              setUserInput('');
+                            }
+                          }}
+                          disabled={!userInput.trim() || !roleModelId}
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Panel>
