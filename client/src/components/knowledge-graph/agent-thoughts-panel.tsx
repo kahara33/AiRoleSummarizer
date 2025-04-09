@@ -465,7 +465,7 @@ function AgentThoughtsPanel({
           
           <div className="flex-1 p-0 overflow-hidden">
             <TabsContent value={activeTab} className="m-0 h-full">
-              <ScrollArea className={`${height || 'h-[calc(100vh-200px)]'} px-4 py-4`}>
+              <ScrollArea style={{ height: height || 'calc(100vh - 200px)', maxHeight: '100%' }} className="px-4 py-4 overflow-y-auto">
                 {filteredThoughts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40">
                     <p className="text-gray-500">AIエージェント間の対話データがありません</p>
@@ -603,7 +603,7 @@ function AgentThoughtsPanel({
         
         <CardContent className="flex-1 p-0">
           <TabsContent value={activeTab} className="m-0 h-full">
-            <ScrollArea className="h-[calc(100vh-300px)] px-6 pb-4">
+            <ScrollArea style={{ height: 'calc(100vh - 300px)', maxHeight: '100%' }} className="px-6 pb-4 overflow-y-auto">
               {filteredThoughts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40">
                   <p className="text-gray-500 dark:text-gray-400">AIエージェント同士の対話がここに表示されます</p>

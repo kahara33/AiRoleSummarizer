@@ -570,8 +570,7 @@ export default function MultiAgentChatPanel({
           {messages.length === 0 && processes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
               <Network className={`${compact ? 'h-8 w-8 mb-2' : 'h-12 w-12 mb-4'}`} />
-              <p>AIエージェントチームが情報収集のお手伝いをします</p>
-              {!compact && <p className="text-sm">質問や指示を入力してください</p>}
+              {!compact && <p className="text-sm">AIエージェントとチャットするには、メッセージを入力してください</p>}
             </div>
           ) : (
             <>
