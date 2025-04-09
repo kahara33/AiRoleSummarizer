@@ -72,6 +72,8 @@ export class GlobalWebSocketManager {
     return this.isConnected;
   }
   
+
+  
   // WebSocket接続の作成
   public connect(userId: string, roleModelId: string, onStatusChange?: (isConnected: boolean) => void): void {
     // 既存の接続を確認
@@ -514,11 +516,34 @@ export function useGlobalWebSocket(roleModelId?: string) {
     };
   }, [currentRoleModelId, wsManager]);
   
+  // ユーザーメッセージ送信用の関数
+  const sendUserMessage = useCallback((message: string) => {
+    if (!isConnected || !currentRoleModelId) {
+      console.log('WebSocketが接続されていないため、ユーザーメッセージを送信できません');
+      toast({
+        title: '接続エラー',
+        description: 'サーバーへの接続が確立されていません',
+        variant: 'destructive'
+      });
+      
+      // 自動再接続を試みる
+      connect();
+      return false;
+    }
+    
+    return wsManager.sendMessage('user_message', {
+      content: message,
+      roleModelId: currentRoleModelId,
+      timestamp: new Date().toISOString()
+    });
+  }, [isConnected, currentRoleModelId, wsManager, toast, connect]);
+
   return {
     isConnected,
     connect,
     disconnect,
     sendMessage,
+    sendUserMessage,
     agentThoughts,
     progressUpdates,
     clearMessages

@@ -9,8 +9,10 @@ import {
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, AlertCircle, CheckCircle, Brain } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, Brain, Send, User } from 'lucide-react';
 import useGlobalWebSocket, { AgentThought, ProgressUpdate } from '@/hooks/use-global-websocket';
 
 // エージェント出力メッセージの型定義
@@ -48,6 +50,34 @@ function AgentThoughtsPanel({
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [agentNames, setAgentNames] = useState<string[]>([]);
+  
+  // ユーザーメッセージ関連の状態
+  const [userInput, setUserInput] = useState<string>('');
+  const [userMessages, setUserMessages] = useState<{ content: string; timestamp: number }[]>([]);
+  
+  // グローバルWebSocketフックから追加のメソッドを取得
+  const { sendUserMessage } = useGlobalWebSocket(roleModelId);
+  
+  // メッセージ送信処理
+  const handleSendMessage = () => {
+    if (!userInput.trim()) return;
+    
+    // ユーザーメッセージを追加
+    const newMessage = {
+      content: userInput.trim(),
+      timestamp: Date.now()
+    };
+    setUserMessages(prev => [...prev, newMessage]);
+    
+    // WebSocketを通じてサーバーにメッセージを送信
+    if (roleModelId) {
+      console.log("メッセージをサーバーに送信:", newMessage.content);
+      sendUserMessage(newMessage.content);
+    }
+    
+    // 入力フィールドをクリア
+    setUserInput('');
+  };
   
   // グローバルWebSocketフックを利用（roleModelIdが変更されても再マウントされない）
   const { agentThoughts: wsAgentThoughts, progressUpdates: wsProgressUpdates } = useGlobalWebSocket(roleModelId);
@@ -602,8 +632,8 @@ function AgentThoughtsPanel({
         </div>
         
         <CardContent className="flex-1 p-0">
-          <TabsContent value={activeTab} className="m-0 h-full">
-            <ScrollArea className="agent-thoughts-scroll px-6 pb-4" style={{height: "100%"}}>
+          <TabsContent value={activeTab} className="m-0 h-full flex flex-col">
+            <ScrollArea className="agent-thoughts-scroll px-6 pb-4 flex-1">
               {filteredThoughts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40">
                   <p className="text-gray-500 dark:text-gray-400">AIエージェント同士の対話がここに表示されます</p>
@@ -652,9 +682,56 @@ function AgentThoughtsPanel({
                       </div>
                     </div>
                   ))}
+                  
+                  {/* ユーザーからのメッセージがあれば表示 */}
+                  {userMessages && userMessages.map((msg, index) => (
+                    <div key={`user-${index}`} className="mb-4 animate-fadeIn">
+                      <div className="flex gap-3 mt-4 justify-end">
+                        <div className="flex-1 max-w-3/4">
+                          <div className="flex items-center mb-1 justify-end">
+                            <span className="font-medium text-sm">ユーザー</span>
+                            <span className="text-xs text-gray-500 ml-2">
+                              {formatTime(msg.timestamp)}
+                            </span>
+                          </div>
+                          <div className="text-sm rounded-lg p-3 whitespace-pre-wrap thought-bubble bg-primary text-primary-foreground">
+                            {msg.content}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-primary">
+                          <User className="h-4 w-4 text-primary-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </ScrollArea>
+            
+            {/* ユーザーチャット入力エリア */}
+            <div className="p-4 border-t mt-auto">
+              <div className="flex gap-2">
+                <Textarea
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="メッセージを入力..."
+                  className="min-h-[40px] resize-none text-sm flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                />
+                <Button
+                  size="icon"
+                  onClick={handleSendMessage}
+                  disabled={!userInput.trim()}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </TabsContent>
         </CardContent>
       </Tabs>
