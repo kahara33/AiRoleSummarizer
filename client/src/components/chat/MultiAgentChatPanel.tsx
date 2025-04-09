@@ -564,8 +564,8 @@ export default function MultiAgentChatPanel({
       )}
 
       {/* チャットとエージェント処理を単一のスクロールエリアに統合 */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <div className={`h-full overflow-y-auto ${compact ? 'p-3' : 'p-6'} space-y-3`}>
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className={`h-full ${compact ? 'p-3' : 'p-6'} space-y-3`}>
           {/* メッセージ表示 */}
           {messages.length === 0 && processes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
