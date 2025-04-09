@@ -35,9 +35,13 @@ const ConceptNode = memo(({ data, selected }: NodeProps) => {
     position: 'relative',
   };
   
-  // コンテキストメニューを開く処理
+  // コンテキストメニューを開く処理（マウス位置に表示）
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
+    // マウスカーソルの位置を保存
+    setMenuPosition({ x: event.clientX, y: event.clientY });
     setIsMenuOpen(true);
   }, []);
   
@@ -101,7 +105,13 @@ const ConceptNode = memo(({ data, selected }: NodeProps) => {
         <DropdownMenuTrigger asChild>
           <div style={{ display: 'none' }}></div>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-40 z-50">
+        <DropdownMenuContent 
+          className="w-40 z-50"
+          style={{ 
+            position: 'fixed', 
+            left: `${menuPosition.x}px`, 
+            top: `${menuPosition.y}px` 
+          }}>
           <DropdownMenuItem onClick={handleEdit} className="cursor-pointer">
             <Pencil className="mr-2 h-4 w-4" />
             <span>編集</span>
