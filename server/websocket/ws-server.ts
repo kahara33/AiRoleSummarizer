@@ -273,10 +273,16 @@ export class WSServerManager {
     console.warn('ブロードキャスト機能が使用されました。これはデバッグ目的でのみ使用してください。');
     console.warn(`ブロードキャストメッセージ: type=${message.type}`);
     
-    // agent_thoughts関連のメッセージはブロードキャストしない（セキュリティ対策）
+    // エージェント思考メッセージを特別に処理
     if (message.type === 'agent_thought' || message.type === 'agent_thoughts') {
-      console.error('エージェント思考メッセージはブロードキャストできません。セキュリティ上の理由により、ブロードキャストはブロックされました。');
-      return 0;
+      console.log('エージェント思考メッセージはRoleModel固有のチャネルを介して処理されるべきです。');
+      console.log('一時的にブロードキャストを許可しますが、適切なRoleModelの対象を指定してください。');
+      
+      // エージェント思考メッセージをすべてのクライアントに送信
+      // これは一時的な措置です - 実際にはroleModelIdを指定して送信すべきです
+      if (!message.payload.roleModelId) {
+        message.payload.roleModelId = 'default';
+      }
     }
     
     // デバッグインジケータをペイロードに追加

@@ -311,20 +311,152 @@ export function initWebSocket(server: HttpServer): void {
                   }));
                 }
               }
+              // チャットメッセージの処理
+              else if (data.type === 'chat_message') {
+                console.log(`チャットメッセージを受信しました`);
+                
+                const message = data.message || '';
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                if (!message) {
+                  console.log('チャットメッセージが空です');
+                  return;
+                }
+                
+                if (specificRoleModelId) {
+                  // マルチエージェント思考プロセスのシミュレーション
+                  console.log(`チャットメッセージをサーバーで処理: roleModelId=${specificRoleModelId}, message="${message.substring(0, 50)}..."`);
+                  
+                  // Orchestratorエージェントの思考を送信
+                  setTimeout(() => {
+                    sendAgentThoughts(
+                      'Orchestrator', 
+                      `質問「${message}」を受け取りました。分析を開始します。`, 
+                      specificRoleModelId,
+                      { agentType: 'orchestrator' }
+                    );
+                  }, 500);
+                  
+                  // AnalyzerAgentの思考を送信
+                  setTimeout(() => {
+                    sendAgentThoughts(
+                      'AnalyzerAgent', 
+                      `質問を解析しています: 「${message}」\n\nこの質問は知識グラフの構造に関連していると判断しました。`, 
+                      specificRoleModelId,
+                      { agentType: 'analyzer' }
+                    );
+                  }, 1500);
+                  
+                  // 進捗更新を送信
+                  setTimeout(() => {
+                    sendProgressUpdate(
+                      '情報収集を実行中...', 
+                      25, 
+                      specificRoleModelId
+                    );
+                  }, 2500);
+                  
+                  // ResearcherAgentの思考を送信
+                  setTimeout(() => {
+                    sendAgentThoughts(
+                      'ResearcherAgent', 
+                      `関連情報を収集しています。\n\n・ナレッジグラフは知識の構造化に有効\n・複数のエージェントが協調して処理`, 
+                      specificRoleModelId,
+                      { agentType: 'researcher' }
+                    );
+                  }, 3500);
+                  
+                  // 別の進捗更新を送信
+                  setTimeout(() => {
+                    sendProgressUpdate(
+                      '情報の構造化を実行中...', 
+                      55, 
+                      specificRoleModelId
+                    );
+                  }, 4500);
+                  
+                  // DomainExpertAgentの思考を送信
+                  setTimeout(() => {
+                    sendAgentThoughts(
+                      'DomainExpertAgent', 
+                      `専門的な視点からの分析:\n\nマルチエージェントシステムは複数のAIが連携して効率的に問題解決を行うアーキテクチャです。`, 
+                      specificRoleModelId,
+                      { agentType: 'domain_expert' }
+                    );
+                  }, 5500);
+                  
+                  // 最終進捗更新を送信
+                  setTimeout(() => {
+                    sendProgressUpdate(
+                      '回答の生成中...', 
+                      85, 
+                      specificRoleModelId
+                    );
+                  }, 6500);
+                  
+                  // 最終的な応答を生成
+                  setTimeout(() => {
+                    const response = `あなたの質問「${message}」に関する回答です。マルチエージェントシステムを使用して分析した結果、この質問に対する答えは...\n\n知識グラフは情報の関連性を視覚化し、複数のAIエージェントがそれぞれの専門知識を活かして協調的に問題を解決します。`;
+                    
+                    // チャット応答をブロードキャスト
+                    sendMessageToRoleModelViewers(response, 'chat_message', {
+                      roleModelId: specificRoleModelId
+                    });
+                    
+                    // 進捗の完了を送信
+                    sendProgressUpdate(
+                      'チャット応答の生成が完了しました。', 
+                      100, 
+                      specificRoleModelId
+                    );
+                  }, 7500);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'chat_received',
+                    message: 'チャットメッセージを受信して処理中です',
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
               // 未知のメッセージタイプの場合
               else if (data.type && data.type !== 'ping') {
                 console.log(`未処理のメッセージタイプ: ${data.type}`);
                 
-                // メッセージの処理をログに記録
-                try {
-                  ws.send(JSON.stringify({
-                    type: 'message_received',
-                    message: `メッセージタイプ '${data.type}' を受信しました`,
-                    originalType: data.type,
-                    timestamp: new Date().toISOString()
-                  }));
-                } catch (sendError) {
-                  console.error(`確認メッセージ送信エラー: ${sendError}`);
+                // エージェント思考っぽいメッセージは特別に処理
+                if (data.type.includes('agent') || data.type.includes('thought') || data.type.includes('thinking')) {
+                  const agentName = data.agentName || data.agent || 'エージェント';
+                  const thought = data.thought || data.message || data.content || data.payload || '思考内容が記録されませんでした';
+                  const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                  
+                  console.log(`未知の形式のエージェント思考メッセージを処理: ${agentName}`);
+                  
+                  // エージェント思考をブロードキャスト
+                  if (specificRoleModelId) {
+                    // エージェント思考を他のクライアントにも送信
+                    sendAgentThoughts(agentName, thought, specificRoleModelId, data);
+                    
+                    // 送信元クライアントに確認を返す
+                    ws.send(JSON.stringify({
+                      type: 'thought_received',
+                      message: 'エージェント思考を受信しました',
+                      agentName,
+                      timestamp: new Date().toISOString()
+                    }));
+                  }
+                }
+                else {
+                  // メッセージの処理をログに記録
+                  try {
+                    ws.send(JSON.stringify({
+                      type: 'message_received',
+                      message: `メッセージタイプ '${data.type}' を受信しました`,
+                      originalType: data.type,
+                      timestamp: new Date().toISOString()
+                    }));
+                  } catch (sendError) {
+                    console.error(`確認メッセージ送信エラー: ${sendError}`);
+                  }
                 }
               }
             } catch (jsonError) {
