@@ -811,10 +811,38 @@ export function sendCompletionMessage(
  * @param graphData 知識グラフデータ（ノードとエッジの配列）
  * @param updateType 更新タイプ（'create', 'update', 'delete'）
  */
+/**
+ * 部分的なナレッジグラフ更新を送信する関数（段階的な構築用）
+ * @param roleModelId ロールモデルID
+ * @param partialData 部分的なグラフデータ（段階的に追加されるノードとエッジ）
+ * @param agentName データを生成したエージェント名
+ */
+export function sendPartialGraphUpdate(
+  roleModelId: string,
+  partialData: { nodes: any[], edges: any[] },
+  agentName: string = '不明なエージェント'
+): void {
+  // 部分更新用の専用updateTypeを使用
+  sendKnowledgeGraphUpdate(roleModelId, partialData, 'partial', {
+    agentName,
+    timestamp: new Date().toISOString(),
+    partial: true,
+    message: `${agentName}がナレッジグラフを部分的に更新しました`
+  });
+}
+
+/**
+ * 知識グラフ更新メッセージを送信する関数
+ * @param roleModelId ロールモデルID
+ * @param graphData 知識グラフデータ（ノードとエッジの配列）
+ * @param updateType 更新タイプ（'create', 'update', 'delete', 'partial'）
+ * @param additionalData 追加データ（オプション）
+ */
 export function sendKnowledgeGraphUpdate(
   roleModelId: string,
   graphData: { nodes: any[], edges: any[] },
-  updateType: 'create' | 'update' | 'delete' = 'update'
+  updateType: 'create' | 'update' | 'delete' | 'partial' = 'update',
+  additionalData: any = {}
 ): void {
   const clientSet = clients.get(roleModelId);
   
@@ -837,7 +865,8 @@ export function sendKnowledgeGraphUpdate(
   const basePayload = {
     roleModelId,
     timestamp: new Date().toISOString(),
-    message: `知識グラフが${updateType === 'create' ? '作成' : updateType === 'update' ? '更新' : '削除'}されました`,
+    message: `知識グラフが${updateType === 'create' ? '作成' : updateType === 'update' ? '更新' : updateType === 'partial' ? '部分的に更新' : '削除'}されました`,
+    ...additionalData,
     updateType,
     ...graphData
   };
@@ -852,6 +881,7 @@ export function sendKnowledgeGraphUpdate(
         ...basePayload,
         updateType: updateType,
         isComplete: updateType === 'create' || updateType === 'complete' || updateType === 'update',
+        isPartial: updateType === 'partial',
         roleModelId,
         timestamp: new Date().toISOString()
       }

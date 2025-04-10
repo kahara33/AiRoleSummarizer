@@ -731,9 +731,85 @@ JSONを含む詳細な分析結果を返してください。`;
    * タスク間でデータを受け渡しながら処理を進める
    * @param skipGraphUpdate ナレッジグラフの更新をスキップするフラグ（情報収集プランのみ生成したい場合にtrue）
    */
+  /**
+   * 初期状態のノードとエッジを生成し、段階的な構築プロセスの開始点とする
+   * @param roleModelId ロールモデルID
+   * @param industry 業界名
+   * @param keywords 初期キーワード配列
+   * @returns 初期ノードとエッジを含むグラフデータ
+   */
+  private generateInitialGraphNodes(roleModelId: string, industry: string, keywords: string[]) {
+    // 中心のルートノード（業界）
+    const rootId = crypto.randomUUID();
+    const nodes = [
+      {
+        id: rootId,
+        type: 'industry',
+        name: industry,
+        description: `${industry}業界の主要概念・トピック`,
+        level: 0,
+        color: '#4285F4', // 青色
+        createdAt: new Date(),
+        roleModelId
+      }
+    ];
+    
+    const edges = [];
+    
+    // 初期キーワードから最初のレベルのノードを作成
+    keywords.forEach((keyword, index) => {
+      const keywordId = crypto.randomUUID();
+      nodes.push({
+        id: keywordId,
+        type: 'keyword',
+        name: keyword,
+        description: `${keyword}に関連する情報`,
+        parentId: rootId,
+        level: 1,
+        color: '#34A853', // 緑色
+        createdAt: new Date(),
+        roleModelId
+      });
+      
+      // ルートノードから各キーワードへのエッジを追加
+      edges.push({
+        id: crypto.randomUUID(),
+        source: rootId,
+        target: keywordId,
+        type: 'related',
+        label: '関連',
+        roleModelId
+      });
+    });
+    
+    return { nodes, edges };
+  }
+
   async generateKnowledgeGraph(skipGraphUpdate: boolean = false) {
     try {
       this.reportProgress('開始', 0, 'ナレッジグラフ生成プロセスを開始します');
+      
+      // ロールモデルIDの取得
+      const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+      
+      // 初期ノードとエッジを生成して送信（部分更新として）
+      const initialGraphData = this.generateInitialGraphNodes(
+        roleModelId,
+        this.industry,
+        this.initialKeywords
+      );
+      
+      // 初期グラフ構造を部分的に送信
+      try {
+        sendPartialGraphUpdate(
+          roleModelId,
+          initialGraphData,
+          'システム（初期化）'
+        );
+        console.log('初期グラフ構造を送信しました。');
+      } catch (error) {
+        console.error('初期グラフ構造の送信中にエラーが発生しました:', error);
+      }
       
       // Azure OpenAIを使用して実際のAI思考を生成
       const orchestratorThought = await this.generateAgentThought(
@@ -808,6 +884,61 @@ JSONを含む詳細な分析結果を返してください。`;
         }
       );
       this.reportProgress('業界分析', 15, '業界分析が完了しました');
+      
+      // 業界分析結果に基づいてグラフを部分的に更新
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        
+        // 分析結果から拡張されたキーワードを取得
+        const expandedKeywords = industryAnalysis?.expandedKeywords || [];
+        
+        // 部分的なグラフ更新データを作成
+        const analysisGraphData = {
+          nodes: [],
+          edges: []
+        };
+        
+        // 既存の中心ノードを探す
+        const rootNodeId = initialGraphData.nodes[0]?.id;
+        
+        // 拡張キーワードをノードとして追加
+        expandedKeywords.forEach((keyword: any) => {
+          const keywordId = crypto.randomUUID();
+          analysisGraphData.nodes.push({
+            id: keywordId,
+            type: 'expanded_keyword',
+            name: keyword.keyword,
+            description: keyword.description || `${keyword.keyword}に関する詳細情報`,
+            parentId: rootNodeId,
+            level: 2,
+            color: '#EA4335', // 赤色 - 分析で追加されたノード
+            createdAt: new Date(),
+            roleModelId
+          });
+          
+          // ルートノードからのエッジを追加
+          analysisGraphData.edges.push({
+            id: crypto.randomUUID(),
+            source: rootNodeId,
+            target: keywordId,
+            type: 'expanded',
+            label: '関連キーワード',
+            roleModelId
+          });
+        });
+        
+        // 部分更新として送信
+        if (analysisGraphData.nodes.length > 0) {
+          sendPartialGraphUpdate(
+            roleModelId,
+            analysisGraphData,
+            'ドメインアナリスト'
+          );
+          console.log(`業界分析結果から${analysisGraphData.nodes.length}個のノードをグラフに追加しました`);
+        }
+      } catch (error) {
+        console.error('業界分析結果のグラフ更新中にエラーが発生しました:', error);
+      }
       
       // 分析完了メッセージ
       const analystCompletion = await this.generateAgentThought(
