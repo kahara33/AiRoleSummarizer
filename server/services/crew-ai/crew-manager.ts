@@ -739,50 +739,62 @@ JSONを含む詳細な分析結果を返してください。`;
    * @returns 初期ノードとエッジを含むグラフデータ
    */
   private generateInitialGraphNodes(roleModelId: string, industry: string, keywords: string[]) {
-    // 中心のルートノード（業界）
-    const rootId = crypto.randomUUID();
-    const nodes = [
-      {
-        id: rootId,
-        type: 'industry',
-        name: industry,
-        description: `${industry}業界の主要概念・トピック`,
-        level: 0,
-        color: '#4285F4', // 青色
-        createdAt: new Date(),
-        roleModelId
-      }
-    ];
+    // 中心ノード（業界ノード）のID
+    const industryNodeId = crypto.randomUUID();
     
+    // ノードとエッジの配列を初期化
+    const nodes = [];
     const edges = [];
     
-    // 初期キーワードから最初のレベルのノードを作成
+    // 業界ノードを作成（中心ノード）
+    nodes.push({
+      id: industryNodeId,
+      type: 'industry',
+      name: industry,
+      description: `${industry}業界の概要ノード`,
+      level: 1,
+      color: '#4285F4', // Googleブルー
+      createdAt: new Date(),
+      roleModelId: roleModelId
+    });
+    
+    // 各キーワードをノードとして追加
     keywords.forEach((keyword, index) => {
-      const keywordId = crypto.randomUUID();
+      const nodeId = crypto.randomUUID();
+      
+      // キーワードノードを追加
       nodes.push({
-        id: keywordId,
+        id: nodeId,
         type: 'keyword',
         name: keyword,
-        description: `${keyword}に関連する情報`,
-        parentId: rootId,
-        level: 1,
-        color: '#34A853', // 緑色
+        description: `業界に関連する初期キーワード: ${keyword}`,
+        parentId: industryNodeId, // 業界ノードに接続
+        level: 2,
+        color: '#EA4335', // Googleレッド
         createdAt: new Date(),
-        roleModelId
+        roleModelId: roleModelId
       });
       
-      // ルートノードから各キーワードへのエッジを追加
+      // 業界ノードとキーワードノードを接続するエッジを追加
       edges.push({
         id: crypto.randomUUID(),
-        source: rootId,
-        target: keywordId,
+        source: industryNodeId,
+        target: nodeId,
         type: 'related',
-        label: '関連',
-        roleModelId
+        label: '関連キーワード',
+        roleModelId: roleModelId
       });
     });
     
+    // 初期グラフデータをWebSocketを介して送信
+    sendPartialGraphUpdate(
+      roleModelId,
+      { nodes, edges },
+      'システム'
+    );
+    
     return { nodes, edges };
+
   }
 
   async generateKnowledgeGraph(skipGraphUpdate: boolean = false) {
