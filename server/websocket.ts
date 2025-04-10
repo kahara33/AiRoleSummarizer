@@ -844,23 +844,37 @@ export function sendKnowledgeGraphUpdate(
   
   // 各タイプでメッセージを送信（クライアントの互換性確保のため）
   messageTypes.forEach(type => {
+    // typeフィールドをこのレベルに含めると、クライアント側のコードで
+    // data.type で参照できるためブラウザコンソールに表示される
     const payload = {
-      ...basePayload,
-      type
+      type,
+      payload: {
+        ...basePayload,
+        updateType: updateType,
+        isComplete: updateType === 'create' || updateType === 'complete',
+        roleModelId,
+        timestamp: new Date().toISOString()
+      }
     };
     
     const message_json = JSON.stringify(payload);
     
+    console.log(`知識グラフ更新メッセージ送信開始 (タイプ: ${type}):`, payload);
+    
     // 接続されているすべてのクライアントに送信
+    let sentCount = 0;
     clientSet.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(message_json);
+          sentCount++;
         } catch (error) {
           console.error(`知識グラフ更新メッセージ送信エラー: ${error}`);
         }
       }
     });
+    
+    console.log(`知識グラフ更新メッセージを ${sentCount} クライアントに送信しました (タイプ: ${type})`);
   });
   
   console.log(`知識グラフ更新を送信: ${roleModelId}, ${graphData.nodes.length}ノード, ${graphData.edges.length}エッジ`);
