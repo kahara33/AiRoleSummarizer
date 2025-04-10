@@ -323,30 +323,31 @@ export class CrewManager extends EventEmitter {
       };
       
       // タスク名に基づいて、適切なレスポンスフィールドを返す
-      if (task.name.includes('Analyze') || task.name === 'AnalyzeIndustryTask') {
+      const taskName = task?.name || '';
+      if (taskName.includes('Analyze') || taskName === 'AnalyzeIndustryTask') {
         return {
           expandedKeywords: demoResponse.expandedKeywords,
           hierarchy: demoResponse.hierarchy,
           keyRelationships: demoResponse.keyRelationships,
           summary: demoResponse.summary
         };
-      } else if (task.name.includes('Evaluate') || task.name === 'EvaluateSourcesTask') {
+      } else if (taskName.includes('Evaluate') || taskName === 'EvaluateSourcesTask') {
         return {
           evaluatedSources: demoResponse.evaluatedSources,
           trendPredictions: demoResponse.trendPredictions
         };
-      } else if (task.name.includes('Design') || task.name === 'DesignGraphStructureTask') {
+      } else if (taskName.includes('Design') || taskName === 'DesignGraphStructureTask') {
         return {
           graphStructure: {
             nodes: demoResponse.expandedKeywords.map(k => ({ id: k.keyword, label: k.keyword, type: 'concept' })),
             edges: demoResponse.keyRelationships.map(r => ({ source: r.source, target: r.target, label: r.relationship }))
           }
         };
-      } else if (task.name.includes('Develop') || task.name === 'DevelopCollectionPlanTask') {
+      } else if (taskName.includes('Develop') || taskName === 'DevelopCollectionPlanTask') {
         return {
           collectionPlan: demoResponse.collectionPlan
         };
-      } else if (task.name.includes('Quality') || task.name === 'EvaluateQualityTask') {
+      } else if (taskName.includes('Quality') || taskName === 'EvaluateQualityTask') {
         return {
           qualityAssessment: {
             strengths: ["包括的なキーワードカバレッジ", "信頼性の高い情報源"],
@@ -354,7 +355,7 @@ export class CrewManager extends EventEmitter {
             improvementSuggestions: ["セキュリティ関連のノードを追加"]
           }
         };
-      } else if (task.name.includes('Integrate') || task.name === 'IntegrateAndDocumentTask') {
+      } else if (taskName.includes('Integrate') || taskName === 'IntegrateAndDocumentTask') {
         return demoResponse;
       } else {
         // その他のタスク用の汎用レスポンス
@@ -424,7 +425,7 @@ export class CrewManager extends EventEmitter {
         EvaluateSourcesTask,
         {
           industry: this.industry,
-          key_keywords: industryAnalysis.expandedKeywords.map((k: any) => k.keyword).join(', '),
+          key_keywords: industryAnalysis?.expandedKeywords?.map((k: any) => k.keyword)?.join(', ') || '',
           potential_sources: this.potentialSources.join(', ')
         }
       );
@@ -435,9 +436,9 @@ export class CrewManager extends EventEmitter {
       const graphStructure = await this.runTask(
         DesignGraphStructureTask,
         {
-          expanded_keywords: JSON.stringify(industryAnalysis.expandedKeywords),
-          keyword_hierarchy: JSON.stringify(industryAnalysis.hierarchy),
-          key_relationships: JSON.stringify(industryAnalysis.keyRelationships)
+          expanded_keywords: JSON.stringify(industryAnalysis?.expandedKeywords || []),
+          keyword_hierarchy: JSON.stringify(industryAnalysis?.hierarchy || {}),
+          key_relationships: JSON.stringify(industryAnalysis?.keyRelationships || [])
         }
       );
       this.reportProgress('グラフ構造設計', 45, 'グラフ構造設計が完了しました');
@@ -447,11 +448,11 @@ export class CrewManager extends EventEmitter {
       const collectionPlan = await this.runTask(
         DevelopCollectionPlanTask,
         {
-          evaluated_sources: JSON.stringify(sourceEvaluation.evaluatedSources),
-          priority_keywords: industryAnalysis.expandedKeywords
-            .filter((k: any) => k.relevanceScore > 0.7)
-            .map((k: any) => k.keyword)
-            .join(', '),
+          evaluated_sources: JSON.stringify(sourceEvaluation?.evaluatedSources || []),
+          priority_keywords: industryAnalysis?.expandedKeywords
+            ?.filter((k: any) => k.relevanceScore > 0.7)
+            ?.map((k: any) => k.keyword)
+            ?.join(', ') || '',
           resource_constraints: this.resourceConstraints.join(', '),
           trend_predictions: JSON.stringify(sourceEvaluation.trendPredictions)
         }
