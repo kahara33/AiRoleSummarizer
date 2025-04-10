@@ -1107,12 +1107,14 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   // テスト用のナレッジグラフを生成する関数
   const generateTestKnowledgeGraph = useCallback(async () => {
     try {
-      // デバッグ情報を追加 - ボタンクリックイベントの発火確認
-      console.log('%c テスト用ナレッジグラフ生成ボタンがクリックされました', 'background: #4CAF50; color: white; font-weight: bold; padding: 3px 5px; border-radius: 3px;');
-      console.log('テスト用ナレッジグラフ生成開始 - roleModelId:', roleModelId);
+      // 分かりやすいスタイルでクリックイベントのログを出力
+      console.log('%c === テスト用ナレッジグラフ生成ボタンがクリックされました ===', 
+        'background: #4CAF50; color: white; font-weight: bold; padding: 5px; border-radius: 3px; font-size: 16px;');
+      
+      console.log(`%c roleModelId: ${roleModelId}`, 'color: blue; font-weight: bold;');
       
       if (!roleModelId) {
-        console.error('roleModelIdが未定義です！', { roleModelId });
+        console.error('%c エラー: roleModelIdが未定義です！', 'color: red; font-weight: bold;', { roleModelId });
         setError('ロールモデルIDが未定義のため、テスト用ナレッジグラフを生成できません。');
         return;
       }
@@ -1120,18 +1122,28 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setLoading(true);
       setError(null);
       
-      // グラフ生成APIを呼び出す
-      console.log('APIリクエスト送信中...', { 
-        url: `/api/test-knowledge-graph/${roleModelId}`,
-        method: 'POST'
+      // グラフ生成APIのURLをログ出力
+      const apiUrl = `/api/test-knowledge-graph/${roleModelId}`;
+      console.log('%c APIリクエスト送信中... ', 'background: #2196F3; color: white; font-weight: bold; padding: 3px 5px; border-radius: 3px;', {
+        url: apiUrl,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
+
+      // リクエスト送信時間を記録
+      const startTime = new Date().getTime();
       
-      const response = await fetch(`/api/test-knowledge-graph/${roleModelId}`, {
+      // 実際にAPIを呼び出す
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         }
       });
+      
+      // リクエスト完了時間と所要時間を計算
+      const endTime = new Date().getTime();
+      const requestTime = endTime - startTime;
       
       console.log('APIレスポンス受信:', response.status, response.statusText);
       

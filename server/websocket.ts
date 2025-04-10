@@ -119,6 +119,8 @@ export function initWebSocket(server: HttpServer): void {
         if (!clients.has(roleModelId)) {
           clients.set(roleModelId, new Set());
         }
+        
+        // クライアントをセットに追加
         clients.get(roleModelId)?.add(ws);
 
         // カスタムプロパティを追加（TypeScriptでの型対応のためany型を使用）
@@ -127,7 +129,23 @@ export function initWebSocket(server: HttpServer): void {
         (ws as any).isAlive = true;
         (ws as any).connectionTime = new Date();
 
+        // 接続されたクライアント数を表示
+        let totalClients = 0;
+        clients.forEach(set => totalClients += set.size);
+        
         console.log(`WebSocket接続完了: ユーザーID=${userId}, ロールモデルID=${roleModelId}`);
+        console.log(`現在の接続クライアント数: ${totalClients} (${roleModelId}: ${clients.get(roleModelId)?.size || 0})`);
+        
+        // 接続クライアントのロールモデルIDリストをログ
+        let modelIds = '';
+        clients.forEach((set, id) => {
+          if (set.size > 0) {
+            modelIds += `${id}(${set.size}), `;
+          }
+        });
+        console.log(`接続中のロールモデル: ${modelIds || 'なし'}`);
+        
+        // 新しいクライアントに現在のナレッジグラフデータを送信することも可能
 
         // 接続確認メッセージを送信
         try {
@@ -708,11 +726,26 @@ export function sendMessageToRoleModelViewers(
   type: string = 'info',
   data?: any
 ): void {
+  // 特定のロールモデルIDに対してのみ送信する場合
+  const specificRoleModelId = data?.roleModelId;
+  
   // 接続されているクライアントが存在するかチェック
   let activeClientsCount = 0;
-  clients.forEach((clientSet) => {
-    activeClientsCount += clientSet.size;
-  });
+  
+  if (specificRoleModelId) {
+    // 特定のロールモデルIDに対してのみチェック
+    const clientSet = clients.get(specificRoleModelId);
+    activeClientsCount = clientSet?.size || 0;
+    
+    if (activeClientsCount === 0) {
+      console.log(`ロールモデル ${specificRoleModelId} に接続されたクライアントはありません`);
+    }
+  } else {
+    // すべてのクライアントをチェック
+    clients.forEach((clientSet) => {
+      activeClientsCount += clientSet.size;
+    });
+  }
   
   // 接続されているクライアントがない場合
   if (activeClientsCount === 0) {
@@ -841,7 +874,7 @@ export function sendPartialGraphUpdate(
 export function sendKnowledgeGraphUpdate(
   roleModelId: string,
   graphData: { nodes: any[], edges: any[] },
-  updateType: 'create' | 'update' | 'delete' | 'partial' = 'update',
+  updateType: 'create' | 'update' | 'delete' | 'partial' | 'complete' = 'update',
   additionalData: any = {}
 ): void {
   const clientSet = clients.get(roleModelId);

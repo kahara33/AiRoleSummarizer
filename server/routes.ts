@@ -408,7 +408,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             {
               updateType: 'complete',
               isPartial: false,
-              isCompleted: true,
+              isComplete: true,
               roleModelId,
               data: {
                 nodes: allNodes,
