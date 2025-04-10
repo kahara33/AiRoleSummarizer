@@ -3,11 +3,25 @@
  * 役割モデル知識グラフ生成のための専門AIエージェント群
  */
 
-import { Agent, AgentOptions } from 'crewai-js';
-import { ChatOpenAI } from 'langchain/chat_models/openai';
+import { Agent } from 'crewai-js';
+import { ChatOpenAI } from '@langchain/openai';
 import { RoleModelInput } from '../../agents/types';
-import { Tool } from 'langchain/tools';
+import { Tool } from '@langchain/core/tools';
 import { industryAnalysisTools } from './tools';
+
+// crewai-jsのAgentOptionsがエクスポートされていないため、インターフェースを定義
+// nameは必須なので、?を削除
+interface AgentOptions {
+  name: string;
+  role: string;
+  goal: string;
+  backstory: string;
+  verbose?: boolean;
+  allowDelegation?: boolean;
+  memory?: boolean;
+  tools?: any[];
+  llm: any;
+}
 
 // Azure OpenAIモデル設定
 const getAzureOpenAIModel = () => {
@@ -16,17 +30,13 @@ const getAzureOpenAIModel = () => {
   if (!process.env.AZURE_OPENAI_API_KEY) {
     console.error('AZURE_OPENAI_API_KEYが設定されていません');
   }
-  if (!process.env.AZURE_OPENAI_ENDPOINT) {
-    console.error('AZURE_OPENAI_ENDPOINTが設定されていません');
-  }
   
   try {
+    // @langchain/openaiのChatOpenAIは以下のパラメータを受け付けるように変更
     return new ChatOpenAI({
-      azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
-      azureOpenAIApiVersion: '2024-02-15-preview',
-      azureOpenAIApiDeploymentName: 'gpt-4',  // デプロイメント名をハードコード（必要に応じて変更）
-      azureOpenAIApiInstanceName: process.env.AZURE_OPENAI_ENDPOINT?.replace('https://', '').replace('.openai.azure.com', ''),
+      modelName: 'gpt-4',
       temperature: 0.7,
+      openAIApiKey: process.env.AZURE_OPENAI_API_KEY,
     });
   } catch (error) {
     console.error('Azure OpenAIモデルの初期化に失敗しました:', error);
@@ -42,6 +52,7 @@ export const createIndustryAnalysisAgent = (input: RoleModelInput) => {
   const model = getAzureOpenAIModel();
   
   const agentConfig: AgentOptions = {
+    name: 'ドメインアナリスト',
     role: '業界分析エキスパート',
     goal: `${input.roleName}に関連する業界の洞察を深く分析する`,
     backstory: '業界分析のスペシャリストとして、様々な産業の動向を追跡し、重要なトレンドや機会を特定します。',
@@ -63,6 +74,7 @@ export const createKeywordExpansionAgent = (input: RoleModelInput) => {
   const model = getAzureOpenAIModel();
   
   const agentConfig: AgentOptions = {
+    name: 'キーワードエキスパート',
     role: 'キーワード拡張スペシャリスト',
     goal: `${input.roleName}に必要な情報収集のための関連キーワードを特定する`,
     backstory: 'キーワードとタグの専門家として、様々な分野の専門用語や検索キーワードに精通しています。',
@@ -83,6 +95,7 @@ export const createStructuringAgent = (input: RoleModelInput) => {
   const model = getAzureOpenAIModel();
   
   const agentConfig: AgentOptions = {
+    name: '構造化エキスパート',
     role: '情報構造化スペシャリスト',
     goal: `${input.roleName}の知識を階層的に整理する`,
     backstory: '情報アーキテクトとして、複雑な情報を論理的で理解しやすい構造に整理することを専門としています。',
@@ -103,6 +116,7 @@ export const createKnowledgeGraphAgent = (input: RoleModelInput) => {
   const model = getAzureOpenAIModel();
   
   const agentConfig: AgentOptions = {
+    name: 'コンテキストマッパー',
     role: '知識グラフ設計者',
     goal: `${input.roleName}のための包括的な知識グラフを構築する`,
     backstory: '知識表現の専門家として、複雑な情報を視覚的かつ関連性のあるグラフ構造に変換します。',
