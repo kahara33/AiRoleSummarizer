@@ -790,11 +790,18 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     // グラフ更新のイベントハンドラ
     const handleGraphUpdate = (data: any) => {
       console.log('ナレッジグラフ更新を受信:', data);
-      // roleModelIdが一致するか、data.roleModelIdがundefinedの場合（後方互換性のため）
-      if (!data.roleModelId || data.roleModelId === roleModelId) {
+      // 受信したデータがpayloadを持つ場合（WebSocketサーバーからのメッセージ形式）
+      const payload = data.payload || data;
+      
+      // roleModelIdが一致するか、payload.roleModelIdがundefinedの場合（後方互換性のため）
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      if (!targetRoleModelId || targetRoleModelId === roleModelId) {
         console.log('グラフデータの再取得をトリガー');
-        console.log(`更新内容：${data.nodes?.length || 0}ノード、${data.edges?.length || 0}エッジ`);
-        fetchGraphData();
+        // 少し遅延させてデータベースの更新が確実に反映されるようにする
+        setTimeout(() => {
+          console.log('グラフデータを再取得します');
+          fetchGraphData();
+        }, 1000);
       }
     };
     
@@ -833,12 +840,20 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     addSocketListener('graph-update', handleGraphUpdate); // ハイフン版も登録
     
     // 明示的なリアルタイム更新リスナーを追加
-    addSocketListener('progress-update', (data: { percent: number, status?: string }) => {
+    addSocketListener('progress-update', (data: any) => {
       console.log('進捗更新メッセージを受信:', data);
+      // payloadまたはdata自体からpercentを取得
+      const payload = data.payload || data;
+      const percent = payload.percent || payload.progress || payload.progressPercent || 0;
+      const status = payload.status || '';
+      
       // 進捗が95%以上または完了メッセージの場合にグラフを再取得
-      if (data.percent >= 95 || data.percent === 100 || data.status === 'completed') {
+      if (percent >= 95 || percent === 100 || status === 'completed' || status === 'complete') {
         console.log('高進捗更新を検出、グラフデータを再取得します');
-        fetchGraphData();
+        // 少し遅延させてDBの更新が完了するのを待つ
+        setTimeout(() => {
+          fetchGraphData();
+        }, 1500);
       }
     });
     
@@ -943,21 +958,30 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     const handleProgress = (data: any) => {
       console.log('Progress update received:', data);
       
-      // roleModelIdが一致する場合、またはdata.roleModelIdがundefinedの場合
-      const matchesRoleModel = !data.roleModelId || data.roleModelId === roleModelId;
+      // データ構造を正規化（WebSocketメッセージ形式対応）
+      const payload = data.payload || data;
+      
+      // roleModelIdが一致する場合、またはpayload.roleModelIdがundefinedの場合
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      const matchesRoleModel = !targetRoleModelId || targetRoleModelId === roleModelId;
       
       if (matchesRoleModel) {
         console.log(`Progress update for ${roleModelId}:`, data);
-        setProgress(data.progress || 0);
-        setProgressMessage(data.message || 'Processing...');
+        const progressValue = payload.progress || payload.percent || payload.progressPercent || 0;
+        setProgress(progressValue);
+        setProgressMessage(payload.message || 'Processing...');
         
         // 完了時
-        if (data.progress >= 100) {
+        if (progressValue >= 100 || payload.status === 'completed' || payload.status === 'complete') {
           console.log('Progress complete, fetching updated graph data');
           setTimeout(() => {
             setGenerating(false);
-            fetchGraphData();
-          }, 1000);
+            // 少し遅延させてデータベースの更新が確実に反映されるようにする
+            setTimeout(() => {
+              console.log('グラフデータを再取得します（進捗完了後）');
+              fetchGraphData();
+            }, 1500);
+          }, 500);
         }
       }
     };
@@ -966,17 +990,21 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     const handleAgentThoughts = (data: any) => {
       console.log('Agent thoughts received:', data);
       
-      // roleModelIdが一致する場合、またはdata.roleModelIdがundefinedの場合
-      const matchesRoleModel = !data.roleModelId || data.roleModelId === roleModelId;
+      // データ構造を正規化（WebSocketメッセージ形式対応）
+      const payload = data.payload || data;
+      
+      // roleModelIdが一致する場合、またはpayload.roleModelIdがundefinedの場合
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      const matchesRoleModel = !targetRoleModelId || targetRoleModelId === roleModelId;
       
       if (matchesRoleModel) {
         console.log(`Agent thoughts for ${roleModelId}:`, data);
         setAgentMessages(prev => [
           ...prev, 
           {
-            agent: data.agentName || 'Agent', 
-            message: data.thoughts || data.message || 'Working...',
-            timestamp: data.timestamp || new Date().toISOString()
+            agent: payload.agentName || 'Agent', 
+            message: payload.thought || payload.thoughts || payload.message || 'Working...',
+            timestamp: payload.timestamp || new Date().toISOString()
           }
         ]);
       }
