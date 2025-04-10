@@ -84,24 +84,33 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       }
       
       // ロールモデル情報を取得
-      const roleModel = await db.query.roleModels.findFirst({
-        where: eq(roleModels.id, roleModelId),
-        with: {
-          industries: {
-            with: {
-              industry: true
-            }
-          },
-          keywords: {
-            with: {
-              keyword: true
-            }
-          },
-          user: true
-        }
-      });
+      console.log(`ロールモデル情報の検索中: roleModelId=${roleModelId}`);
+      let roleModel;
+      try {
+        roleModel = await db.query.roleModels.findFirst({
+          where: eq(roleModels.id, roleModelId),
+          with: {
+            industries: {
+              with: {
+                industry: true
+              }
+            },
+            keywords: {
+              with: {
+                keyword: true
+              }
+            },
+            user: true
+          }
+        });
+        console.log(`ロールモデル検索結果:`, roleModel ? `${roleModel.name} (ID: ${roleModel.id})` : 'なし');
+      } catch (dbError) {
+        console.error('ロールモデル検索エラー:', dbError);
+        return res.status(500).json({ error: 'データベースエラー: ロールモデルの検索に失敗しました' });
+      }
       
       if (!roleModel) {
+        console.log(`ロールモデルが見つかりません: roleModelId=${roleModelId}`);
         return res.status(404).json({ error: 'ロールモデルが見つかりません' });
       }
       
@@ -121,8 +130,20 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       });
       
       // 既存のグラフを削除
-      await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
-      await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
+      console.log(`既存グラフの削除を開始します: roleModelId=${roleModelId}`);
+      try {
+        await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+        await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
+        console.log('既存グラフの削除が完了しました');
+      } catch (deleteError) {
+        console.error('既存グラフの削除中にエラーが発生しました:', deleteError);
+        // 即時レスポンスを返す（データベース操作でエラー発生）
+        return res.status(500).json({
+          success: false,
+          error: 'データベース操作中にエラーが発生しました',
+          roleModelId
+        });
+      }
       
       // テスト用のノードとエッジを作成するタスクを非同期で実行
       (async () => {

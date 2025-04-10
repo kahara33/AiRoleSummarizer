@@ -1107,12 +1107,25 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   // テスト用のナレッジグラフを生成する関数
   const generateTestKnowledgeGraph = useCallback(async () => {
     try {
+      // デバッグ情報を追加 - ボタンクリックイベントの発火確認
+      console.log('%c テスト用ナレッジグラフ生成ボタンがクリックされました', 'background: #4CAF50; color: white; font-weight: bold; padding: 3px 5px; border-radius: 3px;');
       console.log('テスト用ナレッジグラフ生成開始 - roleModelId:', roleModelId);
+      
+      if (!roleModelId) {
+        console.error('roleModelIdが未定義です！', { roleModelId });
+        setError('ロールモデルIDが未定義のため、テスト用ナレッジグラフを生成できません。');
+        return;
+      }
+      
       setLoading(true);
       setError(null);
       
       // グラフ生成APIを呼び出す
-      console.log('APIリクエスト送信中...');
+      console.log('APIリクエスト送信中...', { 
+        url: `/api/test-knowledge-graph/${roleModelId}`,
+        method: 'POST'
+      });
+      
       const response = await fetch(`/api/test-knowledge-graph/${roleModelId}`, {
         method: 'POST',
         headers: {
