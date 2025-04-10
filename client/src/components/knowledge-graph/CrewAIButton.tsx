@@ -38,23 +38,47 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
     const handleProgressUpdate = (data: any) => {
       console.log('進捗更新を受信:', data);
       
-      // roleModelIdが一致するメッセージのみ処理
-      if (data.roleModelId !== roleModelId) return;
+      // データ構造の正規化（WebSocketメッセージ形式対応）
+      const payload = data.payload || data;
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
       
-      // 完了状態（100%）またはエラー状態のとき
-      if (data.percent === 100 || data.progress === 100 || 
-          data.status === 'completed' || data.status === 'error') {
-        console.log('CrewAIプロセス完了またはエラー:', data);
+      // roleModelIdが一致するメッセージのみ処理
+      if (targetRoleModelId && targetRoleModelId !== roleModelId) {
+        console.log(`別のロールモデル(${targetRoleModelId})向けの進捗メッセージを無視します`);
+        return;
+      }
+      
+      // 進捗値の抽出（複数のプロパティ名をサポート）
+      const progressValue = payload.progress || payload.percent || 0;
+      
+      // 完了状態（進捗が95%以上）またはエラー状態のとき
+      if (progressValue >= 95 || 
+          payload.status === 'completed' || payload.status === 'error') {
+        console.log('CrewAIプロセス完了またはエラー:', payload);
         
         // ローディング状態を解除
         setLoading(false);
         if (onComplete) onComplete();
         
         // 完了メッセージを表示（エラーの場合はすでに別のエラーメッセージが表示されているはず）
-        if (data.status === 'completed' || data.percent === 100 || data.progress === 100) {
+        if (payload.status !== 'error' && progressValue >= 95) {
+          // 1秒後に成功メッセージを表示（他のエラーメッセージと重ならないようにするため）
+          setTimeout(() => {
+            toast({
+              title: '処理完了',
+              description: payload.message || '知識グラフの生成が完了しました。',
+            });
+          }, 1000);
+        }
+      }
+      
+      // 進捗状況を通知
+      if (progressValue > 0 && progressValue < 95) {
+        // 最初の進捗と中間段階の進捗のみトースト表示（頻繁なトーストを避けるため）
+        if (progressValue === 10 || progressValue === 50) {
           toast({
-            title: '処理完了',
-            description: '知識グラフの生成が完了しました。',
+            title: '処理中',
+            description: payload.message || `知識グラフの生成中... ${progressValue}%完了`,
           });
         }
       }
@@ -64,13 +88,17 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
     const handleErrorMessage = (data: any) => {
       console.error('エラーメッセージを受信:', data);
       
+      // データ構造の正規化（WebSocketメッセージ形式対応）
+      const payload = data.payload || data;
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      
       // roleModelIdが一致するメッセージのみ処理
-      if (data.roleModelId !== roleModelId) return;
+      if (targetRoleModelId && targetRoleModelId !== roleModelId) return;
       
       // エラーメッセージを表示
       toast({
         title: 'エラー',
-        description: data.message || 'ナレッジグラフ生成中にエラーが発生しました',
+        description: payload.message || 'ナレッジグラフ生成中にエラーが発生しました',
         variant: 'destructive',
       });
       
@@ -83,30 +111,98 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
     const handleCompletionMessage = (data: any) => {
       console.log('完了メッセージを受信:', data);
       
+      // データ構造の正規化（WebSocketメッセージ形式対応）
+      const payload = data.payload || data;
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      
       // roleModelIdが一致するメッセージのみ処理
-      if (data.roleModelId !== roleModelId) return;
+      if (targetRoleModelId && targetRoleModelId !== roleModelId) return;
       
       // 成功メッセージを表示
       toast({
         title: '処理完了',
-        description: data.message || 'ナレッジグラフの生成が完了しました',
+        description: payload.message || 'ナレッジグラフの生成が完了しました',
       });
       
       // ローディング状態を解除
       setLoading(false);
       if (onComplete) onComplete();
     };
+    
+    // グラフ更新イベントハンドラ（グラフ更新があった場合も処理完了とみなす）
+    const handleGraphUpdate = (data: any) => {
+      console.log('グラフ更新メッセージを受信:', data);
+      
+      // データ構造の正規化（WebSocketメッセージ形式対応）
+      const payload = data.payload || data;
+      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      
+      // roleModelIdが一致するメッセージのみ処理
+      if (targetRoleModelId && targetRoleModelId !== roleModelId) return;
+      
+      // 更新タイプが「complete」の場合、処理完了とみなす
+      if (payload.updateType === 'complete' || payload.updateType === 'improvement_complete') {
+        console.log('グラフ更新完了メッセージを検出:', payload);
+        
+        // ローディング状態を解除
+        setLoading(false);
+        if (onComplete) onComplete();
+        
+        // 完了メッセージを表示
+        toast({
+          title: '処理完了',
+          description: 'ナレッジグラフの生成と更新が完了しました',
+        });
+      }
+    };
 
-    // WebSocketリスナーを追加
+    // WebSocketリスナーを追加（複数のイベント名をサポート）
     addSocketListener('progress', handleProgressUpdate);
     addSocketListener('error', handleErrorMessage);
     addSocketListener('completion', handleCompletionMessage);
+    addSocketListener('knowledge-graph-update', handleGraphUpdate);
+    addSocketListener('knowledge_graph_update', handleGraphUpdate);
+    addSocketListener('graph-update', handleGraphUpdate);
+    
+    // ポーリングによるフォールバック処理
+    // WebSocketが機能しない場合に備えて、APIでの定期的な確認も行う
+    const checkInterval = setInterval(async () => {
+      if (!loading) {
+        clearInterval(checkInterval);
+        return;
+      }
+      
+      try {
+        // グラフの存在確認API
+        const response = await fetch(`/api/knowledge-graph/${roleModelId}/exists`);
+        if (response.ok) {
+          const { exists } = await response.json();
+          if (exists) {
+            console.log('ポーリングによりグラフの存在を確認しました。処理を完了します。');
+            setLoading(false);
+            if (onComplete) onComplete();
+            clearInterval(checkInterval);
+            
+            toast({
+              title: '処理完了',
+              description: 'ナレッジグラフの生成が完了しました',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('グラフ存在確認API呼び出しエラー:', error);
+      }
+    }, 10000); // 10秒ごとに確認
     
     // クリーンアップ関数
     return () => {
       removeSocketListener('progress', handleProgressUpdate);
       removeSocketListener('error', handleErrorMessage);
       removeSocketListener('completion', handleCompletionMessage);
+      removeSocketListener('knowledge-graph-update', handleGraphUpdate);
+      removeSocketListener('knowledge_graph_update', handleGraphUpdate);
+      removeSocketListener('graph-update', handleGraphUpdate);
+      clearInterval(checkInterval);
     };
   }, [loading, roleModelId, onComplete, toast]);
 

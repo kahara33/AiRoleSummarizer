@@ -785,11 +785,28 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     }
     
     console.log(`WebSocketリスナーをセットアップ: roleModelId=${roleModelId}`);
-    const socket = initSocket();
+    // roleModelIdを明示的に指定してWebSocket接続を初期化
+    const socket = initSocket(roleModelId);
+    
+    // グローバルカウンタを追加して、アップデートのシーケンスを追跡
+    let updateCounter = 0;
+    let lastUpdateTimestamp = 0;
     
     // グラフ更新のイベントハンドラ
     const handleGraphUpdate = (data: any) => {
-      console.log('ナレッジグラフ更新を受信:', data);
+      updateCounter++;
+      const currentUpdateId = updateCounter;
+      const now = Date.now();
+      
+      // 更新間隔が短すぎる場合、レート制限を適用（100ms以内の更新はスキップ）
+      if (now - lastUpdateTimestamp < 100) {
+        console.log(`更新間隔が短すぎるため、更新をスキップします (${currentUpdateId})`);
+        return;
+      }
+      
+      lastUpdateTimestamp = now;
+      console.log(`ナレッジグラフ更新を受信 (ID: ${currentUpdateId}):`, data);
+      
       // 受信したデータがpayloadを持つ場合（WebSocketサーバーからのメッセージ形式）
       const payload = data.payload || data;
       
@@ -798,41 +815,61 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       
       // 更新タイプを取得
       const updateType = payload.updateType || '';
-      console.log(`グラフ更新メッセージ: type=${updateType}, roleModel=${targetRoleModelId}`);
+      console.log(`グラフ更新メッセージ (ID: ${currentUpdateId}): type=${updateType}, roleModel=${targetRoleModelId}`);
+      
+      // タイムスタンプを確認して古いメッセージを除外
+      if (payload.timestamp) {
+        const messageTime = new Date(payload.timestamp).getTime();
+        const currentTime = Date.now();
+        // 5分以上前のメッセージは古いとみなす
+        if (currentTime - messageTime > 5 * 60 * 1000) {
+          console.log(`古いメッセージ (${payload.timestamp}) のため無視します`);
+          return;
+        }
+      }
       
       if (!targetRoleModelId || targetRoleModelId === roleModelId) {
-        console.log('グラフデータの再取得をトリガー');
+        console.log(`グラフデータの再取得をトリガー (ID: ${currentUpdateId})`);
         
         // 更新タイプに基づいて処理を調整
         if (updateType === 'complete' || updateType === 'improvement_complete') {
-          console.log('完全更新を検出。即座にグラフを再取得します');
+          console.log(`完全更新を検出 (ID: ${currentUpdateId})。即座にグラフを再取得します`);
           // 即時実行
           fetchGraphData();
           
           // 短いディレイ後に再確認
           setTimeout(() => {
-            console.log('完全更新後の再確認を行います');
-            fetchGraphData();
-          }, 1500);
+            if (currentUpdateId === updateCounter) {
+              console.log(`完全更新後の再確認を行います (ID: ${currentUpdateId})`);
+              fetchGraphData();
+            }
+          }, 2000);
           return;
         }
         
         // その他の更新タイプ、または更新タイプがない場合は段階的に再取得
+        // 更新IDを利用して、後続の更新がある場合は処理をスキップ
         setTimeout(() => {
-          console.log('グラフデータを再取得します（1回目）');
-          fetchGraphData();
-          
-          // 2回目の試行 - より長いディレイ後
-          setTimeout(() => {
-            console.log('グラフデータを再取得します（2回目）');
+          if (currentUpdateId === updateCounter) {
+            console.log(`グラフデータを再取得します（1回目 - ID: ${currentUpdateId}）`);
             fetchGraphData();
             
-            // 3回目の試行 - さらに長いディレイ後
+            // 2回目の試行 - より長いディレイ後
             setTimeout(() => {
-              console.log('グラフデータを再取得します（3回目 - 最終確認）');
-              fetchGraphData();
-            }, 5000);
-          }, 3000);
+              if (currentUpdateId === updateCounter) {
+                console.log(`グラフデータを再取得します（2回目 - ID: ${currentUpdateId}）`);
+                fetchGraphData();
+                
+                // 3回目の試行 - さらに長いディレイ後
+                setTimeout(() => {
+                  if (currentUpdateId === updateCounter) {
+                    console.log(`グラフデータを再取得します（3回目 - 最終確認 - ID: ${currentUpdateId}）`);
+                    fetchGraphData();
+                  }
+                }, 5000);
+              }
+            }, 3000);
+          }
         }, 1000);
       }
     };
