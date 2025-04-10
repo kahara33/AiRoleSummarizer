@@ -16,6 +16,9 @@ import {
   IntegrateAndDocumentTask
 } from './tasks/task-definitions';
 
+// WebSocketサーバー関連のインポート
+import { sendAgentThoughts, sendProgressUpdate } from '../../websocket/ws-server';
+
 /**
  * CrewAIマネージャークラス
  * ナレッジグラフ生成プロセスを管理
@@ -118,27 +121,21 @@ export class CrewManager extends EventEmitter {
           // 直接サーバーのWebSocketインターフェースを使ってエージェント思考を送信
           // これにより、イベントのデッドロックやリスナー問題を回避
           try {
-            const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
-            
-            // WebSocketサーバー関数を使用して直接送信
-            if (typeof sendAgentThoughts === 'function') {
-              // roleModelIdがなくて送信されない場合があるため、
-              // ダミーのIDを設定（後でフィルタリングされる）
-              const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-              sendAgentThoughts(
-                japaneseAgentName,
-                thoughtContent,
-                roleModelId,
-                {
-                  taskName: data.taskName,
-                  type: 'thinking', // 思考中タイプを明示的に設定
-                  timestamp: new Date().toISOString()
-                }
-              );
-              console.log(`WebSocketを介してエージェント思考を直接送信: ${japaneseAgentName}`);
-            } else {
-              console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
-            }
+            // 既にインポートしたsendAgentThoughts関数を使用
+            // roleModelIdがなくて送信されない場合があるため、
+            // ダミーのIDを設定（後でフィルタリングされる）
+            const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+            sendAgentThoughts(
+              japaneseAgentName,
+              thoughtContent,
+              roleModelId,
+              {
+                taskName: data.taskName,
+                type: 'thinking', // 思考中タイプを明示的に設定
+                timestamp: new Date().toISOString()
+              }
+            );
+            console.log(`WebSocketを介してエージェント思考を直接送信: ${japaneseAgentName}`);
           } catch (wsError) {
             console.error('WebSocket送信中にエラーが発生しました:', wsError);
           }
@@ -183,26 +180,21 @@ export class CrewManager extends EventEmitter {
           
           // 直接WebSocketインターフェースを使用してタスク完了メッセージを送信
           try {
-            const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
-            if (typeof sendAgentThoughts === 'function') {
-              const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-              const thought = `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`;
-              
-              sendAgentThoughts(
-                agentName,
-                thought,
-                roleModelId,
-                {
-                  taskName: data.taskName,
-                  type: 'success', // 成功タイプを明示的に設定
-                  timestamp: new Date().toISOString(),
-                  id: crypto.randomUUID() // 一意のIDを必ず設定
-                }
-              );
-              console.log(`タスク完了メッセージをWebSocketで直接送信: ${agentName} - ${data.taskName}`);
-            } else {
-              console.error('sendAgentThoughts関数が見つかりません。WebSocketでの送信に失敗しました。');
-            }
+            const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+            const thought = `タスク「${data.taskName}」の処理が完了しました。結果を他のエージェントに共有します。`;
+            
+            sendAgentThoughts(
+              agentName,
+              thought,
+              roleModelId,
+              {
+                taskName: data.taskName,
+                type: 'success', // 成功タイプを明示的に設定
+                timestamp: new Date().toISOString(),
+                id: crypto.randomUUID() // 一意のIDを必ず設定
+              }
+            );
+            console.log(`タスク完了メッセージをWebSocketで直接送信: ${agentName} - ${data.taskName}`);
           } catch (wsError) {
             console.error('WebSocket送信中にエラーが発生しました(タスク完了):', wsError);
           }
@@ -255,21 +247,15 @@ export class CrewManager extends EventEmitter {
    */
   private reportProgress(stage: string, progress: number, detail: string) {
     // 直接WebSocketインターフェースを使用して進捗状況を送信
-    const sendProgressUpdate = require('../../websocket/ws-server').sendProgressUpdate;
     try {
-      if (typeof sendProgressUpdate === 'function') {
-        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-        sendProgressUpdate({
-          message: `${stage}: ${detail}`,
-          percent: progress,
-          roleModelId,
-          stage,
-          details: detail
-        });
-        console.log(`進捗状況をWebSocketで直接送信: ${stage}, ${progress}%, ${detail}`);
-      } else {
-        console.error('sendProgressUpdate関数が見つかりません。WebSocketでの送信に失敗しました。');
-      }
+      const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+      sendProgressUpdate({
+        message: `${stage}: ${detail}`,
+        percent: progress,
+        roleModelId,
+        details: detail
+      });
+      console.log(`進捗状況をWebSocketで直接送信: ${stage}, ${progress}%, ${detail}`);
     } catch (wsError) {
       console.error('WebSocket送信中にエラーが発生しました(進捗):', wsError);
     }
@@ -293,24 +279,21 @@ export class CrewManager extends EventEmitter {
       this.reportProgress('開始', 0, 'ナレッジグラフ生成プロセスを開始します');
       
       // 開始メッセージをエージェント思考として発行 - 直接WebSocketインターフェースを使用
-      const sendAgentThoughts = require('../../websocket/ws-server').sendAgentThoughts;
       try {
-        if (typeof sendAgentThoughts === 'function') {
-          const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-          const thought = 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。';
-          
-          sendAgentThoughts(
-            'オーケストレーター',
-            thought,
-            roleModelId,
-            {
-              type: 'info', // 情報タイプを明示的に設定
-              timestamp: new Date().toISOString(),
-              id: crypto.randomUUID() // 一意のIDを必ず設定
-            }
-          );
-          console.log(`開始メッセージをWebSocketで直接送信: オーケストレーター`);
-        }
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        const thought = 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。';
+        
+        sendAgentThoughts(
+          'オーケストレーター',
+          thought,
+          roleModelId,
+          {
+            type: 'info', // 情報タイプを明示的に設定
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID() // 一意のIDを必ず設定
+          }
+        );
+        console.log(`開始メッセージをWebSocketで直接送信: オーケストレーター`);
       } catch (wsError) {
         console.error('WebSocket送信中にエラーが発生しました(開始メッセージ):', wsError);
       }

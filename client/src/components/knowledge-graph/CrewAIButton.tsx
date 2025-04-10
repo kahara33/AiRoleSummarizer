@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { addSocketListener, removeSocketListener, initSocket } from '@/lib/socket';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -26,6 +27,89 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toast } = useToast();
 
+  // WebSocketのメッセージでプロセス完了を検知するためのイベントリスナー
+  useEffect(() => {
+    if (!loading) return;
+    
+    // websocketの接続を確保
+    const socket = initSocket(roleModelId);
+    
+    // 進捗イベントハンドラ - 処理の完了やエラーを検知
+    const handleProgressUpdate = (data: any) => {
+      console.log('進捗更新を受信:', data);
+      
+      // roleModelIdが一致するメッセージのみ処理
+      if (data.roleModelId !== roleModelId) return;
+      
+      // 完了状態（100%）またはエラー状態のとき
+      if (data.percent === 100 || data.progress === 100 || 
+          data.status === 'completed' || data.status === 'error') {
+        console.log('CrewAIプロセス完了またはエラー:', data);
+        
+        // ローディング状態を解除
+        setLoading(false);
+        if (onComplete) onComplete();
+        
+        // 完了メッセージを表示（エラーの場合はすでに別のエラーメッセージが表示されているはず）
+        if (data.status === 'completed' || data.percent === 100 || data.progress === 100) {
+          toast({
+            title: '処理完了',
+            description: '知識グラフの生成が完了しました。',
+          });
+        }
+      }
+    };
+
+    // エラーイベントハンドラ
+    const handleErrorMessage = (data: any) => {
+      console.error('エラーメッセージを受信:', data);
+      
+      // roleModelIdが一致するメッセージのみ処理
+      if (data.roleModelId !== roleModelId) return;
+      
+      // エラーメッセージを表示
+      toast({
+        title: 'エラー',
+        description: data.message || 'ナレッジグラフ生成中にエラーが発生しました',
+        variant: 'destructive',
+      });
+      
+      // ローディング状態を解除
+      setLoading(false);
+      if (onComplete) onComplete();
+    };
+    
+    // 完了イベントハンドラ
+    const handleCompletionMessage = (data: any) => {
+      console.log('完了メッセージを受信:', data);
+      
+      // roleModelIdが一致するメッセージのみ処理
+      if (data.roleModelId !== roleModelId) return;
+      
+      // 成功メッセージを表示
+      toast({
+        title: '処理完了',
+        description: data.message || 'ナレッジグラフの生成が完了しました',
+      });
+      
+      // ローディング状態を解除
+      setLoading(false);
+      if (onComplete) onComplete();
+    };
+
+    // WebSocketリスナーを追加
+    addSocketListener('progress', handleProgressUpdate);
+    addSocketListener('error', handleErrorMessage);
+    addSocketListener('completion', handleCompletionMessage);
+    
+    // クリーンアップ関数
+    return () => {
+      removeSocketListener('progress', handleProgressUpdate);
+      removeSocketListener('error', handleErrorMessage);
+      removeSocketListener('completion', handleCompletionMessage);
+    };
+  }, [loading, roleModelId, onComplete, toast]);
+
   // 現在のグラフをスナップショットとして保存
   const saveCurrentGraphAsSnapshot = async () => {
     try {
@@ -40,8 +124,24 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('スナップショット保存エラー:', errorData);
+        const errorText = await response.text();
+        let errorMessage = 'スナップショット保存エラー';
+        
+        try {
+          // JSONとしてパースを試みる
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.message || 'スナップショット保存エラー';
+        } catch (parseError) {
+          // JSONでない場合はテキストをそのまま使用
+          errorMessage = errorText || 'スナップショット保存エラー';
+        }
+        
+        console.error('スナップショット保存エラー:', errorMessage);
+        toast({
+          title: 'スナップショット保存失敗',
+          description: typeof errorMessage === 'string' ? errorMessage : 'スナップショット保存に失敗しました',
+          variant: 'destructive',
+        });
         // エラーがあっても続行
       } else {
         toast({
@@ -51,6 +151,11 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
       }
     } catch (error) {
       console.error('スナップショット保存中にエラーが発生しました:', error);
+      toast({
+        title: 'スナップショット保存エラー',
+        description: error instanceof Error ? error.message : 'スナップショット保存中にエラーが発生しました',
+        variant: 'destructive',
+      });
       // エラーがあっても続行
     }
   };
@@ -74,8 +179,20 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
       );
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '知識グラフの生成に失敗しました');
+        // エラーレスポンスをテキストとして読み込み
+        const errorText = await response.text();
+        let errorMessage = '知識グラフの生成に失敗しました';
+        
+        try {
+          // JSONとしてパースを試みる
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.message || '知識グラフの生成に失敗しました';
+        } catch (parseError) {
+          // JSONでない場合はテキストをそのまま使用
+          errorMessage = errorText || '知識グラフの生成に失敗しました';
+        }
+        
+        throw new Error(errorMessage);
       }
       
       toast({
