@@ -30,12 +30,20 @@ export class CrewAIService {
       const processType = skipGraphUpdate ? '情報収集プラン作成' : 'ナレッジグラフと情報収集プラン生成';
       console.log(`CrewAI ${processType}プロセスを開始: roleModelId=${roleModelId}, industry=${industry}, keywords=${initialKeywords.join(', ')}`);
       
-      // デバッグメッセージを送信 - より詳細なメッセージを追加
-      sendDebugAgentThought(roleModelId, `CrewAI ${processType}を開始しています。WebSocketメッセージのテスト。`);
-      
-      // 追加のデバッグメッセージを送信
+      // 最初のシステムメッセージを送信
       sendAgentThoughts(
-        'デバッグエージェント',
+        'システム',
+        `CrewAI ${processType}を開始しています。WebSocketメッセージのテスト。`,
+        roleModelId,
+        {
+          step: 'startup',
+          timestamp: new Date().toISOString()
+        }
+      );
+      
+      // WebSocket接続テストメッセージ
+      sendAgentThoughts(
+        'システム',
         `WebSocket接続テスト: CrewAI ${processType}プロセスが開始されました。エージェント間の会話がここに表示されます。`,
         roleModelId,
         {
@@ -46,9 +54,9 @@ export class CrewAIService {
         }
       );
       
-      // ドメイン分析者からのメッセージ送信
+      // 専門分析者からのメッセージ送信
       sendAgentThoughts(
-        'ドメイン分析者',
+        '専門分析',
         `新しい分析タスクを開始しています。業界: ${industry}、キーワード: ${initialKeywords.join(', ')}`,
         roleModelId,
         {
@@ -68,12 +76,7 @@ export class CrewAIService {
         roleModelId
       });
       
-      // デモ思考プロセスを生成してWebSocketで送信
-      try {
-        sendRoleModelDemoThoughts(roleModelId, industry);
-      } catch (demoError) {
-        console.warn('デモ思考プロセスの送信に失敗:', demoError);
-      }
+      // 注: デモ思考プロセス生成は削除 - 実際のAI処理のみを表示するため
       
       // CrewManagerの作成 - roleModelIdを渡す
       const crewManager = createCrewManager(
