@@ -1050,7 +1050,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         // Orchestratorエージェントの思考を送信
         sendAgentThoughts(
           'オーケストレーター', 
-          `${roleModel.name}のためのナレッジグラフと情報収集プランの作成を開始します。`, 
+          `チーム、今日は${roleModel.name}のナレッジグラフと情報収集プラン作成を担当します。各専門分野からの視点で協力して進めましょう。`, 
           roleModelId,
           { agentType: 'orchestrator' }
         );
@@ -1066,7 +1066,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         setTimeout(() => {
           sendAgentThoughts(
             'タスクプランナー', 
-            `ロールモデル「${roleModel.name}」の分析を開始します。主要な専門分野とキーワードを抽出しています。`, 
+            `了解しました。私はまず「${roleModel.name}」の主要な専門分野とキーワードの関係性を分析します。ドメインエキスパートとリサーチャーからの情報も必要になりそうです。`, 
             roleModelId,
             { agentType: 'planner' }
           );
@@ -1099,7 +1099,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         setTimeout(() => {
           sendAgentThoughts(
             'リサーチャー', 
-            `業界「${industries.join(', ')}」の最新トレンドを分析しています。キーワード「${keywords.join(', ')}」に関連する情報を収集します。`, 
+            `タスクプランナーさん、情報収集を開始します。業界「${industries.join(', ')}」内でキーワード「${keywords.join(', ')}」に関連する最新トレンドと動向を調査します。`, 
             roleModelId,
             { agentType: 'researcher' }
           );
@@ -1116,7 +1116,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         setTimeout(() => {
           sendAgentThoughts(
             'ドメインエキスパート', 
-            `${roleModel.name}の専門知識を整理しています。主要な概念間の関係性を構築中です。キーワード間の重要な関連性を特定しました。`, 
+            `私はリサーチャーの調査と並行してキーワード間の関連性を整理します。特に「${keywords[0] || '主要キーワード'}」を中心とした階層構造が重要になりそうです。オーケストレーターさん、全体の進行はいかがでしょうか？`, 
             roleModelId,
             { agentType: 'domain_expert' }
           );
@@ -1133,7 +1133,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         setTimeout(() => {
           sendAgentThoughts(
             'プランナー', 
-            `情報収集プランを最適化しています。以下の情報源が最も効果的と判断しました:\n\n1. 専門ジャーナル\n2. 業界レポート\n3. トレンド分析ツール\n4. 専門家インタビュー\n\n週次での情報更新が最適です。`, 
+            `分析結果から、最適な情報収集計画を作成しました。重要度の高い情報源は:\n\n1. 専門ジャーナル\n2. 業界レポート\n3. トレンド分析ツール\n4. 専門家インタビュー\n\nドメインエキスパートの指摘通り、「${keywords[0] || '主要キーワード'}」を中心に情報を構造化すべきです。`, 
             roleModelId,
             { agentType: 'planner' }
           );
@@ -1150,7 +1150,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         setTimeout(() => {
           sendAgentThoughts(
             'オーケストレーター', 
-            `ナレッジグラフと情報収集プランの作成が完了しました。知識の構造化と効率的な情報収集戦略が整いました。すべてのエージェントからの入力を統合し、最終結果を生成しました。`, 
+            `皆さん、素晴らしい分析と連携でした。各エージェントからの専門的視点を統合し、「${roleModel.name}」向けの完成度の高いナレッジグラフが作成できました。特にドメインエキスパートとリサーチャーのやり取りから得られた知見は非常に価値があります。`, 
             roleModelId,
             { agentType: 'orchestrator', type: 'success' }
           );
