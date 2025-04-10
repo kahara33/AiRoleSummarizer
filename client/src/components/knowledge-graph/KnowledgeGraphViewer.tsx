@@ -1255,6 +1255,52 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               </Tooltip>
             </TooltipProvider>
           )}
+
+          {/* テスト用グラフ生成ボタン */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      setLoading(true);
+                      const response = await fetch(`/api/knowledge-graph/generate-test/${roleModelId}`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        }
+                      });
+                      
+                      if (response.ok) {
+                        const result = await response.json();
+                        console.log('テスト用グラフ生成結果:', result);
+                        alert('テスト用ナレッジグラフを生成しました');
+                        // グラフを再読み込み
+                        fetchGraphData();
+                      } else {
+                        const errorData = await response.json();
+                        console.error('テスト用グラフ生成エラー:', errorData);
+                        alert('テスト用グラフの生成に失敗しました');
+                      }
+                    } catch (error) {
+                      console.error('テスト用グラフ生成中にエラーが発生しました:', error);
+                      alert('テスト用グラフ生成処理中にエラーが発生しました');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  テストグラフ作成
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>シンプルなテスト用ナレッジグラフを自動生成します</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
           {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
         </div>
       </div>

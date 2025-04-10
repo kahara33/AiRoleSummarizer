@@ -987,6 +987,171 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
     }
   });
   
+  // テスト用に簡易的なナレッジグラフを生成するエンドポイント
+  app.post('/api/knowledge-graph/generate-test/:roleModelId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      
+      // UUID形式でない場合はエラー
+      if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
+        console.error(`無効なUUID形式: ${roleModelId}`);
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
+      // ロールモデル情報を取得
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+        with: {
+          industries: {
+            with: {
+              industry: true,
+            },
+          },
+          keywords: {
+            with: {
+              keyword: true,
+            },
+          },
+        },
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // テスト用のシンプルなグラフを作成
+      const testGraphData = {
+        nodes: [],
+        edges: []
+      };
+      
+      // 中心ノード（ロールモデル）を作成
+      const centralNodeId = randomUUID();
+      testGraphData.nodes.push({
+        id: centralNodeId,
+        name: roleModel.name,
+        type: 'central',
+        description: roleModel.description || `${roleModel.name}の中心ノード`,
+        level: 0,
+        color: '#4285F4', // Googleブルー
+        roleModelId: roleModelId,
+        createdAt: new Date()
+      });
+      
+      // 業界ノードを作成
+      const industries = roleModel.industries.map(rel => rel.industry);
+      for (const industry of industries) {
+        const industryNodeId = randomUUID();
+        
+        // 業界ノードを追加
+        testGraphData.nodes.push({
+          id: industryNodeId,
+          name: industry.name,
+          type: 'industry',
+          description: `${industry.name}業界`,
+          parentId: centralNodeId,
+          level: 1,
+          color: '#34A853', // Googleグリーン
+          roleModelId: roleModelId,
+          createdAt: new Date()
+        });
+        
+        // 中心ノードと業界ノードをつなぐエッジを追加
+        testGraphData.edges.push({
+          id: randomUUID(),
+          sourceId: centralNodeId,
+          targetId: industryNodeId,
+          type: 'belongs_to',
+          label: '業界',
+          roleModelId: roleModelId,
+          createdAt: new Date()
+        });
+      }
+      
+      // キーワードノードを作成
+      const keywords = roleModel.keywords.map(rel => rel.keyword ? rel.keyword.name : (rel.keywordId && typeof rel.keywordId === 'object' ? rel.keywordId.name : ''));
+      for (const keyword of keywords) {
+        if (!keyword) continue;
+        
+        const keywordNodeId = randomUUID();
+        
+        // キーワードノードを追加
+        testGraphData.nodes.push({
+          id: keywordNodeId,
+          name: keyword,
+          type: 'keyword',
+          description: `キーワード: ${keyword}`,
+          parentId: centralNodeId,
+          level: 1,
+          color: '#EA4335', // Googleレッド
+          roleModelId: roleModelId,
+          createdAt: new Date()
+        });
+        
+        // 中心ノードとキーワードノードをつなぐエッジを追加
+        testGraphData.edges.push({
+          id: randomUUID(),
+          sourceId: centralNodeId,
+          targetId: keywordNodeId,
+          type: 'related',
+          label: '関連キーワード',
+          roleModelId: roleModelId,
+          createdAt: new Date()
+        });
+      }
+      
+      // 既存のノードとエッジがあれば削除
+      await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
+      await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+      
+      // 新しいノードを挿入
+      for (const node of testGraphData.nodes) {
+        await db.insert(knowledgeNodes).values({
+          id: node.id,
+          name: node.name,
+          description: node.description || null,
+          type: node.type || null,
+          level: node.level || 0,
+          color: node.color || null,
+          parentId: node.parentId || null,
+          roleModelId: roleModelId,
+          createdAt: new Date()
+        });
+      }
+      
+      // 新しいエッジを挿入
+      for (const edge of testGraphData.edges) {
+        await db.insert(knowledgeEdges).values({
+          id: edge.id,
+          sourceId: edge.sourceId,
+          targetId: edge.targetId,
+          type: edge.type || 'default',
+          label: edge.label || null,
+          roleModelId: roleModelId,
+          createdAt: new Date()
+        });
+      }
+      
+      // WebSocketでグラフ更新を通知
+      const { sendKnowledgeGraphUpdate } = require('./websocket');
+      sendKnowledgeGraphUpdate(roleModelId, {
+        nodes: testGraphData.nodes,
+        edges: testGraphData.edges
+      }, 'create');
+      
+      // 成功レスポンスを返す
+      res.json({
+        success: true,
+        message: 'テスト用ナレッジグラフを生成しました',
+        graphData: testGraphData
+      });
+      
+    } catch (error) {
+      console.error('テスト用ナレッジグラフ生成エラー:', error);
+      res.status(500).json({ error: 'テスト用ナレッジグラフの生成に失敗しました' });
+    }
+  });
+  
   // CrewAI を使用した知識グラフの生成エンドポイント
   app.post('/api/knowledge-graph/generate-with-crewai/:roleModelId', isAuthenticated, async (req, res) => {
     try {
