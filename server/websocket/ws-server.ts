@@ -60,16 +60,39 @@ export class WSServerManager {
         const userId = query.userId as string;
         const roleModelId = query.roleModelId as string;
         
+        // クエリパラメータからclientIdを取得（なければ生成）
+        let clientId: string;
+        if (query.clientId) {
+          clientId = query.clientId as string;
+        } else {
+          clientId = `${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+        }
+        
         if (!userId) {
           console.warn('ユーザーIDが指定されていません。接続を閉じます。');
           socket.close(1003, 'ユーザーIDが必要です');
           return;
         }
         
-        // クライアントIDの生成（単純なUUID代替）
-        const clientId = `${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+        // Nodeの内部ソケット設定を最適化（可能な場合）
+        if ((socket as any)._socket && typeof (socket as any)._socket.setNoDelay === 'function') {
+          (socket as any)._socket.setNoDelay(true);
+        }
         
         console.log(`新しいWebSocket接続: clientId=${clientId}, userId=${userId}, roleModelId=${roleModelId || 'なし'}`);
+        
+        // 既存の接続を閉じる（同じクライアントIDから再接続の場合）
+        if (this.clients.has(clientId)) {
+          try {
+            const existingClient = this.clients.get(clientId);
+            if (existingClient && existingClient.socket.readyState === WS_CONSTANTS.OPEN) {
+              console.log(`既存のWebSocket接続を閉じます: clientId=${clientId}`);
+              existingClient.socket.close(1000, '新しい接続が確立されました');
+            }
+          } catch (error) {
+            console.error(`既存接続のクローズエラー: clientId=${clientId}`, error);
+          }
+        }
         
         // クライアントを保存
         this.clients.set(clientId, {

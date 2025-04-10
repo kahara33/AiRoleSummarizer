@@ -40,10 +40,15 @@ export function initSocket(customRoleModelId?: string): WebSocket {
   // ユーザーIDを追加（必須パラメータ）
   const userId = localStorage.getItem('userId') || '0eb64aa6-4b1d-40a8-98df-c1839160232f'; // デフォルトの管理者ID
   
-  // ロールモデルIDとユーザーIDをクエリパラメータとして追加
-  const wsUrlWithParams = `${wsUrl}?roleModelId=${roleModelId}&userId=${userId}`;
+  // 一意のクライアントIDを生成（ユーザーID + タイムスタンプ + ランダム文字列）
+  const timestamp = Date.now();
+  const randomString = Math.random().toString(36).substring(2, 10);
+  const clientId = `${userId}-${timestamp}-${randomString}`;
   
-  console.log(`WebSocket初期化: ${wsUrlWithParams} (${new Date().toISOString()})`);
+  // ロールモデルID、ユーザーID、クライアントIDをクエリパラメータとして追加
+  const wsUrlWithParams = `${wsUrl}?roleModelId=${roleModelId}&userId=${userId}&clientId=${clientId}&t=${timestamp}`;
+  
+  console.log(`グローバルWebSocket接続を開始します:`, wsUrlWithParams);
   
   try {
     // WebSocketインスタンスを作成
