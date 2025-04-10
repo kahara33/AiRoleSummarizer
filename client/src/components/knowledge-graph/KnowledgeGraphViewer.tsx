@@ -797,10 +797,24 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
       if (!targetRoleModelId || targetRoleModelId === roleModelId) {
         console.log('グラフデータの再取得をトリガー');
-        // 少し遅延させてデータベースの更新が確実に反映されるようにする
+        
+        // データベースの更新が確実に反映されるよう、複数回にわたって再取得を試みる
+        // 最初の試行 - 短いディレイ後
         setTimeout(() => {
-          console.log('グラフデータを再取得します');
+          console.log('グラフデータを再取得します（1回目）');
           fetchGraphData();
+          
+          // 2回目の試行 - より長いディレイ後
+          setTimeout(() => {
+            console.log('グラフデータを再取得します（2回目）');
+            fetchGraphData();
+            
+            // 3回目の試行 - さらに長いディレイ後
+            setTimeout(() => {
+              console.log('グラフデータを再取得します（3回目 - 最終確認）');
+              fetchGraphData();
+            }, 5000);
+          }, 3000);
         }, 1000);
       }
     };
