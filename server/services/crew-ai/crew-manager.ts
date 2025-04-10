@@ -276,6 +276,12 @@ export class CrewManager extends EventEmitter {
   private async runTask(task: any, input: any) {
     try {
       console.log(`タスク実行開始: ${task.name || 'unknown task'}`);
+      console.log(`タスク入力: ${JSON.stringify(input)}`);
+      
+      // APIキーの確認
+      if (!process.env.AZURE_OPENAI_API_KEY) {
+        throw new Error('AZURE_OPENAI_API_KEYが設定されていません。APIキーを環境変数に設定してください。');
+      }
       
       // インターフェースのチェック
       if (this.crew.runTask && typeof this.crew.runTask === 'function') {
@@ -285,16 +291,8 @@ export class CrewManager extends EventEmitter {
         console.log('CrewAI run インターフェースを使用');
         return await this.crew.run(task, input);
       } else {
-        // モックの結果を返す
-        console.warn('CrewAIインターフェースが見つかりません。モックデータを返します');
-        return {
-          result: 'モックデータ - CrewAIインターフェースが利用できません',
-          expandedKeywords: [{ keyword: 'AI', relevanceScore: 1 }],
-          hierarchy: {},
-          keyRelationships: [],
-          evaluatedSources: [],
-          trendPredictions: []
-        };
+        // エラーをスロー - モックデータを返さない
+        throw new Error('適切なCrewAIインターフェースが見つかりません。CrewAIライブラリのバージョンを確認してください。');
       }
     } catch (error) {
       console.error(`タスク実行エラー:`, error);

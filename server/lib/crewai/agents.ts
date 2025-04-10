@@ -11,13 +11,27 @@ import { industryAnalysisTools } from './tools';
 
 // Azure OpenAIモデル設定
 const getAzureOpenAIModel = () => {
-  return new ChatOpenAI({
-    azureOpenAIApiKey: process.env.AZURE_OPENAI_KEY,
-    azureOpenAIApiVersion: '2024-02-15-preview',
-    azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT!,
-    azureOpenAIApiInstanceName: process.env.AZURE_OPENAI_ENDPOINT?.replace('https://', '').replace('.openai.azure.com', ''),
-    temperature: 0.7,
-  });
+  console.log('Azure OpenAI設定情報のロード...');
+  // 環境変数のチェック
+  if (!process.env.AZURE_OPENAI_API_KEY) {
+    console.error('AZURE_OPENAI_API_KEYが設定されていません');
+  }
+  if (!process.env.AZURE_OPENAI_ENDPOINT) {
+    console.error('AZURE_OPENAI_ENDPOINTが設定されていません');
+  }
+  
+  try {
+    return new ChatOpenAI({
+      azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
+      azureOpenAIApiVersion: '2024-02-15-preview',
+      azureOpenAIApiDeploymentName: 'gpt-4',  // デプロイメント名をハードコード（必要に応じて変更）
+      azureOpenAIApiInstanceName: process.env.AZURE_OPENAI_ENDPOINT?.replace('https://', '').replace('.openai.azure.com', ''),
+      temperature: 0.7,
+    });
+  } catch (error) {
+    console.error('Azure OpenAIモデルの初期化に失敗しました:', error);
+    throw error;
+  }
 };
 
 /**
