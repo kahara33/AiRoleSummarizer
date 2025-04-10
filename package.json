@@ -63,6 +63,7 @@
     "cmdk": "^1.0.0",
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
+    "crewai": "^1.0.1",
     "crewai-js": "^0.0.1",
     "crypto": "^1.0.1",
     "d3": "^7.9.0",

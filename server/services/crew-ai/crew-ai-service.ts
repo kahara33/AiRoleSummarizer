@@ -208,7 +208,7 @@ export class CrewAIService {
                 : JSON.stringify(result).substring(0, 200) + '...';
                 
             sendAgentThoughts(
-              '計画立案',
+              'プランストラテジスト',
               `情報収集プランの概要: ${planSummary}`,
               roleModelId,
               {
@@ -283,7 +283,7 @@ export class CrewAIService {
           if (skipGraphUpdate) {
             // 情報収集プランの結果を送信
             sendAgentThoughts(
-              '評価検証',
+              'クリティカルシンカー',
               '情報収集プランが完成しました。このプランには、情報収集の優先順位、リソース配分、スケジュール、成功指標が含まれています。',
               roleModelId,
               {
@@ -295,7 +295,7 @@ export class CrewAIService {
           } else {
             // ナレッジグラフと情報収集プランの両方の結果を送信
             sendAgentThoughts(
-              '評価検証',
+              'クリティカルシンカー',
               '最終的なナレッジグラフと情報収集プランが完成しました。改善サイクルによって品質が向上しています。',
               roleModelId,
               {
