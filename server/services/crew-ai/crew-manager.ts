@@ -1157,23 +1157,42 @@ JSONを含む詳細な分析結果を返してください。`;
       // 知識グラフ更新の発行（完了時にグラフがリアルタイム更新されることを保証）
       try {
         const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-        // 全てのイベント名で送信して確実に捕捉されるようにする
-        sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
-          message: 'ナレッジグラフが更新されました',
-          timestamp: new Date().toISOString(),
-          updateType: 'complete'
-        });
-        sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
-          message: 'ナレッジグラフが更新されました',
-          timestamp: new Date().toISOString(),
-          updateType: 'complete'
-        });
-        sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
-          message: 'ナレッジグラフが更新されました',
-          timestamp: new Date().toISOString(),
-          updateType: 'complete'
-        });
-        console.log(`グラフ更新通知をWebSocketで送信: roleModelId=${roleModelId}`);
+        const timestamp = new Date().toISOString();
+        
+        // ナレッジグラフ完全更新のメッセージを送信
+        console.log(`グラフ完全更新通知をWebSocketで送信: roleModelId=${roleModelId}`);
+        
+        // 短い遅延を追加して確実にクライアントがメッセージを受け取れるようにする
+        setTimeout(() => {
+          // 全てのイベント名で送信して確実に捕捉されるようにする
+          // 同じメッセージを複数のタイプで送信する理由：
+          // - さまざまなクライアントコードの互換性を維持するため
+          // - エラー発生時のフォールバック機構として機能
+          sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+            message: 'ナレッジグラフが完成しました',
+            timestamp: timestamp,
+            updateType: 'complete',
+            isComplete: true
+          });
+          
+          setTimeout(() => {
+            sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
+              message: 'ナレッジグラフが完成しました',
+              timestamp: timestamp,
+              updateType: 'complete',
+              isComplete: true
+            });
+            
+            setTimeout(() => {
+              sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
+                message: 'ナレッジグラフが完成しました',
+                timestamp: timestamp,
+                updateType: 'complete',
+                isComplete: true
+              });
+            }, 300);
+          }, 300);
+        }, 500);
       } catch (wsError) {
         console.error('WebSocket送信中にエラーが発生しました(グラフ更新):', wsError);
       }
@@ -1365,23 +1384,39 @@ JSONを含む詳細な分析結果を返してください。`;
       // 改善サイクル完了後にもグラフ更新通知
       try {
         const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-        // 全てのイベント名で送信して確実に捕捉されるようにする
-        sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
-          message: 'ナレッジグラフが改善され更新されました',
-          timestamp: new Date().toISOString(),
-          updateType: 'improvement_complete'
-        });
-        sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
-          message: 'ナレッジグラフが改善され更新されました',
-          timestamp: new Date().toISOString(),
-          updateType: 'improvement_complete'
-        });
-        sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
-          message: 'ナレッジグラフが改善され更新されました',
-          timestamp: new Date().toISOString(),
-          updateType: 'improvement_complete'
-        });
+        const timestamp = new Date().toISOString();
+        
+        // 改善サイクル完了のグラフ更新通知を送信
         console.log(`改善サイクル完了後のグラフ更新通知をWebSocketで送信: roleModelId=${roleModelId}`);
+        
+        // 短い遅延を追加して確実にクライアントがメッセージを受け取れるようにする
+        setTimeout(() => {
+          // 全てのイベント名で送信して確実に捕捉されるようにする
+          sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+            message: 'ナレッジグラフが改善されました',
+            timestamp: timestamp,
+            updateType: 'improvement_complete',
+            isComplete: true
+          });
+          
+          setTimeout(() => {
+            sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
+              message: 'ナレッジグラフが改善されました',
+              timestamp: timestamp,
+              updateType: 'improvement_complete',
+              isComplete: true
+            });
+            
+            setTimeout(() => {
+              sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
+                message: 'ナレッジグラフが改善されました',
+                timestamp: timestamp,
+                updateType: 'improvement_complete',
+                isComplete: true
+              });
+            }, 300);
+          }, 300);
+        }, 500);
       } catch (wsError) {
         console.error('WebSocket送信中にエラーが発生しました(改善サイクル後のグラフ更新):', wsError);
       }
