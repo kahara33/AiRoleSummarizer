@@ -313,7 +313,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
               };
               
               // エッジをデータベースに挿入
-              await db.insert(knowledgeGraphEdges).values(relationEdge);
+              await db.insert(knowledgeEdges).values(relationEdge);
               allEdges.push(relationEdge);
             }
           }
@@ -343,7 +343,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
                   };
                   
                   // エッジをデータベースに挿入
-                  await db.insert(knowledgeGraphEdges).values(relationEdge);
+                  await db.insert(knowledgeEdges).values(relationEdge);
                   allEdges.push(relationEdge);
                   
                   // 少し遅延を入れて進捗感を出す
