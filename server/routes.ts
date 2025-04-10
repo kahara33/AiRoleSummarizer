@@ -4,7 +4,8 @@ import {
   initWebSocket,
   sendProgressUpdate,
   sendAgentThoughts,
-  sendMessageToRoleModelViewers
+  sendMessageToRoleModelViewers,
+  sendKnowledgeGraphUpdate
 } from './websocket';
 import { registerDebugRoutes } from './debug-routes';
 import { db } from './db';
@@ -109,10 +110,6 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       console.log(`産業: ${industries.join(', ')}`);
       console.log(`キーワード: ${keywords.join(', ')}`);
       
-      // WebSocketモジュールを取得
-      const { sendProgressUpdate, sendMessageToRoleModelViewers } = require('./websocket/ws-server');
-      const crypto = require('crypto');
-      
       // WebSocket通知: 処理開始
       sendProgressUpdate({
         roleModelId,
@@ -121,8 +118,8 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       });
       
       // 既存のグラフを削除
-      await db.delete(knowledgeGraphNodes).where(eq(knowledgeGraphNodes.roleModelId, roleModelId));
-      await db.delete(knowledgeGraphEdges).where(eq(knowledgeGraphEdges.roleModelId, roleModelId));
+      await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+      await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
       
       // テスト用のノードとエッジを作成するタスクを非同期で実行
       (async () => {
@@ -150,7 +147,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
           };
           
           // ノードをデータベースに挿入
-          await db.insert(knowledgeGraphNodes).values(baseNode);
+          await db.insert(knowledgeNodes).values(baseNode);
           
           // WebSocket通知: 進捗20%（ベースノード作成）
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -196,7 +193,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             };
             
             // ノードをデータベースに挿入
-            await db.insert(knowledgeGraphNodes).values(industryNode);
+            await db.insert(knowledgeNodes).values(industryNode);
             industryNodes.push(industryNode);
             allNodes.push(industryNode);
             
@@ -261,7 +258,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             };
             
             // ノードをデータベースに挿入
-            await db.insert(knowledgeGraphNodes).values(keywordNode);
+            await db.insert(knowledgeNodes).values(keywordNode);
             keywordNodes.push(keywordNode);
             allNodes.push(keywordNode);
             
@@ -278,7 +275,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             };
             
             // エッジをデータベースに挿入
-            await db.insert(knowledgeGraphEdges).values(keywordEdge);
+            await db.insert(knowledgeEdges).values(keywordEdge);
             allEdges.push(keywordEdge);
             
             // 少し遅延を入れて進捗感を出す
