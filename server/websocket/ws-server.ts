@@ -384,10 +384,12 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
   }
   
   const message: WSMessage = {
-    type: 'progress-update',
+    type: 'progress', // クライアント側では'progress'という名前のイベントハンドラが設定されている
     payload: {
       message: data.message,
+      progress: data.percent, // クライアント側の互換性のため
       percent: data.percent,
+      progressPercent: data.percent, // 代替名も提供
       roleModelId: data.roleModelId,
       status: data.status // statusフィールドが存在する場合のみ追加される
     },
@@ -417,7 +419,7 @@ export function sendAgentThoughts(
   
   // クライアント側のハンドラで確実に認識されるようにメッセージ形式を修正
   const message: WSMessage = {
-    type: 'agent_thought', // クライアント側の主要なイベントハンドラ名
+    type: 'agent_thoughts', // クライアント側ではagent_thoughts（複数形）を期待している
     payload: {
       id: crypto.randomUUID(), // 一意のIDを必ず生成
       agentName,

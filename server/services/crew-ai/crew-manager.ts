@@ -444,7 +444,18 @@ export class CrewManager extends EventEmitter {
       // 知識グラフ更新の発行（完了時にグラフがリアルタイム更新されることを保証）
       try {
         const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        // 全てのイベント名で送信して確実に捕捉されるようにする
         sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+          message: 'ナレッジグラフが更新されました',
+          timestamp: new Date().toISOString(),
+          updateType: 'complete'
+        });
+        sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
+          message: 'ナレッジグラフが更新されました',
+          timestamp: new Date().toISOString(),
+          updateType: 'complete'
+        });
+        sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
           message: 'ナレッジグラフが更新されました',
           timestamp: new Date().toISOString(),
           updateType: 'complete'
@@ -545,6 +556,30 @@ export class CrewManager extends EventEmitter {
         },
         timestamp: new Date().toISOString()
       };
+      
+      // 改善サイクル完了後にもグラフ更新通知
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        // 全てのイベント名で送信して確実に捕捉されるようにする
+        sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+          message: 'ナレッジグラフが改善され更新されました',
+          timestamp: new Date().toISOString(),
+          updateType: 'improvement_complete'
+        });
+        sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
+          message: 'ナレッジグラフが改善され更新されました',
+          timestamp: new Date().toISOString(),
+          updateType: 'improvement_complete'
+        });
+        sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
+          message: 'ナレッジグラフが改善され更新されました',
+          timestamp: new Date().toISOString(),
+          updateType: 'improvement_complete'
+        });
+        console.log(`改善サイクル完了後のグラフ更新通知をWebSocketで送信: roleModelId=${roleModelId}`);
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました(改善サイクル後のグラフ更新):', wsError);
+      }
       
       return improvedResult;
     } catch (error: any) {
