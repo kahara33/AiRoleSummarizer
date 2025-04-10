@@ -210,9 +210,10 @@ export function initWebSocket(server: HttpServer): void {
               
               // サブスクリプションメッセージの処理
               if (data.type === 'subscribe') {
-                const specificRoleModelId = data.payload?.roleModelId;
+                // roleModelIdをペイロードから取得（複数の形式に対応）
+                const specificRoleModelId = data.payload?.roleModelId || data.roleModelId;
                 
-                if (specificRoleModelId && specificRoleModelId !== 'default') {
+                if (specificRoleModelId) {
                   console.log(`クライアントがロールモデル ${specificRoleModelId} を購読しました`);
                   
                   // 既存のロールモデルグループから削除
@@ -226,7 +227,24 @@ export function initWebSocket(server: HttpServer): void {
                   if (!clients.has(specificRoleModelId)) {
                     clients.set(specificRoleModelId, new Set());
                   }
+                  
+                  // クライアントをセットに追加
                   clients.get(specificRoleModelId)?.add(ws);
+                  
+                  // クライアントのカスタムプロパティを更新
+                  (ws as any).roleModelId = specificRoleModelId;
+                  
+                  // 接続状態のログ出力
+                  let totalClients = 0;
+                  let modelInfo = '';
+                  clients.forEach((clientSet, id) => {
+                    if (clientSet.size > 0) {
+                      totalClients += clientSet.size;
+                      modelInfo += `${id}(${clientSet.size}件), `;
+                    }
+                  });
+                  
+                  console.log(`現在の接続状態: 合計${totalClients}件、モデル別: ${modelInfo || 'なし'}`);
                   
                   // クライアントにサブスクリプション確認を送信
                   try {
@@ -234,10 +252,25 @@ export function initWebSocket(server: HttpServer): void {
                       type: 'subscription_confirmed',
                       message: `ロールモデル ${specificRoleModelId} の購読を開始しました`,
                       roleModelId: specificRoleModelId,
-                      timestamp: new Date().toISOString()
+                      timestamp: new Date().toISOString(),
+                      status: 'success'
                     }));
+                    
+                    console.log(`サブスクリプション確認を送信: clientId=${(ws as any).clientId || 'unknown'}`);
                   } catch (sendError) {
                     console.error(`サブスクリプション確認メッセージ送信エラー: ${sendError}`);
+                  }
+                } else {
+                  console.log('サブスクリプションメッセージにroleModelIdが含まれていません');
+                  try {
+                    ws.send(JSON.stringify({
+                      type: 'subscription_error',
+                      message: 'roleModelIdが指定されていません',
+                      timestamp: new Date().toISOString(),
+                      status: 'error'
+                    }));
+                  } catch (sendError) {
+                    console.error(`エラーメッセージ送信失敗: ${sendError}`);
                   }
                 }
               }
