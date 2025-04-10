@@ -827,10 +827,19 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         console.log(`WebSocketから直接グラフデータを受信しました: ノード数=${nodes.length}, エッジ数=${edges.length}`);
         
         try {
-          // 受信したグラフデータでReactFlowのノードとエッジを更新する
-          const graphData = { nodes, edges };
-          // graphDataを直接処理する代わりにfetchGraphDataを呼び出す
-          fetchGraphData();
+          // 部分的な更新かどうかを確認（isPartialフラグで判断）
+          const isPartialUpdate = payload.isPartial === true;
+          
+          if (isPartialUpdate) {
+            console.log(`部分的なグラフ更新を受信しました: agentName=${payload.agentName || '不明'}`);
+            
+            // 部分的な更新の場合は、既存のグラフに追加するのではなく
+            // APIから全体を再取得して最新の状態を表示する
+            fetchGraphData();
+          } else {
+            // 完全な更新の場合はAPIから再取得
+            fetchGraphData();
+          }
           
           // 親コンポーネントにデータ変更を通知
           if (onGraphDataChange) {

@@ -18,7 +18,7 @@ import {
 } from './tasks/task-definitions';
 
 // WebSocketサーバー関連のインポート
-import { sendAgentThoughts, sendProgressUpdate, sendMessageToRoleModelViewers } from '../../websocket/ws-server';
+import { sendAgentThoughts, sendProgressUpdate, sendMessageToRoleModelViewers, sendPartialGraphUpdate } from '../../websocket';
 
 /**
  * CrewAIマネージャークラス
