@@ -21,7 +21,8 @@ export function initSocket(customRoleModelId?: string): WebSocket {
   
   // WebSocketの接続URL
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  // サーバー側のパスが/api/wsになっているので合わせる
+  const wsUrl = `${protocol}//${window.location.host}/api/ws`;
   
   // ロールモデルIDの決定（優先順位: カスタムID > URLパラメータ > デフォルト）
   let roleModelId = 'default';
@@ -36,8 +37,11 @@ export function initSocket(customRoleModelId?: string): WebSocket {
     }
   }
   
-  // ロールモデルIDをクエリパラメータとして追加
-  const wsUrlWithParams = `${wsUrl}?roleModelId=${roleModelId}`;
+  // ユーザーIDを追加（必須パラメータ）
+  const userId = localStorage.getItem('userId') || '0eb64aa6-4b1d-40a8-98df-c1839160232f'; // デフォルトの管理者ID
+  
+  // ロールモデルIDとユーザーIDをクエリパラメータとして追加
+  const wsUrlWithParams = `${wsUrl}?roleModelId=${roleModelId}&userId=${userId}`;
   
   console.log(`WebSocket初期化: ${wsUrlWithParams} (${new Date().toISOString()})`);
   
