@@ -454,7 +454,7 @@ export class CrewManager extends EventEmitter {
             ?.map((k: any) => k.keyword)
             ?.join(', ') || '',
           resource_constraints: this.resourceConstraints.join(', '),
-          trend_predictions: JSON.stringify(sourceEvaluation.trendPredictions)
+          trend_predictions: JSON.stringify(sourceEvaluation?.trendPredictions || [])
         }
       );
       this.reportProgress('プラン策定', 60, '情報収集プラン策定が完了しました');
@@ -464,9 +464,9 @@ export class CrewManager extends EventEmitter {
       const qualityAssessment = await this.runTask(
         EvaluateQualityTask,
         {
-          graph_structure: JSON.stringify(graphStructure),
-          collection_plan: JSON.stringify(collectionPlan),
-          industry_analysis: JSON.stringify(industryAnalysis),
+          graph_structure: JSON.stringify(graphStructure || {}),
+          collection_plan: JSON.stringify(collectionPlan || {}),
+          industry_analysis: JSON.stringify(industryAnalysis || {}),
           original_requirements: this.originalRequirements.join(', ')
         }
       );
@@ -477,11 +477,11 @@ export class CrewManager extends EventEmitter {
       const finalResult = await this.runTask(
         IntegrateAndDocumentTask,
         {
-          industry_analysis: JSON.stringify(industryAnalysis),
-          source_evaluation: JSON.stringify(sourceEvaluation),
-          graph_structure: JSON.stringify(graphStructure),
-          collection_plan: JSON.stringify(collectionPlan),
-          quality_assessment: JSON.stringify(qualityAssessment)
+          industry_analysis: JSON.stringify(industryAnalysis || {}),
+          source_evaluation: JSON.stringify(sourceEvaluation || {}),
+          graph_structure: JSON.stringify(graphStructure || {}),
+          collection_plan: JSON.stringify(collectionPlan || {}),
+          quality_assessment: JSON.stringify(qualityAssessment || {})
         }
       );
       
