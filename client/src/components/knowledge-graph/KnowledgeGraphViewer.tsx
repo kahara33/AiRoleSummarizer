@@ -833,11 +833,89 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           if (isPartialUpdate) {
             console.log(`部分的なグラフ更新を受信しました: agentName=${payload.agentName || '不明'}`);
             
-            // 部分的な更新の場合は、既存のグラフに追加するのではなく
-            // APIから全体を再取得して最新の状態を表示する
-            fetchGraphData();
+            // 部分的な更新の場合は、既存のグラフに新しいノードとエッジを追加する
+            // これにより、リアルタイムでグラフが構築されていく様子を可視化できる
+            if (nodes.length > 0 || edges.length > 0) {
+              try {
+                // 新しいノードを既存のグラフに変換して追加
+                const newFlowNodes = nodes.map((node: any) => {
+                  // ノードの色を取得（タイプに応じた色分け）
+                  const color = getNodeColor(node.type || 'default');
+                  
+                  // 初期位置は中央付近にランダムに配置（後でレイアウトエンジンで調整）
+                  const x = Math.random() * 500 - 250;
+                  const y = Math.random() * 500 - 250;
+                  
+                  return {
+                    id: node.id,
+                    type: node.type === 'agent' ? 'agent' : 'concept',
+                    position: { x, y },
+                    data: {
+                      ...node,
+                      label: node.name,
+                      color: node.color || color,
+                      // ノード操作ハンドラを追加
+                      onEdit: handleEditNode,
+                      onDelete: handleDeleteNode,
+                      onAddChild: handleAddChildNode,
+                      onAddSibling: handleAddSiblingNode,
+                      onExpand: handleExpandNode,
+                    },
+                    style: {
+                      background: node.color || color,
+                      borderColor: color,
+                    },
+                  };
+                });
+                
+                // 新しいエッジを既存のグラフに変換して追加
+                const newFlowEdges = edges.map((edge: any) => {
+                  return {
+                    id: edge.id || `${edge.source}-${edge.target}`,
+                    source: edge.source,
+                    target: edge.target,
+                    type: 'dataFlowEdge',
+                    label: edge.label || '',
+                    data: {
+                      ...edge,
+                      roleModelId,
+                    },
+                  };
+                });
+                
+                // 既存のノードとエッジに追加
+                setNodes(currentNodes => [...currentNodes, ...newFlowNodes]);
+                setEdges(currentEdges => [...currentEdges, ...newFlowEdges]);
+                
+                // レイアウトの再計算
+                setTimeout(() => {
+                  // 既存のノードとエッジを取得
+                  const currentNodes = nodes || [];
+                  const currentEdges = edges || [];
+                  
+                  if (currentNodes.length > 0) {
+                    const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
+                      currentNodes,
+                      currentEdges
+                    );
+                    
+                    // レイアウト済みのノードとエッジを設定
+                    setNodes(layoutedNodes);
+                    setEdges(layoutedEdges);
+                    
+                    console.log('部分更新後にレイアウトを再計算しました');
+                  }
+                }, 100);
+                
+                console.log(`部分更新を適用しました: ${newFlowNodes.length}個のノードと${newFlowEdges.length}個のエッジを追加`);
+              } catch (error) {
+                console.error('部分更新の適用中にエラーが発生しました:', error);
+                // エラー時はAPIから全体を再取得
+                fetchGraphData();
+              }
+            }
           } else {
-            // 完全な更新の場合はAPIから再取得
+            // 完全な更新またはその他のケースではAPIから再取得
             fetchGraphData();
           }
           
