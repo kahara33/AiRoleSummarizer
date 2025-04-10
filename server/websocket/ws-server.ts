@@ -2,6 +2,11 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { parse } from 'url';
 
+// グローバル名前空間に変数を定義
+declare global {
+  var graphUpdateCounter: number;
+}
+
 // WebSocketの状態を表す定数
 const WS_CONSTANTS = {
   CONNECTING: 0,
@@ -458,9 +463,20 @@ export function sendMessageToRoleModelViewers(
     return 0;
   }
   
+  // payload.roleModelIdを明示的に設定してクライアント側の処理を確実にする
+  const enhancedPayload = {
+    ...payload,
+    roleModelId: roleModelId,
+    timestamp: payload.timestamp || new Date().toISOString(),
+    // ログ目的で何回更新が送信されたかを記録
+    updateCounter: (typeof global.graphUpdateCounter === 'number' ? 
+      global.graphUpdateCounter++ : 
+      (global.graphUpdateCounter = 1))
+  };
+  
   const message: WSMessage = {
     type,
-    payload,
+    payload: enhancedPayload,
     timestamp: new Date().toISOString()
   };
   

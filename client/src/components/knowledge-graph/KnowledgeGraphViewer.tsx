@@ -795,11 +795,29 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       
       // roleModelIdが一致するか、payload.roleModelIdがundefinedの場合（後方互換性のため）
       const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
+      
+      // 更新タイプを取得
+      const updateType = payload.updateType || '';
+      console.log(`グラフ更新メッセージ: type=${updateType}, roleModel=${targetRoleModelId}`);
+      
       if (!targetRoleModelId || targetRoleModelId === roleModelId) {
         console.log('グラフデータの再取得をトリガー');
         
-        // データベースの更新が確実に反映されるよう、複数回にわたって再取得を試みる
-        // 最初の試行 - 短いディレイ後
+        // 更新タイプに基づいて処理を調整
+        if (updateType === 'complete' || updateType === 'improvement_complete') {
+          console.log('完全更新を検出。即座にグラフを再取得します');
+          // 即時実行
+          fetchGraphData();
+          
+          // 短いディレイ後に再確認
+          setTimeout(() => {
+            console.log('完全更新後の再確認を行います');
+            fetchGraphData();
+          }, 1500);
+          return;
+        }
+        
+        // その他の更新タイプ、または更新タイプがない場合は段階的に再取得
         setTimeout(() => {
           console.log('グラフデータを再取得します（1回目）');
           fetchGraphData();
