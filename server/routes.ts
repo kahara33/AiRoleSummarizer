@@ -1245,17 +1245,40 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
                 }
               }
               
-              sendProgressUpdate('知識グラフの生成と保存が完了しました', 100, roleModelId, {
+              // 進捗完了メッセージを送信
+              sendProgressUpdate({
                 message: '知識グラフの生成と保存が完了しました',
-                progress: 100,
-                stage: 'completed',
-                subStage: 'save_to_database'
+                percent: 100,
+                roleModelId,
+                status: 'completed'
               });
               
-              // WebSocketで接続中のクライアントに通知
-              sendMessageToRoleModelViewers('knowledge_graph_update', {
-                message: '知識グラフが更新されました'
-              }, roleModelId);
+              // 少し遅延させてからグラフ更新通知を送信（進捗完了メッセージが先に処理されるようにするため）
+              setTimeout(() => {
+                // 明示的にグラフ完了メッセージを送信
+                sendMessageToRoleModelViewers(
+                  roleModelId,
+                  'knowledge_graph_update',
+                  {
+                    message: '知識グラフが更新されました',
+                    updateType: 'complete',
+                    timestamp: new Date().toISOString()
+                  }
+                );
+                
+                // 互換性のために両方の形式で送信
+                sendMessageToRoleModelViewers(
+                  roleModelId,
+                  'knowledge-graph-update',
+                  {
+                    message: '知識グラフが更新されました',
+                    updateType: 'complete',
+                    timestamp: new Date().toISOString()
+                  }
+                );
+                
+                console.log(`知識グラフ更新完了通知を送信: roleModelId=${roleModelId}`);
+              }, 500);
               
             } catch (dbError) {
               console.error('知識グラフ保存エラー:', dbError);
@@ -1270,22 +1293,27 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
           } else {
             // エラーがあった場合
             console.error('CrewAI知識グラフ生成エラー:', result.error);
-            sendProgressUpdate(`エラーが発生しました: ${result.error}`, 100, roleModelId, {
+            
+            // 最新のWebSocketメッセージフォーマットでエラーを送信
+            sendProgressUpdate({
               message: `エラーが発生しました: ${result.error}`,
-              progress: 100,
-              stage: 'error',
-              error: true,
-              errorMessage: result.error
+              percent: 100,
+              roleModelId,
+              status: 'error'
             });
           }
         } catch (err) {
           console.error('CrewAI知識グラフ生成エラー:', err);
-          sendProgressUpdate(`エラーが発生しました: ${err.message}`, 100, roleModelId, {
-            message: `エラーが発生しました: ${err.message}`,
-            progress: 100,
-            stage: 'error',
-            error: true,
-            errorMessage: err.message
+          
+          // エラーメッセージを安全に抽出
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          
+          // 最新のWebSocketメッセージフォーマットでエラーを送信
+          sendProgressUpdate({
+            message: `エラーが発生しました: ${errorMessage}`,
+            percent: 100,
+            roleModelId,
+            status: 'error'
           });
         }
       })();

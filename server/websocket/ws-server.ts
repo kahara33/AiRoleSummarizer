@@ -388,20 +388,103 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
     return 0;
   }
   
+  // 一意のIDとタイムスタンプを生成
+  const messageId = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  
+  // イベントカウンターを初期化（未定義の場合）
+  if (typeof global.graphUpdateCounter !== 'number') {
+    global.graphUpdateCounter = 1;
+  }
+  
+  // 進捗率を0～100の範囲に確実に収める
+  const normalizedPercent = Math.max(0, Math.min(100, data.percent));
+  
+  // ステータスを標準化（完了状態の場合）
+  let normalizedStatus = data.status;
+  if (normalizedPercent >= 100 && (!normalizedStatus || normalizedStatus === 'in_progress')) {
+    normalizedStatus = 'completed';
+  }
+  
+  // 標準的な進捗メッセージフォーマット
   const message: WSMessage = {
     type: 'progress', // クライアント側では'progress'という名前のイベントハンドラが設定されている
     payload: {
-      message: data.message,
-      progress: data.percent, // クライアント側の互換性のため
-      percent: data.percent,
-      progressPercent: data.percent, // 代替名も提供
+      id: messageId,
+      messageId: messageId,
+      message: data.message || `進捗: ${normalizedPercent}%`,
+      // すべての命名規則をサポート（クライアント側の互換性のため）
+      progress: normalizedPercent,
+      percent: normalizedPercent,
+      progressPercent: normalizedPercent,
+      // ロールモデルID
       roleModelId: data.roleModelId,
-      status: data.status // statusフィールドが存在する場合のみ追加される
+      // ステータス情報
+      status: normalizedStatus,
+      // タイムスタンプとシーケンス情報
+      timestamp: timestamp,
+      updateCounter: global.graphUpdateCounter++,
+      // 完了状態かどうかのフラグ（追加の互換性フィールド）
+      isCompleted: normalizedPercent >= 100 || normalizedStatus === 'completed',
+      isError: normalizedStatus === 'error'
     },
-    timestamp: new Date().toISOString()
+    timestamp: timestamp
   };
   
-  return wss.sendToRoleModelViewers(data.roleModelId, message);
+  // 進捗メッセージを送信
+  const sentCount = wss.sendToRoleModelViewers(data.roleModelId, message);
+  
+  // 完了状態（100%）の場合、progress-updateとしても送信
+  if (normalizedPercent >= 100 || normalizedStatus === 'completed') {
+    try {
+      // 完了情報をより明示的に伝えるメッセージタイプも送信
+      const completionMessage: WSMessage = {
+        type: 'progress-update',
+        payload: {
+          ...message.payload,
+          status: 'completed'
+        },
+        timestamp: timestamp
+      };
+      wss.sendToRoleModelViewers(data.roleModelId, completionMessage);
+      
+      // 明示的に完了メッセージも送信（互換性のため）
+      const explicitCompletionMessage: WSMessage = {
+        type: 'completion',
+        payload: {
+          ...message.payload,
+          message: data.message || 'ナレッジグラフ生成プロセスが完了しました',
+        },
+        timestamp: timestamp
+      };
+      wss.sendToRoleModelViewers(data.roleModelId, explicitCompletionMessage);
+      
+      console.log(`完了進捗メッセージを送信しました: roleModelId=${data.roleModelId}, progress=${normalizedPercent}%`);
+    } catch (error) {
+      console.error('完了進捗メッセージの送信中にエラーが発生しました:', error);
+    }
+  }
+  
+  // エラー状態の場合、errorとしても送信
+  if (normalizedStatus === 'error') {
+    try {
+      const errorMessage: WSMessage = {
+        type: 'error',
+        payload: {
+          ...message.payload,
+          message: data.message || 'ナレッジグラフ生成中にエラーが発生しました',
+        },
+        timestamp: timestamp
+      };
+      wss.sendToRoleModelViewers(data.roleModelId, errorMessage);
+      
+      console.log(`エラーメッセージを送信しました: roleModelId=${data.roleModelId}`);
+    } catch (error) {
+      console.error('エラーメッセージの送信中にエラーが発生しました:', error);
+    }
+  }
+  
+  return sentCount;
 }
 
 // エージェント思考の送信ヘルパー関数
