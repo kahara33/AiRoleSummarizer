@@ -251,8 +251,8 @@ export class CrewAIService {
       // 非同期でナレッジグラフ生成/情報収集プラン作成を実行
       console.log(`CrewAI ${processType}プロセスを開始します...`);
       sendAgentThoughts(
-        'オーケストレーター',
-        `CrewAI ${processType}プロセスを開始します。複数のAIエージェントが協調して作業を行います。`,
+        '調整役',
+        `${processType}プロセスを開始します。\nナレッジグラフ生成プロセスを開始します`,
         roleModelId,
         {
           timestamp: new Date().toISOString(),
