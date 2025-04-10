@@ -813,9 +813,37 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       // roleModelIdが一致するか、payload.roleModelIdがundefinedの場合（後方互換性のため）
       const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
       
+      // ノードとエッジのデータを取得して確認
+      const nodes = payload.nodes || [];
+      const edges = payload.edges || [];
+      
       // 更新タイプを取得
       const updateType = payload.updateType || '';
-      console.log(`グラフ更新メッセージ (ID: ${currentUpdateId}): type=${updateType}, roleModel=${targetRoleModelId}`);
+      console.log(`グラフ更新メッセージ (ID: ${currentUpdateId}): type=${updateType}, roleModel=${targetRoleModelId}, ノード数=${nodes.length}, エッジ数=${edges.length}`);
+      
+      // ノードとエッジのデータが存在し、WebSocketからの直接更新が可能な場合
+      const hasGraphData = nodes.length > 0 || edges.length > 0;
+      if (hasGraphData) {
+        console.log(`WebSocketから直接グラフデータを受信しました: ノード数=${nodes.length}, エッジ数=${edges.length}`);
+        
+        try {
+          // 受信したグラフデータでReactFlowのノードとエッジを更新する
+          const graphData = { nodes, edges };
+          // graphDataを直接処理する代わりにfetchGraphDataを呼び出す
+          fetchGraphData();
+          
+          // 親コンポーネントにデータ変更を通知
+          if (onGraphDataChange) {
+            onGraphDataChange(true);
+          }
+          
+          console.log(`WebSocketからのグラフデータを処理しました (ID: ${currentUpdateId})`);
+          return; // 直接更新したため、APIからの再取得は不要
+        } catch (error) {
+          console.error('WebSocketデータの処理中にエラーが発生しました:', error);
+          // 処理に失敗した場合はAPIからデータを取得
+        }
+      }
       
       // タイムスタンプを確認して古いメッセージを除外
       if (payload.timestamp) {

@@ -851,7 +851,7 @@ export function sendKnowledgeGraphUpdate(
       payload: {
         ...basePayload,
         updateType: updateType,
-        isComplete: updateType === 'create' || updateType === 'complete',
+        isComplete: updateType === 'create' || updateType === 'complete' || updateType === 'update',
         roleModelId,
         timestamp: new Date().toISOString()
       }
