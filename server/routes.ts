@@ -70,6 +70,363 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
     console.error('Neo4j初期化エラー:', error);
   });
   
+  // テスト用のナレッジグラフ生成API
+  app.post('/api/test-knowledge-graph/:roleModelId', async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      
+      if (!isValidUUID(roleModelId)) {
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
+      // ロールモデル情報を取得
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+        with: {
+          industries: {
+            with: {
+              industry: true
+            }
+          },
+          keywords: {
+            with: {
+              keyword: true
+            }
+          },
+          user: true
+        }
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // 産業と業界名を抽出
+      const industries = roleModel.industries.map(rel => rel.industry.name);
+      const keywords = roleModel.keywords.map(rel => rel.keyword ? rel.keyword.name : '').filter(Boolean);
+      
+      console.log(`テスト用ナレッジグラフ生成開始: roleModelId=${roleModelId}`);
+      console.log(`産業: ${industries.join(', ')}`);
+      console.log(`キーワード: ${keywords.join(', ')}`);
+      
+      // WebSocketモジュールを取得
+      const { sendProgressUpdate, sendMessageToRoleModelViewers } = require('./websocket/ws-server');
+      const crypto = require('crypto');
+      
+      // WebSocket通知: 処理開始
+      sendProgressUpdate({
+        roleModelId,
+        percent: 5,
+        message: 'テスト用ナレッジグラフの生成を開始しています...'
+      });
+      
+      // 既存のグラフを削除
+      await db.delete(knowledgeGraphNodes).where(eq(knowledgeGraphNodes.roleModelId, roleModelId));
+      await db.delete(knowledgeGraphEdges).where(eq(knowledgeGraphEdges.roleModelId, roleModelId));
+      
+      // テスト用のノードとエッジを作成するタスクを非同期で実行
+      (async () => {
+        try {
+          // 進捗通知: 準備完了
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          sendProgressUpdate({
+            roleModelId,
+            percent: 10,
+            message: 'グラフの準備が完了しました。ノードを生成しています...'
+          });
+          
+          // ベースノードの作成 (roleModel.name)
+          const baseNodeId = crypto.randomUUID();
+          const baseNode = {
+            id: baseNodeId,
+            name: roleModel.name,
+            type: 'base',
+            description: roleModel.description || `${roleModel.name}の知識グラフ`,
+            level: 0,
+            color: '#4285F4', // Google Blue
+            roleModelId,
+            createdAt: new Date(),
+            parentId: null
+          };
+          
+          // ノードをデータベースに挿入
+          await db.insert(knowledgeGraphNodes).values(baseNode);
+          
+          // WebSocket通知: 進捗20%（ベースノード作成）
+          await new Promise(resolve => setTimeout(resolve, 500));
+          sendProgressUpdate({
+            roleModelId,
+            percent: 20,
+            message: 'ベースノードを作成しました。業界ノードを生成中...'
+          });
+          
+          // ノードを段階的に追加していくための配列
+          const allNodes = [baseNode];
+          const allEdges = [];
+          
+          // WebSocketで部分更新を送信（ベースノードのみ）
+          sendMessageToRoleModelViewers(
+            roleModelId,
+            'knowledge-graph-update',
+            {
+              updateType: 'partial',
+              isPartial: true,
+              roleModelId,
+              data: {
+                nodes: allNodes,
+                edges: []
+              }
+            }
+          );
+          
+          // 産業ノードの作成
+          const industryNodes = [];
+          for (let i = 0; i < industries.length; i++) {
+            const industryNodeId = crypto.randomUUID();
+            const industryNode = {
+              id: industryNodeId,
+              name: industries[i],
+              type: 'industry',
+              description: `${industries[i]}業界に関する知識`,
+              parentId: baseNodeId,
+              level: 1,
+              color: '#DB4437', // Google Red
+              roleModelId,
+              createdAt: new Date()
+            };
+            
+            // ノードをデータベースに挿入
+            await db.insert(knowledgeGraphNodes).values(industryNode);
+            industryNodes.push(industryNode);
+            allNodes.push(industryNode);
+            
+            // エッジの作成（ベースノード -> 産業ノード）
+            const industryEdgeId = crypto.randomUUID();
+            const industryEdge = {
+              id: industryEdgeId,
+              sourceId: baseNodeId,
+              targetId: industryNodeId,
+              type: 'industry_relation',
+              label: '業界',
+              roleModelId,
+              createdAt: new Date()
+            };
+            
+            // エッジをデータベースに挿入
+            await db.insert(knowledgeGraphEdges).values(industryEdge);
+            allEdges.push(industryEdge);
+            
+            // 少し遅延を入れて進捗感を出す
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // WebSocketで部分更新を送信（産業ノードを段階的に追加）
+            sendMessageToRoleModelViewers(
+              roleModelId,
+              'knowledge-graph-update',
+              {
+                updateType: 'partial',
+                isPartial: true,
+                roleModelId,
+                data: {
+                  nodes: allNodes,
+                  edges: allEdges
+                }
+              }
+            );
+          }
+          
+          // WebSocket通知: 進捗50%（産業ノード作成完了）
+          sendProgressUpdate({
+            roleModelId,
+            percent: 50,
+            message: '業界ノードを作成しました。キーワードノードを生成中...'
+          });
+          
+          // キーワードノードの作成
+          const keywordNodes = [];
+          for (let i = 0; i < keywords.length; i++) {
+            if (!keywords[i]) continue; // 空のキーワードはスキップ
+            
+            const keywordNodeId = crypto.randomUUID();
+            const keywordNode = {
+              id: keywordNodeId,
+              name: keywords[i],
+              type: 'keyword',
+              description: `${keywords[i]}に関する知識`,
+              parentId: baseNodeId,
+              level: 1,
+              color: '#F4B400', // Google Yellow
+              roleModelId,
+              createdAt: new Date()
+            };
+            
+            // ノードをデータベースに挿入
+            await db.insert(knowledgeGraphNodes).values(keywordNode);
+            keywordNodes.push(keywordNode);
+            allNodes.push(keywordNode);
+            
+            // エッジの作成（ベースノード -> キーワードノード）
+            const keywordEdgeId = crypto.randomUUID();
+            const keywordEdge = {
+              id: keywordEdgeId,
+              sourceId: baseNodeId,
+              targetId: keywordNodeId,
+              type: 'keyword_relation',
+              label: 'キーワード',
+              roleModelId,
+              createdAt: new Date()
+            };
+            
+            // エッジをデータベースに挿入
+            await db.insert(knowledgeGraphEdges).values(keywordEdge);
+            allEdges.push(keywordEdge);
+            
+            // 少し遅延を入れて進捗感を出す
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // WebSocketで部分更新を送信（キーワードノードを段階的に追加）
+            sendMessageToRoleModelViewers(
+              roleModelId,
+              'knowledge-graph-update',
+              {
+                updateType: 'partial',
+                isPartial: true,
+                roleModelId,
+                data: {
+                  nodes: allNodes,
+                  edges: allEdges
+                }
+              }
+            );
+            
+            // ランダムに産業ノードとの関連付けを行う（完全に接続されたグラフを作成）
+            if (industryNodes.length > 0) {
+              const randomIndustryIndex = Math.floor(Math.random() * industryNodes.length);
+              const randomIndustryNode = industryNodes[randomIndustryIndex];
+              
+              const relationEdgeId = crypto.randomUUID();
+              const relationEdge = {
+                id: relationEdgeId,
+                sourceId: randomIndustryNode.id,
+                targetId: keywordNodeId,
+                type: 'industry_keyword_relation',
+                label: '関連',
+                roleModelId,
+                createdAt: new Date()
+              };
+              
+              // エッジをデータベースに挿入
+              await db.insert(knowledgeGraphEdges).values(relationEdge);
+              allEdges.push(relationEdge);
+            }
+          }
+          
+          // WebSocket通知: 進捗80%（キーワードノード作成完了）
+          sendProgressUpdate({
+            roleModelId,
+            percent: 80,
+            message: 'キーワードノードを作成しました。関連性を計算中...'
+          });
+          
+          // キーワード同士の関連性をランダムに作成
+          if (keywordNodes.length > 1) {
+            for (let i = 0; i < keywordNodes.length; i++) {
+              for (let j = i + 1; j < keywordNodes.length; j++) {
+                // 30%の確率で関連性を作成
+                if (Math.random() < 0.3) {
+                  const relationEdgeId = crypto.randomUUID();
+                  const relationEdge = {
+                    id: relationEdgeId,
+                    sourceId: keywordNodes[i].id,
+                    targetId: keywordNodes[j].id,
+                    type: 'keyword_keyword_relation',
+                    label: '関連',
+                    roleModelId,
+                    createdAt: new Date()
+                  };
+                  
+                  // エッジをデータベースに挿入
+                  await db.insert(knowledgeGraphEdges).values(relationEdge);
+                  allEdges.push(relationEdge);
+                  
+                  // 少し遅延を入れて進捗感を出す
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  
+                  // WebSocketで部分更新を送信（関連性エッジを段階的に追加）
+                  sendMessageToRoleModelViewers(
+                    roleModelId,
+                    'knowledge-graph-update',
+                    {
+                      updateType: 'partial',
+                      isPartial: true,
+                      roleModelId,
+                      data: {
+                        nodes: allNodes,
+                        edges: allEdges
+                      }
+                    }
+                  );
+                }
+              }
+            }
+          }
+          
+          // WebSocket通知: 進捗100%（完了）
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          sendProgressUpdate({
+            roleModelId,
+            percent: 100,
+            message: 'テスト用ナレッジグラフの生成が完了しました',
+            status: 'completed'
+          });
+          
+          // 完了メッセージを送信
+          sendMessageToRoleModelViewers(
+            roleModelId,
+            'knowledge-graph-update',
+            {
+              updateType: 'complete',
+              isPartial: false,
+              isCompleted: true,
+              roleModelId,
+              data: {
+                nodes: allNodes,
+                edges: allEdges
+              },
+              message: 'テスト用ナレッジグラフの生成が完了しました'
+            }
+          );
+          
+          console.log(`テスト用ナレッジグラフの生成が完了しました: roleModelId=${roleModelId}`);
+          console.log(`生成されたノード数: ${allNodes.length}`);
+          console.log(`生成されたエッジ数: ${allEdges.length}`);
+          
+        } catch (error) {
+          console.error('テスト用ナレッジグラフ生成エラー:', error);
+          
+          // エラー通知
+          sendProgressUpdate({
+            roleModelId,
+            percent: 0,
+            message: 'ナレッジグラフの生成中にエラーが発生しました',
+            status: 'error'
+          });
+        }
+      })();
+      
+      // 即時レスポンスを返す
+      res.json({
+        success: true,
+        message: 'テスト用ナレッジグラフの生成を開始しました',
+        roleModelId
+      });
+      
+    } catch (error) {
+      console.error('テスト用ナレッジグラフ生成APIエラー:', error);
+      res.status(500).json({ error: 'テスト用ナレッジグラフの生成に失敗しました' });
+    }
+  });
+  
   // WebSocketサーバーのセットアップ
   // 注: メインのWebSocketサーバーは外部でセットアップされるため、こちらの初期化は無効化
   // if (!server) {
