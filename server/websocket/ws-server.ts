@@ -422,19 +422,25 @@ export function sendAgentThoughts(
     return 0;
   }
   
+  // 一意のIDを生成（重複防止のため）
+  const messageId = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  
   // クライアント側のハンドラで確実に認識されるようにメッセージ形式を修正
   const message: WSMessage = {
     type: 'agent_thoughts', // クライアント側ではagent_thoughts（複数形）を期待している
     payload: {
-      id: crypto.randomUUID(), // 一意のIDを必ず生成
+      id: messageId,
       agentName,
       thought,
       message: thought, // クライアント側の互換性のため
+      content: thought, // 別の互換性フィールド
       roleModelId,
-      timestamp: new Date().toISOString(), // タイムスタンプをペイロード内にも含める
+      timestamp: timestamp,
+      messageId: messageId, // 冗長だが、互換性のために追加
       ...additionalData
     },
-    timestamp: new Date().toISOString()
+    timestamp: timestamp
   };
   
   // 高頻度で発生するエージェント思考メッセージのログは最小限に抑える
@@ -442,6 +448,18 @@ export function sendAgentThoughts(
   
   // 単一のメッセージタイプで送信（クライアント側のallリスナーがすべて処理するため）
   const sentCount = wss.sendToRoleModelViewers(roleModelId, message);
+  
+  // 互換性のために別のイベント名でも送信（-形式とアンダースコア形式の両方をサポート）
+  try {
+    // agent-thoughtsイベントとしても送信（ハイフン形式）
+    const alternativeMessage = {
+      ...message,
+      type: 'agent-thoughts'
+    };
+    wss.sendToRoleModelViewers(roleModelId, alternativeMessage);
+  } catch (error) {
+    console.error('代替形式でのエージェント思考メッセージ送信中にエラーが発生しました:', error);
+  }
   
   return sentCount;
 }
@@ -463,22 +481,63 @@ export function sendMessageToRoleModelViewers(
     return 0;
   }
   
+  // イベントカウンターを初期化（未定義の場合）
+  if (typeof global.graphUpdateCounter !== 'number') {
+    global.graphUpdateCounter = 1;
+  }
+  
+  // カウンターの現在値を保存（送信すべき値）
+  const currentCounter = global.graphUpdateCounter++;
+  
+  // 一意のメッセージIDを生成
+  const messageId = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  
   // payload.roleModelIdを明示的に設定してクライアント側の処理を確実にする
   const enhancedPayload = {
     ...payload,
     roleModelId: roleModelId,
-    timestamp: payload.timestamp || new Date().toISOString(),
-    // ログ目的で何回更新が送信されたかを記録
-    updateCounter: (typeof global.graphUpdateCounter === 'number' ? 
-      global.graphUpdateCounter++ : 
-      (global.graphUpdateCounter = 1))
+    timestamp: timestamp,
+    // メッセージIDとカウンターを追加して追跡可能にする
+    messageId: messageId,
+    updateCounter: currentCounter,
+    // 互換性のために旧フォーマットもサポート
+    id: payload.id || messageId
   };
   
   const message: WSMessage = {
     type,
     payload: enhancedPayload,
-    timestamp: new Date().toISOString()
+    timestamp: timestamp
   };
   
-  return wss.sendToRoleModelViewers(roleModelId, message);
+  const sentCount = wss.sendToRoleModelViewers(roleModelId, message);
+  
+  // グラフ更新と関連するイベントタイプの場合は、互換性のために代替タイプでも送信
+  if (type === 'knowledge-graph-update' || type === 'graph-update' || type === 'knowledge_graph_update') {
+    try {
+      // すべてのフォーマットで送信して互換性を確保
+      const formatVariants = [
+        'knowledge-graph-update', 
+        'knowledge_graph_update', 
+        'graph-update'
+      ];
+      
+      // 送信元のタイプを除外
+      const alternativeFormats = formatVariants.filter(fmt => fmt !== type);
+      
+      // 代替フォーマットでも送信
+      alternativeFormats.forEach(altType => {
+        const altMessage = {
+          ...message,
+          type: altType
+        };
+        wss.sendToRoleModelViewers(roleModelId, altMessage);
+      });
+    } catch (error) {
+      console.error('代替形式でのグラフ更新メッセージ送信中にエラーが発生しました:', error);
+    }
+  }
+  
+  return sentCount;
 }
