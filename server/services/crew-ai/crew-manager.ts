@@ -720,14 +720,21 @@ JSONを含む詳細な分析結果を返してください。`;
     try {
       this.reportProgress('開始', 0, 'ナレッジグラフ生成プロセスを開始します');
       
+      // Azure OpenAIを使用して実際のAI思考を生成
+      const orchestratorThought = await this.generateAgentThought(
+        'オーケストレーター',
+        `あなたは「${this.industry}」業界のナレッジグラフ生成における、AIエージェントチームの調整役です。
+        チーム全体のタスクフローを設計し、各AIエージェント間の連携をどのように管理するか、具体的な内容で説明してください。
+        初期キーワード: ${this.initialKeywords.join(', ')}`
+      );
+      
       // 開始メッセージをエージェント思考として発行 - 直接WebSocketインターフェースを使用
       try {
         const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-        const thought = 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。';
         
         sendAgentThoughts(
           'オーケストレーター',
-          thought,
+          orchestratorThought,
           roleModelId,
           {
             type: 'info', // 情報タイプを明示的に設定
@@ -743,12 +750,40 @@ JSONを含む詳細な分析結果を返してください。`;
       // 元のイベントエミッターも維持（互換性のため）
       this.emit('agentThought', {
         agentName: 'オーケストレーター',
-        thought: 'AIエージェントチーム全体のタスクフローを設計し、エージェント間の連携を管理します。まず業界分析から始め、段階的にナレッジグラフと情報収集プランを構築していきます。',
+        thought: orchestratorThought,
         timestamp: new Date().toISOString(),
         id: crypto.randomUUID() // 一意のIDを必ず設定
       });
       
+      // 各タスクの前に実際のAI思考を生成してから実行
+      
+      // 業界分析タスクの前の思考生成
+      const analystThinking = await this.generateAgentThought(
+        'ドメインアナリスト',
+        `あなたは「${this.industry}」業界の専門家です。
+        これから「${this.initialKeywords.join(', ')}」というキーワードを中心に業界分析を行います。
+        どのような視点からアプローチし、どのような分析を行うか、その思考プロセスを詳細に説明してください。`
+      );
+      
+      // エージェント思考をWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'ドメインアナリスト',
+          analystThinking,
+          roleModelId,
+          {
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
       // 業界分析タスクの実行
+      await this.delay(2000); // リアルタイム感のための遅延
       this.reportProgress('業界分析', 5, 'ドメインアナリストが業界分析を実行中...');
       const industryAnalysis = await this.runTask(
         AnalyzeIndustryTask,
@@ -758,6 +793,56 @@ JSONを含む詳細な分析結果を返してください。`;
         }
       );
       this.reportProgress('業界分析', 15, '業界分析が完了しました');
+      
+      // 分析完了メッセージ
+      const analystCompletion = await this.generateAgentThought(
+        'ドメインアナリスト',
+        `あなたは「${this.industry}」業界の専門家として、「${this.initialKeywords.join(', ')}」に関する業界分析を完了しました。
+        分析結果の概要と主な発見について、1-2文で簡潔に説明してください。`
+      );
+      
+      // 完了メッセージをWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'ドメインアナリスト',
+          analystCompletion,
+          roleModelId,
+          {
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
+      // 情報源評価タスクの前の思考生成
+      await this.delay(3000);
+      const researcherThinking = await this.generateAgentThought(
+        'トレンドリサーチャー',
+        `あなたは「${this.industry}」業界の情報源評価専門家です。
+        以下のキーワードに関連する情報源をどのように評価し、選定するか、その思考プロセスを詳細に説明してください。
+        キーワード: ${industryAnalysis?.expandedKeywords?.map((k: any) => k.keyword)?.join(', ') || this.initialKeywords.join(', ')}`
+      );
+      
+      // エージェント思考をWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'トレンドリサーチャー',
+          researcherThinking,
+          roleModelId,
+          {
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
       
       // 情報源評価タスクの実行
       this.reportProgress('情報源評価', 20, 'トレンドリサーチャーが情報源評価を実行中...');
@@ -771,6 +856,57 @@ JSONを含む詳細な分析結果を返してください。`;
       );
       this.reportProgress('情報源評価', 30, '情報源評価が完了しました');
       
+      // 評価完了メッセージ
+      const researcherCompletion = await this.generateAgentThought(
+        'トレンドリサーチャー',
+        `あなたは「${this.industry}」業界の情報源評価専門家として、情報源の評価と選定を完了しました。
+        評価結果の概要と特に価値の高い情報源について、1-2文で簡潔に説明してください。`
+      );
+      
+      // 完了メッセージをWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'トレンドリサーチャー',
+          researcherCompletion,
+          roleModelId,
+          {
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
+      // グラフ構造設計タスクの前の思考生成
+      await this.delay(2500);
+      const mapperThinking = await this.generateAgentThought(
+        'コンテキストマッパー',
+        `あなたは「${this.industry}」業界のナレッジグラフ構造設計専門家です。
+        以下のキーワードとその関連性に基づいて、どのようにグラフ構造を設計するか、その思考プロセスを詳細に説明してください。
+        キーワード: ${JSON.stringify(industryAnalysis?.expandedKeywords?.map((k: any) => k.keyword) || [])}
+        関連性: ${JSON.stringify(industryAnalysis?.keyRelationships || [])}`
+      );
+      
+      // エージェント思考をWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'コンテキストマッパー',
+          mapperThinking,
+          roleModelId,
+          {
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
       // グラフ構造設計タスクの実行
       this.reportProgress('グラフ構造設計', 35, 'コンテキストマッパーがグラフ構造を設計中...');
       const graphStructure = await this.runTask(
@@ -782,6 +918,60 @@ JSONを含む詳細な分析結果を返してください。`;
         }
       );
       this.reportProgress('グラフ構造設計', 45, 'グラフ構造設計が完了しました');
+      
+      // 設計完了メッセージ
+      const mapperCompletion = await this.generateAgentThought(
+        'コンテキストマッパー',
+        `あなたは「${this.industry}」業界のナレッジグラフ構造設計専門家として、グラフ構造の設計を完了しました。
+        設計したグラフ構造の特徴と特に重要なノード間の関係性について、1-2文で簡潔に説明してください。`
+      );
+      
+      // 完了メッセージをWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'コンテキストマッパー',
+          mapperCompletion,
+          roleModelId,
+          {
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
+      // 情報収集プラン策定タスクの前の思考生成
+      await this.delay(3500);
+      const strategistThinking = await this.generateAgentThought(
+        'プランストラテジスト',
+        `あなたは「${this.industry}」業界の情報収集計画策定専門家です。
+        以下の情報源評価と優先キーワードに基づいて、どのように情報収集計画を策定するか、その思考プロセスを詳細に説明してください。
+        優先キーワード: ${industryAnalysis?.expandedKeywords
+          ?.filter((k: any) => k.relevanceScore > 0.7)
+          ?.map((k: any) => k.keyword)
+          ?.join(', ') || ''}
+        評価済み情報源: ${JSON.stringify(sourceEvaluation?.evaluatedSources || [])}`
+      );
+      
+      // エージェント思考をWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'プランストラテジスト',
+          strategistThinking,
+          roleModelId,
+          {
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
       
       // 情報収集プラン策定タスクの実行
       this.reportProgress('プラン策定', 50, 'プランストラテジストが情報収集プランを策定中...');
@@ -799,6 +989,57 @@ JSONを含む詳細な分析結果を返してください。`;
       );
       this.reportProgress('プラン策定', 60, '情報収集プラン策定が完了しました');
       
+      // 策定完了メッセージ
+      const strategistCompletion = await this.generateAgentThought(
+        'プランストラテジスト',
+        `あなたは「${this.industry}」業界の情報収集計画策定専門家として、情報収集計画の策定を完了しました。
+        策定した計画の主な特徴と収集戦略について、1-2文で簡潔に説明してください。`
+      );
+      
+      // 完了メッセージをWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'プランストラテジスト',
+          strategistCompletion,
+          roleModelId,
+          {
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
+      // 品質評価タスクの前の思考生成
+      await this.delay(2800);
+      const thinkerThinking = await this.generateAgentThought(
+        'クリティカルシンカー',
+        `あなたは「${this.industry}」業界のナレッジグラフと情報収集計画の品質評価専門家です。
+        以下のグラフ構造と情報収集計画に基づいて、どのように品質評価を行うか、その思考プロセスを詳細に説明してください。
+        グラフ構造: ${JSON.stringify(graphStructure || {})}
+        情報収集計画: ${JSON.stringify(collectionPlan || {})}`
+      );
+      
+      // エージェント思考をWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'クリティカルシンカー',
+          thinkerThinking,
+          roleModelId,
+          {
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
       // 品質評価タスクの実行
       this.reportProgress('品質評価', 65, 'クリティカルシンカーが品質評価を実行中...');
       const qualityAssessment = await this.runTask(
@@ -811,6 +1052,55 @@ JSONを含む詳細な分析結果を返してください。`;
         }
       );
       this.reportProgress('品質評価', 75, '品質評価が完了しました');
+      
+      // 評価完了メッセージ
+      const thinkerCompletion = await this.generateAgentThought(
+        'クリティカルシンカー',
+        `あなたは「${this.industry}」業界のナレッジグラフと情報収集計画の品質評価専門家として、品質評価を完了しました。
+        評価結果の概要と主な強み/改善点について、1-2文で簡潔に説明してください。`
+      );
+      
+      // 完了メッセージをWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'クリティカルシンカー',
+          thinkerCompletion,
+          roleModelId,
+          {
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
+      
+      // 統合と文書化タスクの前の思考生成
+      await this.delay(3000);
+      const integratorThinking = await this.generateAgentThought(
+        'クリティカルシンカー',
+        `あなたは「${this.industry}」業界のナレッジグラフと情報収集計画の統合と文書化専門家です。
+        これまでの各タスクの結果を統合して最終的な成果物を作成するにあたり、どのようなアプローチを取るか、その思考プロセスを詳細に説明してください。`
+      );
+      
+      // エージェント思考をWebSocketで送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          'クリティカルシンカー',
+          integratorThinking,
+          roleModelId,
+          {
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            id: crypto.randomUUID()
+          }
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました:', wsError);
+      }
       
       // 最終統合タスクの実行
       this.reportProgress('最終統合', 80, '最終的なナレッジグラフと情報収集プランを統合中...');
