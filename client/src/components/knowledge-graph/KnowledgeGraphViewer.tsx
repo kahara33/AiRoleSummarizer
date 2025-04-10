@@ -25,11 +25,12 @@ import AgentNode from './AgentNode';
 import DataFlowEdge from './DataFlowEdge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, ZapIcon, RotateCcw } from 'lucide-react';
+import { Loader2, ZapIcon, RotateCcw, BoltIcon, FlaskConical } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
 import { NodeEditDialog } from './NodeEditDialog';
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNodeOperations } from './NodeOperations';
+import { toast } from '@/hooks/use-toast';
 
 
 type KnowledgeNode = ExtendedKnowledgeNode;
@@ -1102,6 +1103,55 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   const [progress, setProgress] = useState<number>(0);
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [agentMessages, setAgentMessages] = useState<{agent: string, message: string, timestamp: string}[]>([]);
+  
+  // テスト用のナレッジグラフを生成する関数
+  const generateTestKnowledgeGraph = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // グラフ生成APIを呼び出す
+      const response = await fetch(`/api/test-knowledge-graph/${roleModelId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'テスト用ナレッジグラフの生成に失敗しました');
+      }
+      
+      const result = await response.json();
+      console.log('テスト用ナレッジグラフ生成リクエスト成功:', result);
+      
+      // 成功通知
+      toast({
+        title: 'グラフ生成開始',
+        description: 'テスト用ナレッジグラフの生成を開始しました。WebSocketで進捗状況が通知されます。',
+        duration: 3000,
+      });
+      
+      // グラフデータを再取得
+      setTimeout(() => {
+        fetchGraphData();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('テスト用ナレッジグラフ生成エラー:', error);
+      setError(error instanceof Error ? error.message : '不明なエラーが発生しました');
+      setLoading(false);
+      
+      // エラー通知
+      toast({
+        title: 'エラー',
+        description: error instanceof Error ? error.message : 'テスト用ナレッジグラフの生成中にエラーが発生しました',
+        variant: 'destructive',
+        duration: 5000,
+      });
+    }
+  }, [roleModelId, fetchGraphData]);
 
   // AI生成リクエスト
   const generateKnowledgeGraph = useCallback(async () => {
@@ -1211,6 +1261,24 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
         <div className="flex space-x-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={generateTestKnowledgeGraph}
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
+                  テストグラフ生成
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>テスト用のナレッジグラフを生成して表示</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {hasKnowledgeGraph && (
             <TooltipProvider>
               <Tooltip>
@@ -1256,50 +1324,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             </TooltipProvider>
           )}
 
-          {/* テスト用グラフ生成ボタン */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      setLoading(true);
-                      const response = await fetch(`/api/knowledge-graph/generate-test/${roleModelId}`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        }
-                      });
-                      
-                      if (response.ok) {
-                        const result = await response.json();
-                        console.log('テスト用グラフ生成結果:', result);
-                        alert('テスト用ナレッジグラフを生成しました');
-                        // グラフを再読み込み
-                        fetchGraphData();
-                      } else {
-                        const errorData = await response.json();
-                        console.error('テスト用グラフ生成エラー:', errorData);
-                        alert('テスト用グラフの生成に失敗しました');
-                      }
-                    } catch (error) {
-                      console.error('テスト用グラフ生成中にエラーが発生しました:', error);
-                      alert('テスト用グラフ生成処理中にエラーが発生しました');
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                >
-                  テストグラフ作成
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>シンプルなテスト用ナレッジグラフを自動生成します</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+
           
           {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
         </div>
