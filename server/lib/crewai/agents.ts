@@ -137,6 +137,7 @@ export const createOrchestratorAgent = (input: RoleModelInput) => {
   const model = getAzureOpenAIModel();
   
   const agentConfig: AgentOptions = {
+    name: 'オーケストレーター',
     role: 'AIオーケストレーター',
     goal: '役割モデルの効果的な知識グラフ生成プロセスを管理調整する',
     backstory: 'チームリーダーとして、複数のAIエージェントの作業を調整し、統合された成果物を生み出します。',

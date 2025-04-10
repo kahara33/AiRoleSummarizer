@@ -16,6 +16,7 @@ import { CriticalThinkerTools } from './tools/critical-thinker-tools';
 const model = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
+  openAIApiKey: process.env.AZURE_OPENAI_API_KEY,
 }) as any; // 型の互換性問題を一時的に回避
 
 /**
