@@ -208,7 +208,7 @@ export class CrewAIService {
                 : JSON.stringify(result).substring(0, 200) + '...';
                 
             sendAgentThoughts(
-              'プランストラテジスト',
+              '計画立案',
               `情報収集プランの概要: ${planSummary}`,
               roleModelId,
               {
@@ -230,7 +230,7 @@ export class CrewAIService {
         
         // エラーメッセージをエージェント思考として送信
         sendAgentThoughts(
-          'オーケストレーター',
+          '調整役',
           `処理中にエラーが発生しました: ${errorMessage}`,
           roleModelId,
           {
@@ -244,7 +244,8 @@ export class CrewAIService {
         sendProgressUpdate({
           message: `エラーが発生しました: ${errorMessage}`,
           percent: 0,
-          roleModelId
+          roleModelId,
+          status: 'error'
         });
       });
       
@@ -268,8 +269,8 @@ export class CrewAIService {
         
         // 正常終了時のメッセージを送信
         sendAgentThoughts(
-          'オーケストレーター',
-          `CrewAI ${processType}プロセスが完了しました。全エージェントのタスクが正常に終了しました。`,
+          '調整役',
+          `${processType}プロセスが完了しました。全エージェントのタスクが正常に終了しました。`,
           roleModelId,
           {
             timestamp: new Date().toISOString(),
@@ -282,7 +283,7 @@ export class CrewAIService {
           if (skipGraphUpdate) {
             // 情報収集プランの結果を送信
             sendAgentThoughts(
-              'クリティカルシンカー',
+              '評価検証',
               '情報収集プランが完成しました。このプランには、情報収集の優先順位、リソース配分、スケジュール、成功指標が含まれています。',
               roleModelId,
               {
@@ -294,7 +295,7 @@ export class CrewAIService {
           } else {
             // ナレッジグラフと情報収集プランの両方の結果を送信
             sendAgentThoughts(
-              'クリティカルシンカー',
+              '評価検証',
               '最終的なナレッジグラフと情報収集プランが完成しました。改善サイクルによって品質が向上しています。',
               roleModelId,
               {
@@ -337,7 +338,7 @@ export class CrewAIService {
         
         // エラーメッセージをエージェント思考として送信
         sendAgentThoughts(
-          'オーケストレーター',
+          '調整役',
           `処理中にエラーが発生しました: ${errorMessage}`,
           roleModelId,
           {
