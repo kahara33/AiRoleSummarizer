@@ -206,7 +206,9 @@ export function initWebSocket(server: HttpServer): void {
                 return;
               }
               
-              console.log('WebSocketメッセージを受信:', data.type);
+              // メッセージの内容をログ
+              const clientId = (ws as any).clientId || 'unknown';
+              console.log(`メッセージ受信: clientId=${clientId}, type=${data.type}`);
               
               // サブスクリプションメッセージの処理
               if (data.type === 'subscribe') {
