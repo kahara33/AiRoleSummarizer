@@ -199,15 +199,44 @@ export function initSocket(customRoleModelId?: string): WebSocket {
           // すべての形式の知識グラフ更新イベントを標準化
           const payloadData = data.payload || data;
           
+          // グラフ更新の詳細ログ
+          console.log(`グラフ更新データ受信 - タイプ: ${data.type}, ペイロード:`, payloadData);
+          
+          // 完了フラグを推測（updateType, status, isCompleted フィールドから）
+          const isComplete = 
+            payloadData.updateType === 'complete' || 
+            payloadData.status === 'completed' || 
+            payloadData.isCompleted === true;
+          
           // リスナーに配信する前にデータ形式を標準化
           const standardizedData = {
             ...payloadData,
             message: payloadData.message || 'グラフが更新されました',
             timestamp: payloadData.timestamp || new Date().toISOString(),
-            type: payloadData.updateType || 'update'
+            type: payloadData.updateType || 'update',
+            updateType: payloadData.updateType || 'update',
+            roleModelId: payloadData.roleModelId,
+            // 明示的に完了フラグを設定
+            isCompleted: isComplete,
+            status: isComplete ? 'completed' : (payloadData.status || 'in_progress'),
           };
           
           console.log('グラフ更新の標準化データ:', standardizedData);
+          
+          // 完了イベントの場合は進捗イベントも配信（互換性のため）
+          if (isComplete && listeners['progress']) {
+            const progressData = {
+              ...standardizedData,
+              progress: 100,
+              percent: 100,
+              progressPercent: 100,
+              status: 'completed',
+              message: standardizedData.message || 'グラフ生成が完了しました'
+            };
+            
+            console.log('グラフ完了に伴う進捗更新:', progressData);
+            listeners['progress'].forEach(callback => callback(progressData));
+          }
           
           // リスナーに配信（すべての互換形式で配信し、互換性を確保）
           if (listeners['knowledge-graph-update']) {
