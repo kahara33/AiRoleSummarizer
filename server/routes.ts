@@ -74,9 +74,12 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   // テスト用のナレッジグラフ生成API
   app.post('/api/test-knowledge-graph/:roleModelId', async (req, res) => {
     try {
+      console.log('テスト用ナレッジグラフ生成APIリクエスト受信');
       const { roleModelId } = req.params;
+      console.log('リクエストパラメータ:', { roleModelId });
       
       if (!isValidUUID(roleModelId)) {
+        console.log('無効なUUID:', roleModelId);
         return res.status(400).json({ error: '無効なロールモデルIDです' });
       }
       

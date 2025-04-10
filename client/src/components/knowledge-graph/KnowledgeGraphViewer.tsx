@@ -1107,10 +1107,12 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   // テスト用のナレッジグラフを生成する関数
   const generateTestKnowledgeGraph = useCallback(async () => {
     try {
+      console.log('テスト用ナレッジグラフ生成開始 - roleModelId:', roleModelId);
       setLoading(true);
       setError(null);
       
       // グラフ生成APIを呼び出す
+      console.log('APIリクエスト送信中...');
       const response = await fetch(`/api/test-knowledge-graph/${roleModelId}`, {
         method: 'POST',
         headers: {
@@ -1118,8 +1120,11 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         }
       });
       
+      console.log('APIレスポンス受信:', response.status, response.statusText);
+      
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('APIエラーレスポンス:', errorData);
         throw new Error(errorData.error || 'テスト用ナレッジグラフの生成に失敗しました');
       }
       
@@ -1134,7 +1139,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       });
       
       // グラフデータを再取得
+      console.log('グラフデータの再取得をスケジュール...');
       setTimeout(() => {
+        console.log('グラフデータを再取得します');
         fetchGraphData();
       }, 1000);
       
