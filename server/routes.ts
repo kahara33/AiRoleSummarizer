@@ -210,7 +210,7 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
             };
             
             // エッジをデータベースに挿入
-            await db.insert(knowledgeGraphEdges).values(industryEdge);
+            await db.insert(knowledgeEdges).values(industryEdge);
             allEdges.push(industryEdge);
             
             // 少し遅延を入れて進捗感を出す
