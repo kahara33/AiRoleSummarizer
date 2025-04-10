@@ -17,7 +17,7 @@ import {
 } from './tasks/task-definitions';
 
 // WebSocketサーバー関連のインポート
-import { sendAgentThoughts, sendProgressUpdate } from '../../websocket/ws-server';
+import { sendAgentThoughts, sendProgressUpdate, sendMessageToRoleModelViewers } from '../../websocket/ws-server';
 
 /**
  * CrewAIマネージャークラス
@@ -440,6 +440,19 @@ export class CrewManager extends EventEmitter {
         collectionPlan,
         qualityAssessment
       );
+      
+      // 知識グラフ更新の発行（完了時にグラフがリアルタイム更新されることを保証）
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+          message: 'ナレッジグラフが更新されました',
+          timestamp: new Date().toISOString(),
+          updateType: 'complete'
+        });
+        console.log(`グラフ更新通知をWebSocketで送信: roleModelId=${roleModelId}`);
+      } catch (wsError) {
+        console.error('WebSocket送信中にエラーが発生しました(グラフ更新):', wsError);
+      }
       
       this.reportProgress('完了', 100, 'ナレッジグラフ生成と情報収集プラン作成プロセスが完了しました');
       

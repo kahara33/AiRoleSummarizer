@@ -832,6 +832,16 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     addSocketListener('knowledge_graph_update', handleGraphUpdate); // アンダースコア版も登録
     addSocketListener('graph-update', handleGraphUpdate); // ハイフン版も登録
     
+    // 明示的なリアルタイム更新リスナーを追加
+    addSocketListener('progress-update', (data: { percent: number, status?: string }) => {
+      console.log('進捗更新メッセージを受信:', data);
+      // 進捗が95%以上または完了メッセージの場合にグラフを再取得
+      if (data.percent >= 95 || data.percent === 100 || data.status === 'completed') {
+        console.log('高進捗更新を検出、グラフデータを再取得します');
+        fetchGraphData();
+      }
+    });
+    
     // 定期的な再接続と購読の確認（5秒ごと）
     const intervalId = setInterval(() => {
       if (socket.readyState !== WebSocket.OPEN) {
@@ -849,6 +859,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       removeSocketListener('knowledge-graph-update', handleGraphUpdate);
       removeSocketListener('knowledge_graph_update', handleGraphUpdate);
       removeSocketListener('graph-update', handleGraphUpdate);
+      removeSocketListener('progress-update', () => {}); // 追加した進捗更新リスナーも解除
       clearInterval(intervalId);
     };
   }, [roleModelId, fetchGraphData]);
