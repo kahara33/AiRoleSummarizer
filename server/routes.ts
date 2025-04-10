@@ -122,6 +122,13 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
       console.log(`産業: ${industries.join(', ')}`);
       console.log(`キーワード: ${keywords.join(', ')}`);
       
+      // 即時レスポンスを返す（先にクライアントに応答を返す）
+      res.json({
+        success: true,
+        message: 'テスト用ナレッジグラフの生成を開始しました',
+        roleModelId
+      });
+      
       // WebSocket通知: 処理開始
       sendProgressUpdate({
         roleModelId,
@@ -129,24 +136,24 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
         message: 'テスト用ナレッジグラフの生成を開始しています...'
       });
       
-      // 既存のグラフを削除
-      console.log(`既存グラフの削除を開始します: roleModelId=${roleModelId}`);
-      try {
-        await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
-        await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
-        console.log('既存グラフの削除が完了しました');
-      } catch (deleteError) {
-        console.error('既存グラフの削除中にエラーが発生しました:', deleteError);
-        // 即時レスポンスを返す（データベース操作でエラー発生）
-        return res.status(500).json({
-          success: false,
-          error: 'データベース操作中にエラーが発生しました',
-          roleModelId
-        });
-      }
-      
-      // テスト用のノードとエッジを作成するタスクを非同期で実行
+      // 以降の処理は非同期で実行（バックグラウンドで実行）
       (async () => {
+        try {
+          // 既存のグラフを削除
+          console.log(`既存グラフの削除を開始します: roleModelId=${roleModelId}`);
+          await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
+          await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
+          console.log('既存グラフの削除が完了しました');
+        } catch (deleteError) {
+          console.error('既存グラフの削除中にエラーが発生しました:', deleteError);
+          sendProgressUpdate({
+            roleModelId,
+            percent: 0,
+            message: 'グラフ生成中にエラーが発生しました',
+            status: 'error'
+          });
+          return;
+        }
         try {
           // 進捗通知: 準備完了
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -434,13 +441,6 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
           });
         }
       })();
-      
-      // 即時レスポンスを返す
-      res.json({
-        success: true,
-        message: 'テスト用ナレッジグラフの生成を開始しました',
-        roleModelId
-      });
       
     } catch (error) {
       console.error('テスト用ナレッジグラフ生成APIエラー:', error);
