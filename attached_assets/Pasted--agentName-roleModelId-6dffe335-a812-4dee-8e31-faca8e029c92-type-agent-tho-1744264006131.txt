@@ -1,0 +1,27 @@
+エージェント思考メッセージを送信します: agentName=調整役, roleModelId=6dffe335-a812-4dee-8e31-faca8e029c92, type=agent_thoughts
+CrewAI ナレッジグラフと情報収集プラン生成プロセスでエラーが発生しました: Error: 適切なCrewAIインターフェースが見つかりません。CrewAIライブラリのバージョンを確認してください。
+    at CrewManager.runTask (/home/runner/workspace/server/services/crew-ai/crew-manager.ts:295:15)
+    at CrewManager.generateKnowledgeGraph (/home/runner/workspace/server/services/crew-ai/crew-manager.ts:343:43)
+    at Function.startKnowledgeGraphGeneration (/home/runner/workspace/server/services/crew-ai/crew-ai-service.ts:267:42)
+    at generateKnowledgeGraphWithCrewAI (/home/runner/workspace/server/services/crew-ai/crew-ai-service.ts:428:24)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:1174:32)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:1291:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+エージェント思考メッセージを送信します: agentName=調整役, roleModelId=6dffe335-a812-4dee-8e31-faca8e029c92, type=agent_thoughts
+CrewAI処理エラー: Error: 適切なCrewAIインターフェースが見つかりません。CrewAIライブラリのバージョンを確認してください。
+    at CrewManager.runTask (/home/runner/workspace/server/services/crew-ai/crew-manager.ts:295:15)
+    at CrewManager.generateKnowledgeGraph (/home/runner/workspace/server/services/crew-ai/crew-manager.ts:343:43)
+    at Function.startKnowledgeGraphGeneration (/home/runner/workspace/server/services/crew-ai/crew-ai-service.ts:267:42)
+    at generateKnowledgeGraphWithCrewAI (/home/runner/workspace/server/services/crew-ai/crew-ai-service.ts:428:24)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:1174:32)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:1291:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+CrewAI知識グラフ生成エラー: Error: 適切なCrewAIインターフェースが見つかりません。CrewAIライブラリのバージョンを確認してください。
+    at CrewManager.runTask (/home/runner/workspace/server/services/crew-ai/crew-manager.ts:295:15)
+    at CrewManager.generateKnowledgeGraph (/home/runner/workspace/server/services/crew-ai/crew-manager.ts:343:43)
+    at Function.startKnowledgeGraphGeneration (/home/runner/workspace/server/services/crew-ai/crew-ai-service.ts:267:42)
+    at generateKnowledgeGraphWithCrewAI (/home/runner/workspace/server/services/crew-ai/crew-ai-service.ts:428:24)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:1174:32)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:1291:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+ロールモデル 6dffe335-a812-4dee-8e31-faca8e029c92 に接続されたクライアントはありません
