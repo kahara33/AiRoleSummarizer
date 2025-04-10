@@ -121,7 +121,13 @@ export class CrewManager extends EventEmitter {
           messages: [
             {
               role: 'system',
-              content: `あなたは${agentName}という専門知識を持つAIエージェントです。${this.industry}業界について詳しい専門家として、深く考えた上で洞察を提供してください。`
+              content: `あなたは${agentName}という専門知識を持つAIエージェントです。${this.industry}業界について詳しい専門家として、
+              以下のガイドラインに従って簡潔な思考を表現してください：
+              1. 専門家として考えている様子が伝わる自然な文体で
+              2. 2-3文程度の簡潔な内容
+              3. 専門用語は適度に使用し、必要に応じて簡単な説明を含める
+              4. マークダウン記法や複雑な記号は使わない
+              5. 人間らしい表現を心がける（例: "なるほど、これは...", "まず考えたいのは...", "ここで重要なのは..."）`
             },
             {
               role: 'user',
@@ -129,20 +135,29 @@ export class CrewManager extends EventEmitter {
             }
           ],
           temperature: 0.7,
-          max_tokens: 800
+          max_tokens: 250
         })
       });
       
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Azure OpenAI APIエラー:', errorData);
-        return `${agentName}: Azure OpenAI APIからエラーが返されました。`;
+        return `${agentName}: 考え中...`;
       }
       
       const data = await response.json();
-      const thought = data.choices && data.choices[0] && data.choices[0].message 
+      let thought = data.choices && data.choices[0] && data.choices[0].message 
         ? data.choices[0].message.content
         : `${agentName}からの応答を取得できませんでした。`;
+      
+      // マークダウン記法や過剰な装飾を除去
+      thought = thought.replace(/\*\*|\*|__|_|#|```|`|<[^>]*>/g, '');
+      
+      // 長すぎる思考を短くする
+      const sentences = thought.split(/[。.!?！？]/);
+      if (sentences.length > 4) {
+        thought = sentences.slice(0, 3).join('。') + '。';
+      }
       
       console.log(`エージェント ${agentName} の思考生成完了`);
       return thought;
