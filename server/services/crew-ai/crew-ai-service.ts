@@ -3,7 +3,7 @@
  * WebSocketを通じてフロントエンドと連携するCrewAIのメインインターフェース
  */
 import { createCrewManager } from './crew-manager';
-import { sendProgressUpdate, sendAgentThoughts } from '../../websocket/ws-server';
+import { sendProgressUpdate, sendAgentThoughts } from '../../websocket-new';
 import { sendDebugAgentThought, sendRoleModelDemoThoughts } from '../../websocket/debug-message-helper';
 
 /**
