@@ -398,6 +398,9 @@ export function getWebSocketServer(): WSServerManager | null {
   return WSServerManager.getInstance();
 }
 
+// 重複防止のための最近送信した進捗更新を記録するモジュールレベルの変数
+const recentProgressUpdates = new Map<string, number>();
+
 // 進捗更新の送信ヘルパー関数
 export function sendProgressUpdate(data: ProgressUpdateData): number {
   const wss = getWebSocketServer();
@@ -411,6 +414,39 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
     return 0;
   }
   
+  // 進捗率を0～100の範囲に確実に収める
+  const normalizedPercent = Math.max(0, Math.min(100, data.percent));
+  
+  // 重複チェック用のキー（ロールモデルID + 進捗率 + メッセージの先頭部分）
+  const progressMessage = data.message || `進捗: ${normalizedPercent}%`;
+  const messageKey = `${data.roleModelId}:${normalizedPercent}:${progressMessage.substring(0, 30)}`;
+  const now = Date.now();
+  
+  // 一定時間内の重複メッセージをチェック（3秒以内）
+  if (recentProgressUpdates.has(messageKey)) {
+    const lastSent = recentProgressUpdates.get(messageKey) || 0;
+    // 3秒以内に同じメッセージを送信していた場合はスキップ
+    if (now - lastSent < 3000) {
+      console.log(`重複進捗更新をスキップ: ${messageKey}`);
+      return 0;
+    }
+  }
+  
+  // 現在の時刻を記録（重複チェック用）
+  recentProgressUpdates.set(messageKey, now);
+  
+  // マップのサイズを制限（メモリリーク防止）
+  if (recentProgressUpdates.size > 1000) {
+    // 最も古いエントリを削除
+    const entries = Array.from(recentProgressUpdates.entries());
+    const oldestKey = entries
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 100)
+      .map(entry => entry[0]);
+      
+    oldestKey.forEach(key => recentProgressUpdates.delete(key));
+  }
+  
   // 一意のIDとタイムスタンプを生成
   const messageId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
@@ -419,9 +455,6 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
   if (typeof global.graphUpdateCounter !== 'number') {
     global.graphUpdateCounter = 1;
   }
-  
-  // 進捗率を0～100の範囲に確実に収める
-  const normalizedPercent = Math.max(0, Math.min(100, data.percent));
   
   // ステータスを標準化（完了状態の場合）
   let normalizedStatus = data.status;
@@ -435,7 +468,7 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
     payload: {
       id: messageId,
       messageId: messageId,
-      message: data.message || `進捗: ${normalizedPercent}%`,
+      message: progressMessage,
       // すべての命名規則をサポート（クライアント側の互換性のため）
       progress: normalizedPercent,
       percent: normalizedPercent,
@@ -453,6 +486,10 @@ export function sendProgressUpdate(data: ProgressUpdateData): number {
     },
     timestamp: timestamp
   };
+  
+  // ログ出力を簡潔にする
+  console.log(`進捗更新を送信: ${data.roleModelId}, ${normalizedPercent}%, "${progressMessage}"`);
+  
   
   // 進捗メッセージを送信
   const sentCount = wss.sendToRoleModelViewers(data.roleModelId, message);
@@ -551,7 +588,8 @@ export function sendAgentThoughts(
   // マップのサイズを制限（メモリリーク防止）
   if (recentAgentThoughts.size > 1000) {
     // 最も古いエントリを削除
-    const oldestKey = [...recentAgentThoughts.entries()]
+    const entries = Array.from(recentAgentThoughts.entries());
+    const oldestKey = entries
       .sort((a, b) => a[1] - b[1])
       .slice(0, 100)
       .map(entry => entry[0]);

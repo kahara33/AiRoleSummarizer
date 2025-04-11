@@ -313,24 +313,27 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
         agents.forEach((agent, index) => {
           // 各エージェントの最初のメッセージを送信
           setTimeout(() => {
-            const message = agentMessages[agent.name][0];
-            const messageId = `${agent.name}-${message.substring(0, 20)}`;
-            
-            // 重複チェック
-            if (!sentMessages.has(messageId)) {
-              sentMessages.add(messageId);
+            // TypeScriptエラー防止のためキーを確認
+            if (agent.name in agentMessages) {
+              const message = agentMessages[agent.name as keyof typeof agentMessages][0];
+              const messageId = `${agent.name}-${message.substring(0, 20)}`;
               
-              // エージェント思考メッセージ
-              send('agent_thoughts', {
-                id: `generated-thought-${index + 1}-1`,
-                roleModelId: roleModelId,
-                agentName: agent.name,
-                agentType: agent.type,
-                thought: message,
-                message: message,
-                type: "thinking",
-                timestamp: new Date().toISOString()
-              });
+              // 重複チェック
+              if (!sentMessages.has(messageId)) {
+                sentMessages.add(messageId);
+                
+                // エージェント思考メッセージ
+                send('agent_thoughts', {
+                  id: `generated-thought-${index + 1}-1`,
+                  roleModelId: roleModelId,
+                  agentName: agent.name,
+                  agentType: agent.type,
+                  thought: message,
+                  message: message,
+                  type: "thinking",
+                  timestamp: new Date().toISOString()
+                });
+              }
               
               // 少し遅れて進捗更新
               setTimeout(() => {
@@ -350,25 +353,28 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           // 2つ目のメッセージは一部のエージェントのみ（均等でない処理を模倣）
           if ([1, 2, 4].includes(index)) {
             setTimeout(() => {
-              const message = agentMessages[agent.name][1];
-              const messageId = `${agent.name}-${message.substring(0, 20)}`;
-              
-              // 重複チェック
-              if (!sentMessages.has(messageId)) {
-                sentMessages.add(messageId);
+              // TypeScriptエラー防止のためキーを確認
+              if (agent.name in agentMessages) {
+                const message = agentMessages[agent.name as keyof typeof agentMessages][1];
+                const messageId = `${agent.name}-${message.substring(0, 20)}`;
                 
-                send('agent_thoughts', {
-                  id: `generated-thought-${index + 1}-2`,
-                  roleModelId: roleModelId,
-                  agentName: agent.name,
-                  agentType: agent.type,
-                  thought: message,
-                  message: message,
-                  type: "thinking",
-                  timestamp: new Date().toISOString()
-                });
-                
-                // この2つ目のメッセージでは進捗更新を送信しない
+                // 重複チェック
+                if (!sentMessages.has(messageId)) {
+                  sentMessages.add(messageId);
+                  
+                  send('agent_thoughts', {
+                    id: `generated-thought-${index + 1}-2`,
+                    roleModelId: roleModelId,
+                    agentName: agent.name,
+                    agentType: agent.type,
+                    thought: message,
+                    message: message,
+                    type: "thinking",
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  // この2つ目のメッセージでは進捗更新を送信しない
+                }
               }
             }, delay + 700);
           }
