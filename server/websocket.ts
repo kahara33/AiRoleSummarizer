@@ -257,39 +257,63 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'agent_thoughts':
       case 'agent_thought':
       case 'thought':
+      case 'thinking':
+        // エージェント思考の処理
         handleAgentThoughts(ws, data);
         break;
         
       case 'progress':
       case 'progress_update':
       case 'crewai_progress':
+        // 進捗更新の処理
         handleProgressUpdate(ws, data);
         break;
         
       case 'chat_message':
+      case 'message':
+        // チャットメッセージの処理
         handleChatMessage(ws, data);
         break;
         
       case 'knowledge_graph_update':
       case 'knowledge-graph-update':
       case 'graph-update':
+      case 'graph_update':
+        // 知識グラフ更新の処理
         handleGraphUpdate(ws, data);
         break;
         
       case 'information_collection_plan':
       case 'information_plan':
       case 'get_information_plans':
+        // 情報収集プラン取得の処理
         handleInformationPlan(ws, data);
         break;
         
       case 'save_information_plan':
       case 'create_information_plan':
       case 'update_information_plan':
+        // 情報収集プラン保存の処理
         handleSaveInformationPlan(ws, data);
         break;
         
       case 'delete_information_plan':
+      case 'remove_information_plan':
+        // 情報収集プラン削除の処理
         handleDeleteInformationPlan(ws, data);
+        break;
+        
+      case 'ping':
+        // Pingメッセージの処理
+        console.log('Ping received from client');
+        try {
+          ws.send(JSON.stringify({
+            type: 'pong',
+            timestamp: new Date().toISOString()
+          }));
+        } catch (error) {
+          console.error(`Pong送信エラー: ${error}`);
+        }
         break;
         
       default:
@@ -297,9 +321,28 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         console.log(`未処理のメッセージタイプ: ${messageType}`);
         
         // エージェント思考っぽいメッセージは特別に処理
-        if (messageType.includes('agent') || messageType.includes('thought') || messageType.includes('thinking')) {
+        if (
+          messageType.includes('agent') || 
+          messageType.includes('thought') || 
+          messageType.includes('thinking') ||
+          data.agentName || 
+          data.agent_name
+        ) {
+          console.log(`エージェント思考として処理: ${messageType}`);
           handleAgentThoughts(ws, data);
-        } else {
+        } 
+        // 進捗更新っぽいメッセージの場合
+        else if (
+          messageType.includes('progress') || 
+          messageType.includes('status') || 
+          data.progress !== undefined || 
+          data.stage !== undefined
+        ) {
+          console.log(`進捗更新として処理: ${messageType}`);
+          handleProgressUpdate(ws, data);
+        }
+        // その他の場合は汎用メッセージ
+        else {
           // 汎用的な確認メッセージを送信
           try {
             ws.send(JSON.stringify({
@@ -315,6 +358,16 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     }
   } catch (error) {
     console.error(`メッセージハンドラーエラー: ${error}`);
+    try {
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'メッセージ処理中にエラーが発生しました',
+        error: String(error),
+        timestamp: new Date().toISOString()
+      }));
+    } catch (sendError) {
+      console.error(`エラーメッセージ送信エラー: ${sendError}`);
+    }
   }
 }
 
