@@ -248,6 +248,9 @@ export function initWebSocket(server: HttpServer): void {
                   
                   console.log(`現在の接続状態: 合計${totalClients}件、モデル別: ${modelInfo || 'なし'}`);
                   
+                  // 保存されているグラフデータがあれば送信
+                  sendSavedKnowledgeGraphData(specificRoleModelId, ws);
+                  
                   // クライアントにサブスクリプション確認を送信
                   try {
                     ws.send(JSON.stringify({
@@ -275,6 +278,9 @@ export function initWebSocket(server: HttpServer): void {
                     console.error(`エラーメッセージ送信失敗: ${sendError}`);
                   }
                 }
+                
+                // 購読が正常に処理されたことを明示的に示す
+                return true;
               }
               // エージェント思考メッセージの処理
               else if (data.type === 'agent_thought' || data.type === 'agent_thoughts' || data.type === 'thought') {
