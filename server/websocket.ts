@@ -10,6 +10,13 @@ import { randomUUID } from 'crypto';
 import { db } from './db';
 import { knowledgeNodes, knowledgeEdges } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { 
+  getInformationCollectionPlansForRoleModel,
+  saveInformationCollectionPlan,
+  deleteInformationCollectionPlan,
+  sendInformationCollectionPlansToClient,
+  notifyInformationPlanUpdate
+} from './information-plan-service';
 
 // WebSocketServerのインスタンス
 let wss: WebSocketServer;
@@ -612,6 +619,189 @@ function handleGraphUpdate(ws: WebSocket, data: any): void {
     }));
   } catch (error) {
     console.error(`知識グラフ更新処理エラー: ${error}`);
+  }
+}
+
+/**
+ * 情報収集プラン取得メッセージの処理
+ * @param ws WebSocketクライアント
+ * @param data メッセージデータ
+ */
+function handleInformationPlan(ws: WebSocket, data: any): void {
+  try {
+    const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+    console.log(`情報収集プラン取得メッセージを受信: roleModelId=${specificRoleModelId}`);
+    
+    if (!specificRoleModelId) {
+      console.log('情報収集プラン取得メッセージにroleModelIdが含まれていません');
+      ws.send(JSON.stringify({
+        type: 'information_plan_error',
+        message: 'ロールモデルIDが指定されていません',
+        timestamp: new Date().toISOString(),
+        status: 'error'
+      }));
+      return;
+    }
+    
+    // 情報収集プランをクライアントに送信
+    sendInformationCollectionPlansToClient(ws, specificRoleModelId)
+      .then(success => {
+        console.log(`情報収集プラン送信: roleModelId=${specificRoleModelId}, 結果=${success ? '成功' : '失敗'}`);
+      })
+      .catch(error => {
+        console.error(`情報収集プラン送信エラー: ${error}`);
+        ws.send(JSON.stringify({
+          type: 'information_plan_error',
+          message: '情報収集プランの取得中にエラーが発生しました',
+          error: String(error),
+          timestamp: new Date().toISOString(),
+          status: 'error'
+        }));
+      });
+  } catch (error) {
+    console.error(`情報収集プラン処理エラー: ${error}`);
+    ws.send(JSON.stringify({
+      type: 'information_plan_error',
+      message: '情報収集プラン処理中にエラーが発生しました',
+      error: String(error),
+      timestamp: new Date().toISOString(),
+      status: 'error'
+    }));
+  }
+}
+
+/**
+ * 情報収集プラン保存メッセージの処理
+ * @param ws WebSocketクライアント
+ * @param data メッセージデータ
+ */
+function handleSaveInformationPlan(ws: WebSocket, data: any): void {
+  try {
+    const specificRoleModelId = data.roleModelId || data.payload?.roleModelId || (ws as any).roleModelId;
+    console.log(`情報収集プラン保存メッセージを受信: roleModelId=${specificRoleModelId}`);
+    
+    if (!specificRoleModelId) {
+      console.log('情報収集プラン保存メッセージにroleModelIdが含まれていません');
+      ws.send(JSON.stringify({
+        type: 'information_plan_error',
+        message: 'ロールモデルIDが指定されていません',
+        timestamp: new Date().toISOString(),
+        status: 'error'
+      }));
+      return;
+    }
+    
+    // プランデータを準備
+    const planData = data.payload || data.plan || data;
+    
+    // roleModelIdが設定されていることを確認
+    if (!planData.roleModelId) {
+      planData.roleModelId = specificRoleModelId;
+    }
+    
+    // 情報収集プランを保存
+    saveInformationCollectionPlan(planData)
+      .then(savedPlan => {
+        console.log(`情報収集プラン保存成功: id=${savedPlan.id}`);
+        
+        // 保存成功メッセージを送信
+        ws.send(JSON.stringify({
+          type: 'information_plan_saved',
+          message: '情報収集プランを保存しました',
+          plan: savedPlan,
+          roleModelId: specificRoleModelId,
+          timestamp: new Date().toISOString(),
+          status: 'success'
+        }));
+        
+        // 他のクライアントに更新通知
+        const updateType = planData.id ? 'update' : 'create';
+        notifyInformationPlanUpdate(specificRoleModelId, savedPlan, updateType, sendMessageToRoleModelViewers);
+      })
+      .catch(error => {
+        console.error(`情報収集プラン保存エラー: ${error}`);
+        ws.send(JSON.stringify({
+          type: 'information_plan_error',
+          message: '情報収集プランの保存中にエラーが発生しました',
+          error: String(error),
+          timestamp: new Date().toISOString(),
+          status: 'error'
+        }));
+      });
+  } catch (error) {
+    console.error(`情報収集プラン保存処理エラー: ${error}`);
+    ws.send(JSON.stringify({
+      type: 'information_plan_error',
+      message: '情報収集プラン保存処理中にエラーが発生しました',
+      error: String(error),
+      timestamp: new Date().toISOString(),
+      status: 'error'
+    }));
+  }
+}
+
+/**
+ * 情報収集プラン削除メッセージの処理
+ * @param ws WebSocketクライアント
+ * @param data メッセージデータ
+ */
+function handleDeleteInformationPlan(ws: WebSocket, data: any): void {
+  try {
+    const specificRoleModelId = data.roleModelId || data.payload?.roleModelId || (ws as any).roleModelId;
+    const planId = data.planId || data.payload?.planId || data.id;
+    
+    console.log(`情報収集プラン削除メッセージを受信: planId=${planId}, roleModelId=${specificRoleModelId}`);
+    
+    if (!planId) {
+      console.log('情報収集プラン削除メッセージにplanIdが含まれていません');
+      ws.send(JSON.stringify({
+        type: 'information_plan_error',
+        message: 'プランIDが指定されていません',
+        timestamp: new Date().toISOString(),
+        status: 'error'
+      }));
+      return;
+    }
+    
+    // 情報収集プランを削除
+    deleteInformationCollectionPlan(planId)
+      .then(result => {
+        console.log(`情報収集プラン削除結果: ${JSON.stringify(result)}`);
+        
+        // 削除成功メッセージを送信
+        ws.send(JSON.stringify({
+          type: 'information_plan_deleted',
+          message: '情報収集プランを削除しました',
+          planId: planId,
+          roleModelId: specificRoleModelId,
+          timestamp: new Date().toISOString(),
+          status: 'success'
+        }));
+        
+        // 他のクライアントに削除通知
+        if (specificRoleModelId) {
+          notifyInformationPlanUpdate(specificRoleModelId, { id: planId }, 'delete', sendMessageToRoleModelViewers);
+        }
+      })
+      .catch(error => {
+        console.error(`情報収集プラン削除エラー: ${error}`);
+        ws.send(JSON.stringify({
+          type: 'information_plan_error',
+          message: '情報収集プランの削除中にエラーが発生しました',
+          error: String(error),
+          timestamp: new Date().toISOString(),
+          status: 'error'
+        }));
+      });
+  } catch (error) {
+    console.error(`情報収集プラン削除処理エラー: ${error}`);
+    ws.send(JSON.stringify({
+      type: 'information_plan_error',
+      message: '情報収集プラン削除処理中にエラーが発生しました',
+      error: String(error),
+      timestamp: new Date().toISOString(),
+      status: 'error'
+    }));
   }
 }
 

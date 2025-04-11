@@ -2,9 +2,30 @@
  * 情報収集プラン関連のサービス関数
  */
 import { db } from './db';
-import { collectionPlans, collectionSources, collectionSummaries, roleModels } from '@shared/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { WebSocket } from 'ws';
+import { randomUUID } from 'crypto';
+
+// 情報収集プランテーブル
+// ※本来はshared/schema.tsで定義しますが、今回は既存のマイグレーションに影響を与えないように
+// インメモリで処理します
+interface InformationCollectionPlan {
+  id: string;
+  roleModelId: string;
+  title: string;
+  description?: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  order?: number;
+  tags?: string[];
+  status?: string;
+  priority?: string;
+  metaData?: Record<string, any>;
+}
+
+// インメモリストレージ（データベースマイグレーションが完了するまでの暫定対応）
+const informationPlans: InformationCollectionPlan[] = [];
 
 /**
  * 特定のロールモデルIDに関連する情報収集プランを取得する
@@ -13,27 +34,24 @@ import { WebSocket } from 'ws';
  */
 export async function getInformationCollectionPlansForRoleModel(roleModelId: string) {
   try {
-    console.log(`ロールモデル ${roleModelId} の情報収集プランを取得中`);
+    // ロールモデルIDに一致する情報収集プランをインメモリから取得
+    const plans = informationPlans.filter(plan => plan.roleModelId === roleModelId);
     
-    const plans = await db.query.collectionPlans.findMany({
-      where: eq(collectionPlans.roleModelId, roleModelId),
-      orderBy: [desc(collectionPlans.updatedAt)],
-      with: {
-        sources: {
-          orderBy: [desc(collectionSources.collectedAt)],
-          limit: 10
-        },
-        summaries: {
-          orderBy: [desc(collectionSummaries.generatedAt)],
-          limit: 1
-        }
+    // 並び順でソート（もし設定されていれば）
+    return plans.sort((a, b) => {
+      // orderが設定されていなければ作成日時で並べる
+      if (a.order === undefined && b.order === undefined) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
+      // orderがaだけ設定されていない場合
+      if (a.order === undefined) return 1;
+      // orderがbだけ設定されていない場合
+      if (b.order === undefined) return -1;
+      // 両方設定されている場合
+      return a.order - b.order;
     });
-    
-    console.log(`${plans.length} 件の情報収集プランが見つかりました`);
-    return plans;
   } catch (error) {
-    console.error('情報収集プラン取得エラー:', error);
+    console.error(`情報収集プラン取得エラー: ${error}`);
     throw error;
   }
 }
@@ -43,53 +61,47 @@ export async function getInformationCollectionPlansForRoleModel(roleModelId: str
  * @param planData 情報収集プランのデータ
  * @returns 作成または更新された情報収集プラン
  */
-export async function saveInformationCollectionPlan(planData: any) {
+export async function saveInformationCollectionPlan(planData: any): Promise<InformationCollectionPlan> {
   try {
-    // IDがある場合は更新、ない場合は新規作成
+    const now = new Date();
+    
+    // 更新の場合
     if (planData.id) {
-      console.log(`情報収集プラン ${planData.id} を更新中`);
+      const existingPlanIndex = informationPlans.findIndex(plan => plan.id === planData.id);
       
-      const [updatedPlan] = await db
-        .update(collectionPlans)
-        .set({
-          title: planData.title,
-          isActive: planData.isActive || false,
-          frequency: planData.frequency || 'daily',
-          updatedAt: new Date(),
-          toolsConfig: planData.toolsConfig || { enabledTools: [] },
-          deliveryConfig: planData.deliveryConfig || { emailEnabled: false, webhookEnabled: false }
-        })
-        .where(eq(collectionPlans.id, planData.id))
-        .returning();
-      
-      console.log('情報収集プランが更新されました');
-      return updatedPlan;
-    } else {
-      console.log('新しい情報収集プランを作成中');
-      
-      // roleModelIdが必須
-      if (!planData.roleModelId) {
-        throw new Error('情報収集プランの作成にはroleModelIdが必要です');
+      if (existingPlanIndex !== -1) {
+        // 既存のプランを更新
+        const updatedPlan = {
+          ...informationPlans[existingPlanIndex],
+          ...planData,
+          updatedAt: now
+        };
+        
+        informationPlans[existingPlanIndex] = updatedPlan;
+        return updatedPlan;
       }
-      
-      const [newPlan] = await db
-        .insert(collectionPlans)
-        .values({
-          title: planData.title,
-          roleModelId: planData.roleModelId,
-          isActive: planData.isActive || false,
-          createdBy: planData.createdBy,
-          frequency: planData.frequency || 'daily',
-          toolsConfig: planData.toolsConfig || { enabledTools: [] },
-          deliveryConfig: planData.deliveryConfig || { emailEnabled: false, webhookEnabled: false }
-        })
-        .returning();
-      
-      console.log('新しい情報収集プランが作成されました');
-      return newPlan;
     }
+    
+    // 新規作成の場合
+    const newPlan: InformationCollectionPlan = {
+      id: planData.id || randomUUID(),
+      roleModelId: planData.roleModelId,
+      title: planData.title || '新しい情報収集プラン',
+      description: planData.description || '',
+      content: planData.content || '',
+      createdAt: now,
+      updatedAt: now,
+      order: planData.order,
+      tags: planData.tags,
+      status: planData.status || 'active',
+      priority: planData.priority || 'medium',
+      metaData: planData.metaData || {}
+    };
+    
+    informationPlans.push(newPlan);
+    return newPlan;
   } catch (error) {
-    console.error('情報収集プラン保存エラー:', error);
+    console.error(`情報収集プラン保存エラー: ${error}`);
     throw error;
   }
 }
@@ -101,21 +113,31 @@ export async function saveInformationCollectionPlan(planData: any) {
  */
 export async function deleteInformationCollectionPlan(planId: string) {
   try {
-    console.log(`情報収集プラン ${planId} を削除中`);
+    const initialLength = informationPlans.length;
+    const planIndex = informationPlans.findIndex(plan => plan.id === planId);
     
-    const result = await db
-      .delete(collectionPlans)
-      .where(eq(collectionPlans.id, planId))
-      .returning({ id: collectionPlans.id });
-    
-    if (result.length === 0) {
-      throw new Error('情報収集プランが見つかりません');
+    if (planIndex !== -1) {
+      // プランを保存（削除前の状態を戻り値として返すため）
+      const deletedPlan = informationPlans[planIndex];
+      
+      // プランを削除
+      informationPlans.splice(planIndex, 1);
+      
+      return {
+        success: true,
+        planId,
+        message: '情報収集プランを削除しました',
+        plan: deletedPlan
+      };
     }
     
-    console.log('情報収集プランが削除されました');
-    return { success: true, id: planId };
+    return {
+      success: false,
+      planId,
+      message: '指定されたIDの情報収集プランが見つかりません'
+    };
   } catch (error) {
-    console.error('情報収集プラン削除エラー:', error);
+    console.error(`情報収集プラン削除エラー: ${error}`);
     throw error;
   }
 }
@@ -128,46 +150,32 @@ export async function deleteInformationCollectionPlan(planId: string) {
  */
 export async function sendInformationCollectionPlansToClient(ws: WebSocket, roleModelId: string): Promise<boolean> {
   try {
-    console.log(`情報収集プランデータをクライアントに送信中: roleModelId=${roleModelId}`);
-    
-    // データベースから情報収集プランを取得
+    // 指定されたロールモデルIDに関連する情報収集プランを取得
     const plans = await getInformationCollectionPlansForRoleModel(roleModelId);
     
-    // ロールモデル情報も取得
-    const roleModel = await db.query.roleModels.findFirst({
-      where: eq(roleModels.id, roleModelId)
-    });
-    
-    if (!roleModel) {
-      console.log(`ロールモデル ${roleModelId} が見つかりません`);
-      return false;
-    }
-    
-    // データを送信
+    // プランをクライアントに送信
     ws.send(JSON.stringify({
-      type: 'information_collection_plans',
-      roleModelId,
+      type: 'information_plans',
       message: '情報収集プランを取得しました',
-      status: 'success',
-      data: { 
-        plans,
-        roleModel: { id: roleModel.id, name: roleModel.name }
-      },
-      timestamp: new Date().toISOString()
+      roleModelId,
+      plans,
+      count: plans.length,
+      timestamp: new Date().toISOString(),
+      status: 'success'
     }));
     
-    console.log(`情報収集プランの送信が完了しました: roleModelId=${roleModelId}, ${plans.length}件のプラン`);
     return true;
   } catch (error) {
-    console.error(`情報収集プランデータの送信エラー: ${error}`);
+    console.error(`情報収集プラン送信エラー: ${error}`);
     
-    // エラー通知を送信
+    // エラーメッセージを送信
     ws.send(JSON.stringify({
-      type: 'information_collection_error',
-      roleModelId,
+      type: 'information_plan_error',
       message: '情報収集プランの取得中にエラーが発生しました',
-      status: 'error',
-      timestamp: new Date().toISOString()
+      roleModelId,
+      error: String(error),
+      timestamp: new Date().toISOString(),
+      status: 'error'
     }));
     
     return false;
@@ -185,23 +193,17 @@ export function notifyInformationPlanUpdate(
   roleModelId: string,
   planData: any,
   updateType: string = 'update',
-  sendSocketMessage?: (type: string, data: any) => void
-) {
+  sendSocketMessage: (type: string, data: any) => void
+): void {
   try {
-    const data = {
-      type: 'information_plan_update',
-      updateType,
+    sendSocketMessage('information_plan_update', {
+      message: `情報収集プランが${updateType === 'create' ? '作成' : updateType === 'update' ? '更新' : '削除'}されました`,
       roleModelId,
       plan: planData,
-      timestamp: new Date().toISOString()
-    };
-    
-    // WebSocket経由で通知（sendSocketMessage関数が提供されている場合）
-    if (sendSocketMessage) {
-      sendSocketMessage('information_plan_update', data);
-    }
-    
-    console.log(`情報収集プラン更新通知を送信: ${roleModelId}, type=${updateType}`);
+      updateType,
+      timestamp: new Date().toISOString(),
+      status: 'success'
+    });
   } catch (error) {
     console.error(`情報収集プラン更新通知エラー: ${error}`);
   }
