@@ -10,9 +10,6 @@ let wss: WebSocketServer;
 // ロールモデルIDごとのクライアント接続を追跡
 const clients: Map<string, Set<WebSocket>> = new Map();
 
-// クライアントのサブスクリプション管理（WebSocket => 購読中のロールモデルIDのセット）
-const clientSubscriptions: Map<WebSocket, Set<string>> = new Map();
-
 // 進捗更新の型
 export type ProgressUpdateData = {
   message?: string;
@@ -217,13 +214,6 @@ export function initWebSocket(server: HttpServer): void {
                     }));
                     
                     console.log(`サブスクリプション確認を送信: clientId=${(ws as any).clientId || 'unknown'}`);
-                    
-                    // 既存のナレッジグラフがあれば送信
-                    try {
-                      sendExistingKnowledgeGraph(ws, specificRoleModelId);
-                    } catch (graphError) {
-                      console.error(`既存ナレッジグラフの送信エラー: ${graphError}`);
-                    }
                   } catch (sendError) {
                     console.error(`サブスクリプション確認メッセージ送信エラー: ${sendError}`);
                   }
@@ -240,8 +230,6 @@ export function initWebSocket(server: HttpServer): void {
                     console.error(`エラーメッセージ送信失敗: ${sendError}`);
                   }
                 }
-                
-                return; // subscribeメッセージ処理後は終了
               }
               // エージェント思考メッセージの処理
               else if (data.type === 'agent_thoughts' || data.type === 'agent_thought' || data.type === 'thought') {
@@ -413,44 +401,6 @@ export function initWebSocket(server: HttpServer): void {
                   ws.send(JSON.stringify({
                     type: 'graph_update_received',
                     message: '知識グラフ更新を受信しました',
-                    timestamp: new Date().toISOString()
-                  }));
-                }
-              }
-              // サブスクリプションメッセージの処理
-              else if (data.type === 'subscribe') {
-                const payload = data.payload || {};
-                const specificRoleModelId = payload.roleModelId || data.roleModelId || (ws as any).roleModelId;
-                
-                if (specificRoleModelId) {
-                  console.log(`クライアントがロールモデルの購読を開始: roleModelId=${specificRoleModelId}`);
-                  
-                  // WebSocketクライアントにロールモデルIDを割り当て
-                  (ws as any).roleModelId = specificRoleModelId;
-                  
-                  // サブスクリプション情報を保存
-                  if (!clientSubscriptions.has(ws)) {
-                    clientSubscriptions.set(ws, new Set());
-                  }
-                  clientSubscriptions.get(ws)?.add(specificRoleModelId);
-                  
-                  // 送信元クライアントに確認を返す
-                  ws.send(JSON.stringify({
-                    type: 'subscribed',
-                    roleModelId: specificRoleModelId,
-                    message: `ロールモデル(${specificRoleModelId})の購読を開始しました`,
-                    timestamp: new Date().toISOString()
-                  }));
-                  
-                  // すでに存在する知識グラフがあれば、そのデータを送信
-                  sendExistingKnowledgeGraph(ws, specificRoleModelId).catch(error => {
-                    console.error(`既存の知識グラフ送信中にエラーが発生しました: ${error}`);
-                  });
-                } else {
-                  console.error('購読リクエストにロールモデルIDが含まれていません');
-                  ws.send(JSON.stringify({
-                    type: 'error',
-                    message: '購読リクエストにロールモデルIDが含まれていません',
                     timestamp: new Date().toISOString()
                   }));
                 }
@@ -950,72 +900,6 @@ export function sendKnowledgeGraphUpdate(
     
     console.log(`知識グラフ更新メッセージを${sentCount}個のクライアントに送信完了`);
   });
-}
-
-/**
- * 既存の知識グラフをクライアントに送信する
- * @param ws WebSocket接続
- * @param roleModelId ロールモデルID
- */
-export async function sendExistingKnowledgeGraph(ws: WebSocket, roleModelId: string): Promise<void> {
-  try {
-    console.log(`既存の知識グラフをクライアントに送信: roleModelId=${roleModelId}`);
-    
-    // 最新の知識グラフをデータベースから取得
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/knowledge-graph/${roleModelId}`);
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log(`ロールモデル ${roleModelId} の知識グラフはまだ存在しません`);
-        ws.send(JSON.stringify({
-          type: 'graph_status',
-          status: 'not_found',
-          message: '知識グラフはまだ存在しません',
-          roleModelId,
-          timestamp: new Date().toISOString()
-        }));
-        return;
-      }
-      throw new Error(`グラフデータの取得に失敗しました: ${response.statusText}`);
-    }
-    
-    // グラフデータを取得
-    const graphData = await response.json();
-    
-    if (!graphData || !graphData.nodes || !graphData.edges) {
-      console.log(`ロールモデル ${roleModelId} の知識グラフは空です`);
-      ws.send(JSON.stringify({
-        type: 'graph_status',
-        status: 'empty',
-        message: '知識グラフは空です',
-        roleModelId,
-        timestamp: new Date().toISOString()
-      }));
-      return;
-    }
-    
-    // クライアントに知識グラフを送信
-    ws.send(JSON.stringify({
-      type: 'knowledge_graph_update',
-      roleModelId,
-      nodes: graphData.nodes,
-      edges: graphData.edges,
-      updateType: 'complete',
-      isComplete: true,
-      timestamp: new Date().toISOString(),
-      message: '既存の知識グラフを取得しました'
-    }));
-    
-    console.log(`既存の知識グラフを送信完了: roleModelId=${roleModelId}, ノード数=${graphData.nodes.length}, エッジ数=${graphData.edges.length}`);
-  } catch (error) {
-    console.error(`既存の知識グラフ送信エラー: ${error}`);
-    ws.send(JSON.stringify({
-      type: 'error',
-      message: '知識グラフの取得中にエラーが発生しました',
-      roleModelId,
-      timestamp: new Date().toISOString()
-    }));
-  }
 }
 
 /**

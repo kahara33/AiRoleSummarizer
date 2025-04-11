@@ -6,7 +6,7 @@ import {
   sendAgentThoughts,
   sendMessageToRoleModelViewers,
   sendKnowledgeGraphUpdate
-} from './websocket-fixed';
+} from './websocket';
 import { registerDebugRoutes } from './debug-routes';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
