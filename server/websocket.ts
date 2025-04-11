@@ -336,9 +336,9 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         
       default:
         // その他のメッセージタイプの場合
-        console.log(`未処理のメッセージタイプを分析: ${messageType}`);
+        console.log(`カスタム処理が必要なメッセージタイプ: ${messageType}`);
         
-        // エージェント思考っぽいメッセージは特別に処理
+        // エージェント思考関連のメッセージは特別に処理
         if (
           messageType.includes('agent') || 
           messageType.includes('thought') || 
@@ -349,9 +349,11 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         ) {
           console.log(`エージェント思考として処理します: ${messageType}`);
           handleAgentThoughts(ws, data);
+          return; // 処理終了
         } 
-        // 進捗更新っぽいメッセージの場合
-        else if (
+        
+        // 進捗更新関連のメッセージの場合
+        if (
           messageType.includes('progress') || 
           messageType.includes('status') || 
           payload.progress !== undefined || 
@@ -359,9 +361,11 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         ) {
           console.log(`進捗更新として処理します: ${messageType}`);
           handleProgressUpdate(ws, data);
+          return; // 処理終了
         }
-        // 知識グラフっぽいメッセージの場合
-        else if (
+        
+        // 知識グラフ関連のメッセージの場合
+        if (
           messageType.includes('graph') || 
           messageType.includes('knowledge') ||
           payload.nodes !== undefined ||
@@ -369,21 +373,20 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         ) {
           console.log(`知識グラフ更新として処理します: ${messageType}`);
           handleGraphUpdate(ws, data);
+          return; // 処理終了
         }
+        
         // その他の場合は汎用メッセージ
-        else {
-          // 汎用的な確認メッセージを送信
-          console.log(`汎用的なメッセージとして処理: ${messageType}`);
-          try {
-            ws.send(JSON.stringify({
-              type: 'message_received',
-              message: `メッセージタイプ '${messageType}' を受信しました`,
-              originalType: messageType,
-              timestamp: new Date().toISOString()
-            }));
-          } catch (error) {
-            console.error(`確認メッセージ送信エラー: ${error}`);
-          }
+        console.log(`汎用的なメッセージとして処理: ${messageType}`);
+        try {
+          ws.send(JSON.stringify({
+            type: 'message_received',
+            message: `メッセージタイプ '${messageType}' を受信しました`,
+            originalType: messageType,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (error) {
+          console.error(`確認メッセージ送信エラー: ${error}`);
         }
     }
   } catch (error) {

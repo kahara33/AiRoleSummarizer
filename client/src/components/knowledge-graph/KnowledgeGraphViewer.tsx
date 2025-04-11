@@ -1105,10 +1105,26 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     return () => {
       // イベントリスナーの解除
       socket.removeEventListener('open', handleSocketOpen);
+      
+      // 知識グラフ更新リスナーの解除
       removeSocketListener('knowledge-graph-update', handleGraphUpdate);
       removeSocketListener('knowledge_graph_update', handleGraphUpdate);
       removeSocketListener('graph-update', handleGraphUpdate);
-      removeSocketListener('progress-update', () => {}); // 追加した進捗更新リスナーも解除
+      
+      // エージェント思考リスナーの解除
+      removeSocketListener('agent_thoughts', handleAgentThoughts);
+      removeSocketListener('agent_thought', handleAgentThoughts);
+      removeSocketListener('thought', handleAgentThoughts);
+      removeSocketListener('thinking', handleAgentThoughts);
+      
+      // 進捗更新リスナーの解除
+      removeSocketListener('progress', handleProgressUpdate);
+      removeSocketListener('progress_update', handleProgressUpdate);
+      removeSocketListener('progress-update', handleProgressUpdate);
+      
+      // 明示的に追加した進捗更新リスナーの解除
+      removeSocketListener('progress-update', () => {}); 
+      
       clearInterval(intervalId);
     };
   }, [roleModelId, fetchGraphData]);
