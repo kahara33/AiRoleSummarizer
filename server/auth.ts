@@ -43,12 +43,7 @@ const sessionStore = new PgSessionStore({
   createTableIfMissing: true,
   // 接続問題に対する耐性を高める設定
   ttl: 86400, // セッションの有効期限（1日）
-  pruneSessionInterval: 60, // 古いセッションを削除する間隔（1分）
-  // セッションストアの実行中エラーの場合のリトライ設定
-  conObject: {
-    connectionTimeoutMillis: 10000, // 接続タイムアウト（10秒）
-    query_timeout: 10000 // クエリタイムアウト（10秒）
-  }
+  pruneSessionInterval: 300 // 古いセッションを削除する間隔（5分に1回に変更）
 });
 
 // パスワードハッシュ化
@@ -77,6 +72,9 @@ export function setupAuth(app: Express): void {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 1週間
       secure: process.env.NODE_ENV === 'production',
     },
+    // エラーが起きても無視（development環境向け）
+    rolling: true,
+    unset: 'destroy'
   };
 
   app.use(session(sessionSettings));

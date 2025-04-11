@@ -1,0 +1,96 @@
+UNCAUGHT_EXCEPTION シグナルを受信しました。サーバーをシャットダウンしています...
+データベース接続を終了しました
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+APIエラー: Error: Cannot use a pool after calling end on the pool
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PGStore._asyncQuery (/home/runner/workspace/node_modules/connect-pg-simple/index.js:322:21)
+WebSocketメッセージ受信: type=agent_thoughts, roleModelId=a6a9e263-7682-4a6b-a149-cb7b7e4d0a86
+メッセージ受信: clientId=0eb64aa6-4b1d-40a8-98df-c1839160232f-1744369324910-x3wrhok3, type=agent_thoughts

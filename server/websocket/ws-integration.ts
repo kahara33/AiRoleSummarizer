@@ -26,7 +26,14 @@ export function setupWebSocketIntegration(server: Server): void {
     return;
   }
   
-  const wsServer = initWebSocketServer(server);
+  // WebSocketサーバーの初期化は ws-server-setup.ts で行うため、ここでは行わない
+  // 既存のサーバーインスタンスを使用
+  const wsServer = getWebSocketServer();
+  if (!wsServer) {
+    console.error('WebSocketサーバーが初期化されていません。統合処理をスキップします。');
+    return;
+  }
+  
   isWebSocketIntegrationInitialized = true;
   
   // WebSocketメッセージの処理

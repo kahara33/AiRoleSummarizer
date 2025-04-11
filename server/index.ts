@@ -126,13 +126,18 @@ async function initializeAdminUser() {
 async function gracefulShutdown(signal: string, server: any) {
   console.log(`${signal} シグナルを受信しました。サーバーをシャットダウンしています...`);
   
-  // シャットダウンタイムアウト (10秒後に強制終了)
+  // シャットダウンタイムアウト (15秒後に強制終了)
   const shutdownTimeout = setTimeout(() => {
     console.error('シャットダウンがタイムアウトしました。強制終了します...');
     process.exit(1);
-  }, 10000);
+  }, 15000);
   
   try {
+    // サーバーの終了 - 新しい接続を受け付けない
+    server.close(() => {
+      console.log('HTTPサーバーを停止しました。既存の接続を終了させています...');
+    });
+    
     // Neo4j接続のクローズ
     await Promise.race([
       closeNeo4j(),
@@ -142,25 +147,26 @@ async function gracefulShutdown(signal: string, server: any) {
       }, 3000))
     ]);
     
+    // 少し遅延を入れてセッションストアの処理が完了するのを待つ
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     // PostgreSQL接続プールのクローズ
     await Promise.race([
       pool.end(),
       new Promise(resolve => setTimeout(() => {
         console.warn('PostgreSQL接続プールのクローズがタイムアウトしました');
         resolve(null);
-      }, 3000))
+      }, 5000))
     ]);
     console.log('データベース接続を終了しました');
-  } catch (err) {
-    console.error('リソース解放エラー:', err);
-  }
-  
-  // サーバーの終了
-  server.close(() => {
-    console.log('サーバーをシャットダウンしました');
+    
+    console.log('正常にシャットダウンしました');
     clearTimeout(shutdownTimeout);
     process.exit(0);
-  });
+  } catch (err) {
+    console.error('リソース解放エラー:', err);
+    process.exit(1);
+  }
 }
 
 // 開発環境設定
