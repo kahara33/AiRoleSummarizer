@@ -820,62 +820,6 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         console.log('最初のノードのサンプル:', payload.nodes[0]);
       }
       
-      // WebSocketで受信したデータを使用して表示を更新
-      if (payload.nodes && payload.nodes.length > 0 && payload.edges) {
-        console.log('WebSocketから受信したグラフデータを使用して表示を更新します');
-        
-        try {
-          // 受信したデータをReactFlowノードに変換
-          const receivedNodes = payload.nodes || [];
-          const receivedEdges = payload.edges || [];
-          
-          // ノードとエッジをReactFlowフォーマットに変換
-          const transformedNodes = receivedNodes.map((node: any) => ({
-            id: node.id,
-            type: node.type === 'agent' ? 'agent' : 'concept',
-            position: { x: node.x || Math.random() * 500, y: node.y || Math.random() * 300 },
-            data: {
-              ...node,
-              label: node.name,
-              color: node.color || '#4361ee',
-              // ノード操作ハンドラを追加
-              onEdit: handleEditNode,
-              onDelete: handleDeleteNode,
-              onAddChild: handleAddChildNode,
-              onAddSibling: handleAddSiblingNode,
-              onExpand: handleExpandNode,
-            },
-          }));
-          
-          const transformedEdges = receivedEdges.map((edge: any) => ({
-            id: edge.id || `${edge.sourceId || edge.source}-${edge.targetId || edge.target}`,
-            source: edge.sourceId || edge.source,
-            target: edge.targetId || edge.target,
-            type: 'dataFlow',
-            animated: edge.type === 'data-flow',
-            label: edge.label || '',
-            data: {
-              strength: edge.strength || 1,
-            },
-          }));
-          
-          console.log('変換されたノード:', transformedNodes);
-          console.log('変換されたエッジ:', transformedEdges);
-          
-          // ノードとエッジを更新
-          setNodes(transformedNodes);
-          setEdges(transformedEdges);
-          
-          // グラフが存在することを通知
-          setHasKnowledgeGraph(true);
-          if (onGraphDataChange) {
-            onGraphDataChange(true);
-          }
-        } catch (error) {
-          console.error('WebSocketデータの処理エラー:', error);
-        }
-      }
-      
       if (payload.edges && payload.edges.length > 0) {
         console.log('最初のエッジのサンプル:', payload.edges[0]);
       }

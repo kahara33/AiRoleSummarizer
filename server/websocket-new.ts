@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
-import WebSocket, { WebSocketServer } from 'ws';
+import WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
 
 // WebSocketサーバーインスタンス
 let wss: WebSocketServer;
