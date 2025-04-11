@@ -660,13 +660,21 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   
   // ノードタイプに基づいて色を取得する関数
   const getNodeColor = useCallback((nodeType: string) => {
-    switch (nodeType) {
+    // ノードタイプが存在する場合、タイプに応じた色を返す
+    switch (nodeType?.toLowerCase()) {
       case 'concept': return '#47c1ff';
       case 'keyword': return '#77dd77';
       case 'task': return '#ff6961';
       case 'question': return '#fdfd96';
       case 'info': return '#b19cd9';
-      default: return '#47c1ff';
+      case 'agent': return '#ff9f40';  // エージェントノード用の色を追加
+      case 'entity': return '#5d9cec'; // エンティティ用の色を追加
+      case 'person': return '#ff7eb9'; // 人物用の色を追加
+      case 'organization': return '#7afcff'; // 組織用の色を追加
+      case 'product': return '#feff9c'; // 製品用の色を追加
+      case 'technology': return '#7effb2'; // 技術用の色を追加
+      case 'topic': return '#d6b0ff';  // トピック用の色を追加
+      default: return '#47c1ff';       // デフォルトは青系
     }
   }, []);
   
@@ -830,46 +838,97 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           const receivedEdges = payload.edges || [];
           
           // ノードとエッジをReactFlowフォーマットに変換
-          const transformedNodes = receivedNodes.map((node: any) => ({
-            id: node.id,
-            type: node.type === 'agent' ? 'agent' : 'concept',
-            position: { x: node.x || Math.random() * 500, y: node.y || Math.random() * 300 },
-            data: {
-              ...node,
-              label: node.name,
-              color: node.color || '#4361ee',
-              // ノード操作ハンドラを追加
-              onEdit: handleEditNode,
-              onDelete: handleDeleteNode,
-              onAddChild: handleAddChildNode,
-              onAddSibling: handleAddSiblingNode,
-              onExpand: handleExpandNode,
-            },
-          }));
+          const transformedNodes = receivedNodes.map((node: any) => {
+            // ノードタイプに応じた色を取得
+            const nodeType = node.type || 'default';
+            const color = node.color || getNodeColor(nodeType);
+            
+            // 位置がある場合はその値を使用、なければランダムに配置
+            const position = { 
+              x: node.x || Math.random() * 800 - 400, 
+              y: node.y || Math.random() * 500 - 250 
+            };
+            
+            return {
+              id: node.id,
+              type: nodeType === 'agent' ? 'agent' : 'concept',
+              position: position,
+              data: {
+                ...node,
+                label: node.name || `ノード ${node.id.substring(0, 4)}`,
+                color: color,
+                nodeType: nodeType,
+                // ノード操作ハンドラを追加
+                onEdit: handleEditNode,
+                onDelete: handleDeleteNode,
+                onAddChild: handleAddChildNode,
+                onAddSibling: handleAddSiblingNode,
+                onExpand: handleExpandNode,
+              },
+              style: {
+                background: color,
+                borderColor: color,
+              }
+            };
+          });
           
-          const transformedEdges = receivedEdges.map((edge: any) => ({
-            id: edge.id || `${edge.sourceId || edge.source}-${edge.targetId || edge.target}`,
-            source: edge.sourceId || edge.source,
-            target: edge.targetId || edge.target,
-            type: 'dataFlow',
-            animated: edge.type === 'data-flow',
-            label: edge.label || '',
-            data: {
-              strength: edge.strength || 1,
-            },
-          }));
+          const transformedEdges = receivedEdges.map((edge: any) => {
+            const sourceId = edge.sourceId || edge.source;
+            const targetId = edge.targetId || edge.target;
+            
+            if (!sourceId || !targetId) {
+              console.warn('無効なエッジデータ:', edge);
+              return null;
+            }
+            
+            return {
+              id: edge.id || `${sourceId}-${targetId}`,
+              source: sourceId,
+              target: targetId,
+              type: 'dataFlow',
+              animated: edge.type === 'data-flow' || edge.animated,
+              label: edge.label || '',
+              data: {
+                ...edge,
+                strength: edge.strength || 1,
+                roleModelId: roleModelId,
+              },
+            };
+          }).filter(Boolean);
           
           console.log('変換されたノード:', transformedNodes);
           console.log('変換されたエッジ:', transformedEdges);
           
-          // ノードとエッジを更新
-          setNodes(transformedNodes);
-          setEdges(transformedEdges);
-          
-          // グラフが存在することを通知
-          setHasKnowledgeGraph(true);
-          if (onGraphDataChange) {
-            onGraphDataChange(true);
+          if (transformedNodes.length > 0) {
+            // ノードとエッジを更新
+            setNodes(transformedNodes);
+            setEdges(transformedEdges);
+            
+            // レイアウトの再計算
+            setTimeout(() => {
+              try {
+                if (transformedNodes.length > 0) {
+                  const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
+                    transformedNodes,
+                    transformedEdges
+                  );
+                  
+                  // レイアウト済みのノードとエッジを設定
+                  setNodes(layoutedNodes);
+                  setEdges(layoutedEdges);
+                  
+                  console.log('WebSocketデータに基づいてレイアウトを再計算しました');
+                }
+              } catch (layoutError) {
+                console.error('レイアウト計算エラー:', layoutError);
+              }
+            }, 100);
+            
+            // グラフが存在することを通知
+            setHasKnowledgeGraph(true);
+            if (onGraphDataChange) {
+              onGraphDataChange(true);
+            }
           }
         } catch (error) {
           console.error('WebSocketデータの処理エラー:', error);
