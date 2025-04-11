@@ -257,19 +257,34 @@ export function initWebSocket(server: HttpServer): void {
  */
 function handleClientMessage(ws: WebSocket, data: any): void {
   try {
-    const messageType = data.type;
+    // 厳密なデータ検証と正規化
+    // type が undefined または null の場合はデフォルト値を設定し、小文字化して比較
+    const rawMessageType = data.type || 'unknown';
+    const messageType = typeof rawMessageType === 'string' ? rawMessageType.toLowerCase() : 'unknown';
+    
+    // デバッグ: 元のメッセージタイプと正規化した結果を表示
+    console.log(`メッセージタイプの正規化: 元=${rawMessageType} → 正規化後=${messageType}`);
+    
     // ペイロードの抽出（直接またはpayloadフィールドから）
     const payload = data.payload || data;
+    
     // roleModelIdの優先順位付き抽出
     const specificRoleModelId = payload.roleModelId || data.roleModelId || (ws as any).roleModelId;
     
-    console.log(`メッセージ処理 type=${messageType}, roleModelId=${specificRoleModelId}`);
+    // 詳細なデバッグログ
+    console.log(`メッセージ処理 type=${messageType}, roleModelId=${specificRoleModelId}`, {
+      originalType: data.type,
+      normalizedType: messageType,
+      payloadSize: payload ? Object.keys(payload).length : 0,
+      hasRoleModelId: !!specificRoleModelId
+    });
     
     // クライアントIDのログ（存在する場合）
     if ((ws as any).clientId) {
       console.log(`クライアントID: ${(ws as any).clientId}`);
     }
     
+    // メッセージタイプに基づいて処理を分岐（小文字比較）
     switch (messageType) {
       case 'subscribe':
         handleSubscribe(ws, data);
@@ -277,6 +292,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         
       case 'agent_thoughts':
       case 'agent_thought':
+      case 'agent-thoughts':  // ハイフン形式も対応
       case 'thought':
       case 'thinking':
         // エージェント思考の処理
@@ -292,7 +308,9 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         
       case 'progress':
       case 'progress_update':
+      case 'progress-update':  // ハイフン形式も対応
       case 'crewai_progress':
+      case 'crewai-progress':  // ハイフン形式も対応
         // 進捗更新の処理
         console.log('進捗更新メッセージを処理します', {
           dataType: data.type,
