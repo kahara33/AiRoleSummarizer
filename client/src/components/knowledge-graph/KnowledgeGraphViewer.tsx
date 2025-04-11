@@ -13,6 +13,7 @@ import ReactFlow, {
   OnConnect,
   ReactFlowProvider,
   Position,
+  Panel,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { KnowledgeNode as BaseKnowledgeNode } from '@shared/schema';
@@ -25,12 +26,13 @@ import AgentNode from './AgentNode';
 import DataFlowEdge from './DataFlowEdge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, ZapIcon, RotateCcw, BoltIcon, FlaskConical } from 'lucide-react';
+import { Loader2, ZapIcon, RotateCcw, BoltIcon, FlaskConical, Save, Download } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
 import { NodeEditDialog } from './NodeEditDialog';
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNodeOperations } from './NodeOperations';
-import { toast } from '@/hooks/use-toast';
+import { toast, useToast } from '@/hooks/use-toast';
+import KnowledgeGraphSavePanel from './KnowledgeGraphSavePanel';
 
 
 type KnowledgeNode = ExtendedKnowledgeNode;
