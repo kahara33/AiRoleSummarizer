@@ -248,6 +248,17 @@ export function initWebSocket(server: HttpServer): void {
 function handleClientMessage(ws: WebSocket, data: any): void {
   try {
     const messageType = data.type;
+    // ペイロードの抽出（直接またはpayloadフィールドから）
+    const payload = data.payload || data;
+    // roleModelIdの優先順位付き抽出
+    const specificRoleModelId = payload.roleModelId || data.roleModelId || (ws as any).roleModelId;
+    
+    console.log(`メッセージ処理 type=${messageType}, roleModelId=${specificRoleModelId}`);
+    
+    // クライアントIDのログ（存在する場合）
+    if ((ws as any).clientId) {
+      console.log(`クライアントID: ${(ws as any).clientId}`);
+    }
     
     switch (messageType) {
       case 'subscribe':
@@ -259,6 +270,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'thought':
       case 'thinking':
         // エージェント思考の処理
+        console.log('エージェント思考メッセージを処理します');
         handleAgentThoughts(ws, data);
         break;
         
@@ -266,12 +278,14 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'progress_update':
       case 'crewai_progress':
         // 進捗更新の処理
+        console.log('進捗更新メッセージを処理します');
         handleProgressUpdate(ws, data);
         break;
         
       case 'chat_message':
       case 'message':
         // チャットメッセージの処理
+        console.log('チャットメッセージを処理します');
         handleChatMessage(ws, data);
         break;
         
@@ -280,6 +294,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'graph-update':
       case 'graph_update':
         // 知識グラフ更新の処理
+        console.log('知識グラフ更新メッセージを処理します');
         handleGraphUpdate(ws, data);
         break;
         
@@ -287,6 +302,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'information_plan':
       case 'get_information_plans':
         // 情報収集プラン取得の処理
+        console.log('情報収集プラン取得メッセージを処理します');
         handleInformationPlan(ws, data);
         break;
         
@@ -294,12 +310,14 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'create_information_plan':
       case 'update_information_plan':
         // 情報収集プラン保存の処理
+        console.log('情報収集プラン保存メッセージを処理します');
         handleSaveInformationPlan(ws, data);
         break;
         
       case 'delete_information_plan':
       case 'remove_information_plan':
         // 情報収集プラン削除の処理
+        console.log('情報収集プラン削除メッセージを処理します');
         handleDeleteInformationPlan(ws, data);
         break;
         
@@ -318,32 +336,44 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         
       default:
         // その他のメッセージタイプの場合
-        console.log(`未処理のメッセージタイプ: ${messageType}`);
+        console.log(`未処理のメッセージタイプを分析: ${messageType}`);
         
         // エージェント思考っぽいメッセージは特別に処理
         if (
           messageType.includes('agent') || 
           messageType.includes('thought') || 
           messageType.includes('thinking') ||
-          data.agentName || 
-          data.agent_name
+          payload.agentName || 
+          payload.agent_name ||
+          payload.thinking
         ) {
-          console.log(`エージェント思考として処理: ${messageType}`);
+          console.log(`エージェント思考として処理します: ${messageType}`);
           handleAgentThoughts(ws, data);
         } 
         // 進捗更新っぽいメッセージの場合
         else if (
           messageType.includes('progress') || 
           messageType.includes('status') || 
-          data.progress !== undefined || 
-          data.stage !== undefined
+          payload.progress !== undefined || 
+          payload.stage !== undefined
         ) {
-          console.log(`進捗更新として処理: ${messageType}`);
+          console.log(`進捗更新として処理します: ${messageType}`);
           handleProgressUpdate(ws, data);
+        }
+        // 知識グラフっぽいメッセージの場合
+        else if (
+          messageType.includes('graph') || 
+          messageType.includes('knowledge') ||
+          payload.nodes !== undefined ||
+          payload.edges !== undefined
+        ) {
+          console.log(`知識グラフ更新として処理します: ${messageType}`);
+          handleGraphUpdate(ws, data);
         }
         // その他の場合は汎用メッセージ
         else {
           // 汎用的な確認メッセージを送信
+          console.log(`汎用的なメッセージとして処理: ${messageType}`);
           try {
             ws.send(JSON.stringify({
               type: 'message_received',
@@ -457,19 +487,40 @@ function handleSubscribe(ws: WebSocket, data: any): void {
  */
 function handleAgentThoughts(ws: WebSocket, data: any): void {
   try {
-    const agentName = data.agentName || data.agent || 'エージェント';
-    const thought = data.thought || data.message || data.content || data.payload || '思考内容が記録されませんでした';
-    const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+    // ペイロードの抽出（直接またはpayloadフィールドから）
+    const payload = data.payload || data;
     
-    console.log(`エージェント思考メッセージを処理: ${agentName}`);
+    // エージェント名とメッセージの抽出（複数の形式に対応）
+    const agentName = payload.agentName || payload.agent_name || payload.agent || 
+                       data.agentName || data.agent_name || data.agent || 'エージェント';
+    
+    // 思考内容の抽出（複数の形式に対応）
+    const thought = payload.thought || payload.thinking || payload.thoughts || 
+                    payload.message || payload.content || 
+                    data.thought || data.thinking || data.thoughts || 
+                    data.message || data.content || '思考内容が記録されませんでした';
+    
+    // RoleModelIDの抽出
+    const specificRoleModelId = payload.roleModelId || data.roleModelId || (ws as any).roleModelId;
+    
+    console.log(`エージェント思考メッセージを処理: ${agentName}, roleModelId=${specificRoleModelId}`);
     
     if (!specificRoleModelId) {
       console.log('エージェント思考メッセージにroleModelIdが含まれていません');
       return;
     }
     
+    // 詳細データの集約
+    const detailedData = {
+      ...payload,
+      agentName,
+      thought,
+      roleModelId: specificRoleModelId,
+      timestamp: new Date().toISOString()
+    };
+    
     // エージェント思考を他のクライアントにも送信
-    sendAgentThoughts(agentName, thought, specificRoleModelId, data);
+    sendAgentThoughts(agentName, thought, specificRoleModelId, detailedData);
     
     // 送信元クライアントに確認を返す
     ws.send(JSON.stringify({
@@ -490,19 +541,38 @@ function handleAgentThoughts(ws: WebSocket, data: any): void {
  */
 function handleProgressUpdate(ws: WebSocket, data: any): void {
   try {
-    const message = data.message || data.stage || '';
-    const progress = data.progress || data.percent || 0;
-    const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+    // ペイロードの抽出（直接またはpayloadフィールドから）
+    const payload = data.payload || data;
     
-    console.log(`進捗更新メッセージを処理: ${progress}%`);
+    // 進捗関連データの抽出（複数の形式に対応）
+    const message = payload.message || payload.stage || data.message || data.stage || '';
+    const progress = payload.progress || payload.percent || data.progress || data.percent || 0;
+    const stage = payload.stage || payload.status || data.stage || data.status || 'processing';
+    const subStage = payload.subStage || payload.sub_stage || data.subStage || data.sub_stage || '';
+    
+    // RoleModelIDの抽出
+    const specificRoleModelId = payload.roleModelId || data.roleModelId || (ws as any).roleModelId;
+    
+    console.log(`進捗更新メッセージを処理: ${progress}%, roleModelId=${specificRoleModelId}`);
     
     if (!specificRoleModelId) {
       console.log('進捗更新メッセージにroleModelIdが含まれていません');
       return;
     }
     
+    // 詳細データの集約
+    const detailedData: ProgressUpdateData = {
+      ...payload,
+      message,
+      progress,
+      stage,
+      subStage,
+      roleModelId: specificRoleModelId,
+      timestamp: new Date().toISOString()
+    };
+    
     // 進捗更新を他のクライアントにも送信
-    sendProgressUpdate(message, progress, specificRoleModelId, data);
+    sendProgressUpdate(message, progress, specificRoleModelId, detailedData);
     
     // 送信元クライアントに確認を返す
     ws.send(JSON.stringify({

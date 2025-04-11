@@ -789,9 +789,32 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     // roleModelIdを明示的に指定してWebSocket接続を初期化
     const socket = initSocket(roleModelId);
     
-    // グローバルカウンタを追加して、アップデートのシーケンスを追跡
+    // グラフ更新の変数
     let updateCounter = 0;
     let lastUpdateTimestamp = 0;
+    
+    // エージェント思考の受信ハンドラ
+    const handleAgentThoughts = (data: any) => {
+      // ペイロードを抽出
+      const payload = data.payload || data;
+      const agentName = payload.agentName || payload.agent_name || payload.agent || '不明なエージェント';
+      const thoughts = payload.thought || payload.thoughts || payload.message || payload.content || '';
+      
+      // エージェント思考を受信したときのスクロール自動化など、ビューへの影響はここに追加
+      console.log(`エージェント思考を受信: ${agentName} - ${thoughts.substring(0, 50)}...`);
+    };
+    
+    // 進捗更新の受信ハンドラ
+    const handleProgressUpdate = (data: any) => {
+      // ペイロードを抽出
+      const payload = data.payload || data;
+      const progress = payload.progress || 0;
+      const message = payload.message || '';
+      const stage = payload.stage || '';
+      
+      // 進捗更新を受信したときのプログレスバー更新などビューへの影響はここに追加
+      console.log(`進捗更新を受信: ${progress}% - ${stage} - ${message}`);
+    };
     
     // グラフ更新のイベントハンドラ
     const handleGraphUpdate = (data: any) => {
@@ -1033,13 +1056,26 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     
     // イベントリスナーの登録
     socket.addEventListener('open', handleSocketOpen);
+    
+    // 知識グラフ更新のリスナー
     addSocketListener('knowledge-graph-update', handleGraphUpdate);
     addSocketListener('knowledge_graph_update', handleGraphUpdate); // アンダースコア版も登録
     addSocketListener('graph-update', handleGraphUpdate); // ハイフン版も登録
     
-    // 明示的なリアルタイム更新リスナーを追加
+    // エージェント思考のリスナー
+    addSocketListener('agent_thoughts', handleAgentThoughts);
+    addSocketListener('agent_thought', handleAgentThoughts);
+    addSocketListener('thought', handleAgentThoughts);
+    addSocketListener('thinking', handleAgentThoughts);
+    
+    // 進捗更新のリスナー
+    addSocketListener('progress', handleProgressUpdate);
+    addSocketListener('progress_update', handleProgressUpdate);
+    addSocketListener('progress-update', handleProgressUpdate);
+    
+    // 明示的なリアルタイム更新リスナーを追加（グラフデータ再取得のための追加処理）
     addSocketListener('progress-update', (data: any) => {
-      console.log('進捗更新メッセージを受信:', data);
+      console.log('進捗更新メッセージを受信（グラフ再取得確認）:', data);
       // payloadまたはdata自体からpercentを取得
       const payload = data.payload || data;
       const percent = payload.percent || payload.progress || payload.progressPercent || 0;
