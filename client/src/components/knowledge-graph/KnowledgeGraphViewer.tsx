@@ -811,6 +811,19 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       // 受信したデータがpayloadを持つ場合（WebSocketサーバーからのメッセージ形式）
       const payload = data.payload || data;
       
+      // デバッグのために詳細情報を出力
+      console.log(`グラフ更新詳細 - 更新タイプ: ${payload.updateType || 'unknown'}`);
+      console.log(`グラフ更新詳細 - ノード数: ${(payload.nodes || []).length}`);
+      console.log(`グラフ更新詳細 - エッジ数: ${(payload.edges || []).length}`);
+      
+      if (payload.nodes && payload.nodes.length > 0) {
+        console.log('最初のノードのサンプル:', payload.nodes[0]);
+      }
+      
+      if (payload.edges && payload.edges.length > 0) {
+        console.log('最初のエッジのサンプル:', payload.edges[0]);
+      }
+      
       // roleModelIdが一致するか、payload.roleModelIdがundefinedの場合（後方互換性のため）
       const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
       
