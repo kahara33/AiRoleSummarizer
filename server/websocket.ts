@@ -186,6 +186,16 @@ export function initWebSocket(server: HttpServer): void {
                 return;
               }
               
+              // データの詳細をログ出力してデバッグ
+              if (data.type === 'agent_thoughts' || data.type === 'progress') {
+                console.log(`デバッグ: ${data.type}メッセージの詳細:`, {
+                  messageType: data.type,
+                  roleModelId: data.roleModelId || (ws as any).roleModelId,
+                  payload: data.payload ? '(存在する)' : '(なし)',
+                  dataKeys: Object.keys(data)
+                });
+              }
+              
               // メッセージの種類に応じて処理
               handleClientMessage(ws, data);
             } catch (jsonError) {
@@ -270,7 +280,13 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'thought':
       case 'thinking':
         // エージェント思考の処理
-        console.log('エージェント思考メッセージを処理します');
+        console.log('エージェント思考メッセージを処理します', {
+          dataType: data.type,
+          roleModelId: data.roleModelId || (ws as any).roleModelId,
+          payloadExists: !!data.payload,
+          keys: Object.keys(data),
+          payloadKeys: data.payload ? Object.keys(data.payload) : []
+        });
         handleAgentThoughts(ws, data);
         break;
         
@@ -278,7 +294,13 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       case 'progress_update':
       case 'crewai_progress':
         // 進捗更新の処理
-        console.log('進捗更新メッセージを処理します');
+        console.log('進捗更新メッセージを処理します', {
+          dataType: data.type,
+          roleModelId: data.roleModelId || (ws as any).roleModelId,
+          payloadExists: !!data.payload,
+          keys: Object.keys(data),
+          payloadKeys: data.payload ? Object.keys(data.payload) : []
+        });
         handleProgressUpdate(ws, data);
         break;
         
@@ -335,8 +357,15 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         break;
         
       default:
-        // その他のメッセージタイプの場合
-        console.log(`カスタム処理が必要なメッセージタイプ: ${messageType}`);
+        // その他のメッセージタイプの場合（デバッグログを追加）
+        console.log(`未処理のメッセージタイプ: ${messageType}`);
+        console.log("メッセージの詳細:", JSON.stringify({
+          type: messageType,
+          roleModelId: specificRoleModelId,
+          hasPayload: !!data.payload,
+          dataKeys: Object.keys(data),
+          payloadKeys: data.payload ? Object.keys(data.payload) : []
+        }, null, 2));
         
         // エージェント思考関連のメッセージは特別に処理
         if (
@@ -376,8 +405,8 @@ function handleClientMessage(ws: WebSocket, data: any): void {
           return; // 処理終了
         }
         
-        // その他の場合は汎用メッセージ
-        console.log(`汎用的なメッセージとして処理: ${messageType}`);
+        // その他の場合は汎用メッセージとして処理
+        console.log(`汎用的なメッセージとして処理します: ${messageType}`);
         try {
           ws.send(JSON.stringify({
             type: 'message_received',
