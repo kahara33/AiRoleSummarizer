@@ -3,7 +3,6 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { verifySession } from './auth';
 import { parse as parseCookie } from 'cookie';
 import { randomUUID } from 'crypto';
-import { sendExistingKnowledgeGraph } from './knowledge-graph-service';
 
 // WebSocketServerのインスタンス
 let wss: WebSocketServer;
