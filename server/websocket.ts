@@ -269,6 +269,22 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         handleGraphUpdate(ws, data);
         break;
         
+      case 'information_collection_plan':
+      case 'information_plan':
+      case 'get_information_plans':
+        handleInformationPlan(ws, data);
+        break;
+        
+      case 'save_information_plan':
+      case 'create_information_plan':
+      case 'update_information_plan':
+        handleSaveInformationPlan(ws, data);
+        break;
+        
+      case 'delete_information_plan':
+        handleDeleteInformationPlan(ws, data);
+        break;
+        
       default:
         // その他のメッセージタイプの場合
         console.log(`未処理のメッセージタイプ: ${messageType}`);
