@@ -2,6 +2,10 @@ let socket: WebSocket | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 const listeners: Record<string, Function[]> = {};
 
+// メッセージ重複防止用のキャッシュ
+const recentAgentMessages = new Set<string>();
+const recentProgressMessages = new Set<string>();
+
 /**
  * WebSocketの初期化
  * @param customRoleModelId 特定のロールモデルIDを指定する場合
@@ -100,6 +104,25 @@ export function initSocket(customRoleModelId?: string): WebSocket {
           // agent_thoughtsイベントをエージェント思考メッセージへ標準化
           const payloadData = data.payload || data;
           
+          // メッセージの重複チェック用ハッシュを生成（エージェント名と思考内容の組み合わせ）
+          const agentName = payloadData.agentName || payloadData.agent || 'エージェント';
+          const thoughtContent = payloadData.thoughts || payloadData.message || payloadData.content || '';
+          const messageHash = `${agentName}:${thoughtContent.substring(0, 50)}`;
+          
+          // 重複メッセージをチェック（5秒以内に同じメッセージが来た場合は無視）
+          if (recentAgentMessages.has(messageHash)) {
+            console.log(`重複メッセージを無視: ${messageHash}`);
+            return;
+          }
+          
+          // メッセージをキャッシュに追加
+          recentAgentMessages.add(messageHash);
+          
+          // 5秒後にキャッシュから削除（メモリリーク防止）
+          setTimeout(() => {
+            recentAgentMessages.delete(messageHash);
+          }, 5000);
+          
           console.log('元のエージェント思考データ:', payloadData);
           console.log('thinking属性:', payloadData.thinking);
           console.log('reasoning属性:', payloadData.reasoning);
@@ -108,13 +131,13 @@ export function initSocket(customRoleModelId?: string): WebSocket {
           // リスナーに配信する前にデータ形式を標準化
           const standardizedData = {
             ...payloadData,
-            agentName: payloadData.agentName || payloadData.agent || 'エージェント',
+            agentName: agentName,
             agentType: payloadData.agentType || payloadData.agent_type || 'unknown',
-            thoughts: payloadData.thoughts || payloadData.message || payloadData.content || '',
+            thoughts: thoughtContent,
             // 思考プロセスの詳細を確保
             thinking: payloadData.thinking || [{
               step: 'default',
-              content: payloadData.thoughts || payloadData.message || payloadData.content || '',
+              content: thoughtContent,
               timestamp: payloadData.timestamp || new Date().toISOString()
             }],
             // 推論と決定を確保
@@ -142,11 +165,30 @@ export function initSocket(customRoleModelId?: string): WebSocket {
           // progressイベントを進捗メッセージへ標準化
           const payloadData = data.payload || data;
           
+          // メッセージの重複チェック用ハッシュを生成（進捗率とメッセージの組み合わせ）
+          const progressValue = payloadData.progress || payloadData.percent || 0;
+          const progressMessage = payloadData.message || `進捗: ${progressValue}%`;
+          const progressHash = `progress:${progressValue}:${progressMessage.substring(0, 30)}`;
+          
+          // 重複メッセージをチェック（3秒以内に同じメッセージが来た場合は無視）
+          if (recentProgressMessages.has(progressHash)) {
+            console.log(`重複進捗メッセージを無視: ${progressHash}`);
+            return;
+          }
+          
+          // メッセージをキャッシュに追加
+          recentProgressMessages.add(progressHash);
+          
+          // 3秒後にキャッシュから削除（メモリリーク防止）
+          setTimeout(() => {
+            recentProgressMessages.delete(progressHash);
+          }, 3000);
+          
           // リスナーに配信する前にデータ形式を標準化
           const standardizedData = {
             ...payloadData,
-            message: payloadData.message || `進捗: ${payloadData.progress || 0}%`,
-            progress: payloadData.progress || 0,
+            message: progressMessage,
+            progress: progressValue,
             stage: payloadData.stage || 'system',
             timestamp: payloadData.timestamp || new Date().toISOString()
           };
