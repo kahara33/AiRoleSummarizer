@@ -1,10 +1,10 @@
 /**
  * ナレッジグラフ関連のユーティリティ関数
  */
-import { WebSocket } from 'ws';
 import { db } from './db';
 import { knowledgeNodes, knowledgeEdges } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { WebSocket } from 'ws';
 
 /**
  * 既存の知識グラフデータをWebSocketクライアントに送信する関数
@@ -19,12 +19,10 @@ export async function sendExistingKnowledgeGraph(ws: WebSocket, roleModelId: str
     // データベースからそのロールモデルのノードとエッジを取得
     const nodes = await db.query.knowledgeNodes.findMany({
       where: eq(knowledgeNodes.roleModelId, roleModelId),
-      orderBy: knowledgeNodes.createdAt
     });
 
     const edges = await db.query.knowledgeEdges.findMany({
       where: eq(knowledgeEdges.roleModelId, roleModelId),
-      orderBy: knowledgeEdges.createdAt
     });
 
     console.log(`ナレッジグラフデータ取得完了: ${nodes.length}個のノードと${edges.length}個のエッジを取得`);
