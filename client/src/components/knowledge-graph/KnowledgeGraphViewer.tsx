@@ -794,6 +794,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     }
     
     console.log(`WebSocketリスナーをセットアップ: roleModelId=${roleModelId}`);
+    // roleModelIdの型と値を検証
+    console.log(`ロールモデルID詳細 (type=${typeof roleModelId}):`, {
+      value: roleModelId,
+      length: roleModelId.length,
+      isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roleModelId)
+    });
+    
     // roleModelIdを明示的に指定してWebSocket接続を初期化
     const socket = initSocket(roleModelId);
     
