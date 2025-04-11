@@ -272,42 +272,106 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
           { name: "批判的思考エージェント", type: "critical_thinker" }
         ];
         
-        const thoughts = [
-          "ナレッジグラフと情報収集プランの生成プロセスを開始します。各エージェントに役割を割り当てました。",
-          "業界分析を開始しています。主要な動向とパターンを特定しています。",
-          "最新の技術トレンドを収集中です。AIと関連技術の発展について調査しています。",
-          "関連情報間の関係性を構築中です。主要な概念をマッピングしています。",
-          "最適な情報収集戦略を策定中です。収集頻度と情報源の優先順位を決定しています。",
-          "構築されたナレッジグラフと情報収集プランの整合性を評価しています。"
-        ];
+        // 各エージェントごとに異なるメッセージを準備（より多様性を持たせる）
+        const agentMessages = {
+          "オーケストレーター": [
+            "ナレッジグラフと情報収集プランの生成プロセスを開始します。各エージェントに役割を割り当てました。",
+            "各エージェントの進捗状況を監視しています。全体の整合性を確保するために調整しています。",
+            "情報収集プロセスを調整しています。各エージェントの出力を統合しています。"
+          ],
+          "ドメイン分析エージェント": [
+            "業界分析を開始しています。主要な動向とパターンを特定しています。",
+            "重要なドメイン知識を構造化しています。フレームワークを構築中です。",
+            "業界の重要な関係者とその相互関係を分析しています。影響力の中心を特定しています。"
+          ],
+          "トレンド調査エージェント": [
+            "最新の技術トレンドを収集中です。AIと関連技術の発展について調査しています。",
+            "市場の成長予測と技術の採用率を分析しています。将来の方向性を予測しています。",
+            "新たな技術革新と市場動向の相関関係を評価しています。重要なシグナルを特定中です。"
+          ],
+          "コンテキストマッピングエージェント": [
+            "関連情報間の関係性を構築中です。主要な概念をマッピングしています。",
+            "異なるデータソース間の相互関連性を特定しています。多角的な視点を統合しています。",
+            "知識グラフの整合性を検証しています。論理的矛盾がないか確認しています。"
+          ],
+          "プラン戦略エージェント": [
+            "最適な情報収集戦略を策定中です。収集頻度と情報源の優先順位を決定しています。",
+            "情報収集計画のリソース配分を最適化しています。効率性を重視した戦略を立案しています。",
+            "異なる情報収集手法の効果を比較分析しています。最も効果的なアプローチを選択しています。"
+          ],
+          "批判的思考エージェント": [
+            "構築されたナレッジグラフと情報収集プランの整合性を評価しています。",
+            "前提条件と結論の論理的つながりを検証しています。推論の妥当性を確認中です。",
+            "代替的な視点からプランを評価しています。盲点や偏りがないか検証しています。"
+          ]
+        };
+        
+        // モジュールレベルでメッセージ追跡（重複防止のため）
+        const sentMessages = new Set<string>();
         
         let delay = 500;
         agents.forEach((agent, index) => {
+          // 各エージェントの最初のメッセージを送信
           setTimeout(() => {
-            // エージェント思考メッセージ
-            send('agent_thoughts', {
-              id: `generated-thought-${index + 1}`,
-              roleModelId: roleModelId,
-              agentName: agent.name,
-              agentType: agent.type,
-              thought: thoughts[index],
-              message: thoughts[index],
-              type: "thinking",
-              timestamp: new Date().toISOString()
-            });
+            const message = agentMessages[agent.name][0];
+            const messageId = `${agent.name}-${message.substring(0, 20)}`;
             
-            // 少し遅れて進捗更新
-            setTimeout(() => {
-              send('progress', {
+            // 重複チェック
+            if (!sentMessages.has(messageId)) {
+              sentMessages.add(messageId);
+              
+              // エージェント思考メッセージ
+              send('agent_thoughts', {
+                id: `generated-thought-${index + 1}-1`,
                 roleModelId: roleModelId,
-                stage: `プロセス進行中`,
-                progress: Math.min(15 * (index + 1), 90),
-                message: `プロセスが${Math.min(15 * (index + 1), 90)}%完了しました`,
-                details: { step: agent.type },
-                percent: Math.min(15 * (index + 1), 90)
+                agentName: agent.name,
+                agentType: agent.type,
+                thought: message,
+                message: message,
+                type: "thinking",
+                timestamp: new Date().toISOString()
               });
-            }, 300);
+              
+              // 少し遅れて進捗更新
+              setTimeout(() => {
+                const progressValue = Math.min(5 + 10 * index, 75);
+                send('progress', {
+                  roleModelId: roleModelId,
+                  stage: `ステージ ${index + 1}/6`,
+                  progress: progressValue,
+                  message: `プロセスが${progressValue}%完了しました`,
+                  details: { step: agent.type, substep: 1 },
+                  percent: progressValue
+                });
+              }, 300);
+            }
           }, delay);
+          
+          // 2つ目のメッセージは一部のエージェントのみ（均等でない処理を模倣）
+          if ([1, 2, 4].includes(index)) {
+            setTimeout(() => {
+              const message = agentMessages[agent.name][1];
+              const messageId = `${agent.name}-${message.substring(0, 20)}`;
+              
+              // 重複チェック
+              if (!sentMessages.has(messageId)) {
+                sentMessages.add(messageId);
+                
+                send('agent_thoughts', {
+                  id: `generated-thought-${index + 1}-2`,
+                  roleModelId: roleModelId,
+                  agentName: agent.name,
+                  agentType: agent.type,
+                  thought: message,
+                  message: message,
+                  type: "thinking",
+                  timestamp: new Date().toISOString()
+                });
+                
+                // この2つ目のメッセージでは進捗更新を送信しない
+              }
+            }, delay + 700);
+          }
           
           delay += 1500; // 次のエージェントのディレイを増加
         });
