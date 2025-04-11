@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { sendAgentThoughts, sendProgressUpdate } from '../websocket-new';
+import { sendAgentThoughts, sendProgressUpdate } from '../websocket/ws-server';
 
 /**
  * 単一のデバッグメッセージを送信

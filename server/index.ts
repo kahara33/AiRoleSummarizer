@@ -9,7 +9,6 @@ import { closeNeo4j } from './neo4j';
 import { eq, or } from 'drizzle-orm';
 import { setupVite } from './vite';
 import { setupWebSocketServer } from './websocket/ws-server-setup';
-import * as http from 'http';
 
 // Express アプリケーションの初期化
 const app = express();
@@ -126,18 +125,13 @@ async function initializeAdminUser() {
 async function gracefulShutdown(signal: string, server: any) {
   console.log(`${signal} シグナルを受信しました。サーバーをシャットダウンしています...`);
   
-  // シャットダウンタイムアウト (15秒後に強制終了)
+  // シャットダウンタイムアウト (10秒後に強制終了)
   const shutdownTimeout = setTimeout(() => {
     console.error('シャットダウンがタイムアウトしました。強制終了します...');
     process.exit(1);
-  }, 15000);
+  }, 10000);
   
   try {
-    // サーバーの終了 - 新しい接続を受け付けない
-    server.close(() => {
-      console.log('HTTPサーバーを停止しました。既存の接続を終了させています...');
-    });
-    
     // Neo4j接続のクローズ
     await Promise.race([
       closeNeo4j(),
@@ -147,26 +141,25 @@ async function gracefulShutdown(signal: string, server: any) {
       }, 3000))
     ]);
     
-    // 少し遅延を入れてセッションストアの処理が完了するのを待つ
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
     // PostgreSQL接続プールのクローズ
     await Promise.race([
       pool.end(),
       new Promise(resolve => setTimeout(() => {
         console.warn('PostgreSQL接続プールのクローズがタイムアウトしました');
         resolve(null);
-      }, 5000))
+      }, 3000))
     ]);
     console.log('データベース接続を終了しました');
-    
-    console.log('正常にシャットダウンしました');
-    clearTimeout(shutdownTimeout);
-    process.exit(0);
   } catch (err) {
     console.error('リソース解放エラー:', err);
-    process.exit(1);
   }
+  
+  // サーバーの終了
+  server.close(() => {
+    console.log('サーバーをシャットダウンしました');
+    clearTimeout(shutdownTimeout);
+    process.exit(0);
+  });
 }
 
 // 開発環境設定
@@ -189,14 +182,11 @@ async function startServer() {
       console.log('アプリケーションは続行しますが、データベース機能が制限される可能性があります');
     }
     
-    // HTTP サーバーの作成
-    const server = http.createServer(app);
+    // WebSocketサーバーのセットアップ
+    const httpServer = setupWebSocketServer(app);
     
-    // ルートの登録（WebSocketServer は初期化しない）
-    await registerRoutes(app, server);
-    
-    // WebSocketサーバーのセットアップ（ルート登録後に行う）
-    setupWebSocketServer(app, server);
+    // ルートの登録
+    const server = await registerRoutes(app, httpServer);
     
     // 開発環境でViteのセットアップ
     if (process.env.NODE_ENV !== 'production') {

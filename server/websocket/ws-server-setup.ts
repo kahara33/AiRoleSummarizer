@@ -5,21 +5,17 @@ import { initWebSocket } from '../websocket-new';
 import { setupWebSocketIntegration } from './ws-integration';
 
 // ExpressアプリケーションとHttpServerを使用してWebSocketサーバーを設定する関数
-export function setupWebSocketServer(app: Express, server?: HttpServer): HttpServer {
-  // HttpServerがない場合は新しく作成
-  const httpServer = server || http.createServer(app);
+export function setupWebSocketServer(app: Express): HttpServer {
+  // HttpServerの作成
+  const server = http.createServer(app);
   
-  try {
-    // WebSocketサーバーの初期化（新しい実装を使用）
-    initWebSocket(httpServer);
-    
-    // WebSocketの統合機能のセットアップ
-    setupWebSocketIntegration(httpServer);
-    
-    console.log('WebSocketサーバーが設定されました');
-  } catch (error) {
-    console.error('WebSocketサーバーの設定中にエラーが発生しました:', error);
-  }
+  // WebSocketサーバーの初期化（新しい実装を使用）
+  initWebSocket(server);
   
-  return httpServer;
+  // WebSocketの統合機能のセットアップ
+  setupWebSocketIntegration(server);
+  
+  console.log('WebSocketサーバーが設定されました');
+  
+  return server;
 }

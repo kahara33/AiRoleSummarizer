@@ -1,11 +1,12 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { Server, createServer } from 'http';
 import { 
+  initWebSocket,
   sendProgressUpdate,
   sendAgentThoughts,
   sendMessageToRoleModelViewers,
   sendKnowledgeGraphUpdate
-} from './websocket-new';
+} from './websocket';
 import { registerDebugRoutes } from './debug-routes';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';

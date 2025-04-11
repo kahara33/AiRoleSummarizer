@@ -5,9 +5,6 @@ import { generateKnowledgeGraphWithCrewAI, CrewAIService } from '../services/cre
 // キャンセル処理のハンドラをインポート
 import { handleCancelOperation } from './cancel-handler';
 
-// グローバル変数でWebSocket統合の初期化状態を追跡
-let isWebSocketIntegrationInitialized = false;
-
 // WebSocketサーバーのクライアントへの送信関数を取得
 const wsServer = {
   sendToClient: (clientId: string, message: any) => {
@@ -21,20 +18,7 @@ const wsServer = {
 
 // WebSocketとCrewAIを統合する関数
 export function setupWebSocketIntegration(server: Server): void {
-  if (isWebSocketIntegrationInitialized) {
-    console.log('WebSocket統合は既に初期化されています。再初期化はスキップします。');
-    return;
-  }
-  
-  // WebSocketサーバーの初期化は ws-server-setup.ts で行うため、ここでは行わない
-  // 既存のサーバーインスタンスを使用
-  const wsServer = getWebSocketServer();
-  if (!wsServer) {
-    console.error('WebSocketサーバーが初期化されていません。統合処理をスキップします。');
-    return;
-  }
-  
-  isWebSocketIntegrationInitialized = true;
+  const wsServer = initWebSocketServer(server);
   
   // WebSocketメッセージの処理
   wsServer.on('message', async (data: any) => {

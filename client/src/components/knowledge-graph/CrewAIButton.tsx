@@ -32,7 +32,6 @@ export function CrewAIButton({ roleModelId, onStart, onComplete, hasKnowledgeGra
     if (!loading) return;
     
     // websocketの接続を確保
-    console.log(`CrewAIButton: WebSocket接続を初期化 (roleModelId=${roleModelId})`);
     const socket = initSocket(roleModelId);
     
     // 進捗イベントハンドラ - 処理の完了やエラーを検知
