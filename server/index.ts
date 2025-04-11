@@ -9,6 +9,7 @@ import { closeNeo4j } from './neo4j';
 import { eq, or } from 'drizzle-orm';
 import { setupVite } from './vite';
 import { setupWebSocketServer } from './websocket/ws-server-setup';
+import * as http from 'http';
 
 // Express アプリケーションの初期化
 const app = express();
@@ -182,11 +183,14 @@ async function startServer() {
       console.log('アプリケーションは続行しますが、データベース機能が制限される可能性があります');
     }
     
-    // WebSocketサーバーのセットアップ
-    const httpServer = setupWebSocketServer(app);
+    // HTTP サーバーの作成
+    const server = http.createServer(app);
     
-    // ルートの登録
-    const server = await registerRoutes(app, httpServer);
+    // ルートの登録（WebSocketServer は初期化しない）
+    await registerRoutes(app, server);
+    
+    // WebSocketサーバーのセットアップ（ルート登録後に行う）
+    setupWebSocketServer(app, server);
     
     // 開発環境でViteのセットアップ
     if (process.env.NODE_ENV !== 'production') {

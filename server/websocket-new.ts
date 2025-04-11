@@ -25,7 +25,25 @@ export type ProgressUpdateData = {
  */
 export function initWebSocket(server: HttpServer): void {
   try {
-    wss = new WebSocketServer({ server, path: '/ws' });
+    // 既存のWSS接続があれば終了
+    if (wss) {
+      console.log('既存のWebSocketサーバーを終了します');
+      try {
+        wss.close();
+      } catch (err) {
+        console.error('WebSocketサーバーの終了中にエラーが発生しました:', err);
+      }
+    }
+    
+    // パスをAPIパスの下に変更 (/api/ws)
+    wss = new WebSocketServer({ 
+      server, 
+      path: '/api/ws',
+      // WebSocketサーバーのデバッグログを有効化
+      clientTracking: true,
+    });
+    
+    console.log('WebSocketサーバーが初期化されました (path: /api/ws)');
     
     wss.on('connection', (ws, req) => {
       try {

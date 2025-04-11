@@ -21,9 +21,9 @@ export function initSocket(customRoleModelId?: string): WebSocket {
   
   // WebSocketの接続URL
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // WebSocketサーバーは /ws パスにあるが、プロキシ経由で転送される場合もある
-  // リスニングパスに合わせてURLを調整
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  // サーバー側がWebSocketを /api/ws パスで提供しているため、それに合わせる
+  const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+  console.log('WebSocket接続URL:', wsUrl);
   
   // ロールモデルIDの決定（優先順位: カスタムID > URLパラメータ > デフォルト）
   let roleModelId = 'default';
