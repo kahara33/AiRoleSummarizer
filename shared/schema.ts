@@ -503,3 +503,34 @@ export type KnowledgeEdgeData = {
   label?: string | null;
   strength?: number;
 };
+
+/**
+ * 情報収集プラン関連の型定義
+ */
+export interface InformationCollectionPlan {
+  id: string;
+  roleModelId: string;
+  title: string;
+  description?: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  order?: number;
+  tags?: string[];
+  status?: string;
+  priority?: string;
+  metaData?: Record<string, any>;
+}
+
+export type InformationCollectionPlanData = {
+  id?: string;
+  roleModelId: string;
+  title: string;
+  description?: string;
+  content: string;
+  order?: number;
+  tags?: string[];
+  status?: string;
+  priority?: string;
+  metaData?: Record<string, any>;
+};

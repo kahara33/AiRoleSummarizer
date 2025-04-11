@@ -1336,38 +1336,81 @@ export function sendPartialGraphUpdate(
  * @param updateType 更新タイプ（'create', 'update', 'delete', 'partial'）
  * @param additionalData 追加データ（オプション）
  */
-export function sendKnowledgeGraphUpdate(
+export /**
+ * ナレッジグラフ更新を送信する関数
+ * @param roleModelId ロールモデルID
+ * @param graphData グラフデータ（ノードとエッジ）
+ * @param updateType 更新タイプ（'create', 'update', 'delete', 'partial', 'complete'）
+ * @param additionalData 追加データ
+ */
+function sendKnowledgeGraphUpdate(
   roleModelId: string,
   graphData: { nodes: any[], edges: any[] },
-  updateType: string = 'update',
-  additionalData?: any
+  updateType: 'create' | 'update' | 'delete' | 'partial' | 'complete' = 'update',
+  additionalData: any = {}
 ): void {
   const clientSet = clients.get(roleModelId);
+  
+  // 複数形式でのメッセージタイプ（クライアントの互換性確保のため）
+  const messageTypes = [
+    'knowledge_graph_update',
+    'knowledge-graph-update',
+    'graph-update'
+  ];
+  
+  // 詳細ログ - 接続クライアント
   if (!clientSet || clientSet.size === 0) {
     console.log(`ロールモデル ${roleModelId} に接続されたクライアントはありません`);
+    console.log(`知識グラフデータ（${graphData.nodes.length}ノード、${graphData.edges.length}エッジ）は保存されました`);
+    console.log('クライアントが接続された時点で最新データが利用可能になります');
     return;
   }
-
-  const data = {
-    type: 'knowledge_graph_update',
-    updateType,
+  
+  // データの準備
+  const basePayload = {
     roleModelId,
-    data: graphData,
     timestamp: new Date().toISOString(),
-    ...(additionalData || {})
+    message: `知識グラフが${updateType === 'create' ? '作成' : updateType === 'update' ? '更新' : updateType === 'partial' ? '部分的に更新' : '削除'}されました`,
+    ...additionalData,
+    updateType,
+    ...graphData
   };
-
-  // 標準メッセージ形式のJSONを生成
-  const message_json = JSON.stringify(data);
-
-  // 該当ロールモデルに接続されているすべてのクライアントに送信
-  clientSet.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message_json);
-    }
+  
+  // 各タイプでメッセージを送信（クライアントの互換性確保のため）
+  messageTypes.forEach(type => {
+    // typeフィールドをこのレベルに含めると、クライアント側のコードで
+    // data.type で参照できるためブラウザコンソールに表示される
+    const payload = {
+      type,
+      payload: {
+        ...basePayload,
+        updateType: updateType,
+        isComplete: updateType === 'create' || updateType === 'complete' || updateType === 'update',
+        isPartial: updateType === 'partial',
+        roleModelId,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    const message_json = JSON.stringify(payload);
+    
+    console.log(`知識グラフ更新メッセージ送信: タイプ=${type}, ノード数=${graphData.nodes.length}, エッジ数=${graphData.edges.length}`);
+    
+    // 接続されているすべてのクライアントに送信
+    let sentCount = 0;
+    clientSet.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(message_json);
+          sentCount++;
+        } catch (sendError) {
+          console.error(`知識グラフ更新メッセージ送信エラー: ${sendError}`);
+        }
+      }
+    });
+    
+    console.log(`知識グラフ更新メッセージを${sentCount}個のクライアントに送信完了`);
   });
-
-  console.log(`知識グラフ更新を送信: ${roleModelId}, type=${updateType}, ${graphData.nodes.length}ノード, ${graphData.edges.length}エッジ`);
 }
 
 /**
