@@ -275,6 +275,30 @@ export function initSocket(customRoleModelId?: string): WebSocket {
             listeners['agent-communication'].forEach(callback => callback(standardizedData));
           }
         }
+        // 情報収集プランメッセージ処理
+        else if (data.type === 'information_plans' || data.type === 'information_plan_update') {
+          const payloadData = data.payload || data;
+          
+          // リスナーに配信する前にデータ形式を標準化
+          const standardizedData = {
+            ...payloadData,
+            plans: payloadData.plans || [],
+            plan: payloadData.plan, // 単一プラン更新の場合
+            roleModelId: payloadData.roleModelId,
+            updateType: payloadData.updateType || 'update',
+            timestamp: payloadData.timestamp || new Date().toISOString()
+          };
+          
+          console.log('情報収集プラン標準化データ:', standardizedData);
+          
+          // リスナーに配信（両方のイベント名で配信）
+          if (listeners['information_plans']) {
+            listeners['information_plans'].forEach(callback => callback(standardizedData));
+          }
+          if (listeners['information_plan_update']) {
+            listeners['information_plan_update'].forEach(callback => callback(standardizedData));
+          }
+        }
         // その他の標準メッセージ処理
         else if (data.type && listeners[data.type]) {
           // payloadが存在する場合はそれを使用、なければdata自体を使用
@@ -402,6 +426,69 @@ export function closeSocket(): void {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+}
+
+/**
+ * 情報収集プランを取得するためのリクエストを送信
+ * @param roleModelId ロールモデルID
+ */
+export function requestInformationPlans(roleModelId: string): void {
+  if (!roleModelId) {
+    console.error('無効なパラメータ: roleModelIdが空です');
+    return;
+  }
+  
+  // WebSocketで情報収集プラン取得リクエストを送信
+  sendSocketMessage('information_collection_plan', {
+    roleModelId,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.log(`情報収集プランリクエストを送信しました - ロールモデル: ${roleModelId}`);
+}
+
+/**
+ * 情報収集プランを保存
+ * @param roleModelId ロールモデルID
+ * @param planData プランデータ
+ */
+export function saveInformationPlan(roleModelId: string, planData: any): void {
+  if (!roleModelId) {
+    console.error('無効なパラメータ: roleModelIdが空です');
+    return;
+  }
+  
+  // プランデータにロールモデルIDを設定
+  const dataToSend = {
+    ...planData,
+    roleModelId
+  };
+  
+  // WebSocketで情報収集プラン保存リクエストを送信
+  sendSocketMessage('save_information_plan', dataToSend);
+  
+  console.log(`情報収集プラン保存リクエストを送信しました - ロールモデル: ${roleModelId}`);
+}
+
+/**
+ * 情報収集プランを削除
+ * @param roleModelId ロールモデルID
+ * @param planId プランID
+ */
+export function deleteInformationPlan(roleModelId: string, planId: string): void {
+  if (!roleModelId || !planId) {
+    console.error('無効なパラメータ: roleModelIdまたはplanIdが空です');
+    return;
+  }
+  
+  // WebSocketで情報収集プラン削除リクエストを送信
+  sendSocketMessage('delete_information_plan', {
+    roleModelId,
+    planId,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.log(`情報収集プラン削除リクエストを送信しました - ロールモデル: ${roleModelId}, プランID: ${planId}`);
 }
 
 /**
