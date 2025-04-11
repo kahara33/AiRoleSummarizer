@@ -248,9 +248,6 @@ export function initWebSocket(server: HttpServer): void {
                   
                   console.log(`現在の接続状態: 合計${totalClients}件、モデル別: ${modelInfo || 'なし'}`);
                   
-                  // 保存されているグラフデータがあれば送信
-                  sendSavedKnowledgeGraphData(specificRoleModelId, ws);
-                  
                   // クライアントにサブスクリプション確認を送信
                   try {
                     ws.send(JSON.stringify({
@@ -311,50 +308,6 @@ export function initWebSocket(server: HttpServer): void {
                 const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
                 
                 console.log(`進捗更新メッセージを受信: ${progress}%`);
-                
-                // 進捗更新をブロードキャスト
-                if (specificRoleModelId) {
-                  // 進捗更新を他のクライアントにも送信
-                  sendProgressUpdate(message, progress, specificRoleModelId, data);
-                  
-                  // 送信元クライアントに確認を返す
-                  ws.send(JSON.stringify({
-                    type: 'progress_received',
-                    message: '進捗更新を受信しました',
-                    progress,
-                    timestamp: new Date().toISOString()
-                  }));
-                }
-              }
-              // agent_thoughtsメッセージの処理（agent_thoughtsという名前のタイプに対応）
-              else if (data.type === 'agent_thoughts') {
-                console.log(`エージェント思考メッセージを受信（agent_thoughts形式）: ${data.agentName || 'エージェント'}`);
-                
-                const agentName = data.agentName || data.agent || 'エージェント';
-                const thought = data.thought || data.message || data.content || '思考内容が記録されませんでした';
-                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
-                
-                // エージェント思考をブロードキャスト
-                if (specificRoleModelId) {
-                  // エージェント思考を他のクライアントにも送信
-                  sendAgentThoughts(agentName, thought, specificRoleModelId, data);
-                  
-                  // 送信元クライアントに確認を返す
-                  ws.send(JSON.stringify({
-                    type: 'thought_received',
-                    message: 'エージェント思考を受信しました',
-                    agentName,
-                    timestamp: new Date().toISOString()
-                  }));
-                }
-              }
-              // progressメッセージの処理（progress形式での処理）
-              else if (data.type === 'progress') {
-                console.log(`進捗更新メッセージを受信（progress形式）: ${data.progress || data.percent || 0}%`);
-                
-                const message = data.message || data.stage || '';
-                const progress = data.progress || data.percent || 0;
-                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
                 
                 // 進捗更新をブロードキャスト
                 if (specificRoleModelId) {
@@ -474,6 +427,50 @@ export function initWebSocket(server: HttpServer): void {
                   ws.send(JSON.stringify({
                     type: 'chat_received',
                     message: 'チャットメッセージを受信して処理中です',
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
+              // agent_thoughtsの処理
+              else if (data.type === 'agent_thoughts') {
+                const agentName = data.agentName || data.agent || 'エージェント';
+                const thought = data.thought || data.message || data.content || data.payload || '思考内容が記録されませんでした';
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                console.log(`エージェント思考メッセージを処理: ${agentName}`);
+                
+                // エージェント思考をブロードキャスト
+                if (specificRoleModelId) {
+                  // エージェント思考を他のクライアントにも送信
+                  sendAgentThoughts(agentName, thought, specificRoleModelId, data);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'thought_received',
+                    message: 'エージェント思考を受信しました',
+                    agentName,
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              }
+              // progressの処理
+              else if (data.type === 'progress') {
+                const message = data.message || data.stage || '';
+                const progress = data.progress || data.percent || 0;
+                const specificRoleModelId = data.roleModelId || (ws as any).roleModelId;
+                
+                console.log(`進捗更新メッセージを処理: ${progress}%`);
+                
+                // 進捗更新をブロードキャスト
+                if (specificRoleModelId) {
+                  // 進捗更新を他のクライアントにも送信
+                  sendProgressUpdate(message, progress, specificRoleModelId, data);
+                  
+                  // 送信元クライアントに確認を返す
+                  ws.send(JSON.stringify({
+                    type: 'progress_received',
+                    message: '進捗更新を受信しました',
+                    progress,
                     timestamp: new Date().toISOString()
                   }));
                 }

@@ -1731,51 +1731,144 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
               await db.delete(knowledgeEdges).where(eq(knowledgeEdges.roleModelId, roleModelId));
               await db.delete(knowledgeNodes).where(eq(knowledgeNodes.roleModelId, roleModelId));
               
-              // ノードとエッジを保存
-              for (const node of result.data.nodes) {
-                await db.insert(knowledgeNodes).values({
-                  id: node.id,
-                  name: node.name,
-                  description: node.description || null,
-                  level: node.level,
-                  type: node.type || 'default',
-                  parentId: node.parentId || null,
+              // ノードIDのマッピングを保持（名前→ID）
+              const nodeIdMap = new Map<string, string>();
+              
+              // グラフデータをバッチで処理するための準備
+              let processedNodes = 0;
+              const totalNodes = result.data.nodes.length;
+              const batchSize = 5; // 一度に処理するノード数
+              const totalBatches = Math.ceil(totalNodes / batchSize);
+              
+              // 知識グラフの段階的な成長を視覚化するために、バッチでノードを処理
+              for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+                const startIdx = batchIndex * batchSize;
+                const endIdx = Math.min(startIdx + batchSize, totalNodes);
+                const nodeBatch = result.data.nodes.slice(startIdx, endIdx);
+                
+                // このバッチに対応するエッジを抽出
+                const currentNodeNames = nodeBatch.map(node => node.name);
+                const relevantEdges = result.data.edges.filter(edge => 
+                  currentNodeNames.includes(edge.source) && 
+                  (nodeIdMap.has(edge.target) || currentNodeNames.includes(edge.target))
+                );
+                
+                // バッチ進捗の計算
+                const batchProgress = Math.floor(((batchIndex + 1) / totalBatches) * 100);
+                processedNodes += nodeBatch.length;
+                
+                // バッチ処理の進捗を報告
+                sendProgressUpdate({
+                  message: `知識グラフのノードを処理中... ${processedNodes}/${totalNodes}`,
+                  percent: 60 + Math.floor((batchProgress / 100) * 30), // 60%から90%までの範囲で進捗表示
                   roleModelId,
-                  color: node.color || null
+                  status: 'processing'
                 });
                 
-                // Neo4jにも保存
-                try {
-                  await createNodeInNeo4j({
+                // ノードの保存とマッピングの更新
+                for (const node of nodeBatch) {
+                  // ノードをデータベースに保存
+                  const insertedNode = await db.insert(knowledgeNodes).values({
                     id: node.id,
                     name: node.name,
-                    type: node.type || 'default',
+                    description: node.description || null,
                     level: node.level,
+                    type: node.type || 'default',
                     parentId: node.parentId || null,
                     roleModelId,
-                    description: node.description || null,
                     color: node.color || null
+                  }).returning();
+                  
+                  // マッピングを更新
+                  if (insertedNode.length > 0) {
+                    nodeIdMap.set(node.name, insertedNode[0].id);
+                  }
+                  
+                  // Neo4jにも保存
+                  try {
+                    await createNodeInNeo4j({
+                      id: node.id,
+                      name: node.name,
+                      type: node.type || 'default',
+                      level: node.level,
+                      parentId: node.parentId || null,
+                      roleModelId,
+                      description: node.description || null,
+                      color: node.color || null
+                    });
+                  } catch (neo4jError) {
+                    console.error('Neo4jノード作成エラー (無視して続行):', neo4jError);
+                  }
+                }
+                
+                // このバッチで関連するエッジを保存
+                for (const edge of relevantEdges) {
+                  // 数値に変換
+                  const strengthValue = typeof edge.strength === 'string' ? parseFloat(edge.strength) : (edge.strength || 0.5);
+                  
+                  await db.insert(knowledgeEdges).values({
+                    id: randomUUID(),
+                    sourceId: edge.source,
+                    targetId: edge.target,
+                    label: edge.label || null,
+                    roleModelId,
+                    strength: strengthValue
                   });
-                } catch (neo4jError) {
-                  console.error('Neo4jノード作成エラー (無視して続行):', neo4jError);
+                  
+                  // Neo4jにも保存
+                  try {
+                    await createEdgeInNeo4j({
+                      sourceId: edge.source,
+                      targetId: edge.target,
+                      label: edge.label || null,
+                      roleModelId,
+                      strength: strengthValue
+                    });
+                  } catch (neo4jError) {
+                    console.error('CrewAI生成時のNeo4jエッジ作成エラー (無視して続行):', neo4jError);
+                  }
+                }
+                
+                // 現在のバッチで処理したノードとエッジを含む部分グラフ更新を送信
+                try {
+                  const partialGraphData = {
+                    nodes: nodeBatch,
+                    edges: relevantEdges
+                  };
+                  
+                  // 部分更新としてWebSocketで送信
+                  const { sendPartialGraphUpdate } = require('./websocket');
+                  sendPartialGraphUpdate(roleModelId, partialGraphData, `CrewAIエージェント（バッチ ${batchIndex + 1}/${totalBatches}）`);
+                  
+                  console.log(`部分グラフ更新を送信 (バッチ ${batchIndex + 1}/${totalBatches}): ${nodeBatch.length}ノード, ${relevantEdges.length}エッジ`);
+                  
+                  // バッチ間で少し間隔を開ける（視覚効果のため）
+                  await new Promise(resolve => setTimeout(resolve, 800));
+                } catch (wsError) {
+                  console.error('部分グラフ更新の送信中にエラーが発生しました:', wsError);
                 }
               }
               
-              for (const edge of result.data.edges) {
+              // 残りのエッジを処理（前のバッチで扱われなかったもの）
+              const remainingEdges = result.data.edges.filter(edge => 
+                nodeIdMap.has(edge.source) && nodeIdMap.has(edge.target)
+              );
+              
+              for (const edge of remainingEdges) {
                 // 数値に変換
                 const strengthValue = typeof edge.strength === 'string' ? parseFloat(edge.strength) : (edge.strength || 0.5);
                 
-                await db.insert(knowledgeEdges).values({
-                  id: randomUUID(),
-                  sourceId: edge.source,
-                  targetId: edge.target,
-                  label: edge.label || null,
-                  roleModelId,
-                  strength: strengthValue
-                });
-                
-                // Neo4jにも保存
                 try {
+                  await db.insert(knowledgeEdges).values({
+                    id: randomUUID(),
+                    sourceId: edge.source,
+                    targetId: edge.target,
+                    label: edge.label || null,
+                    roleModelId,
+                    strength: strengthValue
+                  });
+                  
+                  // Neo4jにも保存
                   await createEdgeInNeo4j({
                     sourceId: edge.source,
                     targetId: edge.target,
@@ -1783,8 +1876,8 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
                     roleModelId,
                     strength: strengthValue
                   });
-                } catch (neo4jError) {
-                  console.error('CrewAI生成時のNeo4jエッジ作成エラー (無視して続行):', neo4jError);
+                } catch (edgeError) {
+                  console.error('エッジ作成エラー (無視して続行):', edgeError);
                 }
               }
               
