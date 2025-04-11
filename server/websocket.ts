@@ -1216,9 +1216,10 @@ export function sendCompletionMessage(
  * @param agentName エージェント名
  * @param thoughts 思考内容
  * @param roleModelId ロールモデルID
- * @param detailedData 詳細なデータ
+ * @param detailedData 詳細データ（graphUpdate:ナレッジグラフの部分的な更新を含む場合がある）
  */
-export function sendAgentThoughts(
+export
+function sendAgentThoughts(
   agentName: string,
   thoughts: string,
   roleModelId: string,
@@ -1252,6 +1253,24 @@ export function sendAgentThoughts(
   });
 
   console.log(`エージェント思考を送信: ${roleModelId}, ${agentName}, "${thoughts.substring(0, 50)}..."`);
+  
+  // グラフ更新データが含まれている場合は、部分的な更新も送信
+  if (detailedData && (detailedData.graphUpdate || detailedData.knowledgeGraphUpdate)) {
+    const graphData = detailedData.graphUpdate || detailedData.knowledgeGraphUpdate;
+    if (graphData && graphData.nodes && graphData.edges) {
+      console.log(`エージェント ${agentName} からグラフ更新データを検出: ノード数=${graphData.nodes.length}, エッジ数=${graphData.edges.length}`);
+      
+      // 部分的なグラフ更新を送信
+      sendPartialGraphUpdate(
+        roleModelId,
+        {
+          nodes: graphData.nodes,
+          edges: graphData.edges
+        },
+        agentName
+      );
+    }
+  }
 }
 
 /**
@@ -1306,43 +1325,16 @@ export function sendMessageToRoleModelViewers(
   }
 }
 
-/**
- * 部分的なナレッジグラフ更新を送信する関数（段階的な構築用）
- * @param roleModelId ロールモデルID
- * @param partialData 部分的なグラフデータ（段階的に追加されるノードとエッジ）
- * @param agentName データを生成したエージェント名
- */
-export function sendPartialGraphUpdate(
-  roleModelId: string,
-  partialData: { nodes: any[], edges: any[] },
-  agentName?: string
-): void {
-  sendKnowledgeGraphUpdate(
-    roleModelId,
-    partialData,
-    'partial',
-    {
-      agentName,
-      isPartial: true,
-      message: '知識グラフを段階的に構築中です'
-    }
-  );
-}
+
 
 /**
- * 知識グラフ更新メッセージを送信する関数
- * @param roleModelId ロールモデルID
- * @param graphData 知識グラフデータ（ノードとエッジの配列）
- * @param updateType 更新タイプ（'create', 'update', 'delete', 'partial'）
- * @param additionalData 追加データ（オプション）
- */
-export /**
  * ナレッジグラフ更新を送信する関数
  * @param roleModelId ロールモデルID
  * @param graphData グラフデータ（ノードとエッジ）
  * @param updateType 更新タイプ（'create', 'update', 'delete', 'partial', 'complete'）
  * @param additionalData 追加データ
  */
+export
 function sendKnowledgeGraphUpdate(
   roleModelId: string,
   graphData: { nodes: any[], edges: any[] },
@@ -1411,6 +1403,36 @@ function sendKnowledgeGraphUpdate(
     
     console.log(`知識グラフ更新メッセージを${sentCount}個のクライアントに送信完了`);
   });
+}
+
+/**
+ * 部分的なナレッジグラフ更新を送信する関数（段階的な構築用）
+ * @param roleModelId ロールモデルID
+ * @param partialData 部分的なグラフデータ（段階的に追加されるノードとエッジ）
+ * @param agentName データを生成したエージェント名
+ */
+export function sendPartialGraphUpdate(
+  roleModelId: string,
+  partialData: { nodes: any[], edges: any[] },
+  agentName: string = ''
+): void {
+  console.log(`部分的なグラフ更新を送信: roleModelId=${roleModelId}, エージェント=${agentName}, ノード数=${partialData.nodes.length}, エッジ数=${partialData.edges.length}`);
+  
+  // 部分更新として明示的にマーキング
+  const additionalData = {
+    isPartial: true,
+    agentName,
+    partialUpdateId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // 一意の更新ID
+    timestamp: new Date().toISOString()
+  };
+  
+  // 部分更新として送信（'partial'タイプを使用）
+  sendKnowledgeGraphUpdate(
+    roleModelId,
+    partialData,
+    'partial',
+    additionalData
+  );
 }
 
 /**
