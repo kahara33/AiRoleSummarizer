@@ -6,7 +6,7 @@ import {
   sendAgentThoughts,
   sendMessageToRoleModelViewers,
   sendKnowledgeGraphUpdate
-} from './websocket';
+} from './websocket-fixed';
 import { registerDebugRoutes } from './debug-routes';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
@@ -449,10 +449,9 @@ export async function registerRoutes(app: Express, server?: Server): Promise<Ser
   });
   
   // WebSocketサーバーのセットアップ
-  // 注: メインのWebSocketサーバーは外部でセットアップされるため、こちらの初期化は無効化
-  // if (!server) {
-  //   initWebSocket(httpServer);
-  // }
+  if (!server) {
+    initWebSocket(httpServer);
+  }
   
   // API エンドポイントの設定
   
