@@ -173,10 +173,17 @@ export function initWebSocket(server: HttpServer): void {
             try {
               const data = JSON.parse(msgStr);
               const clientId = (ws as any).clientId || 'unknown';
-              console.log(`メッセージ受信: clientId=${clientId}, type=${data.type}`);
+              
+              // メッセージタイプの正規化
+              const rawType = data.type || 'unknown';
+              const normalizedType = typeof rawType === 'string' ? rawType.toLowerCase() : 'unknown';
+              data.originalType = data.type; // 元のタイプを保存
+              data.type = normalizedType;    // 正規化したタイプで上書き
+              
+              console.log(`メッセージ受信: clientId=${clientId}, type=${normalizedType}, original=${rawType}`);
               
               // pingメッセージの場合はpongですぐに応答
-              if (data.type === 'ping') {
+              if (normalizedType === 'ping') {
                 console.log('Ping received from client');
                 ws.send(JSON.stringify({
                   type: 'pong',
