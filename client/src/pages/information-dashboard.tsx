@@ -92,87 +92,9 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     console.log("進捗更新の数:", progressUpdates.length);
     console.log("処理中フラグ:", isProcessing);
     
-    // テスト用の処理（この実装はテスト後に削除してください）
-    if (agentThoughts.length === 0 && roleModelId) {
-      console.log("WebSocketメッセージングのテスト - Replitのエージェントチャットライクな表示");
-      
-      // テスト用にWebSocketメッセージを追加する代わりに、WebSocketメッセージを手動で送信
-      if (send) {
-        // 一連のエージェント思考と進捗更新を時間差で送信
-        const agents = [
-          { name: "ドメイン分析エージェント", type: "domain_analyst" },
-          { name: "トレンド調査エージェント", type: "trend_researcher" },
-          { name: "コンテキストマッピングエージェント", type: "context_mapper" },
-          { name: "プラン戦略エージェント", type: "plan_strategist" },
-          { name: "批判的思考エージェント", type: "critical_thinker" }
-        ];
-        
-        const thoughts = [
-          "分析を開始しています。情報を収集中...",
-          "キーとなる特性とパターンを特定しています。",
-          "関連データを評価して、重要な関係性を見つけています。",
-          "収集したデータに基づいて戦略を策定しています。",
-          "構築された知識構造の整合性と完全性を確認中です。"
-        ];
-        
-        // 複数のメッセージをシーケンシャルに送信
-        let delay = 500;
-        agents.forEach((agent, index) => {
-          setTimeout(() => {
-            // エージェント思考メッセージ
-            send('agent_thoughts', {
-              id: `test-thought-${index + 1}`,
-              roleModelId: roleModelId,
-              agentName: agent.name,
-              agentType: agent.type,
-              thought: thoughts[index],
-              message: `${agent.name}の思考: ${thoughts[index]}`,
-              type: "thinking",
-              timestamp: new Date().toISOString()
-            });
-            
-            // 少し遅れて進捗更新
-            setTimeout(() => {
-              send('progress', {
-                roleModelId: roleModelId,
-                stage: `${agent.name}のフェーズ`,
-                progress: 20 * (index + 1),
-                message: `プロセスが${20 * (index + 1)}%完了しました`,
-                details: { step: agent.type },
-                percent: 20 * (index + 1)
-              });
-            }, 300);
-          }, delay);
-          
-          delay += 1500; // 次のエージェントのディレイを増加
-        });
-        
-        // 最後に成功メッセージ
-        setTimeout(() => {
-          send('agent_thoughts', {
-            id: "test-thought-completion",
-            roleModelId: roleModelId,
-            agentName: "システム",
-            agentType: "system",
-            thought: "全エージェントの処理が完了しました。知識グラフと情報収集プランが正常に生成されました。",
-            message: "処理完了: 知識グラフと情報収集プランが生成されました。",
-            type: "success",
-            timestamp: new Date().toISOString()
-          });
-          
-          // 完了進捗
-          send('progress', {
-            roleModelId: roleModelId,
-            stage: "完了",
-            progress: 100,
-            message: "処理が完了しました",
-            details: { step: "completion" },
-            percent: 100
-          });
-        }, delay + 1000);
-      }
-    }
-  }, [agentThoughts.length, progressUpdates.length, isProcessing, roleModelId, send]);
+    // なにもしない - 以前あったテスト処理は削除されました
+    // 自動実行は行わず、ユーザーが明示的にボタンをクリックした場合のみ実行されます
+  }, [agentThoughts.length, progressUpdates.length, isProcessing]);
   
   // roleModelIdが設定されたらWebSocketを接続
   useEffect(() => {
