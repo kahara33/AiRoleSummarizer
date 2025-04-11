@@ -218,22 +218,11 @@ export function initWebSocket(server: HttpServer): void {
                     
                     console.log(`サブスクリプション確認を送信: clientId=${(ws as any).clientId || 'unknown'}`);
                     
-                    // サブスクリプション確認後に、ナレッジグラフデータを存在すれば提供
+                    // 既存のナレッジグラフがあれば送信
                     try {
-                      // データベースからそのロールモデルの最新ナレッジグラフを取得するコードをここに入れる
-                      // (実際のデータ取得ロジックはここでは省略)
-                      
-                      // 簡易的な成功メッセージを送信
-                      setTimeout(() => {
-                        ws.send(JSON.stringify({
-                          type: 'subscription_data_ready',
-                          message: `ロールモデル ${specificRoleModelId} のデータの準備ができました`,
-                          roleModelId: specificRoleModelId,
-                          timestamp: new Date().toISOString()
-                        }));
-                      }, 500);
-                    } catch (dataError) {
-                      console.error(`サブスクリプションデータ準備エラー: ${dataError}`);
+                      sendExistingKnowledgeGraph(ws, specificRoleModelId);
+                    } catch (graphError) {
+                      console.error(`既存ナレッジグラフの送信エラー: ${graphError}`);
                     }
                   } catch (sendError) {
                     console.error(`サブスクリプション確認メッセージ送信エラー: ${sendError}`);
