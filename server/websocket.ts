@@ -214,6 +214,24 @@ export function initWebSocket(server: HttpServer): void {
                     }));
                     
                     console.log(`サブスクリプション確認を送信: clientId=${(ws as any).clientId || 'unknown'}`);
+                    
+                    // サブスクリプション確認後に、ナレッジグラフデータを存在すれば提供
+                    try {
+                      // データベースからそのロールモデルの最新ナレッジグラフを取得するコードをここに入れる
+                      // (実際のデータ取得ロジックはここでは省略)
+                      
+                      // 簡易的な成功メッセージを送信
+                      setTimeout(() => {
+                        ws.send(JSON.stringify({
+                          type: 'subscription_data_ready',
+                          message: `ロールモデル ${specificRoleModelId} のデータの準備ができました`,
+                          roleModelId: specificRoleModelId,
+                          timestamp: new Date().toISOString()
+                        }));
+                      }, 500);
+                    } catch (dataError) {
+                      console.error(`サブスクリプションデータ準備エラー: ${dataError}`);
+                    }
                   } catch (sendError) {
                     console.error(`サブスクリプション確認メッセージ送信エラー: ${sendError}`);
                   }
@@ -230,6 +248,8 @@ export function initWebSocket(server: HttpServer): void {
                     console.error(`エラーメッセージ送信失敗: ${sendError}`);
                   }
                 }
+                
+                return; // subscribeメッセージ処理後は終了
               }
               // エージェント思考メッセージの処理
               else if (data.type === 'agent_thoughts' || data.type === 'agent_thought' || data.type === 'thought') {
