@@ -24,8 +24,16 @@ let wss: WebSocketServer;
 // ロールモデルIDごとのクライアント接続を追跡
 const clients: Map<string, Set<WebSocket>> = new Map();
 
+// ロールモデルIDごとのクライアントIDを追跡
+const modelIdToClients: Map<string, Set<string>> = new Map();
+
 // クライアント購読情報を追跡
 const clientSubscriptions: Map<WebSocket, Set<string>> = new Map();
+
+// WebSocketからクライアントIDを取得する関数
+function getClientId(ws: WebSocket): string {
+  return (ws as any).clientId || 'unknown-client';
+}
 
 // 進捗更新の型
 export type ProgressUpdateData = {

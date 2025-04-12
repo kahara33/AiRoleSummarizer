@@ -157,6 +157,18 @@ class GlobalWebSocketManager {
         // 接続状態変更の通知
         onStatusChange?.(true);
         
+        // サブスクリプションメッセージを送信
+        try {
+          console.log(`roleModelId=${roleModelId}の情報をサブスクライブします`);
+          newSocket.send(JSON.stringify({
+            type: 'subscribe',
+            roleModelId: roleModelId,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (e) {
+          console.error('サブスクリプションメッセージ送信エラー:', e);
+        }
+        
         // トースト通知は使用者が管理
         
         // pingインターバルの設定（既存のものがあればクリア）
@@ -470,11 +482,11 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     lastConnectAttemptRef.current = now;
     
     // 既に同じロールモデルに接続済みの場合は接続しない
-    if (socket && isConnected && currentRoleModelId === roleModelId) {
+    if (isConnected && currentRoleModelId === roleModelId) {
       console.log(`既に ${roleModelId} に接続済みです。再接続をスキップします。`);
-      // 念のため接続状態を確認
-      if (socket.readyState !== WebSocket.OPEN) {
-        console.warn('WebSocketが接続済みと認識されていますが、実際には開いていません。状態:', socket.readyState);
+      // グローバルインスタンスから接続状態を確認
+      if (!socketManager.getConnectionStatus()) {
+        console.warn('WebSocketが接続済みと認識されていますが、実際には開いていません。');
         // 再接続を試みる
         setIsConnected(false);
       } else {
@@ -489,9 +501,9 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
     }
 
     // 既存の接続を閉じる
-    if (socket) {
+    if (socketManager.getSocket(user.id, roleModelId, setIsConnected)) {
       console.log('既存のWebSocket接続を閉じます');
-      socket.close();
+      socketManager.disconnect();
     }
 
     // 接続先URLの構築 - パスとクエリパラメータの設定
