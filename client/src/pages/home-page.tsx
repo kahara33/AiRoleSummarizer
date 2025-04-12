@@ -123,7 +123,7 @@ const HomePage: React.FC = () => {
                 <Card key={roleModel.id} className="h-full relative border border-gray-200">
                   {/* 歯車アイコン（設定） */}
                   <div className="absolute top-2 right-2 z-10">
-                    <Link to={`/role-model/${roleModel.id}`} onClick={(e) => e.stopPropagation()}>
+                    <Link to={`/knowledge-library/${roleModel.id}`} onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-gray-200/80">
                         <Settings className="h-4 w-4 text-gray-500" />
                       </Button>
@@ -131,7 +131,7 @@ const HomePage: React.FC = () => {
                   </div>
                   
                   {/* カードコンテンツ（クリック可能） */}
-                  <Link to={`/information-dashboard/${roleModel.id}`}>
+                  <Link to={`/knowledge-library/${roleModel.id}`}>
                     <div className="p-6 cursor-pointer hover:bg-gray-50 transition-colors">
                       <div className="flex items-center justify-center h-14 w-14 bg-primary-100 rounded-lg mb-4">
                         <User className="h-8 w-8 text-primary-700" />
