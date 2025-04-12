@@ -351,6 +351,12 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
   // 初期ナレッジグラフの存在確認
   useEffect(() => {
+    // autoLoadが無効の場合は処理をスキップ
+    if (autoLoad === false) {
+      console.log('自動データロードが無効になっています - ナレッジグラフの確認をスキップします');
+      return;
+    }
+    
     // ナレッジグラフが存在するか確認
     const checkKnowledgeGraphExists = async () => {
       try {
@@ -367,8 +373,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       }
     };
     
+    console.log(`[KnowledgeGraphViewer] autoLoad=${autoLoad}のため、ナレッジグラフの存在を確認します`);
     checkKnowledgeGraphExists();
-  }, [roleModelId, onGraphDataChange]);
+  }, [roleModelId, onGraphDataChange, autoLoad]);
 
   // ノード操作ユーティリティのセットアップ
   const nodeOperations = useNodeOperations(roleModelId, requestGraphData, setUndoStack);
