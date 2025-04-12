@@ -14,6 +14,19 @@ import InformationPlanList from '@/components/collection-plan/InformationPlanLis
 import InformationPlanDetail from '@/components/collection-plan/InformationPlanDetail';
 
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket';
+
+// エージェント思考の型定義
+interface AgentThought {
+  id: string;
+  roleModelId: string;
+  agentName: string;
+  agentType?: string;
+  thought: string;
+  message: string;
+  type: string;
+  timestamp: string;
+  step?: string;
+}
 // UIコンポーネントではなく、直接ボタンを使用
 import { 
   Plus, 
@@ -51,15 +64,25 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
     enabled: roleModelId !== 'default',
   });
   
-  // WebSocketメッセージを処理
+  // WebSocketメッセージを処理と独自のローカル状態
   const { 
-    agentThoughts, 
+    agentThoughts: wsAgentThoughts, 
     isConnected, 
     sendMessage: send, 
     connect, 
-    isProcessing, 
-    progressUpdates
+    isProcessing: wsIsProcessing, 
+    progressUpdates: wsProgressUpdates
   } = useMultiAgentWebSocket();
+  
+  // ローカルシミュレーション用の状態
+  const [localIsProcessing, setLocalIsProcessing] = useState<boolean>(false);
+  const [localAgentThoughts, setLocalAgentThoughts] = useState<AgentThought[]>([]);
+  const [localProgressUpdates, setLocalProgressUpdates] = useState<ProgressUpdate[]>([]);
+  
+  // 合成された状態（WebSocketまたはローカル）
+  const isProcessing = wsIsProcessing || localIsProcessing;
+  const agentThoughts = [...wsAgentThoughts, ...localAgentThoughts];
+  const progressUpdates = [...wsProgressUpdates, ...localProgressUpdates];
   
   // KnowledgeGraphViewerからのデータ有無状態を更新する関数
   const handleKnowledgeGraphData = (hasData: boolean) => {
@@ -141,7 +164,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
   const generateKnowledgeLibraryMutation = useMutation({
     mutationFn: async () => {
       // ローディング状態を設定
-      setIsProcessing(true);
+      setLocalIsProcessing(true);
       
       // エージェントパネルを確実に表示
       setShowAgentPanel(true);
