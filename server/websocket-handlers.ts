@@ -339,13 +339,14 @@ export async function handleCancelOperation(message: any, roleModelId: string) {
       { status: 'cancelled' }
     );
     
-    // エージェント処理
-    websocket.sendAgentThoughts(
-      'システム',
-      `${operationType}の処理がキャンセルされました`,
+    // エージェント処理（システム通知として送信）
+    websocket.sendMessage({
+      type: 'agent_thought',
+      agentType: 'システム', 
+      content: `${operationType}の処理がキャンセルされました`,
       roleModelId,
-      'cancelled'
-    );
+      status: 'cancelled'
+    });
     
     return true;
   } catch (error) {
