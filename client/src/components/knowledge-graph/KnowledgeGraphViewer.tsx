@@ -1587,7 +1587,14 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                               variant="outline"
                               size="sm"
                               className="h-8 w-8 p-0"
-                              onClick={handleUndo}
+                              onClick={() => {
+                                if (undoStack.length > 0) {
+                                  const lastAction = undoStack[undoStack.length - 1];
+                                  // ここで元に戻す処理を実装
+                                  console.log('元に戻す操作:', lastAction);
+                                  setUndoStack(prev => prev.slice(0, -1));
+                                }
+                              }}
                             >
                               <RotateCcw className="h-4 w-4" />
                             </Button>
