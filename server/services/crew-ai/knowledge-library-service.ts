@@ -588,3 +588,52 @@ export async function getCollectionSources(collectionPlanId: string, executionId
     return [];
   }
 }
+
+/**
+ * CrewAIを使用してナレッジライブラリを生成する
+ * 
+ * @param input 入力データ（ロールモデルID、業界、キーワードなど）
+ * @returns 処理結果
+ */
+export async function generateKnowledgeLibraryWithCrewAI(input: {
+  roleModelId: string;
+  industries: { id: string; name: string; description: string }[];
+  keywords: { id: string; name: string; description: string }[] | null;
+  roleModelName: string;
+  roleModelDescription: string;
+}): Promise<{ success: boolean; error?: any }> {
+  try {
+    console.log(`ナレッジライブラリ生成を開始します: ${input.roleModelId}`);
+    
+    const { roleModelId, industries, keywords, roleModelName } = input;
+    
+    // 情報収集プランを作成
+    const initialPlanTitle = `${roleModelName}の知識ベース構築`;
+    const plan = await createCollectionPlan(
+      roleModelId,
+      initialPlanTitle,
+      'system',
+      {
+        enabledTools: ['exa'],
+        searchDepth: 2,
+        maxResults: 15
+      }
+    );
+    
+    // CrewAIプロセスを実行
+    const success = await runKnowledgeLibraryProcess(
+      roleModelId,
+      plan.id,
+      { 
+        title: initialPlanTitle,
+        industries: industries.map(i => i.name),
+        keywords: keywords ? keywords.map(k => k.name) : []
+      }
+    );
+    
+    return { success };
+  } catch (error) {
+    console.error(`ナレッジライブラリ生成エラー:`, error);
+    return { success: false, error };
+  }
+}
