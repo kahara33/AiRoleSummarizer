@@ -105,7 +105,7 @@ export default function Dashboard() {
             : "flex flex-col space-y-3"
           }>
             {roleModels.map((roleModel) => (
-              <Link key={roleModel.id} href={`/role-model/${roleModel.id}/knowledge-graph`}>
+              <Link key={roleModel.id} href={`/knowledge-library/${roleModel.id}`}>
                 <Card className={`
                   cursor-pointer transition-all duration-200 
                   hover:shadow-md border border-gray-200 dark:border-gray-700
@@ -136,9 +136,9 @@ export default function Dashboard() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                window.location.href = `/role-model/${roleModel.id}/knowledge-graph`;
+                                window.location.href = `/knowledge-library/${roleModel.id}`;
                               }}
-                              title="知識グラフ"
+                              title="ナレッジライブラリ"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="18" cy="5" r="3"></circle>
