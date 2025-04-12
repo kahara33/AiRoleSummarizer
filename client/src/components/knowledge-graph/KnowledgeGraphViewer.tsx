@@ -1238,23 +1238,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       ) : (
         <div className="flex-1 h-full" style={{ height: 'calc(100% - 36px)', width: '100%', minHeight: '500px', position: 'relative' }}>
           <ReactFlowProvider>
-            {/* ReactFlow用の明示的なサイズを持つコンテナ */}
-            <div style={{ 
-              width: '100%', 
-              height: '100%', 
-              position: 'absolute', 
-              top: 0, 
-              left: 0,
-              overflow: 'hidden' 
-            }}>
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <ReactFlow
-                style={{ 
-                  height: '100%', 
-                  width: '100%',
-                  backgroundColor: '#f9f9f9',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '0.5rem'
-                }}
+                style={{ height: '100%', width: '100%' }}
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={handleNodesChange}
@@ -1265,21 +1251,17 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                 edgeTypes={edgeTypes}
                 connectionLineType={ConnectionLineType.SmoothStep}
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
                 attributionPosition="bottom-right"
                 onNodeContextMenu={(e, node) => {
                   // コンテキストメニューは各ノードコンポーネント内で処理
                   e.preventDefault();
                 }}
                 defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                proOptions={{ hideAttribution: true }}
               >
-                <Background color="#e1e1e1" gap={16} />
+                <Background color="#aaa" gap={16} />
                 <Controls 
                   position="bottom-left"
                   style={{ bottom: 42, left: 12 }}
-                  className="border border-gray-300 shadow-md rounded-md bg-white/60"
-                  showInteractive={false}
                 />
                 <MiniMap
                   position="bottom-right"
@@ -1288,10 +1270,6 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                   nodeColor={(node) => {
                     return node.data?.color || '#1a192b';
                   }}
-                  maskColor="rgba(240, 240, 240, 0.3)"
-                  className="border border-gray-300 shadow-md rounded-md bg-white/40"
-                  zoomable
-                  pannable
                 />
                 
                 {/* グラフ保存パネル */}
