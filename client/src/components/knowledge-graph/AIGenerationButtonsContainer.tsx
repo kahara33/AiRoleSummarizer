@@ -27,10 +27,6 @@ export default function AIGenerationButtonsContainer({
   // ボタン状態を管理
   const [graphGenerationActive, setGraphGenerationActive] = useState(false);
   const [planGenerationActive, setPlanGenerationActive] = useState(false);
-  
-  // WebSocketからの進捗情報を利用するためのステート
-  const [graphProgress, setGraphProgress] = useState(0);
-  const [planProgress, setPlanProgress] = useState(0);
 
   // ボタン間で状態を共有
   useEffect(() => {

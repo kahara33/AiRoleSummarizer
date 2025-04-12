@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Loader2, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ interface CollectionPlanGenerationButtonProps {
   className?: string;
   hasKnowledgeGraph?: boolean;
   disabled?: boolean;
+  onGeneratingChange?: (isGenerating: boolean) => void;
 }
 
 /**
@@ -25,7 +26,8 @@ export default function CollectionPlanGenerationButton({
   initialKeywords = [],
   className = '',
   hasKnowledgeGraph = false,
-  disabled = false
+  disabled = false,
+  onGeneratingChange
 }: CollectionPlanGenerationButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -53,6 +55,13 @@ export default function CollectionPlanGenerationButton({
       }
     }
   });
+  
+  // 生成状態が変更されたときに親コンポーネントに通知
+  useEffect(() => {
+    if (onGeneratingChange) {
+      onGeneratingChange(isGenerating);
+    }
+  }, [isGenerating, onGeneratingChange]);
 
   // 情報収集プラン生成を開始する関数
   const handleStartGeneration = useCallback(async () => {

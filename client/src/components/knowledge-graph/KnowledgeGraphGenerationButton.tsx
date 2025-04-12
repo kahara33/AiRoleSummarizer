@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Loader2, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,8 @@ interface KnowledgeGraphGenerationButtonProps {
   initialKeywords?: string[];
   className?: string;
   hasKnowledgeGraph?: boolean;
+  disabled?: boolean;
+  onGeneratingChange?: (isGenerating: boolean) => void;
 }
 
 /**
@@ -23,7 +25,9 @@ export default function KnowledgeGraphGenerationButton({
   industry = '',
   initialKeywords = [],
   className = '',
-  hasKnowledgeGraph = false
+  hasKnowledgeGraph = false,
+  disabled = false,
+  onGeneratingChange
 }: KnowledgeGraphGenerationButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -52,6 +56,13 @@ export default function KnowledgeGraphGenerationButton({
       }
     }
   });
+  
+  // 生成状態が変更されたときに親コンポーネントに通知
+  useEffect(() => {
+    if (onGeneratingChange) {
+      onGeneratingChange(isGenerating);
+    }
+  }, [isGenerating, onGeneratingChange]);
 
   // ナレッジグラフ生成を開始する関数
   const handleStartGeneration = useCallback(async () => {
@@ -183,6 +194,7 @@ export default function KnowledgeGraphGenerationButton({
         <Button
           className={`gap-2 ${className}`}
           onClick={handleStartGeneration}
+          disabled={disabled}
         >
           <BrainCircuit className="h-5 w-5" />
           ナレッジグラフ＆情報収集プラン生成
