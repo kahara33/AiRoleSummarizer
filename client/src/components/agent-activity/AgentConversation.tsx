@@ -12,13 +12,25 @@ interface AgentConversationProps {
   roleModelId?: string;
   height?: string;
   onSendMessage?: (message: string) => void;
+  agentThoughts?: any[];
+  progressUpdates?: any[];
+  isProcessing?: boolean;
+  className?: string;
 }
 
 /**
  * AIエージェントの会話を表示するコンポーネント
  * WebSocketを使用してリアルタイムにエージェントからのメッセージを受信し、表示します
  */
-const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, height = '500px', onSendMessage }) => {
+const AgentConversation: React.FC<AgentConversationProps> = ({ 
+  roleModelId, 
+  height = '500px', 
+  onSendMessage,
+  agentThoughts: externalAgentThoughts,
+  progressUpdates: externalProgressUpdates,
+  isProcessing: externalIsProcessing,
+  className
+}) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [showThinking, setShowThinking] = useState(false);
   const [thinkingAgentName, setThinkingAgentName] = useState<string | null>(null);
@@ -29,13 +41,18 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
     isConnected,
     connecting,
     error, 
-    agentThoughts,
-    progressUpdates,
-    isProcessing,
+    agentThoughts: internalAgentThoughts,
+    progressUpdates: internalProgressUpdates,
+    isProcessing: internalIsProcessing,
     connect,
     disconnect,
     sendMessage
   } = useMultiAgentWebSocket();
+  
+  // 親から渡されたプロパティを優先して使用、なければ内部状態を使用
+  const agentThoughts = externalAgentThoughts || internalAgentThoughts;
+  const progressUpdates = externalProgressUpdates || internalProgressUpdates;
+  const isProcessing = externalIsProcessing !== undefined ? externalIsProcessing : internalIsProcessing;
   
   // roleModelIdが変更されたらWebSocket接続を確立
   useEffect(() => {
@@ -248,7 +265,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({ roleModelId, heig
   };
   
   return (
-    <div className="h-full flex flex-col" style={containerStyle}>      
+    <div className={`h-full flex flex-col ${className || ''}`} style={containerStyle}>      
       {/* メッセージ表示エリア */}
       <div className="flex-1 overflow-y-auto bg-white" ref={contentRef}>
         {renderError()}
