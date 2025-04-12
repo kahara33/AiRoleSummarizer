@@ -21,10 +21,23 @@ export const pool = new Pool({
   keepAlive: true
 });
 
-// エラー発生時のログ記録
+// エラー発生時のログ記録と自動復旧
 pool.on('error', (err: Error) => {
   console.error('予期せぬデータベースエラーが発生しました:', err);
   // クリティカルなエラーでもアプリケーションをクラッシュさせないよう、ここではエラーを処理するのみ
+  
+  // 接続が失われた場合は、自動的に再接続を試みる
+  if (err.message.includes('terminating connection') || 
+      err.message.includes('Connection terminated') ||
+      err.message.includes('Connection ended unexpectedly')) {
+    console.log('データベース接続が失われました。自動的に再接続を試みます...');
+    // 少し遅延させて再接続を試みる
+    setTimeout(() => {
+      testConnection()
+        .then(() => console.log('データベース接続の再確立に成功しました'))
+        .catch(reconnectErr => console.error('データベース再接続に失敗:', reconnectErr));
+    }, 3000);
+  }
 });
 
 // 再試行ロジックを含む接続テスト

@@ -195,12 +195,12 @@ export async function searchWithExa(
 
 /**
  * Exa検索APIを使用してコンテンツを取得する
- * @param urls 取得するURLのリスト
+ * @param url 取得するURL
  * @param roleModelId ロールモデルID (WebSocket通信用)
  * @returns 取得したコンテンツ
  */
 export async function fetchContentWithExa(
-  urls: string[],
+  url: string,
   roleModelId?: string
 ): Promise<{url: string; text: string}[]> {
   try {
@@ -226,8 +226,7 @@ export async function fetchContentWithExa(
     }
 
     // デバッグログ：コンテンツ取得リクエスト情報
-    console.log(`Exaコンテンツ取得実行: URLs=${urls.length}件`);
-    console.log('URLs:', urls);
+    console.log(`Exaコンテンツ取得実行: URL=${url}`);
     
     // Exa API へのリクエスト
     const response = await fetch('https://api.exa.ai/contents', {
@@ -236,7 +235,7 @@ export async function fetchContentWithExa(
         'Content-Type': 'application/json',
         'x-api-key': apiKey
       },
-      body: JSON.stringify({ urls })
+      body: JSON.stringify({ urls: [url] })
     });
 
     // レスポンスのチェック
