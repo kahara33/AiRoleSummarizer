@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import { useUnifiedWebSocket } from '@/hooks/use-unified-websocket';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import InformationPlanList from '@/components/collection-plan/InformationPlanList';
 import InformationPlanDetail from '@/components/collection-plan/InformationPlanDetail';
@@ -75,7 +75,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
     connect, 
     isProcessing: wsIsProcessing, 
     progressUpdates: wsProgressUpdates
-  } = useMultiAgentWebSocket();
+  } = useUnifiedWebSocket();
   
   // ローカルシミュレーション用の状態
   const [localIsProcessing, setLocalIsProcessing] = useState<boolean>(false);

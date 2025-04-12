@@ -40,7 +40,6 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
   const { 
     isConnected,
     connect,
-    disconnect,
     agentThoughts: internalAgentThoughts,
     progressUpdates: internalProgressUpdates,
     isProcessing: internalIsProcessing,
@@ -59,15 +58,19 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
   // roleModelIdが変更されたらWebSocket接続を確立
   useEffect(() => {
     if (roleModelId) {
+      setConnecting(true);
       connect(roleModelId);
-    } else {
-      disconnect();
+      // 接続状態が変化したときに接続中フラグを更新
+      setTimeout(() => {
+        setConnecting(false);
+      }, 1000);
     }
     
+    // 現在のunifiedWebSocketには切断メソッドがない
     return () => {
-      disconnect();
+      // 特に何もしない（現在のuseUnifiedWebSocketにはdisconnectメソッドがない）
     };
-  }, [roleModelId, connect, disconnect]);
+  }, [roleModelId, connect]);
   
   // エージェントの思考状態を更新
   useEffect(() => {
@@ -189,7 +192,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
     // すべてのメッセージを一つの配列にまとめて時系列順にソート
     const allMessages = [
       // エージェントの思考メッセージ
-      ...agentThoughts.map(thought => ({
+      ...agentThoughts.map((thought: any) => ({
         id: thought.id || `thought-${thought.timestamp}`,
         type: 'agent',
         agentName: thought.agentName,
@@ -199,7 +202,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
       })),
       
       // 進捗更新メッセージ
-      ...progressUpdates.map(update => ({
+      ...progressUpdates.map((update: any) => ({
         id: `progress-${update.timestamp}`,
         type: 'system',
         agentName: 'システム',
