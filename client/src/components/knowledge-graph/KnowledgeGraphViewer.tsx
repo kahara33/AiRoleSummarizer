@@ -462,7 +462,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         }
       },
     });
-  }, [roleModelId, fetchGraphData]);
+  }, [roleModelId, requestGraphData]);
   
   // ノード拡張（AI）
   const handleExpandNode = useCallback(async (nodeId: string) => {
@@ -495,7 +495,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       console.error('ノード拡張エラー:', error);
       alert('ノードの拡張中にエラーが発生しました');
     }
-  }, [roleModelId, fetchGraphData]);
+  }, [roleModelId, requestGraphData]);
   
   // ノードダイアログで保存ボタンが押されたときの処理
   const handleNodeSave = useCallback(async (data: { name: string; description: string; nodeType: string }) => {
@@ -678,7 +678,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       alert('操作中にエラーが発生しました');
       await fetchGraphData(); // エラー時は全体を再取得
     }
-  }, [nodeDialog, nodes, nodeOperations, fetchGraphData, setNodes, setEdges]);
+  }, [nodeDialog, nodes, nodeOperations, requestGraphData, setNodes, setEdges]);
   
   // ノードタイプに基づいて色を取得する関数
   const getNodeColor = useCallback((nodeType: string) => {
@@ -772,7 +772,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       console.error('Undo処理エラー:', error);
       alert('操作を元に戻す際にエラーが発生しました');
     }
-  }, [undoStack, roleModelId, fetchGraphData]);
+  }, [undoStack, roleModelId, requestGraphData]);
   
   // キーボードショートカット処理（Ctrl+Z）
   useEffect(() => {
@@ -1069,7 +1069,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         duration: 5000,
       });
     }
-  }, [roleModelId, fetchGraphData]);
+  }, [roleModelId, requestGraphData]);
 
   // AI生成リクエスト
   const generateKnowledgeGraph = useCallback(async () => {
@@ -1172,7 +1172,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       removeSocketListener('agent_thoughts', handleAgentThoughts);
       console.log('Removed progress and agent_thoughts listeners');
     };
-  }, [roleModelId, fetchGraphData, generating]);
+  }, [roleModelId, requestGraphData, generating]);
 
   return (
     <div className="flex flex-col w-full h-full" style={{ height: '100%' }}>
