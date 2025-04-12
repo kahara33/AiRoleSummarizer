@@ -51,17 +51,21 @@ export interface ExaSearchResponse {
 
 /**
  * Exa検索APIを使用して検索を実行する
- * @param options 検索オプション
+ * @param query 検索クエリ
+ * @param numResults 取得結果数
  * @param roleModelId ロールモデルID (WebSocket通信用)
  * @returns 検索結果
  */
 export async function searchWithExa(
-  options: ExaSearchOptions,
+  query: string,
+  numResults: number = 10,
   roleModelId?: string
-): Promise<{
-  sources: ExaSearchResult[];
-  summary: string;
-}> {
+): Promise<ExaSearchResult[]> {
+  // 後方互換性のためにオプションオブジェクトに変換
+  const options: ExaSearchOptions = {
+    query: query,
+    numResults: numResults
+  };
   try {
     // Exa API Key の取得
     const apiKey = process.env.EXA_API_KEY;

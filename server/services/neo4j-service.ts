@@ -67,36 +67,58 @@ export async function getSession(): Promise<Session> {
 
 /**
  * ノードを作成する
- * @param options ノード作成オプション
+ * @param labelOrOptions ノードのラベルまたは作成オプション
+ * @param properties ノードのプロパティ
+ * @param roleModelId ロールモデルID（オプション）
  * @returns 作成されたノードのID
  */
-export async function createNode(options: {
-  labels: string[];
-  properties: Record<string, any>;
-}): Promise<string> {
+export async function createNode(
+  labelOrOptions: string | string[] | { labels: string[]; properties: Record<string, any> },
+  properties?: Record<string, any>,
+  roleModelId?: string
+): Promise<string> {
   const session = await getSession();
   try {
-    // ラベルとプロパティの準備
-    const labels = options.labels.join(':');
-    const properties = { ...options.properties };
+    let labels: string;
+    let nodeProperties: Record<string, any>;
+    
+    // パラメータの解析
+    if (typeof labelOrOptions === 'object' && !Array.isArray(labelOrOptions)) {
+      // オブジェクト形式
+      labels = labelOrOptions.labels.join(':');
+      nodeProperties = { ...labelOrOptions.properties };
+    } else {
+      // 文字列または配列形式
+      if (Array.isArray(labelOrOptions)) {
+        labels = labelOrOptions.join(':');
+      } else {
+        labels = labelOrOptions;
+      }
+      nodeProperties = { ...(properties || {}) };
+    }
+    
+    // roleModelIdの追加
+    if (roleModelId && !nodeProperties.roleModelId) {
+      nodeProperties.roleModelId = roleModelId;
+    }
     
     // idが無ければ生成
-    if (!properties.id) {
-      properties.id = uuidv4();
+    if (!nodeProperties.id) {
+      nodeProperties.id = uuidv4();
     }
     
     // 作成日時の設定
-    if (!properties.createdAt) {
-      properties.createdAt = new Date().toISOString();
+    if (!nodeProperties.createdAt) {
+      nodeProperties.createdAt = new Date().toISOString();
     }
     
     // プロパティのJSONシリアライズ
     const props: Record<string, any> = {};
-    for (const key in properties) {
-      if (typeof properties[key] === 'object' && properties[key] !== null) {
-        props[key] = JSON.stringify(properties[key]);
+    for (const key in nodeProperties) {
+      if (typeof nodeProperties[key] === 'object' && nodeProperties[key] !== null) {
+        props[key] = JSON.stringify(nodeProperties[key]);
       } else {
-        props[key] = properties[key];
+        props[key] = nodeProperties[key];
       }
     }
     

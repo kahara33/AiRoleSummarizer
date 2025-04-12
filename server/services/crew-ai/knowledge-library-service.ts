@@ -778,8 +778,9 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
         description: roleModelDescription || `${roleModelName}に関する知識グラフ`,
         level: 0,
         isRoot: true,
-        color: '#3182CE'
-      }, roleModelId);
+        color: '#3182CE',
+        roleModelId: roleModelId
+      });
       
       // 業界をノードとして追加
       if (industries && industries.length > 0) {
@@ -806,8 +807,9 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
             name: industry.name,
             description: industry.description || `${industry.name}業界`,
             level: 1,
-            color: '#ED8936'
-          }, roleModelId);
+            color: '#ED8936',
+            roleModelId: roleModelId
+          });
           
           // Neo4jにエッジ追加
           await neo4jService.createRelationship({
@@ -854,8 +856,9 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
             name: keyword.name,
             description: keyword.description || `${keyword.name}に関するキーワード`,
             level: 1,
-            color: '#805AD5'
-          }, roleModelId);
+            color: '#805AD5',
+            roleModelId: roleModelId
+          });
           
           // Neo4jにエッジ追加
           await neo4jService.createRelationship({
