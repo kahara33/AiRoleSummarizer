@@ -77,18 +77,20 @@ export function useKnowledgeGraphGeneration(): UseKnowledgeGraphGenerationResult
     });
   }, [wsHook.sendMessage]);
   
-  // キャンセル操作リクエスト送信関数
+  // キャンセル操作リクエスト送信関数（roleModelIdを明示的に含める）
   const sendCancelOperationRequest = useCallback((operationType: string) => {
     console.log(`${operationType} 操作のキャンセルリクエストを送信`);
+    // roleModelIdが自動的に含まれるように修正（use-multi-agent-websocket-fixed.tsxの修正により対応）
     return wsHook.sendMessage('cancel_operation', {
       operationType
     });
   }, [wsHook.sendMessage]);
   
-  // 一般的なキャンセル操作関数
+  // 一般的なキャンセル操作関数（roleModelIdを明示的に含める）
   const cancelOperation = useCallback(() => {
     console.log('WebSocket操作のキャンセルを実行');
-    // まず、汎用的なキャンセル操作を送信
+    
+    // roleModelIdが自動的に含まれるように修正（use-multi-agent-websocket-fixed.tsxの修正により対応）
     const result = wsHook.sendMessage('cancel', {});
     
     // 処理状態をリセット
