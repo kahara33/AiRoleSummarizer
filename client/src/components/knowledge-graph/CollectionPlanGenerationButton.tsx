@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Loader2, FileSpreadsheet } from "lucide-react";
+import { Loader2, BookMarked } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUnifiedWebSocket } from '@/hooks/use-unified-websocket';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -17,8 +17,8 @@ interface CollectionPlanGenerationButtonProps {
 }
 
 /**
- * 情報収集プラン生成ボタン（CrewAIを使用）
- * 既存のナレッジグラフをベースに情報収集プランのみを作成
+ * 情報収集プラン生成ボタン
+ * 既存のナレッジグラフを使用して情報収集プランのみを作成
  */
 export default function CollectionPlanGenerationButton({
   roleModelId,
@@ -32,7 +32,7 @@ export default function CollectionPlanGenerationButton({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
-  const [showNoGraphDialog, setShowNoGraphDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toast } = useToast();
   
   const { 
@@ -40,9 +40,9 @@ export default function CollectionPlanGenerationButton({
     sendMessage,
     isConnected, 
     progressUpdates,
+    sendCreateCollectionPlanRequest,
     sendCancelOperationRequest,
-    cancelOperation,
-    sendCreateKnowledgeGraphRequest
+    cancelOperation
   } = useUnifiedWebSocket();
   
   // コンポーネントのマウント時にWebSocketを接続（roleModelIdが変更されたときに再実行）
@@ -59,12 +59,27 @@ export default function CollectionPlanGenerationButton({
       const latestUpdate = progressUpdates[progressUpdates.length - 1];
       if (latestUpdate && typeof latestUpdate.progress === 'number') {
         setProgress(latestUpdate.progress);
+        
+        // 進捗が100%に達した場合、生成が完了したと判断
+        if (latestUpdate.progress === 100) {
+          setTimeout(() => {
+            setIsGenerating(false);
+            toast({
+              title: "処理完了",
+              description: "情報収集プランの生成が完了しました",
+            });
+            // 1秒後にページをリロードして新しいグラフを表示
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }, 1000); // 1秒待ってから完了させる
+        }
       }
       if (latestUpdate && latestUpdate.message) {
         setStatusMessage(latestUpdate.message);
       }
     }
-  }, [progressUpdates]);
+  }, [progressUpdates, toast]);
   
   // 生成状態が変更されたときに親コンポーネントに通知
   useEffect(() => {
@@ -85,8 +100,8 @@ export default function CollectionPlanGenerationButton({
     }
 
     if (!hasKnowledgeGraph) {
-      // グラフが存在しない場合は警告ダイアログを表示
-      setShowNoGraphDialog(true);
+      // ナレッジグラフが存在しない場合は確認ダイアログを表示
+      setShowConfirmDialog(true);
       return;
     }
 
@@ -115,13 +130,12 @@ export default function CollectionPlanGenerationButton({
       console.log('情報収集プラン生成リクエスト送信:', roleModelId);
       
       // 共通関数が利用可能ならそちらを使う
-      if (typeof sendCreateKnowledgeGraphRequest === 'function') {
-        sendCreateKnowledgeGraphRequest({
+      if (typeof sendCreateCollectionPlanRequest === 'function') {
+        sendCreateCollectionPlanRequest({
           roleModelId,  // 明示的にroleModelIdを渡す
-          includeCollectionPlan: true, 
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          useExistingGraph: true // 既存のナレッジグラフを使用
+          useExistingGraph: true,  // 既存グラフを使用する
         });
       } else {
         // フォールバック: 直接メッセージを送信
@@ -129,12 +143,15 @@ export default function CollectionPlanGenerationButton({
           roleModelId,  // roleModelIdを必ず含める
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          useExistingGraph: true  // 既存のナレッジグラフを使用
+          useExistingGraph: true,  // 既存グラフを使用する
         });
       }
 
       console.log('業界:', industry || '一般');
       console.log('キーワード:', initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ']);
+      
+      // 確認ダイアログを閉じる
+      setShowConfirmDialog(false);
       
     } catch (error) {
       console.error('情報収集プラン生成リクエストエラー:', error);
@@ -207,26 +224,24 @@ export default function CollectionPlanGenerationButton({
           className={`gap-2 ${className}`}
           onClick={handleStartGeneration}
           disabled={disabled || !hasKnowledgeGraph}
-          variant="outline"
+          variant="secondary"
         >
-          <FileSpreadsheet className="h-5 w-5" />
+          <BookMarked className="h-5 w-5" />
           情報収集プラン作成
         </Button>
       )}
 
-      {/* ナレッジグラフなし警告ダイアログ */}
-      <AlertDialog open={showNoGraphDialog} onOpenChange={setShowNoGraphDialog}>
+      {/* 確認ダイアログ */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>ナレッジグラフが存在しません</AlertDialogTitle>
             <AlertDialogDescription>
-              情報収集プランを生成するには、先にナレッジグラフを作成する必要があります。「ナレッジグラフ＆情報収集プラン生成」ボタンを使用して、両方同時に作成することをお勧めします。
+              情報収集プランを作成するには既存のナレッジグラフが必要です。先に「ナレッジグラフ＆情報収集プラン生成」ボタンからナレッジグラフを作成してください。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowNoGraphDialog(false)}>
-              了解
-            </AlertDialogAction>
+            <AlertDialogCancel>閉じる</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

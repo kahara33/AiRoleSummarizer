@@ -39,6 +39,14 @@ interface UnifiedWebSocketContextType {
     useExistingGraph?: boolean;
   }) => boolean;
   
+  // 特化型機能: 情報収集プラン生成
+  sendCreateCollectionPlanRequest: (options: {
+    roleModelId?: string;
+    industry?: string;
+    keywords?: string[];
+    useExistingGraph?: boolean;
+  }) => boolean;
+  
   // 特化型機能: キャンセル処理
   sendCancelOperationRequest: (operationType: string) => boolean;
   cancelOperation: () => boolean;
@@ -395,8 +403,8 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
   }) => {
     console.log('ナレッジグラフ生成リクエスト:', options);
     
-    // 既存のグラフを使用する場合と新規生成の場合で異なるメッセージタイプを使用
-    const messageType = options.useExistingGraph ? 'create_collection_plan' : 'create_knowledge_graph';
+    // ナレッジグラフ生成専用のメッセージタイプを使用
+    const messageType = 'create_knowledge_graph';
     
     return sendMessage(messageType, {
       roleModelId: options.roleModelId || currentRoleModelId,
@@ -404,6 +412,24 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
       industry: options.industry || '一般',
       keywords: options.keywords || ['情報収集', 'ナレッジグラフ'],
       useExistingGraph: !!options.useExistingGraph
+    });
+  }, [sendMessage, currentRoleModelId]);
+  
+  // 情報収集プラン生成リクエスト関数
+  const sendCreateCollectionPlanRequest = useCallback((options: {
+    roleModelId?: string;
+    industry?: string;
+    keywords?: string[];
+    useExistingGraph?: boolean;
+  }) => {
+    console.log('情報収集プラン生成リクエスト:', options);
+    
+    // 情報収集プラン生成専用のメッセージタイプを使用
+    return sendMessage('create_collection_plan', {
+      roleModelId: options.roleModelId || currentRoleModelId,
+      industry: options.industry || '一般',
+      keywords: options.keywords || ['情報収集', 'ナレッジグラフ'],
+      useExistingGraph: options.useExistingGraph !== false // デフォルトでtrue
     });
   }, [sendMessage, currentRoleModelId]);
   
@@ -440,6 +466,7 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
     clearMessages,
     forceResetProcessing,
     sendCreateKnowledgeGraphRequest,
+    sendCreateCollectionPlanRequest,
     sendCancelOperationRequest,
     cancelOperation
   };
