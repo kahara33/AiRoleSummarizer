@@ -45,7 +45,7 @@ interface UseKnowledgeGraphReturn {
   loadGraph: (snapshotId: string) => Promise<boolean>;
   resetGraph: () => void;
   // グラフデータを明示的にリクエストするメソッドを追加
-  requestGraphData: () => void;
+  requestGraphData: () => Promise<void>;
 }
 
 export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn {
