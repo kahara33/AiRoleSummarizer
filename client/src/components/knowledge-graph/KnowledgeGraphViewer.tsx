@@ -368,9 +368,19 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           if (onGraphDataChange) {
             onGraphDataChange(exists);
           }
+          
+          // グラフが存在する場合はデータを読み込む
+          if (exists) {
+            console.log('ナレッジグラフが存在するため、データを読み込みます');
+            fetchGraphData();
+          } else {
+            console.log('ナレッジグラフが存在しないため、データ読み込みをスキップします');
+            setLoading(false); // 読み込み状態を解除
+          }
         }
       } catch (error) {
         console.error('ナレッジグラフ確認エラー:', error);
+        setLoading(false); // エラー時にも読み込み状態を解除
       }
     };
     
