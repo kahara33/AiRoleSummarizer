@@ -1416,6 +1416,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         keywords,
         roleModelName: roleModel.name,
         roleModelDescription: roleModel.description || '',
+        userId: user?.id, // ユーザーIDを追加
       };
       
       // 処理を開始
