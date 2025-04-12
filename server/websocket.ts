@@ -170,7 +170,7 @@ export function sendAgentThoughts(
 ): void {
   // エージェント思考メッセージの作成
   const thoughtMessage = {
-    type: 'agent_thought',
+    type: 'agent_thoughts', // クライアント側のuse-multi-agent-websocket-fixedとの互換性のため'agent_thoughts'に変更
     agentName,
     thought,
     status,
