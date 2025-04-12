@@ -15,7 +15,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { eq, and, desc, SQL } from 'drizzle-orm';
 import { searchWithExa, executeSearchForCollectionPlan } from '../exa-search';
-import * as neo4jService from '../neo4j-service';
+import * as graphService from '../graph-service-adapter';
 import * as websocket from '../../websocket';
 import { 
   createInitialResearcherAgent,
@@ -304,7 +304,7 @@ export async function runKnowledgeLibraryProcess(
         }
         
         // メイントピックの作成
-        const mainNodeId = await neo4jService.generateNewKnowledgeGraph(
+        const mainNodeId = await graphService.generateNewKnowledgeGraph(
           roleModelId,
           {
             mainTopic: plan.title,
@@ -322,7 +322,7 @@ export async function runKnowledgeLibraryProcess(
         
         // 各サブトピックをグラフに追加
         for (const topic of topics) {
-          const nodeId = await neo4jService.createNode({
+          const nodeId = await graphService.createNode({
             labels: ['Topic', topic.type === 'insight' ? 'Insight' : (topic.type === 'pattern' ? 'Pattern' : 'Gap')],
             properties: {
               name: topic.name,
