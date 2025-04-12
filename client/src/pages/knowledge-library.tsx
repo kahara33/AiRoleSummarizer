@@ -12,8 +12,10 @@ import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import InformationPlanList from '@/components/collection-plan/InformationPlanList';
 import InformationPlanDetail from '@/components/collection-plan/InformationPlanDetail';
+import SummaryPanel from '@/components/summary/SummaryPanel';
 
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket';
+import { ExtendedKnowledgeNode } from '@/components/knowledge-graph/types';
 
 // エージェント思考の型定義
 interface AgentThought {
@@ -310,11 +312,25 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
 
   // 情報収集プランのステート
   const [selectedPlanData, setSelectedPlanData] = useState<any>(null);
+  // ナレッジグラフノードのステート
+  const [selectedNode, setSelectedNode] = useState<ExtendedKnowledgeNode | null>(null);
 
   // プランが選択されたときの処理
   const handlePlanSelect = (plan: any) => {
     setSelectedPlan(plan.id);
     setSelectedPlanData(plan);
+  };
+  
+  // ナレッジグラフのノードが選択されたときの処理
+  const handleNodeSelect = (node: ExtendedKnowledgeNode) => {
+    setSelectedNode(node);
+    // ノードが選択されたら要約タブに自動的に切り替える
+    setActiveTab('summary');
+    
+    toast({
+      title: "ノード選択",
+      description: `「${node.name}」に関連する情報を表示しています`,
+    });
   };
 
   // 新規Exa検索の実行（WebSocketに依存しない改善版）
@@ -654,6 +670,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                       <KnowledgeGraphViewer 
                         roleModelId={roleModelId}
                         onDataStatus={handleKnowledgeGraphData}
+                        onNodeSelect={handleNodeSelect}
                       />
                     ) : (
                       <div className="h-full flex items-center justify-center bg-gray-50">
@@ -667,23 +684,20 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                   </TabsContent>
                   
                   <TabsContent value="summary" className="h-full m-0 data-[state=active]:flex-1">
-                    <div className="h-full flex flex-col p-4">
-                      <h3 className="text-base font-medium mb-2">情報要約</h3>
-                      {roleModelId !== 'default' ? (
-                        <div className="flex-1 overflow-auto bg-white p-4 rounded-md border">
-                          {/* 要約コンテンツ - 今後実装 */}
-                          <p className="text-gray-500">要約は生成中または未生成です。AIエージェントによる要約生成をお待ちください。</p>
+                    {roleModelId !== 'default' ? (
+                      <SummaryPanel 
+                        roleModelId={roleModelId}
+                        selectedNodeId={selectedNode?.id}
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center bg-gray-50 p-4">
+                        <div className="text-center">
+                          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                          <h3 className="text-lg font-medium">ロールが選択されていません</h3>
+                          <p className="text-sm text-gray-500 mt-1">ロールモデルを選択して、要約を表示します。</p>
                         </div>
-                      ) : (
-                        <div className="flex-1 flex items-center justify-center bg-gray-50">
-                          <div className="text-center p-4">
-                            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                            <h3 className="text-lg font-medium">ロールが選択されていません</h3>
-                            <p className="text-sm text-gray-500 mt-1">ロールモデルを選択して、要約を表示します。</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </TabsContent>
                   
                   <TabsContent value="notes" className="h-full m-0 data-[state=active]:flex-1">
