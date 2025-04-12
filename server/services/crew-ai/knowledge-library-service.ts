@@ -131,7 +131,8 @@ export async function runKnowledgeLibraryProcess(
         websocket.sendAgentThoughts(
           agent.name, 
           `I'm gathering information about "${plan.title}" using our search API.`, 
-          roleModelId
+          roleModelId,
+          'thinking'
         );
         
         // Exa検索の実行（実際の取得）
@@ -195,7 +196,8 @@ export async function runKnowledgeLibraryProcess(
         websocket.sendAgentThoughts(
           agent.name, 
           `I'm analyzing the information we've collected about "${plan.title}".`, 
-          roleModelId
+          roleModelId,
+          'thinking'
         );
         
         // 分析の開始を通知
@@ -203,7 +205,8 @@ export async function runKnowledgeLibraryProcess(
           websocket.sendAgentThoughts(
             agent.name,
             `Extracting key insights and identifying patterns from the collected information...`,
-            roleModelId
+            roleModelId,
+            'thinking'
           );
         }, 2000);
         
@@ -271,7 +274,8 @@ export async function runKnowledgeLibraryProcess(
         websocket.sendAgentThoughts(
           agent.name, 
           `I'm designing a knowledge structure for "${plan.title}".`, 
-          roleModelId
+          roleModelId,
+          'thinking'
         );
         
         // 入力データの解析
@@ -347,7 +351,8 @@ export async function runKnowledgeLibraryProcess(
         websocket.sendAgentThoughts(
           agent.name, 
           `I'm writing a comprehensive report about "${plan.title}".`, 
-          roleModelId
+          roleModelId,
+          'thinking'
         );
         
         // 入力データの解析
