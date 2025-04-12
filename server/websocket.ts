@@ -282,6 +282,22 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     // 追加: トリミング処理も追加（余分なスペースや改行文字が含まれている可能性がある）
     const trimmedMessageType = messageType.trim();
     
+    // WebSocket処理デバッグ: 受信したメッセージタイプの最終形を強調表示
+    console.log(`⚠️ 処理するメッセージタイプ: [${trimmedMessageType}]`);
+    
+    // データの詳細をデバッグ表示
+    console.log(`デバッグ: メッセージ詳細 = ${JSON.stringify({
+      originalType: rawMessageType,
+      normalizedType: messageType,
+      finalType: trimmedMessageType,
+      roleModelId: data.roleModelId || (ws as any).roleModelId,
+      hasPayload: !!data.payload,
+      keys: Object.keys(data)
+    }, null, 2)}`);
+    
+    // ハンドラ検証のための変数
+    let handlerFound = false;
+    
     // ペイロードの抽出（直接またはpayloadフィールドから）
     const payload = data.payload || data;
     
@@ -303,10 +319,17 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     }
     
     // メッセージタイプに基づいて処理を分岐（小文字比較およびトリム処理済み）
+    // デバッグ：実際のメッセージタイプの値を確認
+    console.log(`処理するメッセージタイプ: [${trimmedMessageType}]`);
+    
+    // 何らかのメッセージが処理されたかを追跡
+    let messageHandled = false;
+    
     switch (trimmedMessageType) {
       case 'subscribe':
         console.log('サブスクリプションメッセージを処理します：', data);
         handleSubscribe(ws, data);
+        messageHandled = true;
         break;
         
       case 'agent_thoughts':
@@ -424,61 +447,76 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         console.log(`未処理のメッセージタイプ: ${messageType}`);
         console.log("メッセージの詳細:", JSON.stringify({
           type: messageType,
+          originalType: data.type,
           roleModelId: specificRoleModelId,
           hasPayload: !!data.payload,
           dataKeys: Object.keys(data),
           payloadKeys: data.payload ? Object.keys(data.payload) : []
         }, null, 2));
         
+        // 完全一致で処理できない場合、大文字小文字やハイフン/アンダースコアを無視した緩い比較を試みる
+        const normalizedTypeLower = trimmedMessageType.replace(/[-_]/g, '').toLowerCase();
+        handlerFound = true; // デフォルトでは処理されたとマーク
+        
         // エージェント思考関連のメッセージは特別に処理
         if (
-          messageType.includes('agent') || 
-          messageType.includes('thought') || 
-          messageType.includes('thinking') ||
+          normalizedTypeLower.includes('agent') || 
+          normalizedTypeLower.includes('thought') || 
+          normalizedTypeLower.includes('thinking') ||
           payload.agentName || 
           payload.agent_name ||
           payload.thinking
         ) {
           console.log(`エージェント思考として処理します: ${messageType}`);
           handleAgentThoughts(ws, data);
-          return; // 処理終了
         } 
-        
         // 進捗更新関連のメッセージの場合
-        if (
-          messageType.includes('progress') || 
-          messageType.includes('status') || 
+        else if (
+          normalizedTypeLower.includes('progress') || 
+          normalizedTypeLower.includes('status') || 
           payload.progress !== undefined || 
           payload.stage !== undefined
         ) {
           console.log(`進捗更新として処理します: ${messageType}`);
           handleProgressUpdate(ws, data);
-          return; // 処理終了
         }
-        
         // 知識グラフ関連のメッセージの場合
-        if (
-          messageType.includes('graph') || 
-          messageType.includes('knowledge') ||
+        else if (
+          normalizedTypeLower.includes('graph') || 
+          normalizedTypeLower.includes('knowledge') ||
           payload.nodes !== undefined ||
           payload.edges !== undefined
         ) {
           console.log(`知識グラフ更新として処理します: ${messageType}`);
           handleGraphUpdate(ws, data);
-          return; // 処理終了
+        }
+        // サブスクリプション関連のメッセージの場合
+        else if (
+          normalizedTypeLower.includes('subscribe') ||
+          normalizedTypeLower.includes('subscription')
+        ) {
+          console.log(`サブスクリプションとして処理します: ${messageType}`);
+          handleSubscribe(ws, data);
+        }
+        // その他の場合は汎用メッセージとして処理
+        else {
+          console.log(`汎用的なメッセージとして処理します: ${messageType}`);
+          handlerFound = false; // 処理できなかったとマーク
+          try {
+            ws.send(JSON.stringify({
+              type: 'message_received',
+              message: `メッセージタイプ '${messageType}' を受信しました（未処理のタイプ）`,
+              originalType: messageType,
+              timestamp: new Date().toISOString()
+            }));
+          } catch (error) {
+            console.error(`確認メッセージ送信エラー: ${error}`);
+          }
         }
         
-        // その他の場合は汎用メッセージとして処理
-        console.log(`汎用的なメッセージとして処理します: ${messageType}`);
-        try {
-          ws.send(JSON.stringify({
-            type: 'message_received',
-            message: `メッセージタイプ '${messageType}' を受信しました`,
-            originalType: messageType,
-            timestamp: new Date().toISOString()
-          }));
-        } catch (error) {
-          console.error(`確認メッセージ送信エラー: ${error}`);
+        // 処理されたことをログに記録
+        if (handlerFound) {
+          console.log(`メッセージタイプ "${messageType}" (元の形式: "${data.type}") は正常に処理されました`);
         }
     }
   } catch (error) {
