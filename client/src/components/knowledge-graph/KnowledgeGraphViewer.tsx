@@ -1236,27 +1236,28 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex-1 h-full" style={{ height: 'calc(100% - 36px)' }}>
+        <div className="flex-1 h-full" style={{ height: 'calc(100% - 36px)', width: '100%', minHeight: '500px', position: 'relative' }}>
           <ReactFlowProvider>
-            <ReactFlow
-              style={{ height: '100%', width: '100%' }}
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={handleEdgesChange}
-              onNodeClick={handleNodeClick}
-              onConnect={handleConnect}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              connectionLineType={ConnectionLineType.SmoothStep}
-              fitView
-              attributionPosition="bottom-right"
-              onNodeContextMenu={(e, node) => {
-                // コンテキストメニューは各ノードコンポーネント内で処理
-                e.preventDefault();
-              }}
-              defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-            >
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+              <ReactFlow
+                style={{ height: '100%', width: '100%' }}
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={handleEdgesChange}
+                onNodeClick={handleNodeClick}
+                onConnect={handleConnect}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                connectionLineType={ConnectionLineType.SmoothStep}
+                fitView
+                attributionPosition="bottom-right"
+                onNodeContextMenu={(e, node) => {
+                  // コンテキストメニューは各ノードコンポーネント内で処理
+                  e.preventDefault();
+                }}
+                defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+              >
               <Background color="#aaa" gap={16} />
               <Controls 
                 position="bottom-left"
@@ -1309,7 +1310,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                   </TooltipProvider>
                 </div>
               )}
-            </ReactFlow>
+              </ReactFlow>
+            </div>
           </ReactFlowProvider>
           
           {/* ノード編集ダイアログ */}

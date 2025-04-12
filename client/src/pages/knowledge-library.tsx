@@ -667,11 +667,15 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                 <div className="flex-1 overflow-auto">
                   <TabsContent value="knowledgeGraph" className="h-full m-0 p-0 data-[state=active]:flex-1">
                     {roleModelId !== 'default' ? (
-                      <KnowledgeGraphViewer 
-                        roleModelId={roleModelId}
-                        onDataStatus={handleKnowledgeGraphData}
-                        onNodeSelect={handleNodeSelect}
-                      />
+                      <div className="w-full h-full" style={{ height: '100%', minHeight: '600px' }}>
+                        <KnowledgeGraphViewer 
+                          roleModelId={roleModelId}
+                          onDataStatus={handleKnowledgeGraphData}
+                          onNodeSelect={handleNodeSelect}
+                          height="100%"
+                          width="100%"
+                        />
+                      </div>
                     ) : (
                       <div className="h-full flex items-center justify-center bg-gray-50">
                         <div className="text-center p-4">
