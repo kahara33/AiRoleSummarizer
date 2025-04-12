@@ -8,11 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import InformationPlanList from '@/components/collection-plan/InformationPlanList';
 import InformationPlanDetail from '@/components/collection-plan/InformationPlanDetail';
 import SummaryPanel from '@/components/summary/SummaryPanel';
+import AIGenerationButtonsContainer from '../components/knowledge-graph/AIGenerationButtonsContainer';
 
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket';
 import { ExtendedKnowledgeNode } from '@/components/knowledge-graph/types';
@@ -624,26 +625,13 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                   
                   <div className="flex items-center space-x-1">
                     {activeTab === 'knowledgeGraph' && roleModelId !== 'default' && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className={`text-xs ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        onClick={() => generateKnowledgeLibraryMutation.mutate()}
-                        disabled={isProcessing || generateKnowledgeLibraryMutation.isPending}
-                        title="AI知識ライブラリを生成"
-                      >
-                        {isProcessing || generateKnowledgeLibraryMutation.isPending ? (
-                          <>
-                            <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
-                            処理中...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-3 w-3" />
-                            AI生成
-                          </>
-                        )}
-                      </Button>
+                      <AIGenerationButtonsContainer
+                        roleModelId={roleModelId}
+                        industry={roleModel?.industries?.[0]?.name || ''}
+                        initialKeywords={[]}
+                        hasKnowledgeGraph={hasKnowledgeGraph}
+                        className="mr-2"
+                      />
                     )}
                     
                     <Button 
