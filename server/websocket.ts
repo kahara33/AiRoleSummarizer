@@ -492,23 +492,31 @@ function handleSubscribe(ws: WebSocket, data: any): void {
     const clientId = getClientId(ws);
     console.log(`クライアント ${clientId} がロールモデル ${specificRoleModelId} を購読しました`);
     
-    // 既存のロールモデルグループから削除
-    modelIdToClients.forEach((clientSet, existingRoleModelId) => {
-      if (existingRoleModelId !== specificRoleModelId) {
-        clientSet.delete(clientId);
-      }
-    });
-    
-    // 新しいロールモデルグループに追加
-    if (!modelIdToClients.has(specificRoleModelId)) {
-      modelIdToClients.set(specificRoleModelId, new Set());
-    }
-    
-    // クライアントをセットに追加
-    modelIdToClients.get(specificRoleModelId)?.add(clientId);
-    
     // クライアントのカスタムプロパティを更新
     (ws as any).roleModelId = specificRoleModelId;
+    
+    // ロールモデルIDごとのクライアント接続を追跡
+    if (!clients.has(specificRoleModelId)) {
+      clients.set(specificRoleModelId, new Set());
+    }
+    clients.get(specificRoleModelId)?.add(ws);
+    
+    // 既存のロールモデルグループから削除（modelIdToClients）
+    if (modelIdToClients) {
+      modelIdToClients.forEach((clientSet, existingRoleModelId) => {
+        if (existingRoleModelId !== specificRoleModelId) {
+          clientSet.delete(clientId);
+        }
+      });
+      
+      // 新しいロールモデルグループに追加
+      if (!modelIdToClients.has(specificRoleModelId)) {
+        modelIdToClients.set(specificRoleModelId, new Set());
+      }
+      
+      // クライアントをセットに追加
+      modelIdToClients.get(specificRoleModelId)?.add(clientId);
+    }
     
     // 確認メッセージを送信
     ws.send(JSON.stringify({
@@ -523,6 +531,13 @@ function handleSubscribe(ws: WebSocket, data: any): void {
       clientSubscriptions.set(ws, new Set());
     }
     clientSubscriptions.get(ws)?.add(specificRoleModelId);
+    
+    // 既存のナレッジグラフデータがあれば送信
+    try {
+      sendExistingKnowledgeGraph(ws, specificRoleModelId);
+    } catch (error) {
+      console.error(`既存ナレッジグラフデータの送信エラー: ${error}`);
+    }
     
     // 接続状態のログ出力
     let totalClients = 0;
@@ -1298,6 +1313,12 @@ function sendAgentThoughts(
  * @param type メッセージタイプ
  * @param data 追加データ
  */
+/**
+ * 全てのロールモデルクライアントに対してメッセージを送信する関数
+ * @param targetRoleModelId 送信先ロールモデルID (単一または配列)
+ * @param type メッセージタイプ
+ * @param data 追加データ
+ */
 export function sendMessageToRoleModelViewers(
   targetRoleModelId: string | string[] | undefined,
   type: string,
@@ -1310,6 +1331,7 @@ export function sendMessageToRoleModelViewers(
 
   const roleModelIds = Array.isArray(targetRoleModelId) ? targetRoleModelId : [targetRoleModelId];
   let sentCount = 0;
+  let totalClients = 0;
 
   // 各ロールモデルIDに対して処理
   roleModelIds.forEach(roleModelId => {
@@ -1318,6 +1340,8 @@ export function sendMessageToRoleModelViewers(
       console.log(`ロールモデル ${roleModelId} に接続されたクライアントはありません`);
       return;
     }
+
+    totalClients += clientSet.size;
 
     const messageData = {
       type,
