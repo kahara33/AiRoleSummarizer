@@ -1331,7 +1331,8 @@ JSONを含む詳細な分析結果を返してください。`;
             });
             
             setTimeout(() => {
-              sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
+              sendToRoleModel(roleModelId, {
+                type: 'knowledge_graph_update',
                 message: 'ナレッジグラフが完成しました',
                 timestamp: timestamp,
                 updateType: 'complete',
@@ -1539,7 +1540,8 @@ JSONを含む詳細な分析結果を返してください。`;
         // 短い遅延を追加して確実にクライアントがメッセージを受け取れるようにする
         setTimeout(() => {
           // 全てのイベント名で送信して確実に捕捉されるようにする
-          sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+          sendToRoleModel(roleModelId, {
+            type: 'graph-update',
             message: 'ナレッジグラフが改善されました',
             timestamp: timestamp,
             updateType: 'improvement_complete',
@@ -1547,7 +1549,8 @@ JSONを含む詳細な分析結果を返してください。`;
           });
           
           setTimeout(() => {
-            sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
+            sendToRoleModel(roleModelId, {
+              type: 'knowledge-graph-update',
               message: 'ナレッジグラフが改善されました',
               timestamp: timestamp,
               updateType: 'improvement_complete',
@@ -1555,7 +1558,8 @@ JSONを含む詳細な分析結果を返してください。`;
             });
             
             setTimeout(() => {
-              sendMessageToRoleModelViewers(roleModelId, 'knowledge_graph_update', {
+              sendToRoleModel(roleModelId, {
+                type: 'knowledge_graph_update',
                 message: 'ナレッジグラフが改善されました',
                 timestamp: timestamp,
                 updateType: 'improvement_complete',
