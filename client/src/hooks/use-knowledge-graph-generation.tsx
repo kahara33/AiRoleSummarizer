@@ -50,6 +50,7 @@ export function useKnowledgeGraphGeneration(): UseKnowledgeGraphGenerationResult
     includeCollectionPlan?: boolean;
     industry?: string;
     keywords?: string[];
+    useExistingGraph?: boolean;
   }) => {
     console.log('ナレッジグラフ生成リクエスト:', options);
     const roleModelId = options.roleModelId;
@@ -59,11 +60,15 @@ export function useKnowledgeGraphGeneration(): UseKnowledgeGraphGenerationResult
       return false;
     }
     
-    return wsHook.sendMessage('create_knowledge_graph', {
+    // 既存のグラフを使用する場合と新規生成の場合で異なるメッセージタイプを使用
+    const messageType = options.useExistingGraph ? 'create_collection_plan' : 'create_knowledge_graph';
+    
+    return wsHook.sendMessage(messageType, {
       roleModelId,
       includeCollectionPlan: options.includeCollectionPlan !== false, // デフォルトでtrue
       industry: options.industry || '一般',
-      keywords: options.keywords || ['情報収集', 'ナレッジグラフ']
+      keywords: options.keywords || ['情報収集', 'ナレッジグラフ'],
+      useExistingGraph: !!options.useExistingGraph
     });
   }, [wsHook.sendMessage]);
   

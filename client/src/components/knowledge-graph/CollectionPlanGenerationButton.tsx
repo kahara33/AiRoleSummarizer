@@ -40,7 +40,8 @@ export default function CollectionPlanGenerationButton({
     isConnected, 
     progressUpdates,
     sendCancelOperationRequest,
-    cancelOperation
+    cancelOperation,
+    sendCreateKnowledgeGraphRequest
   } = useKnowledgeGraphGeneration();
 
   // WebSocketからの進捗状況更新を処理するエフェクト
