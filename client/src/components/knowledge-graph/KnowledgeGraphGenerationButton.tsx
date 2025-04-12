@@ -108,6 +108,7 @@ export default function KnowledgeGraphGenerationButton({
       // 共通関数が利用可能ならそちらを使う
       if (typeof sendCreateKnowledgeGraphRequest === 'function') {
         sendCreateKnowledgeGraphRequest({
+          roleModelId,  // 明示的にroleModelIdを渡す
           includeCollectionPlan: true,  // ナレッジグラフ生成と情報収集プラン生成の両方を行う
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
@@ -115,6 +116,7 @@ export default function KnowledgeGraphGenerationButton({
       } else {
         // フォールバック: 直接メッセージを送信
         sendMessage('create_knowledge_graph', {
+          roleModelId,  // roleModelIdを必ず含める
           includeCollectionPlan: true,
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],

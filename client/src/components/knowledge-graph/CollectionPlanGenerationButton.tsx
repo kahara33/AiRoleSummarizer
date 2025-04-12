@@ -104,13 +104,24 @@ export default function CollectionPlanGenerationButton({
       // 情報収集プラン生成リクエストを送信
       console.log('情報収集プラン生成リクエスト送信:', roleModelId);
       
-      // 情報収集プラン専用のWebSocketメッセージを送信
-      sendMessage('create_collection_plan', {
-        roleModelId,
-        industry: industry || '一般',
-        keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-        useExistingGraph: true  // 既存のナレッジグラフを使用
-      });
+      // 共通関数が利用可能ならそちらを使う
+      if (typeof sendCreateKnowledgeGraphRequest === 'function') {
+        sendCreateKnowledgeGraphRequest({
+          roleModelId,  // 明示的にroleModelIdを渡す
+          includeCollectionPlan: true, 
+          industry: industry || '一般',
+          keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
+          useExistingGraph: true // 既存のナレッジグラフを使用
+        });
+      } else {
+        // フォールバック: 直接メッセージを送信
+        sendMessage('create_collection_plan', {
+          roleModelId,  // roleModelIdを必ず含める
+          industry: industry || '一般',
+          keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
+          useExistingGraph: true  // 既存のナレッジグラフを使用
+        });
+      }
 
       console.log('業界:', industry || '一般');
       console.log('キーワード:', initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ']);

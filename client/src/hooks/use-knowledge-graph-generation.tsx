@@ -24,9 +24,11 @@ export interface UseKnowledgeGraphGenerationResult {
   
   // 拡張されたナレッジグラフ生成用メソッド
   sendCreateKnowledgeGraphRequest: (options: {
+    roleModelId?: string;
     includeCollectionPlan?: boolean;
     industry?: string;
     keywords?: string[];
+    useExistingGraph?: boolean;
   }) => boolean;
   
   // キャンセル関連のメソッド
@@ -44,12 +46,21 @@ export function useKnowledgeGraphGeneration(): UseKnowledgeGraphGenerationResult
   
   // ナレッジグラフ生成リクエスト送信関数
   const sendCreateKnowledgeGraphRequest = useCallback((options: {
+    roleModelId?: string;
     includeCollectionPlan?: boolean;
     industry?: string;
     keywords?: string[];
   }) => {
     console.log('ナレッジグラフ生成リクエスト:', options);
+    const roleModelId = options.roleModelId;
+    
+    if (!roleModelId) {
+      console.error('ナレッジグラフ生成にはroleModelIdが必要です');
+      return false;
+    }
+    
     return wsHook.sendMessage('create_knowledge_graph', {
+      roleModelId,
       includeCollectionPlan: options.includeCollectionPlan !== false, // デフォルトでtrue
       industry: options.industry || '一般',
       keywords: options.keywords || ['情報収集', 'ナレッジグラフ']
