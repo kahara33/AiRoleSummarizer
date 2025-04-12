@@ -594,7 +594,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             setNodes(oldNodes => [...oldNodes, newNode]);
             setEdges(oldEdges => [...oldEdges, newEdge]);
           } else {
-            await fetchGraphData(); // 失敗時は全体を再取得
+            await requestGraphData(); // 失敗時は全体を再取得
           }
           break;
           
@@ -668,7 +668,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             setNodes(oldNodes => [...oldNodes, newNode]);
             setEdges(oldEdges => [...oldEdges, newEdge]);
           } else {
-            await fetchGraphData(); // 失敗時は全体を再取得
+            await requestGraphData(); // 失敗時は全体を再取得
           }
           break;
       }
@@ -676,7 +676,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     } catch (error) {
       console.error('ノード操作エラー:', error);
       alert('操作中にエラーが発生しました');
-      await fetchGraphData(); // エラー時は全体を再取得
+      await requestGraphData(); // エラー時は全体を再取得
     }
   }, [nodeDialog, nodes, nodeOperations, requestGraphData, setNodes, setEdges]);
   
@@ -766,7 +766,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setUndoStack(prev => prev.slice(0, -1));
       
       // グラフデータを再取得
-      await fetchGraphData();
+      await requestGraphData();
       
     } catch (error) {
       console.error('Undo処理エラー:', error);

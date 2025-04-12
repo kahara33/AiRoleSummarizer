@@ -249,15 +249,17 @@ export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn 
     setLastUpdateSource(null);
   }, []);
   
-  // グラフデータを明示的にリクエスト
-  const requestGraphData = useCallback(() => {
+  // グラフデータを明示的にリクエスト（Promiseを返すように修正）
+  const requestGraphData = useCallback(async () => {
     if (isConnected && roleModelId) {
       console.log('ナレッジグラフデータをリクエスト:', roleModelId);
       setLoading(true);
       sendMessage('get_knowledge_graph', { roleModelId });
+      return Promise.resolve(); // 正常終了
     } else {
       console.error('WebSocket接続がないため、グラフデータをリクエストできません');
       setError('サーバーに接続できません。後でもう一度お試しください。');
+      return Promise.reject(new Error('WebSocket接続がありません')); // エラー終了
     }
   }, [roleModelId, isConnected, sendMessage]);
   
