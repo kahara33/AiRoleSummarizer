@@ -378,53 +378,58 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
   const sendMessage = useCallback((type: string, payload: any) => {
     console.log('送信メッセージ準備:', type, payload);
     
-    // 1. ソケットが存在し、接続状態であることを確認
+    // 1. 接続状態のチェック - 未接続の場合は接続を試みる
     if (!socketManager.getConnectionStatus()) {
-      console.error('WebSocketインスタンスが存在しません');
-      toast({
-        title: '接続エラー',
-        description: 'サーバーへの接続が確立されていません。ページを更新してください。',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    // 2. 接続状態の追加チェック - グローバルマネージャーを使用
-    const isSocketOpen = socketManager.getConnectionStatus();
-    if (!isSocketOpen) {
-      console.error('WebSocketが開いていません');
-      setIsConnected(false);
-      
-      toast({
-        title: '接続エラー',
-        description: 'サーバーとの接続が切断されています。再接続しています...',
-        variant: 'destructive'
-      });
+      console.warn('WebSocketが未接続です。自動的に再接続を試みます。');
       
       // 自動再接続を試みる
       if (currentRoleModelId && user) {
-        console.log('自動再接続を試みます...');
-        socketManager.connect(user.id, currentRoleModelId, setIsConnected);
+        // 先に通知（一度だけ）
+        if (type !== 'ping') {
+          toast({
+            title: '接続再確立中',
+            description: 'サーバーとの接続を再確立しています。しばらくお待ちください...'
+          });
+        }
         
-        // 再接続後、少し待ってからメッセージを再送信
-        setTimeout(() => {
-          if (socketManager.getConnectionStatus()) {
-            try {
-              const message = {
-                type,
-                payload,
-                timestamp: new Date().toISOString()
-              };
-              console.log('再接続後のメッセージ送信:', message);
-              socketManager.sendMessage(type, payload);
-            } catch (e) {
-              console.error('再送信エラー:', e);
+        // 再接続試行
+        socketManager.connect(user.id, currentRoleModelId, (connected) => {
+          setIsConnected(connected);
+          
+          // 接続成功時のみメッセージ再送信
+          if (connected) {
+            console.log('再接続に成功しました。メッセージを送信します。');
+            
+            // 少し待ってからメッセージを再送信
+            setTimeout(() => {
+              try {
+                socketManager.sendMessage(type, payload);
+              } catch (e) {
+                console.error('再送信エラー:', e);
+              }
+            }, 500);
+          } else {
+            if (type !== 'ping') {
+              toast({
+                title: '接続エラー',
+                description: 'サーバーへの接続が確立できません。ページを更新してください。',
+                variant: 'destructive'
+              });
             }
           }
-        }, 1000);
+        });
+        return;
+      } else {
+        console.error('roleModelIdまたはユーザー情報がないため、再接続できません');
+        if (type !== 'ping') {
+          toast({
+            title: '接続エラー',
+            description: 'サーバーへの接続情報が不足しています。ページを更新してください。',
+            variant: 'destructive'
+          });
+        }
+        return;
       }
-      
-      return;
     }
     
     // 3. すべての条件を満たしている場合、メッセージを送信

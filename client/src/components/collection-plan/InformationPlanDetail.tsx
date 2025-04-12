@@ -32,11 +32,12 @@ interface InformationPlan {
 
 interface InformationPlanDetailProps {
   plan: InformationPlan | null;
-  roleModelId: string;
+  roleModelId?: string;
   onPlanUpdate?: (plan: InformationPlan) => void;
+  onBack?: () => void;
 }
 
-export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate }: InformationPlanDetailProps) {
+export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate, onBack }: InformationPlanDetailProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     title: plan?.title || '',

@@ -58,8 +58,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
     sendMessage: send, 
     connect, 
     isProcessing, 
-    progressUpdates,
-    forceResetProcessing
+    progressUpdates
   } = useMultiAgentWebSocket();
   
   // KnowledgeGraphViewerからのデータ有無状態を更新する関数
