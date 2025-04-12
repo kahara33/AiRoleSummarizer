@@ -2,7 +2,7 @@
  * ナレッジグラフ生成用の特化型WebSocketフック
  * 標準のWebSocketフックを拡張し、ナレッジグラフ生成に必要な機能を追加
  */
-import { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useMultiAgentWebSocket } from './use-multi-agent-websocket-fixed';
 
 // フックのインターフェース
@@ -44,10 +44,8 @@ export function useKnowledgeGraphGeneration(): UseKnowledgeGraphGenerationResult
   // 基本のWebSocketフックを使用
   const wsHook = useMultiAgentWebSocket();
   
-  // 接続状態のデバッグログ
-  useEffect(() => {
-    console.log('useKnowledgeGraphGeneration: WebSocket接続状態:', wsHook.isConnected ? '接続済み' : '未接続');
-  }, [wsHook.isConnected]);
+  // 接続状態のデバッグログ（直接表示）
+  console.log('useKnowledgeGraphGeneration: WebSocket接続状態:', wsHook.isConnected ? '接続済み' : '未接続');
   
   // ナレッジグラフ生成リクエスト送信関数
   const sendCreateKnowledgeGraphRequest = useCallback((options: {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import KnowledgeGraphGenerationButton from './KnowledgeGraphGenerationButton';
 import CollectionPlanGenerationButton from './CollectionPlanGenerationButton';
+import { useKnowledgeGraphGeneration } from '@/hooks/use-knowledge-graph-generation';
 
 interface AIGenerationButtonsContainerProps {
   roleModelId: string;
