@@ -794,10 +794,10 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   
 
 
-  // グラフデータの初期ロード
+  // グラフデータの処理（自動リクエストなし）
   // WebSocketからのノードとエッジデータを処理するuseEffect
   useEffect(() => {
-    // websocketNodesとwebsocketEdgesが更新されたときに処理
+    // 明示的なリクエストがあった場合のみデータを処理
     if (websocketNodes.length > 0 || websocketEdges.length > 0) {
       console.log('WebSocketからグラフデータを受信:', { nodes: websocketNodes, edges: websocketEdges });
       try {
