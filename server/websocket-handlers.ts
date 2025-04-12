@@ -5,6 +5,7 @@
 
 import * as websocket from './websocket';
 import * as aiAgentService from './services/ai-agent-service';
+import * as userFeedbackService from './services/user-feedback-service';
 
 /**
  * ナレッジグラフ生成リクエストを処理する
@@ -165,6 +166,93 @@ export async function handleGraphUpdateRecommendation(message: any, roleModelId:
       roleModelId,
       0,
       'ナレッジグラフ更新レコメンド中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
+    );
+    
+    return false;
+  }
+}
+
+/**
+ * ユーザーフィードバックを処理する
+ * @param message 受信したメッセージ
+ * @param roleModelId ロールモデルID
+ */
+export async function handleUserFeedback(message: any, roleModelId: string) {
+  try {
+    console.log('ユーザーフィードバック処理:', message);
+    
+    const payload = message.payload || message;
+    const feedbackType = payload.feedbackType || userFeedbackService.FeedbackType.GENERAL_COMMENT;
+    
+    // フィードバックオブジェクトを作成
+    const feedback: userFeedbackService.UserFeedback = {
+      roleModelId,
+      feedbackType,
+      data: payload.data,
+      timestamp: Date.now()
+    };
+    
+    // フィードバックを処理
+    const result = await userFeedbackService.processFeedback(feedback);
+    
+    if (result) {
+      // 成功メッセージ
+      websocket.sendProgressUpdate(
+        roleModelId,
+        100,
+        'フィードバックを反映しました',
+        { 
+          status: 'feedback_processed',
+          feedbackType
+        }
+      );
+      
+      // 次のステップの通知（要約サンプル選択の場合）
+      if (feedbackType === userFeedbackService.FeedbackType.SUMMARY_PREFERENCE) {
+        websocket.sendProgressUpdate(
+          roleModelId,
+          75,
+          'ユーザーのフィードバックに基づいてナレッジグラフと収集プランを更新しています...',
+          { status: 'updating_graph' }
+        );
+        
+        // 少し待機してから完了通知
+        setTimeout(() => {
+          websocket.sendProgressUpdate(
+            roleModelId,
+            90,
+            'ナレッジグラフを最適化しました。情報収集プランを生成中...',
+            { status: 'graph_updated' }
+          );
+        }, 2000);
+      }
+    } else {
+      // エラーメッセージ
+      websocket.sendProgressUpdate(
+        roleModelId,
+        0,
+        'フィードバックの処理中にエラーが発生しました',
+        { 
+          status: 'error',
+          error: 'フィードバック処理エラー'
+        }
+      );
+    }
+    
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    console.error('ユーザーフィードバック処理エラー:', error);
+    
+    // エラー進捗更新
+    websocket.sendProgressUpdate(
+      roleModelId,
+      0,
+      'フィードバック処理中にエラーが発生しました',
       { 
         status: 'error',
         error: error.message || '不明なエラー'
