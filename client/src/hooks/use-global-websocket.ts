@@ -138,6 +138,18 @@ export class GlobalWebSocketManager {
         // 接続状態変更の通知
         onStatusChange?.(true);
         
+        // サブスクリプションメッセージを送信
+        try {
+          console.log(`roleModelId=${roleModelId}の情報をサブスクライブします`);
+          newSocket.send(JSON.stringify({
+            type: 'subscribe',
+            roleModelId: roleModelId,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (e) {
+          console.error('サブスクリプションメッセージ送信エラー:', e);
+        }
+        
         // pingインターバルの設定（既存のものがあればクリア）
         if (this.pingInterval) {
           clearInterval(this.pingInterval);
