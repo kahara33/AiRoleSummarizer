@@ -716,9 +716,9 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
   roleModelName: string;
   roleModelDescription: string;
   userId?: string; // ナレッジライブラリを生成するユーザーID
-}): Promise<{ success: boolean; error?: any }> {
+}): Promise<{ success: boolean; planId?: string; error?: any }> {
   try {
-    console.log(`ナレッジライブラリ生成を開始します: ${input.roleModelId}`);
+    console.log(`ナレッジライブラリ情報収集プラン生成を開始します: ${input.roleModelId}`);
     
     const { roleModelId, industries, keywords, roleModelName } = input;
     
@@ -735,18 +735,10 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
       }
     );
     
-    // CrewAIプロセスを実行
-    const success = await runKnowledgeLibraryProcess(
-      roleModelId,
-      plan.id,
-      { 
-        title: initialPlanTitle,
-        industries: industries.map(i => i.name),
-        keywords: keywords ? keywords.map(k => k.name) : []
-      }
-    );
+    // 情報収集プランの作成のみを行い、ユーザーが手動で実行できるようにする
+    console.log(`情報収集プラン作成完了: planId=${plan.id}`);
     
-    return { success };
+    return { success: true, planId: plan.id };
   } catch (error) {
     console.error(`ナレッジライブラリ生成エラー:`, error);
     return { success: false, error };
