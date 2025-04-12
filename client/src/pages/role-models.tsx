@@ -271,15 +271,15 @@ export default function RoleModelsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {model.keywords && model.keywords.length > 0 ? (
+                      {model.keywords && model.keywords.filter(k => k !== null).length > 0 ? (
                         <div className="flex flex-wrap gap-1">
-                          {model.keywords.slice(0, 3).map((keyword) => (
+                          {model.keywords.filter(k => k !== null).slice(0, 3).map((keyword) => (
                             <span key={keyword.id} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                               {keyword.name}
                             </span>
                           ))}
-                          {model.keywords.length > 3 && (
-                            <span className="text-xs text-gray-500">+{model.keywords.length - 3}</span>
+                          {model.keywords.filter(k => k !== null).length > 3 && (
+                            <span className="text-xs text-gray-500">+{model.keywords.filter(k => k !== null).length - 3}</span>
                           )}
                         </div>
                       ) : (
@@ -358,15 +358,15 @@ export default function RoleModelsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {model.keywords && model.keywords.length > 0 ? (
+                        {model.keywords && model.keywords.filter(k => k !== null).length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {model.keywords.slice(0, 3).map((keyword) => (
+                            {model.keywords.filter(k => k !== null).slice(0, 3).map((keyword) => (
                               <span key={keyword.id} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                                 {keyword.name}
                               </span>
                             ))}
-                            {model.keywords.length > 3 && (
-                              <span className="text-xs text-gray-500">+{model.keywords.length - 3}</span>
+                            {model.keywords.filter(k => k !== null).length > 3 && (
+                              <span className="text-xs text-gray-500">+{model.keywords.filter(k => k !== null).length - 3}</span>
                             )}
                           </div>
                         ) : (
