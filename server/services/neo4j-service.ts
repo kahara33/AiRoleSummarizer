@@ -217,6 +217,50 @@ export async function findOrCreateNode(options: {
  * @param options リレーションシップ作成オプション
  * @returns 作成されたリレーションシップのID
  */
+/**
+ * 特定のロールモデルに関連するすべてのノードとリレーションシップを削除する
+ * @param roleModelId ロールモデルID
+ * @returns 削除されたノードの数
+ */
+export async function deleteKnowledgeGraphByRoleModelId(roleModelId: string): Promise<number> {
+  console.log(`Neo4j: ロールモデル "${roleModelId}" のナレッジグラフを削除します`);
+  const session = driver.session();
+  
+  try {
+    // 最初にリレーションシップを削除
+    const relationshipsResult = await session.run(
+      `
+      MATCH (n)-[r]-(m)
+      WHERE n.roleModelId = $roleModelId
+      DELETE r
+      RETURN count(r) as deletedRelationships
+      `,
+      { roleModelId }
+    );
+    
+    const deletedRelationships = relationshipsResult.records[0].get('deletedRelationships').toNumber();
+    console.log(`Neo4j: ${deletedRelationships}件のリレーションシップを削除しました`);
+    
+    // 次にノードを削除
+    const nodesResult = await session.run(
+      `
+      MATCH (n)
+      WHERE n.roleModelId = $roleModelId
+      DELETE n
+      RETURN count(n) as deletedNodes
+      `,
+      { roleModelId }
+    );
+    
+    const deletedNodes = nodesResult.records[0].get('deletedNodes').toNumber();
+    console.log(`Neo4j: ${deletedNodes}件のノードを削除しました`);
+    
+    return deletedNodes;
+  } finally {
+    await session.close();
+  }
+}
+
 export async function createRelationship(options: {
   sourceNodeId: string;
   targetNodeId: string;
