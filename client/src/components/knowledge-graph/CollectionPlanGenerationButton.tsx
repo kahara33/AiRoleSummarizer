@@ -36,6 +36,7 @@ export default function CollectionPlanGenerationButton({
   const { toast } = useToast();
   
   const { 
+    connect,
     sendMessage,
     isConnected, 
     progressUpdates,
@@ -43,6 +44,14 @@ export default function CollectionPlanGenerationButton({
     cancelOperation,
     sendCreateKnowledgeGraphRequest
   } = useKnowledgeGraphGeneration();
+  
+  // コンポーネントのマウント時にWebSocketを接続
+  useEffect(() => {
+    if (roleModelId) {
+      console.log('CollectionPlanGenerationButton: WebSocket接続を開始します', roleModelId);
+      connect(roleModelId);
+    }
+  }, [roleModelId, connect]);
 
   // WebSocketからの進捗状況更新を処理するエフェクト
   useEffect(() => {

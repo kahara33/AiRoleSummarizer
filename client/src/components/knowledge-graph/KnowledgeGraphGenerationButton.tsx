@@ -36,6 +36,7 @@ export default function KnowledgeGraphGenerationButton({
   const { toast } = useToast();
   
   const { 
+    connect,
     sendMessage,
     isConnected, 
     progressUpdates,
@@ -43,6 +44,14 @@ export default function KnowledgeGraphGenerationButton({
     sendCancelOperationRequest,
     cancelOperation
   } = useKnowledgeGraphGeneration();
+  
+  // コンポーネントのマウント時にWebSocketを接続
+  useEffect(() => {
+    if (roleModelId) {
+      console.log('KnowledgeGraphGenerationButton: WebSocket接続を開始します', roleModelId);
+      connect(roleModelId);
+    }
+  }, [roleModelId, connect]);
 
   // WebSocketからの進捗状況更新を処理するエフェクト
   useEffect(() => {
