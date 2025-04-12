@@ -1,9 +1,18 @@
 /**
  * Knowledge Library AI Agents Module
  * Defines the different AI agent roles for the knowledge library system
+ * 
+ * This implementation follows the improved design with 7 specialized agents:
+ * 1. Initial Researcher - Initial data collection
+ * 2. Plan Strategist - Search strategy optimization
+ * 3. Search Conductor - Efficient execution of searches
+ * 4. Content Processor - Content extraction and structuring
+ * 5. Duplication Manager - Multi-level duplicate detection
+ * 6. Knowledge Integrator - Knowledge graph management
+ * 7. Report Compiler - Non-redundant report generation
  */
 
-import { searchWithExa } from '../../exa-search';
+import { searchWithExa, fetchContentWithExa, ExaSearchOptions } from '../../exa-search';
 
 // Agent configuration interface
 export interface AgentConfig {
@@ -36,55 +45,36 @@ export interface Agent {
 }
 
 /**
- * Creates the Strategy Planner Agent
- * Responsible for optimizing the overall strategy for information gathering
+ * Creates the Initial Researcher Agent
+ * Responsible for initial data collection and basic information mapping
  */
-export function createStrategyPlannerAgent(): Agent {
+export function createInitialResearcherAgent(): Agent {
   return {
-    name: "Strategy Planner",
-    description: "An expert in developing comprehensive information gathering strategies",
-    goal: "Develop the optimal strategy for information gathering that maximizes quality and relevance of collected data",
+    name: "Initial Researcher",
+    description: "An expert in collecting foundational information and creating initial data maps",
+    goal: "Gather comprehensive baseline data about the industry and keywords to create a foundation for further research",
     backstory: `
-      As a Strategy Planner, you excel in developing comprehensive information gathering plans.
-      You analyze information needs, identify optimal sources, and design efficient collection strategies.
-      Your expertise is in prioritizing information needs and designing the most effective approaches for gathering high-quality, relevant information.
-      You understand how to break complex topics into manageable segments and identify the most authoritative sources.
+      As an Initial Researcher, you excel at broad information gathering to establish a baseline understanding.
+      You have expertise in quickly mapping out an information landscape by identifying key sources, terms, and concepts.
+      Your strength is in creating a comprehensive foundation that other specialists can build upon.
+      You're skilled at recognizing important subtopics and categorizing information effectively.
     `,
     verbose: true,
     memory: true,
     maxExecutionTime: 120, // 2 minutes max execution time
-    allowDelegation: true
-  };
-}
-
-/**
- * Creates the Search Specialist Agent
- * Responsible for efficiently gathering information using the Exa search API
- */
-export function createSearchSpecialistAgent(): Agent {
-  return {
-    name: "Search Specialist",
-    description: "An expert in finding relevant information from various sources using advanced search techniques",
-    goal: "Gather the most relevant, reliable, and comprehensive information on the specified topic",
-    backstory: `
-      As a Search Specialist, you are highly skilled in finding information efficiently.
-      You have deep knowledge of optimal search techniques and know how to use search engines and APIs to their fullest potential.
-      You're particularly expert with the Exa search API and can craft precise search queries that yield high-quality results.
-      You know how to evaluate sources for reliability, relevance, and accuracy.
-    `,
-    verbose: true,
-    memory: true,
-    maxIterations: 3,
-    allowDelegation: false,
+    allowDelegation: true,
     tools: [
       {
-        name: "ExaSearch",
-        description: "Search for information using the Exa API",
-        func: async (query: string, maxResults = 10) => {
+        name: "BroadExaSearch",
+        description: "Perform a broad search using the Exa API to establish baseline information",
+        func: async (query: string, maxResults = 15) => {
           try {
             return await searchWithExa({
               query: query,
-              numResults: maxResults
+              numResults: maxResults,
+              useAutoprompt: true,
+              type: 'hybrid',
+              highlights: true
             });
           } catch (error) {
             console.error("Error using Exa search:", error);
@@ -101,19 +91,110 @@ export function createSearchSpecialistAgent(): Agent {
 }
 
 /**
- * Creates the Content Analyst Agent
- * Responsible for analyzing collected information and extracting insights
+ * Creates the Plan Strategist Agent
+ * Responsible for search strategy optimization and query planning
  */
-export function createContentAnalystAgent(): Agent {
+export function createPlanStrategistAgent(): Agent {
   return {
-    name: "Content Analyst",
-    description: "An expert in analyzing information and extracting meaningful insights",
-    goal: "Analyze collected information to identify key insights, patterns, and knowledge gaps",
+    name: "Plan Strategist",
+    description: "An expert in optimizing search strategies and prioritizing information collection",
+    goal: "Analyze initial research results and develop an optimal search plan that maximizes information quality while minimizing duplication",
     backstory: `
-      As a Content Analyst, you have exceptional skills in processing and analyzing information.
-      You can quickly parse large volumes of data, identify key themes, extract insights, and recognize patterns.
-      Your expertise lies in transforming raw information into structured knowledge and meaningful conclusions.
-      You're also adept at identifying gaps in information and areas that require further investigation.
+      As a Plan Strategist, you excel in analyzing research results and developing efficient search plans.
+      You can identify knowledge gaps and prioritize areas for deeper investigation.
+      Your expertise is in creating optimized search queries and designing a structured approach to information gathering.
+      You understand how to balance breadth, depth, and resource efficiency in research planning.
+    `,
+    verbose: true,
+    memory: true,
+    maxExecutionTime: 120, // 2 minutes max execution time
+    allowDelegation: true
+  };
+}
+
+/**
+ * Creates the Search Conductor Agent
+ * Responsible for efficiently executing searches with optimized parameters
+ */
+export function createSearchConductorAgent(): Agent {
+  return {
+    name: "Search Conductor",
+    description: "An expert in executing optimized searches with date filtering and parameter tuning",
+    goal: "Execute optimized searches to retrieve the most recent and relevant information with maximum efficiency",
+    backstory: `
+      As a Search Conductor, you excel in optimizing search execution for maximum efficiency.
+      You know how to use date filters, boolean operators, and other search parameters to get precise results.
+      Your specialty is in incremental searching - retrieving only the newest information since previous searches.
+      You understand how to balance API usage efficiency with comprehensive information gathering.
+    `,
+    verbose: true,
+    memory: true,
+    maxIterations: 3,
+    allowDelegation: false,
+    tools: [
+      {
+        name: "IncrementalExaSearch",
+        description: "Execute an optimized search with date filtering to retrieve only the most recent information",
+        func: async (query: string, startDate?: string, endDate?: string, maxResults = 10) => {
+          try {
+            // Set search parameters including date filters if provided
+            let searchParams: any = {
+              query: query,
+              numResults: maxResults,
+              highlights: true,
+              type: 'hybrid' as 'hybrid'
+            };
+            
+            // Add date parameters if provided
+            if (startDate) {
+              searchParams.startPublishedDate = startDate;
+            }
+            
+            if (endDate) {
+              searchParams.endPublishedDate = endDate;
+            }
+            
+            return await searchWithExa(searchParams);
+          } catch (error) {
+            console.error("Error using incremental Exa search:", error);
+            return { 
+              error: true, 
+              message: "Failed to retrieve information from Exa API", 
+              sources: []
+            };
+          }
+        }
+      },
+      {
+        name: "FetchContent",
+        description: "Fetch the full content of specific URLs for deeper analysis",
+        func: async (urls: string | string[], useCache = true) => {
+          try {
+            return await fetchContentWithExa(urls, undefined, useCache);
+          } catch (error) {
+            console.error("Error fetching content:", error);
+            return [];
+          }
+        }
+      }
+    ]
+  };
+}
+
+/**
+ * Creates the Content Processor Agent
+ * Responsible for extracting, structuring, and analyzing content
+ */
+export function createContentProcessorAgent(): Agent {
+  return {
+    name: "Content Processor",
+    description: "An expert in extracting, structuring, and analyzing content from various sources",
+    goal: "Transform raw content into well-structured, analyzed information with extracted entities and relationships",
+    backstory: `
+      As a Content Processor, you excel at extracting meaningful information from raw content.
+      You have exceptional skills in natural language processing, entity extraction, and content categorization.
+      Your expertise lies in identifying key information points, structuring unstructured content, and standardizing metadata.
+      You're particularly skilled at extracting entities and their relationships from text to prepare for knowledge graph integration.
     `,
     verbose: true,
     memory: true,
@@ -123,19 +204,41 @@ export function createContentAnalystAgent(): Agent {
 }
 
 /**
- * Creates the Knowledge Architect Agent
- * Responsible for designing knowledge structures and relationships
+ * Creates the Duplication Manager Agent
+ * Responsible for detecting and removing duplicate information
  */
-export function createKnowledgeArchitectAgent(): Agent {
+export function createDuplicationManagerAgent(): Agent {
   return {
-    name: "Knowledge Architect",
-    description: "An expert in organizing knowledge into coherent structures and relationships",
-    goal: "Create a well-structured knowledge framework that effectively organizes information and highlights relationships",
+    name: "Duplication Manager",
+    description: "An expert in detecting and eliminating duplicate information at multiple levels",
+    goal: "Ensure information quality by identifying and removing duplicates while preserving uniquely valuable content",
     backstory: `
-      As a Knowledge Architect, you excel in organizing information into meaningful structures.
-      You have expertise in knowledge graph design, information architecture, and ontology development.
-      You understand how to create hierarchies, define relationships between concepts, and build frameworks that enhance understanding.
-      Your skill lies in taking complex, interconnected information and creating clear, intuitive knowledge structures.
+      As a Duplication Manager, you excel at identifying redundant information across multiple dimensions.
+      You have expertise in comparing content at different levels: exact matches, semantic similarity, and conceptual overlap.
+      Your strength is in distinguishing between true duplicates and content that appears similar but contains unique value.
+      You're skilled at maintaining a historical perspective on information to track what's truly new versus what's merely repackaged.
+    `,
+    verbose: true,
+    memory: true,
+    maxIterations: 2,
+    allowDelegation: false
+  };
+}
+
+/**
+ * Creates the Knowledge Integrator Agent
+ * Responsible for time-based knowledge graph management
+ */
+export function createKnowledgeIntegratorAgent(): Agent {
+  return {
+    name: "Knowledge Integrator",
+    description: "An expert in managing temporal knowledge graphs and integrating new information",
+    goal: "Create and maintain a chronological knowledge graph that effectively captures information evolution over time",
+    backstory: `
+      As a Knowledge Integrator, you excel in maintaining time-based knowledge structures.
+      You have expertise in tracking how information changes over time and identifying meaningful trends and shifts.
+      Your strength is in determining how new information relates to and updates existing knowledge.
+      You understand how to create knowledge frameworks that preserve historical context while highlighting what's truly new.
     `,
     verbose: true,
     memory: true,

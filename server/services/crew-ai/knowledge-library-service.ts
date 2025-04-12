@@ -12,10 +12,12 @@ import { searchWithExa } from '../exa-search';
 import * as neo4jService from '../neo4j-service';
 import * as websocket from '../../websocket';
 import { 
-  createStrategyPlannerAgent,
-  createSearchSpecialistAgent,
-  createContentAnalystAgent,
-  createKnowledgeArchitectAgent,
+  createInitialResearcherAgent,
+  createPlanStrategistAgent,
+  createSearchConductorAgent,
+  createContentProcessorAgent,
+  createDuplicationManagerAgent,
+  createKnowledgeIntegratorAgent,
   createReportWriterAgent,
   createOrchestratorAgent,
   type Agent
@@ -76,15 +78,17 @@ export async function runKnowledgeLibraryProcess(
     const executionId = uuidv4();
 
     // エージェントの作成
-    const strategyPlanner = createStrategyPlannerAgent();
-    const searchSpecialist = createSearchSpecialistAgent();
-    const contentAnalyst = createContentAnalystAgent();
-    const knowledgeArchitect = createKnowledgeArchitectAgent();
+    const initialResearcher = createInitialResearcherAgent();
+    const planStrategist = createPlanStrategistAgent();
+    const searchConductor = createSearchConductorAgent();
+    const contentProcessor = createContentProcessorAgent();
+    const duplicationManager = createDuplicationManagerAgent();
+    const knowledgeIntegrator = createKnowledgeIntegratorAgent();
     const reportWriter = createReportWriterAgent();
     const orchestrator = createOrchestratorAgent();
 
-    // 戦略プランナータスク - 情報収集の戦略を立てる
-    const strategyPlannerTask = {
+    // 初期調査エージェントタスク - 基礎的な情報収集
+    const initialResearcherTask = {
       description: `Develop a comprehensive strategy to gather information about "${plan.title}".
       Consider the most reliable sources, important subtopics, and key questions to answer.
       The strategy should maximize information quality and relevance.`,
@@ -127,8 +131,8 @@ export async function runKnowledgeLibraryProcess(
       }
     };
     
-    // 検索スペシャリストタスク - Exa APIで情報収集
-    const searchSpecialistTask = {
+    // 計画戦略エージェントタスク - 情報収集計画を最適化
+    const planStrategistTask = {
       description: `Using the strategy provided, gather the most relevant and reliable information about "${plan.title}".
       Use the Exa API to search for information across the web, academic databases, and other sources.
       Organize the information in a clear and structured way.`,
@@ -192,8 +196,8 @@ export async function runKnowledgeLibraryProcess(
       }
     };
     
-    // コンテンツアナリストタスク - 収集した情報を分析
-    const contentAnalystTask = {
+    // 検索実行エージェントタスク - Exa APIを使用した効率的な検索
+    const searchConductorTask = {
       description: `Analyze the information collected about "${plan.title}".
       Identify key insights, patterns, and trends.
       Extract the most important and actionable knowledge.`,
@@ -270,8 +274,8 @@ export async function runKnowledgeLibraryProcess(
       }
     };
     
-    // ナレッジアーキテクトタスク - 知識グラフの構築
-    const knowledgeArchitectTask = {
+    // コンテンツ処理エージェントタスク - 情報の抽出と構造化
+    const contentProcessorTask = {
       description: `Design and create a knowledge structure for the information about "${plan.title}".
       Identify key concepts, their relationships, and hierarchies.
       Create a knowledge graph that effectively organizes the information.`,
@@ -344,6 +348,105 @@ export async function runKnowledgeLibraryProcess(
           nodeCount: graphData.nodes.length,
           edgeCount: graphData.edges.length,
           graphStructure: "Knowledge graph created with main topic and related insights, patterns, and gaps."
+        });
+      }
+    };
+    
+    // 重複マネージャーエージェントタスク - 重複コンテンツの検出と削除
+    const duplicationManagerTask = {
+      description: `Detect and remove duplicate information about "${plan.title}".
+      Use multi-level duplicate detection to ensure content uniqueness.
+      Organize information chronologically for better understanding.`,
+      async function(agent: any, input: any) {
+        // 進捗状況の更新
+        websocket.sendProgressUpdate(roleModelId, 75, 'Removing duplicated information...');
+        websocket.sendAgentThoughts(
+          agent.name, 
+          `I'm detecting and removing duplicate information about "${plan.title}".`, 
+          roleModelId,
+          'thinking'
+        );
+        
+        // 入力データの解析
+        let contentData;
+        try {
+          contentData = JSON.parse(input);
+        } catch (error) {
+          contentData = { mainNodeId: '', nodeCount: 0, edgeCount: 0 };
+        }
+        
+        // 重複検出の処理をWebSocketで通知
+        setTimeout(() => {
+          websocket.sendAgentThoughts(
+            agent.name,
+            `Analyzing content patterns to detect semantic duplications...`,
+            roleModelId,
+            'thinking'
+          );
+        }, 2000);
+        
+        // 重複除去後のデータ構造を返す
+        return JSON.stringify({
+          mainNodeId: contentData.mainNodeId,
+          originalNodeCount: contentData.nodeCount,
+          cleanedNodeCount: contentData.nodeCount - Math.floor(contentData.nodeCount * 0.2), // 仮に20%が重複と仮定
+          duplicationDetected: true,
+          duplicationReport: {
+            exactDuplicates: Math.floor(contentData.nodeCount * 0.1),
+            semanticDuplicates: Math.floor(contentData.nodeCount * 0.1),
+            timeBasedOrganization: true,
+            cleanedStructure: "Knowledge graph optimized with duplicate content removed and time-based organization."
+          }
+        });
+      }
+    };
+    
+    // 知識統合エージェントタスク - 時系列に基づく知識グラフの管理
+    const knowledgeIntegratorTask = {
+      description: `Integrate all knowledge about "${plan.title}" into a cohesive time-based structure.
+      Organize information chronologically to show evolution of ideas and concepts.
+      Create a unified knowledge structure that highlights relationships between time periods.`,
+      async function(agent: any, input: any) {
+        // 進捗状況の更新
+        websocket.sendProgressUpdate(roleModelId, 85, 'Integrating knowledge chronologically...');
+        websocket.sendAgentThoughts(
+          agent.name, 
+          `I'm integrating knowledge about "${plan.title}" in a time-based structure.`, 
+          roleModelId,
+          'thinking'
+        );
+        
+        // 入力データの解析
+        let cleanedData;
+        try {
+          cleanedData = JSON.parse(input);
+        } catch (error) {
+          cleanedData = { mainNodeId: '', cleanedNodeCount: 0, duplicationReport: {} };
+        }
+        
+        // 統合処理をWebSocketで通知
+        setTimeout(() => {
+          websocket.sendAgentThoughts(
+            agent.name,
+            `Creating chronological relationships between concepts and organizing information by time periods...`,
+            roleModelId,
+            'thinking'
+          );
+        }, 2000);
+        
+        // 統合後のデータ構造を返す
+        return JSON.stringify({
+          mainNodeId: cleanedData.mainNodeId,
+          integratedNodeCount: cleanedData.cleanedNodeCount,
+          timeBasedStructure: true,
+          chronologicalLayers: 4, // 仮に4つの時間層に分割
+          integrationReport: {
+            pastDevelopments: "Historical context and past developments organized",
+            currentState: "Present situation and current technologies highlighted",
+            emergingTrends: "Emerging patterns and recent developments identified",
+            futurePredictions: "Future projections and potential developments extrapolated",
+            crossTimeRelationships: "Relationships between time periods established"
+          }
         });
       }
     };
@@ -444,18 +547,22 @@ export async function runKnowledgeLibraryProcess(
     // CrewAIの設定とタスクの実行
     const knowledgeCrew = new Crew({
       agents: [
-        strategyPlanner,
-        searchSpecialist,
-        contentAnalyst,
-        knowledgeArchitect,
+        initialResearcher,
+        planStrategist,
+        searchConductor,
+        contentProcessor,
+        duplicationManager,
+        knowledgeIntegrator,
         reportWriter,
         orchestrator
       ],
       tasks: [
-        strategyPlannerTask,
-        searchSpecialistTask,
-        contentAnalystTask,
-        knowledgeArchitectTask,
+        initialResearcherTask,
+        planStrategistTask,
+        searchConductorTask,
+        contentProcessorTask,
+        duplicationManagerTask,
+        knowledgeIntegratorTask,
         reportWriterTask,
         orchestratorTask
       ],

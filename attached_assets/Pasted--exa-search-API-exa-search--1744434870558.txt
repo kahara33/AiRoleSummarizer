@@ -1,0 +1,161 @@
+# 改善版：exa search APIを活用した情報収集・レポート生成システム
+
+ご要望に基づき、exa searchの実行結果から情報収集プランを立て、最新情報のみを効率的に取得し、重複のないレポートを生成するための改善版システム設計を提案します。
+
+## 最適化されたAIエージェント構成
+
+1. **初期調査エージェント (Initial Researcher)**
+   - 最初のexa search実行を担当
+   - 業界・キーワードに関する基礎データ収集
+   - 包括的な初期情報マップの構築
+
+2. **計画戦略エージェント (Plan Strategist)**
+   - 初期検索結果を分析し情報収集計画を作成
+   - クエリの最適化と優先度付け
+   - 検索頻度・パラメータの決定
+
+3. **検索実行エージェント (Search Conductor)**
+   - 最適化された検索クエリの実行
+   - 日付フィルタリングによる最新情報のみの取得
+   - API使用効率の最大化
+
+4. **コンテンツ処理エージェント (Content Processor)**
+   - 重要記事の全文取得と構造化
+   - エンティティ抽出と関係性分析
+   - メタデータの標準化
+
+5. **重複管理エージェント (Duplication Manager)**
+   - 複数レベルの重複検出（URL、ハッシュ、意味的類似性）
+   - 履歴管理による重複の排除
+   - 本当に新しい情報の特定
+
+6. **知識統合エージェント (Knowledge Integrator)**
+   - 時系列ナレッジグラフの管理
+   - 新情報の既存知識への統合
+   - トレンド検出と変化追跡
+
+7. **レポート作成エージェント (Report Compiler)**
+   - 非重複情報のみを使用した簡潔なレポート作成
+   - 重要度・新規性に基づく情報の優先付け
+   - ユーザー好みに合わせたフォーマット
+
+## 最適化された処理フロー
+
+```
+初期設定フェーズ
+┌─ ユーザー → 業界・キーワード入力
+↓
+├─ 初期調査エージェント → exa search初回実行 → 基礎データ収集
+↓
+├─ 計画戦略エージェント → 検索結果分析 → 情報収集計画作成
+↓
+└─ ユーザー → 計画確認・調整
+
+日次実行フェーズ
+┌─ 検索実行エージェント → 最適化クエリ実行 → 最新情報のみ取得(日付フィルタ活用)
+↓
+├─ コンテンツ処理エージェント → 全文取得・構造化 → エンティティ抽出
+↓
+├─ 重複管理エージェント → 多層重複検出 → 新規情報特定
+↓
+├─ 知識統合エージェント → ナレッジグラフ更新 → トレンド分析
+↓
+└─ レポート作成エージェント → 非重複情報レポート作成 → ユーザーへ提供
+
+継続改善フェーズ
+┌─ 計画戦略エージェント → 検索効果分析 → 収集計画最適化
+↓
+└─ 重複管理エージェント → 重複検出精度向上 → 学習モデル更新
+```
+
+## 重複排除と最新情報取得のための主要機能
+
+1. **時間ベースの増分検索**
+   ```python
+   def execute_incremental_search(query, last_execution_time):
+       """前回実行時以降の情報のみを検索"""
+       today = datetime.now()
+       
+       # 前回実行がある場合はその時点から、なければ1日前から
+       start_date = last_execution_time if last_execution_time else (today - timedelta(days=1))
+       
+       # 日付フィルタを適用した検索実行
+       search_params = {
+           "query": query,
+           "startPublishedDate": start_date.strftime("%Y-%m-%d"),
+           "endPublishedDate": today.strftime("%Y-%m-%d")
+       }
+       
+       return exa_search_api.search(**search_params)
+   ```
+
+2. **多層的重複検出メカニズム**
+   ```python
+   def is_duplicate(article, history_database):
+       """複数の方法で重複を検出"""
+       # 1. URL完全一致
+       if article["url"] in history_database["urls"]:
+           return True
+           
+       # 2. コンテンツハッシュ
+       content_hash = compute_hash(article["content"])
+       if content_hash in history_database["content_hashes"]:
+           return True
+           
+       # 3. タイトル+概要のセマンティック類似性
+       article_embedding = get_embedding(article["title"] + " " + article["summary"])
+       for existing_embedding in history_database["embeddings"]:
+           similarity = cosine_similarity(article_embedding, existing_embedding)
+           if similarity > 0.85:  # 高い類似度のしきい値
+               return True
+               
+       return False  # 真に新しいコンテンツ
+   ```
+
+3. **最適化された日次レポート生成**
+   ```python
+   def generate_daily_report(new_articles, knowledge_graph):
+       """最新・非重複情報のみに基づくレポート作成"""
+       # トピックごとにグループ化
+       topics = group_by_topic(new_articles)
+       
+       # 重要度でソート
+       prioritized_topics = sort_by_importance(topics)
+       
+       # 各トピックの最も重要な記事のみを含める
+       report_content = []
+       for topic in prioritized_topics[:5]:  # 上位5トピックのみ
+           best_articles = select_best_articles(topic["articles"], max_count=2)
+           report_content.append({
+               "topic": topic["name"],
+               "articles": best_articles,
+               "trend": analyze_trend(topic["name"], knowledge_graph)
+           })
+           
+       return format_report(report_content)
+   ```
+
+## 実装上の重要な改善点
+
+1. **exa search API最適活用**
+   - 初回検索は広範囲・日次検索は厳格日付フィルタ
+   - 検索クエリの最適化（キーワード組み合わせ、フレーズ検索）
+   - API呼び出し数の効率化（重要度に応じた頻度調整）
+
+2. **重複排除の多層実装**
+   - URL・ハッシュ比較による単純重複除外
+   - ベクトル埋め込みによるセマンティック類似性検出
+   - 時系列情報を考慮した「実質的に新しい情報」の判定
+   - ユーザー興味度に基づく情報の差別化
+
+3. **時系列管理の強化**
+   - タイムスタンプ付きナレッジグラフによる情報変化の追跡
+   - トピックのライフサイクル管理
+   - 更新頻度に基づく重要度評価
+
+4. **レポート最適化**
+   - 最新・非重複情報に限定
+   - トピック重要度に基づく階層化
+   - 前回レポートとの差分ハイライト
+
+このアプローチにより、exa search APIを効率的に活用して毎日の最新情報のみを収集し、重複のない価値の高いレポートをユーザーに提供するシステムが実現できます。​​​​​​​​​​​​​​​​
