@@ -139,8 +139,7 @@ export async function runKnowledgeLibraryProcess(
         try {
           const searchResults = await searchWithExa({
             query: plan.title,
-            numResults: plan.toolsConfig?.maxResults || 10,
-            useCache: true
+            numResults: plan.toolsConfig?.maxResults || 10
           });
           
           // 結果をデータベースに保存
