@@ -76,7 +76,42 @@ export function initWebSocketServer(server: Server): void {
           const parsedMessage = JSON.parse(message.toString());
           console.log(`Received message from role model ${roleModelId}:`, parsedMessage);
           
-          // Client->Server メッセージの処理（必要に応じて追加）
+          // Client->Server メッセージの処理
+          const { type } = parsedMessage;
+          
+          if (type === 'ping') {
+            // Pingに対してPongで応答
+            ws.send(JSON.stringify({
+              type: 'pong',
+              payload: {
+                timestamp: new Date().toISOString()
+              }
+            }));
+          } else if (type === 'subscribe') {
+            // サブスクリプションリクエスト - 既に接続時に処理されているので、確認メッセージを送信
+            ws.send(JSON.stringify({
+              type: 'connect_success',
+              payload: {
+                message: '接続が確立されました',
+                clientId: parsedMessage.clientId || 'unknown',
+                roleModelId: roleModelId
+              }
+            }));
+            console.log(`Client ${parsedMessage.clientId || 'unknown'} subscribed to role model ${roleModelId}`);
+          } else if (type === 'agent_thoughts' || type === 'progress' || type === 'graph_update') {
+            // メッセージをそのまま処理（受信も送信も同じ型を使用）
+            console.log(`Processing message type: ${type}`);
+            
+            // ペイロードにroleModelIdがなければ追加
+            if (parsedMessage.payload && !parsedMessage.payload.roleModelId) {
+              parsedMessage.payload.roleModelId = roleModelId;
+            }
+            
+            // 同じロールモデルに属する他のクライアントに転送（必要に応じて）
+            sendToRoleModel(roleModelId, parsedMessage);
+          } else {
+            console.log(`未処理のメッセージタイプ: ${type}`);
+          }
           
         } catch (error) {
           console.error(`Error parsing message from role model ${roleModelId}:`, error);

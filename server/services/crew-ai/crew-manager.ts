@@ -336,11 +336,11 @@ export class CrewManager extends EventEmitter {
     // 直接WebSocketインターフェースを使用して進捗状況を送信
     try {
       const roleModelId = (this as any).roleModelId || 'default-role-model-id';
-      sendProgressUpdate({
-        message: `${stage}: ${detail}`,
-        percent: progress,
-        roleModelId
-      });
+      sendProgressUpdate(
+        roleModelId,
+        progress,
+        `${stage}: ${detail}`
+      );
       console.log(`進捗状況をWebSocketで直接送信: ${stage}, ${progress}%, ${detail}`);
     } catch (wsError) {
       console.error('WebSocket送信中にエラーが発生しました(進捗):', wsError);
