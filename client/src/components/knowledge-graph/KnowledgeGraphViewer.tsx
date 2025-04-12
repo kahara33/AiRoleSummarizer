@@ -122,6 +122,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   // サーバーからグラフデータを取得
   const fetchGraphData = useCallback(async () => {
     try {
+      console.log(`[KnowledgeGraphViewer] fetchGraphData実行: roleModelId=${roleModelId}, autoLoad=${autoLoad}`);
       setLoading(true);
       setError(null);
       
@@ -347,7 +348,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
       setLoading(false);
     }
-  }, [roleModelId]);
+  }, [roleModelId, autoLoad]);
 
   // 初期ナレッジグラフの存在確認
   useEffect(() => {
