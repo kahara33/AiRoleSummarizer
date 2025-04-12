@@ -20,6 +20,26 @@ const wsServer = {
 export function setupWebSocketIntegration(server: Server): void {
   const wsServer = initWebSocketServer(server);
   
+  // ViteとのWebSocket衝突を防ぐためのテストメッセージ送信
+  if (process.env.NODE_ENV !== 'production') {
+    // 開発環境のみで実行
+    console.log('開発モード：WebSocket初期化テスト');
+    setTimeout(() => {
+      try {
+        // テスト用メッセージをブロードキャスト
+        wsServer.broadcast({
+          type: 'debug_init_test', 
+          payload: { 
+            message: '開発モード用WebSocketテストメッセージ',
+            timestamp: new Date().toISOString()
+          }
+        });
+      } catch (error) {
+        console.error('WebSocketテストメッセージエラー:', error);
+      }
+    }, 5000); // 5秒後に実行
+  }
+  
   // WebSocketメッセージの処理
   wsServer.on('message', async (data: any) => {
     const { clientId, userId, roleModelId, message } = data;

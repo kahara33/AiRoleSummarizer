@@ -42,9 +42,9 @@ function isValidUUID(str: string): boolean {
 }
 
 // ルートの登録
-export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
-  // 既存のサーバーを使用するか、新しいサーバーを作成
-  const httpServer = existingServer || createServer(app);
+export async function registerRoutes(app: Express): Promise<Server> {
+  // HTTPサーバーの作成
+  const httpServer = createServer(app);
   
   // 認証のセットアップ
   setupAuth(app);

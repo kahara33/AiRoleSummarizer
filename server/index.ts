@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
+import http from 'http';
 import { registerRoutes } from './routes';
 import { db, pool } from './db';
 import { users, organizations } from '@shared/schema';
@@ -131,7 +132,24 @@ async function gracefulShutdown(signal: string, server: any) {
     process.exit(1);
   }, 10000);
   
+  // サーバーの終了を先に実行
+  const closeServerPromise = new Promise<void>((resolve) => {
+    server.close(() => {
+      console.log('サーバーをシャットダウンしました');
+      resolve();
+    });
+  });
+  
   try {
+    // サーバーの終了を待機
+    await Promise.race([
+      closeServerPromise,
+      new Promise(resolve => setTimeout(() => {
+        console.warn('サーバークローズがタイムアウトしました');
+        resolve(null);
+      }, 3000))
+    ]);
+    
     // Neo4j接続のクローズ
     await Promise.race([
       closeNeo4j(),
@@ -141,25 +159,28 @@ async function gracefulShutdown(signal: string, server: any) {
       }, 3000))
     ]);
     
-    // PostgreSQL接続プールのクローズ
-    await Promise.race([
-      pool.end(),
-      new Promise(resolve => setTimeout(() => {
-        console.warn('PostgreSQL接続プールのクローズがタイムアウトしました');
-        resolve(null);
-      }, 3000))
-    ]);
-    console.log('データベース接続を終了しました');
+    // PostgreSQL接続プールのクローズ (アプリケーション終了直前に実行)
+    // 注意: pool.end()の後はデータベースクエリが実行できなくなる
+    try {
+      await Promise.race([
+        pool.end(),
+        new Promise(resolve => setTimeout(() => {
+          console.warn('PostgreSQL接続プールのクローズがタイムアウトしました');
+          resolve(null);
+        }, 3000))
+      ]);
+      console.log('データベース接続を終了しました');
+    } catch (dbErr) {
+      console.error('データベース接続のクローズエラー:', dbErr);
+    }
   } catch (err) {
     console.error('リソース解放エラー:', err);
   }
   
-  // サーバーの終了
-  server.close(() => {
-    console.log('サーバーをシャットダウンしました');
-    clearTimeout(shutdownTimeout);
-    process.exit(0);
-  });
+  // 全てのクリーンアップが完了したら終了
+  clearTimeout(shutdownTimeout);
+  console.log('アプリケーションを正常に終了します');
+  process.exit(0);
 }
 
 // 開発環境設定
@@ -182,11 +203,14 @@ async function startServer() {
       console.log('アプリケーションは続行しますが、データベース機能が制限される可能性があります');
     }
     
-    // WebSocketサーバーのセットアップ
-    const httpServer = setupWebSocketServer(app);
+    // HTTPサーバーの作成 (単一のサーバーインスタンスを共有)
+    const server = http.createServer(app);
     
-    // ルートの登録
-    const server = await registerRoutes(app, httpServer);
+    // ルートの登録 (既存のサーバーを使用)
+    await registerRoutes(app, server);
+    
+    // WebSocketサーバーのセットアップ (同じサーバーインスタンスを使用)
+    setupWebSocketServer(app, server);
     
     // 開発環境でViteのセットアップ
     if (process.env.NODE_ENV !== 'production') {

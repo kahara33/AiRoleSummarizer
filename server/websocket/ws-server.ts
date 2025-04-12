@@ -46,11 +46,18 @@ export class WSServerManager {
 
   // コンストラクタ - HTTPサーバーと関連付ける
   constructor(server: Server) {
-    this.wss = new WebSocketServer({ 
+    // WebSocketサーバー設定を修正
+    const wsServerConfig = {
       server,
       // ViteのWebSocketと競合しないよう専用パスを設定
-      path: '/api/ws' 
-    });
+      path: '/api/ws',
+      // WebSocketの検証を緩和して接続問題を回避
+      verifyClient: () => true,
+      // WebSocketのフレームサイズ制限を緩和（バッファサイズを増やす）
+      maxPayload: 5 * 1024 * 1024 // 5MB
+    };
+    
+    this.wss = new WebSocketServer(wsServerConfig);
     
     // 接続イベントの処理
     this.wss.on('connection', (socket: WebSocket, req: any) => {
@@ -68,10 +75,31 @@ export class WSServerManager {
           clientId = `${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
         }
         
+        // ユーザーIDがない場合の処理
         if (!userId) {
-          console.warn('ユーザーIDが指定されていません。接続を閉じます。');
-          socket.close(1003, 'ユーザーIDが必要です');
-          return;
+          // ViteのWebSocketリクエストの可能性があるため、特別な処理
+          const isViteHMRRequest = req.url && (
+            req.url.includes('vite') || 
+            req.url.includes('hmr') || 
+            req.headers['sec-websocket-protocol']?.includes('vite')
+          );
+          
+          if (isViteHMRRequest) {
+            console.log('Vite HMR WebSocketと思われる接続をスキップします:', req.url);
+            socket.close(1000, 'Vite HMR接続は別のハンドラーで処理されます');
+            return;
+          }
+          
+          // 開発モードではデバッグ接続として許可
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('ユーザーIDが指定されていません。デバッグモード中は仮IDで許可します。');
+            // デバッグ用に仮のユーザーIDを設定
+            clientId = `debug-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+          } else {
+            console.warn('ユーザーIDが指定されていません。接続を閉じます。');
+            socket.close(1003, 'ユーザーIDが必要です');
+            return;
+          }
         }
         
         // Nodeの内部ソケット設定を最適化（可能な場合）

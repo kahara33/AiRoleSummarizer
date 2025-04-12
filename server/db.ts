@@ -7,7 +7,7 @@ import * as schema from '@shared/schema';
 const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 1000;
 
-// 環境変数からデータベース接続情報を取得
+// PostgreSQLプールのシングルトンインスタンス
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // 接続プールの安定性を向上させる設定
@@ -22,7 +22,7 @@ export const pool = new Pool({
 });
 
 // エラー発生時のログ記録
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
   console.error('予期せぬデータベースエラーが発生しました:', err);
   // クリティカルなエラーでもアプリケーションをクラッシュさせないよう、ここではエラーを処理するのみ
 });
