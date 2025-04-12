@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import KnowledgeGraphGenerationButton from './KnowledgeGraphGenerationButton';
 import CollectionPlanGenerationButton from './CollectionPlanGenerationButton';
+import UserFeedbackButton from './UserFeedbackButton';
 import { useUnifiedWebSocket } from '@/hooks/use-unified-websocket';
 
 interface AIGenerationButtonsContainerProps {
@@ -28,6 +29,7 @@ export default function AIGenerationButtonsContainer({
   // ボタン状態を管理
   const [graphGenerationActive, setGraphGenerationActive] = useState(false);
   const [planGenerationActive, setPlanGenerationActive] = useState(false);
+  const [feedbackActive, setFeedbackActive] = useState(false);
   
   // WebSocket接続を確立
   const { connect, isConnected } = useUnifiedWebSocket();
@@ -42,8 +44,8 @@ export default function AIGenerationButtonsContainer({
 
   // ボタン間で状態を共有
   useEffect(() => {
-    setIsAnyGenerating(graphGenerationActive || planGenerationActive);
-  }, [graphGenerationActive, planGenerationActive]);
+    setIsAnyGenerating(graphGenerationActive || planGenerationActive || feedbackActive);
+  }, [graphGenerationActive, planGenerationActive, feedbackActive]);
 
   // グラフ生成ボタンでのステートチェンジハンドラ
   const handleGraphGenerationStateChange = (isGenerating: boolean) => {
@@ -53,6 +55,11 @@ export default function AIGenerationButtonsContainer({
   // プラン生成ボタンでのステートチェンジハンドラ
   const handlePlanGenerationStateChange = (isGenerating: boolean) => {
     setPlanGenerationActive(isGenerating);
+  };
+  
+  // フィードバックボタンでのステートチェンジハンドラ
+  const handleFeedbackStateChange = (isGenerating: boolean) => {
+    setFeedbackActive(isGenerating);
   };
 
   return (

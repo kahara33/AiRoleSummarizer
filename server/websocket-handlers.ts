@@ -213,6 +213,7 @@ export async function handleUserFeedback(message: any, roleModelId: string) {
       
       // 次のステップの通知（要約サンプル選択の場合）
       if (feedbackType === userFeedbackService.FeedbackType.SUMMARY_PREFERENCE) {
+        // フィードバックを基にグラフを更新
         websocket.sendProgressUpdate(
           roleModelId,
           75,
@@ -220,15 +221,57 @@ export async function handleUserFeedback(message: any, roleModelId: string) {
           { status: 'updating_graph' }
         );
         
-        // 少し待機してから完了通知
-        setTimeout(() => {
-          websocket.sendProgressUpdate(
-            roleModelId,
-            90,
-            'ナレッジグラフを最適化しました。情報収集プランを生成中...',
-            { status: 'graph_updated' }
-          );
-        }, 2000);
+        // ナレッジグラフの更新処理
+        const mainTopic = payload.data.mainTopic || payload.mainTopic || 'AI';
+        
+        // グラフ更新が完了したら情報収集プランを生成
+        websocket.sendProgressUpdate(
+          roleModelId,
+          90,
+          'ナレッジグラフを最適化しました。情報収集プランを生成中...',
+          { status: 'graph_updated' }
+        );
+        
+        // 情報収集プラン作成を開始
+        websocket.sendProgressUpdate(
+          roleModelId,
+          95,
+          'ユーザーフィードバックを反映した情報収集プランを生成しています...',
+          { status: 'creating_collection_plan' }
+        );
+        
+        // 情報収集プラン作成フローを実行（非同期で行う）
+        setTimeout(async () => {
+          try {
+            const collectionPlanResult = await aiAgentService.runCollectionPlanCreationFlow(
+              roleModelId,
+              {
+                mainTopic: mainTopic,
+                keywords: Array.isArray(payload.data.preferredSummaryTypes) 
+                  ? payload.data.preferredSummaryTypes 
+                  : []
+              }
+            );
+            
+            console.log('情報収集プラン作成完了:', collectionPlanResult);
+          } catch (planError) {
+            console.error('情報収集プラン作成エラー:', planError);
+          }
+        }, 3000);
+      }
+      
+      // サンプル収集リクエストの場合は、サンプル提示フローを開始
+      if (feedbackType === userFeedbackService.FeedbackType.REQUEST_SAMPLES) {
+        const topic = payload.data?.topic || payload.topic || 'AI';
+        
+        // 非同期でユーザーフィードバック収集フローを実行
+        aiAgentService.runUserFeedbackCollectionFlow(roleModelId, topic)
+          .then(flowResult => {
+            console.log('ユーザーフィードバック収集フロー完了:', flowResult);
+          })
+          .catch(flowError => {
+            console.error('ユーザーフィードバック収集フローエラー:', flowError);
+          });
       }
     } else {
       // エラーメッセージ

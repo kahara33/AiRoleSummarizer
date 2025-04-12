@@ -6,6 +6,7 @@
 import * as neo4jService from './neo4j-service';
 import * as graphService from './graph-service-adapter';
 import * as exaService from './exa-search-service';
+import { v4 as uuidv4 } from 'uuid';
 
 // ノードタイプ
 export enum NodeType {
@@ -1090,18 +1091,59 @@ export async function incorporateUserFeedback(
   roleModelId: string,
   graphData: GraphData,
   userPreferences: {
-    categories: string[];
-    priorityKeywords: string[];
-    feedbackType: string;
+    preferredSummaryTypes?: string[];
+    preferredCharacteristics?: string[];
+    categories?: string[];
+    priorityKeywords?: string[];
+    feedbackType?: string;
   }
 ): Promise<GraphData> {
   try {
-    console.log(`ユーザーフィードバックの反映開始: roleModelId=${roleModelId}, 優先カテゴリ=${userPreferences.categories.join(', ')}`);
+    console.log(`ユーザーフィードバックの反映開始: roleModelId=${roleModelId}`);
+    
+    // 優先カテゴリとキーワードを初期化
+    const categories = userPreferences.categories || [];
+    const priorityKeywords = userPreferences.priorityKeywords || [];
+    
+    // 要約タイプから強調すべきカテゴリを抽出（例：「技術的」→「技術」）
+    const preferredTypes = userPreferences.preferredSummaryTypes || [];
+    const extractedCategories = new Set<string>();
+    
+    // 要約タイプからキーワードを抽出
+    preferredTypes.forEach(type => {
+      if (type.includes('技術')) extractedCategories.add('技術');
+      if (type.includes('ビジネス')) extractedCategories.add('ビジネス');
+      if (type.includes('市場')) extractedCategories.add('市場');
+      if (type.includes('トレンド')) extractedCategories.add('トレンド');
+      if (type.includes('概要')) extractedCategories.add('概要');
+    });
+    
+    // 特性からキーワードを抽出
+    const characteristics = userPreferences.preferredCharacteristics || [];
+    const extractedKeywords = new Set<string>();
+    
+    characteristics.forEach(char => {
+      // 特性からキーワードを抽出（例：「データ分析重視」→「データ分析」）
+      const keywordMatches = char.match(/(.*)(重視|ベース|フォーカス|中心)/);
+      if (keywordMatches && keywordMatches[1]) {
+        extractedKeywords.add(keywordMatches[1].trim());
+      }
+      
+      // 特性自体もキーワードとして使用
+      extractedKeywords.add(char);
+    });
+    
+    // 抽出されたカテゴリとキーワードを配列に変換
+    const allCategories = [...categories, ...Array.from(extractedCategories)];
+    const allKeywords = [...priorityKeywords, ...Array.from(extractedKeywords)];
+    
+    console.log(`抽出カテゴリ: ${allCategories.join(', ')}`);
+    console.log(`抽出キーワード: ${allKeywords.join(', ')}`);
     
     // 優先カテゴリに合致するノードを強調
     const enhancedNodes = graphData.nodes.map(node => {
       // ユーザーが関心を示したカテゴリに関連するノードを強調
-      if (userPreferences.categories.some(category => 
+      if (allCategories.length > 0 && allCategories.some(category => 
           node.label.includes(category) || 
           (node.properties?.category && node.properties.category.includes(category))
       )) {
@@ -1117,7 +1159,7 @@ export async function incorporateUserFeedback(
       }
 
       // 優先キーワードに関連するノードを強調
-      if (userPreferences.priorityKeywords.some(keyword => 
+      if (allKeywords.length > 0 && allKeywords.some(keyword => 
           node.label.toLowerCase().includes(keyword.toLowerCase())
       )) {
         return {
@@ -1159,15 +1201,80 @@ export async function incorporateUserFeedback(
       return edge;
     });
     
+    // 要約タイプと特性に基づいて新しいノードを追加
+    const newNodes: GraphNode[] = [];
+    
+    // 要約タイプをメタノードとして追加
+    if (preferredTypes.length > 0) {
+      const summaryTypeNode: GraphNode = {
+        id: `pref-summary-type-${uuidv4().slice(0, 8)}`,
+        label: 'ユーザー選択の要約タイプ',
+        type: NodeType.CONCEPT,
+        properties: {
+          description: `ユーザーが選択した要約タイプ: ${preferredTypes.join(', ')}`,
+          userGenerated: true,
+          importance: 'high',
+          visualWeight: 1.8
+        }
+      };
+      newNodes.push(summaryTypeNode);
+      
+      // メインノードへの接続用エッジを追加
+      const mainNode = graphData.nodes.find(n => n.properties.isMainTopic);
+      if (mainNode) {
+        enhancedEdges.push({
+          id: `pref-edge-${uuidv4().slice(0, 8)}`,
+          source: summaryTypeNode.id,
+          target: mainNode.id,
+          type: EdgeType.RELATED_TO,
+          properties: {
+            description: 'ユーザー選択の要約タイプ',
+            userFeedback: 'preferred_summary_type',
+            weight: 1.0
+          }
+        });
+      }
+    }
+    
+    // 特性をメタノードとして追加
+    if (characteristics.length > 0) {
+      const characteristicsNode: GraphNode = {
+        id: `pref-characteristics-${uuidv4().slice(0, 8)}`,
+        label: 'ユーザー選択の特性',
+        type: NodeType.CONCEPT,
+        properties: {
+          description: `ユーザーが選択した特性: ${characteristics.join(', ')}`,
+          userGenerated: true,
+          importance: 'high',
+          visualWeight: 1.8
+        }
+      };
+      newNodes.push(characteristicsNode);
+      
+      // メインノードへの接続用エッジを追加
+      const mainNode = graphData.nodes.find(n => n.properties.isMainTopic);
+      if (mainNode) {
+        enhancedEdges.push({
+          id: `pref-edge-char-${uuidv4().slice(0, 8)}`,
+          source: characteristicsNode.id,
+          target: mainNode.id,
+          type: EdgeType.RELATED_TO,
+          properties: {
+            description: 'ユーザー選択の特性',
+            userFeedback: 'preferred_characteristics',
+            weight: 1.0
+          }
+        });
+      }
+    }
+    
     // フィードバックを反映した更新済みグラフを返す
     const updatedGraph = {
-      nodes: enhancedNodes,
+      nodes: [...enhancedNodes, ...newNodes],
       edges: enhancedEdges
     };
     
     console.log(`ユーザーフィードバック反映完了: ノード数=${updatedGraph.nodes.length}, エッジ数=${updatedGraph.edges.length}`);
-    
-    // 実際の環境では、このグラフをNeo4jなどのデータベースに保存するロジックを追加
     
     return updatedGraph;
   } catch (error) {

@@ -16,7 +16,8 @@ export enum ProcessFlowType {
   COLLECTION_EXECUTION = 'collection_execution',
   GRAPH_UPDATE_RECOMMENDATION = 'graph_update_recommendation',
   USER_INTERVIEW = 'user_interview',
-  SAMPLE_SUMMARY_GENERATION = 'sample_summary_generation'
+  SAMPLE_SUMMARY_GENERATION = 'sample_summary_generation',
+  USER_FEEDBACK_COLLECTION = 'user_feedback_collection'
 }
 
 // エージェントタイプ（新構成）
@@ -865,6 +866,282 @@ export async function runCollectionExecutionFlow(
  * @param roleModelId ロールモデルID
  * @param reports 要約レポート一覧
  */
+/**
+ * 要約サンプルを生成する
+ * @param topic 要約対象のトピック
+ * @returns 生成されたサンプル要約の配列
+ */
+/**
+ * ユーザーフィードバック収集フロー
+ * ユーザーに要約サンプルを提示し、フィードバックを収集する
+ * 
+ * @param roleModelId ロールモデルID
+ * @param topic メイントピック
+ * @returns 処理成功かどうか
+ */
+export async function runUserFeedbackCollectionFlow(
+  roleModelId: string,
+  topic: string
+): Promise<boolean> {
+  try {
+    console.log(`ユーザーフィードバック収集フロー開始: ${roleModelId}, topic: ${topic}`);
+    
+    // オーケストレーターの思考
+    sendAgentThought(
+      AgentType.ORCHESTRATOR,
+      'ユーザーのフィードバック収集プロセスを開始します。サンプル要約エージェントとヒアリングエージェントが連携して処理します。',
+      roleModelId,
+      ThoughtStatus.STARTING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      10,
+      'ユーザーフィードバック収集を開始します...'
+    );
+    
+    // サンプル要約エージェントの思考
+    sendAgentThought(
+      AgentType.SAMPLE_SUMMARIZER,
+      `${topic}に関する複数の要約サンプルを生成しています。多様な視点と情報密度のバリエーションを用意します。`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      30,
+      '要約サンプルを生成中...'
+    );
+    
+    // 要約サンプルを生成
+    const summarySamples = await generateSummarySamples(topic);
+    
+    // サンプル要約エージェントの完了思考
+    sendAgentThought(
+      AgentType.SAMPLE_SUMMARIZER,
+      `${summarySamples.length}種類の要約サンプルの生成が完了しました。ヒアリングエージェントに提供します。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      50,
+      'ユーザーへの提示準備が完了しました'
+    );
+    
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      'ユーザーに複数の要約サンプルを提示し、フィードバックを収集します。ユーザーの関心に合致する情報の特性とパターンを特定します。',
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 進捗状況の更新 - ユーザーへの選択肢提示
+    sendProgress(
+      roleModelId,
+      70,
+      'フィードバックを収集するため、以下の要約サンプルからお好みのタイプをお選びください。',
+      {
+        status: 'awaiting_feedback',
+        samples: summarySamples,
+        request_type: 'summary_selection',
+        instructions: '最も関心のある要約タイプを1つ以上選択してください。このフィードバックはナレッジグラフと情報収集プランの最適化に使用されます。'
+      }
+    );
+    
+    // 実際のシステムではここでユーザーの入力を待機
+    // このデモ実装では、入力受信をシミュレート
+    
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      'ユーザーからフィードバックを受信しました。選択された要約パターンに基づき、ユーザーの関心事項と情報ニーズを分析しています。',
+      roleModelId,
+      ThoughtStatus.DECISION
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      90,
+      'フィードバックの処理を完了しました'
+    );
+    
+    // オーケストレーターの思考
+    sendAgentThought(
+      AgentType.ORCHESTRATOR,
+      'ユーザーフィードバック収集プロセスが完了しました。収集した嗜好データをナレッジグラフの最適化とプラン設計に反映します。',
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // 進捗状況の最終更新
+    sendProgress(
+      roleModelId,
+      100,
+      'ユーザーフィードバック収集が完了しました',
+      {
+        status: 'completed',
+        message: 'フィードバックが正常に処理されました。このデータを基にナレッジグラフと情報収集プランを最適化します。'
+      }
+    );
+    
+    return true;
+  } catch (error) {
+    console.error('ユーザーフィードバック収集フロー実行エラー:', error);
+    
+    // エラー進捗更新
+    sendProgress(
+      roleModelId,
+      0,
+      'フィードバック収集中にエラーが発生しました',
+      {
+        status: 'error',
+        error: error instanceof Error ? error.message : '不明なエラー'
+      }
+    );
+    
+    // オーケストレーターのエラー思考
+    sendAgentThought(
+      AgentType.ORCHESTRATOR,
+      `ユーザーフィードバック収集中にエラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
+      roleModelId,
+      ThoughtStatus.ERROR
+    );
+    
+    return false;
+  }
+}
+
+export async function generateSummarySamples(topic: string): Promise<any[]> {
+  try {
+    const agentName = AgentType.SAMPLE_SUMMARIZER;
+    websocket.sendAgentThoughts(
+      agentName,
+      `${topic}に関する5種類の異なるタイプの要約サンプルを生成します`,
+      'start'
+    );
+
+    // 5種類の要約パターンを定義
+    const summaryTypes = [
+      {
+        id: 'technical',
+        type: '技術的詳細型',
+        characteristics: ['専門的', '技術重視', '詳細志向', 'データベース'],
+        template: `${topic}に関する技術的な詳細と専門的な分析を含む要約`
+      },
+      {
+        id: 'business',
+        type: 'ビジネスインパクト型',
+        characteristics: ['ビジネス視点', '市場動向', 'ROI分析', '戦略的'],
+        template: `${topic}のビジネスへの影響と戦略的な意義に焦点を当てた要約`
+      },
+      {
+        id: 'trend',
+        type: 'トレンド分析型',
+        characteristics: ['将来予測', '動向分析', 'トレンド重視', '展望'],
+        template: `${topic}に関する最新トレンドと将来の展望に焦点を当てた要約`
+      },
+      {
+        id: 'comparative',
+        type: '比較分析型',
+        characteristics: ['競合分析', '比較重視', '長所・短所', '評価'],
+        template: `${topic}の競合比較と長所・短所を分析した要約`
+      },
+      {
+        id: 'overview',
+        type: '概要把握型',
+        characteristics: ['簡潔', '要点重視', '全体像', 'エグゼクティブサマリー'],
+        template: `${topic}の核心を簡潔に捉えたエグゼクティブサマリー`
+      }
+    ];
+
+    // 各サンプルに要約内容を追加
+    const samples = summaryTypes.map(type => {
+      const sample = {
+        ...type,
+        title: `${type.type}サンプル`,
+        content: generateSampleContent(topic, type.type, type.characteristics)
+      };
+
+      // 各サンプル生成の進捗を報告
+      websocket.sendAgentThoughts(
+        agentName,
+        `${type.type}のサンプル要約を生成しました`,
+        'thinking'
+      );
+
+      return sample;
+    });
+
+    // 完了報告
+    websocket.sendAgentThoughts(
+      agentName,
+      `${topic}に関する5種類の要約サンプルの生成が完了しました`,
+      'complete'
+    );
+
+    return samples;
+  } catch (error) {
+    console.error('要約サンプル生成エラー:', error);
+    websocket.sendAgentThoughts(
+      AgentType.SAMPLE_SUMMARIZER,
+      `要約サンプル生成中にエラーが発生しました: ${error}`,
+      'error'
+    );
+    return [];
+  }
+}
+
+/**
+ * サンプル要約内容を生成する内部ヘルパー関数
+ */
+function generateSampleContent(topic: string, type: string, characteristics: string[]): string {
+  // 実際の実装ではAIを使って内容を生成
+  // ここではダミーコンテンツを返す
+  const contentByType: Record<string, string> = {
+    '技術的詳細型': `${topic}の技術的詳細分析：\n\n` +
+      `1. 技術概要: ${topic}の主要技術コンポーネントとアーキテクチャ\n` +
+      `2. 実装方法: 具体的な実装手法と技術スタック\n` +
+      `3. 性能分析: パフォーマンスとスケーラビリティの評価\n` +
+      `4. 技術的課題: 現在の実装における主な技術的課題\n` +
+      `5. 将来の技術的発展: 今後予想される技術革新`,
+
+    'ビジネスインパクト型': `${topic}のビジネスインパクト分析：\n\n` +
+      `1. 市場機会: ${topic}がもたらす新たな市場機会\n` +
+      `2. 収益モデル: 実現可能な収益化戦略と予測ROI\n` +
+      `3. 競争優位性: 競合との差別化ポイントと市場ポジショニング\n` +
+      `4. リスク評価: 考慮すべきビジネスリスクと対策\n` +
+      `5. 戦略的提言: 最大のビジネス価値を引き出すための戦略提案`,
+
+    'トレンド分析型': `${topic}の最新トレンド分析：\n\n` +
+      `1. 現在のトレンド: ${topic}における最新の市場トレンド\n` +
+      `2. 成長予測: 今後3-5年の成長見通しと普及率予測\n` +
+      `3. 新興動向: 注目すべき新興サブカテゴリとイノベーション\n` +
+      `4. 転換点: 業界に変革をもたらす可能性のある転換点\n` +
+      `5. 将来展望: 長期的な発展シナリオと市場予測`,
+
+    '比較分析型': `${topic}の比較分析：\n\n` +
+      `1. 主要プレイヤー: ${topic}分野における主要企業の比較\n` +
+      `2. ソリューション比較: 主要ソリューションの機能・性能比較\n` +
+      `3. 長所・短所: 各アプローチの長所と短所の詳細分析\n` +
+      `4. コスト比較: 実装・運用コストの比較分析\n` +
+      `5. 最適選択: ユースケース別の最適選択ガイド`,
+
+    '概要把握型': `${topic}の概要：\n\n` +
+      `${topic}は現在急速に発展する分野であり、企業のデジタル変革において重要な役割を果たしています。主要な利点には効率化、コスト削減、精度向上があり、特に大規模データ処理と自動化において顕著な成果を上げています。現在の市場規模は約○○億円で、年間成長率は20%以上と予測されています。主要プレイヤーには大手IT企業と革新的スタートアップが含まれ、今後5年間でさらなる技術革新と市場拡大が期待されています。`
+  };
+
+  // 要約タイプに合わせたコンテンツを返す
+  return contentByType[type] || `${topic}に関する${type}サンプル要約です。このサンプルは${characteristics.join('、')}の特性を持っています。`;
+}
+
 export async function runGraphUpdateRecommendationFlow(
   roleModelId: string,
   reports: any[]
