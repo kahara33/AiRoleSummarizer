@@ -196,7 +196,19 @@ function useMultiAgentWebSocketManager() {
       setAgentThoughts(prevThoughts => [...prevThoughts, userMessageThought]);
     }
     
-    return wsManager.sendMessage(type, payload);
+    // すべてのメッセージにroleModelIdを確実に含める
+    const enhancedPayload = typeof payload === 'object' 
+      ? { 
+          ...payload, 
+          roleModelId: payload.roleModelId || currentRoleModelId 
+        } 
+      : { 
+          message: payload, 
+          roleModelId: currentRoleModelId 
+        };
+    
+    console.log(`メッセージ送信(${type}):`, enhancedPayload);
+    return wsManager.sendMessage(type, enhancedPayload);
   }, [isConnected, wsManager, currentRoleModelId]);
   
   // メッセージの消去
