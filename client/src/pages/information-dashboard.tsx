@@ -348,6 +348,14 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     setSelectedPlanData(plan);
   };
 
+  // 新規ソース追加関数
+  const handleAddSource = () => {
+    toast({
+      title: "新規ソース追加",
+      description: "新しい情報ソースを追加する機能は開発中です。"
+    });
+  };
+
   // エージェントパネルを表示するヘルパー関数
   const showAgentPanelHandler = useCallback(() => {
     setShowAgentPanel(true);
@@ -609,7 +617,10 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                 <TabsContent value="knowledgeGraph" className="flex-1 overflow-hidden p-0">
                   <div className="h-full relative">
                     {/* 知識グラフビューワー */}
-                    <KnowledgeGraphViewer roleModelId={roleModelId} />
+                    <KnowledgeGraphViewer 
+                      roleModelId={roleModelId} 
+                      onGraphDataChange={handleKnowledgeGraphData} 
+                    />
                   </div>
                 </TabsContent>
                 
@@ -802,24 +813,34 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                         </div>
                       )}
                     </div>
-                    
-                    <div className="p-3 border-t sticky bottom-0 bg-white">
-                      <div className="flex gap-2">
+
+                    {/* インプットフォーム */}
+                    <div className="border-t p-3 bg-white">
+                      <div className="relative">
                         <Textarea
                           placeholder="メッセージを入力..."
-                          className="min-h-[40px] resize-none text-sm flex-1"
+                          className="min-h-[60px] resize-none pr-12 border-gray-300"
                           value={userInput}
                           onChange={(e) => setUserInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              if (userInput.trim()) {
+                                handleSendMessage(userInput);
+                                setUserInput('');
+                              }
+                            }
+                          }}
                         />
                         <Button
-                          size="icon"
+                          className="absolute bottom-2 right-2 h-8 w-8 p-0"
                           onClick={() => {
-                            if (userInput.trim() && roleModelId) {
+                            if (userInput.trim()) {
                               handleSendMessage(userInput);
                               setUserInput('');
                             }
                           }}
-                          disabled={!userInput.trim() || !roleModelId}
+                          disabled={!userInput.trim()}
                         >
                           <Send className="h-4 w-4" />
                         </Button>
