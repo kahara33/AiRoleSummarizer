@@ -57,11 +57,15 @@ export default function UserFeedbackButton({
       if (latestUpdate.data?.status === 'awaiting_feedback' || 
           latestUpdate.data?.status === 'completed' || 
           latestUpdate.data?.samples) {
-        setProgress(latestUpdate.progress);
+        // Nullチェックして数値を確実に渡す
+        if (typeof latestUpdate.progress === 'number') {
+          setProgress(latestUpdate.progress);
+        }
         setStatusMessage(latestUpdate.message);
         
         // 完了またはエラー時の状態リセット
-        if (latestUpdate.progress === 100 || latestUpdate.progress === 0) {
+        if (latestUpdate.progress === 100 || latestUpdate.progress === 0 || 
+            latestUpdate.data?.status === 'completed' || latestUpdate.data?.status === 'error') {
           setTimeout(() => {
             setIsGenerating(false);
             

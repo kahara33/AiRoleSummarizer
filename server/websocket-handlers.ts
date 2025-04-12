@@ -261,7 +261,7 @@ export async function handleUserFeedback(message: any, roleModelId: string) {
       }
       
       // サンプル収集リクエストの場合は、サンプル提示フローを開始
-      if (feedbackType === userFeedbackService.FeedbackType.REQUEST_SAMPLES) {
+      if (feedbackType === 'request_samples' || feedbackType === userFeedbackService.FeedbackType.REQUEST_SAMPLES) {
         const topic = payload.data?.topic || payload.topic || 'AI';
         
         // 非同期でユーザーフィードバック収集フローを実行

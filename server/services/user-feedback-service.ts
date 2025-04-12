@@ -17,7 +17,8 @@ export enum FeedbackType {
   KEYWORD_INTEREST = 'keyword_interest',      // キーワードへの関心度
   SEARCH_QUALITY = 'search_quality',          // 検索品質フィードバック
   GRAPH_STRUCTURE = 'graph_structure',        // グラフ構造フィードバック
-  GENERAL_COMMENT = 'general_comment'         // 一般的なコメント
+  GENERAL_COMMENT = 'general_comment',        // 一般的なコメント
+  REQUEST_SAMPLES = 'request_samples'         // 要約サンプル生成リクエスト
 }
 
 /**
@@ -62,6 +63,10 @@ export async function processFeedback(feedback: UserFeedback): Promise<boolean> 
         return await processKeywordInterest(feedback);
       case FeedbackType.GRAPH_STRUCTURE:
         return await processGraphStructure(feedback);
+      case FeedbackType.REQUEST_SAMPLES:
+        // 要約サンプルのリクエストは、WebSocketハンドラで直接処理されるため、ここでは成功を返す
+        console.log(`要約サンプルリクエスト受信: roleModelId=${feedback.roleModelId}, topic=${feedback.data?.topic || 'AI'}`);
+        return true;
       default:
         console.log(`未実装のフィードバックタイプ: ${feedback.feedbackType}`);
         return true; // 一般的なコメントなどはそのまま成功として返す
