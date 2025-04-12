@@ -11,7 +11,8 @@ let driver: Driver | null = null;
 
 // 認証情報とURLの取得
 const getNeo4jConfig = () => {
-  const url = process.env.NEO4J_URL || 'neo4j://localhost:7687';
+  // IPv6 (::1) ではなく IPv4 (127.0.0.1) を使用
+  const url = process.env.NEO4J_URL || 'neo4j://127.0.0.1:7687';
   const username = process.env.NEO4J_USERNAME || 'neo4j';
   const password = process.env.NEO4J_PASSWORD || 'password';
   return { url, username, password };
@@ -471,9 +472,21 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   edges: any[];
 }> {
   try {
+    // 接続テスト
+    const driver = await getDriver();
+    await driver.verifyConnectivity();
+    console.log(`Neo4j接続に成功しました`);
+    
+    // ロールモデルIDが有効かチェック
+    if (!roleModelId) {
+      console.warn('無効なロールモデルID');
+      return { nodes: [], edges: [] };
+    }
+    
     return await getKnowledgeGraphForRoleModel(roleModelId);
   } catch (error) {
     console.error(`Error fetching knowledge graph for role model ${roleModelId}:`, error);
+    // エラーが発生した場合は空のグラフを返す
     return { nodes: [], edges: [] };
   }
 }
