@@ -144,10 +144,11 @@ export async function runKnowledgeLibraryProcess(
         
         // Exa検索の実行（実際の取得）
         try {
+          // roleModelIdを渡して、WebSocket更新を正しく行えるようにする
           const searchResults = await searchWithExa({
             query: plan.title,
             numResults: plan.toolsConfig?.maxResults || 10
-          });
+          }, roleModelId);
           
           // 結果をデータベースに保存
           if (searchResults && searchResults.sources) {
