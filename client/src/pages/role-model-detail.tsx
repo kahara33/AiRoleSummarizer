@@ -196,6 +196,11 @@ export default function RoleModelDetailPage({ id }: RoleModelDetailPageProps) {
                 情報整理ダッシュボード
               </Button>
             </Link>
+            <Link to={`/knowledge-library/${roleModelId}`}>
+              <Button variant="default">
+                ナレッジライブラリ
+              </Button>
+            </Link>
             <Link to={`/notebook/${roleModelId}`}>
               <Button variant="outline">
                 ノートブックを表示
