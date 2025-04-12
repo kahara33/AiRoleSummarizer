@@ -391,8 +391,9 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         break;
         
       case 'get_knowledge_graph':
+      case 'getknowledgegraph': // 小文字のケースも許容
         // ナレッジグラフ取得リクエストの処理
-        console.log(`既存ナレッジグラフデータの取得リクエストを処理します: roleModelId=${specificRoleModelId}`);
+        console.log(`既存ナレッジグラフデータの取得リクエストを処理します: roleModelId=${specificRoleModelId}, type=${rawMessageType}`);
         try {
           // 非同期関数なのでawaitしない場合はエラーハンドリングのためにcatchブロックでラップ
           sendExistingKnowledgeGraph(ws, specificRoleModelId).catch(error => {
