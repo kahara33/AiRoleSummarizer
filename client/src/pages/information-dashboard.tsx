@@ -339,19 +339,13 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
     }
   });
 
-  // プランが選択されたときの処理
-  useEffect(() => {
-    if (mockCollectionPlans.length > 0 && !selectedPlan) {
-      setSelectedPlan(mockCollectionPlans[0].id);
-    }
-  }, [selectedPlan]);
+  // 情報収集プランのステート
+  const [selectedPlanData, setSelectedPlanData] = useState<any>(null);
 
-  // 新規ソース追加関数
-  const handleAddSource = () => {
-    toast({
-      title: "新規ソース追加",
-      description: "新しい情報ソースを追加する機能は開発中です。"
-    });
+  // プランが選択されたときの処理
+  const handlePlanSelect = (plan: any) => {
+    setSelectedPlan(plan.id);
+    setSelectedPlanData(plan);
   };
 
   // エージェントパネルを表示するヘルパー関数
@@ -499,83 +493,29 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     </Button>
                   </div>
 
-                  <div className="flex-1 overflow-auto p-4">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="text-left px-2 py-0.5 font-medium text-xs">プラン名</th>
-                          <th className="text-left px-2 py-0.5 font-medium text-xs">作成日</th>
-                          <th className="text-left px-2 py-0.5 font-medium text-xs">更新日</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {mockCollectionPlans.map((plan) => (
-                          <tr 
-                            key={plan.id}
-                            className={`hover:bg-gray-100 cursor-pointer ${selectedPlan === plan.id ? 'bg-blue-50' : ''}`}
-                            onClick={() => setSelectedPlan(plan.id)}
-                          >
-                            <td className="px-2 py-0.5 border-t border-gray-200 text-xs">プラン{plan.id.replace('plan', '')}</td>
-                            <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.createdAt}</td>
-                            <td className="px-2 py-0.5 border-t border-gray-200 text-xs">{plan.updatedAt}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="flex-1 overflow-auto">
+                    <InformationPlanList 
+                      roleModelId={roleModelId} 
+                      onPlanSelect={handlePlanSelect}
+                    />
                   </div>
 
                   <div className="border-t mt-2 overflow-auto">
                     <div className="px-4 py-3 bg-white">
                       <h2 className="font-semibold text-sm">プラン詳細</h2>
                     </div>
-                    <div className="p-4 space-y-2">
-                      <div>
-                        <h3 className="text-sm font-medium">収集プラン</h3>
-                        <p className="text-xs text-gray-600">
-                          次回の収集予定: 2025年4月10日
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium">実行単位</h3>
-                        <p className="text-xs text-gray-600">
-                          週次（毎週月曜日）
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium">通知先</h3>
-                        <p className="text-xs text-gray-600">
-                          user@example.com
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium flex justify-between items-center">
-                          <span>利用ツール</span>
-                        </h3>
-                        <ul className="text-xs text-gray-600 list-disc list-inside">
-                          {mockPlanDetails.tools.map((tool, index) => (
-                            <li key={index}>{tool}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium flex justify-between items-center">
-                          <span>情報ソース</span>
-                          <Button variant="outline" size="sm" className="h-6 text-xs" onClick={handleAddSource}>
-                            <Plus className="h-3 w-3 mr-1" />
-                            追加
-                          </Button>
-                        </h3>
-                        <ul className="text-xs text-gray-600 list-disc list-inside">
-                          {mockPlanDetails.sources.map((source) => (
-                            <li key={source.id} className="flex items-start space-x-1 my-1">
-                              <span className="truncate flex-1">{source.media}</span>
-                              <a href={source.media} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
-                                <ExternalLink className="h-3 w-3 text-blue-500" />
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                    <div className="p-4">
+                      <InformationPlanDetail 
+                        plan={selectedPlanData} 
+                        roleModelId={roleModelId}
+                        onPlanUpdate={(updatedPlan) => {
+                          setSelectedPlanData(updatedPlan);
+                          toast({
+                            title: "プランを更新",
+                            description: "情報収集プランが更新されました"
+                          });
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
