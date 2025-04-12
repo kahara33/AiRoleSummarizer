@@ -781,16 +781,26 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     fetchGraphData();
   }, [fetchGraphData, roleModelId]);
 
-  // WebSocketリスナーのセットアップ
+  // カスタムフックを使用したグラフデータとWebSocket連携
+  const {
+    nodes: graphNodes,
+    edges: graphEdges,
+    loading: graphLoading,
+    error: graphError,
+    isUpdating: graphUpdating,
+    lastUpdateTime,
+    lastUpdateSource,
+    saveGraph,
+    loadGraph,
+    resetGraph
+  } = useKnowledgeGraph(roleModelId || 'default');
+  
+  // リアルタイムグラフデータの更新処理
   useEffect(() => {
-    if (!roleModelId || roleModelId === 'default') {
-      console.log('有効なロールモデルIDがないため、WebSocketリスナーをセットアップしません');
+    if (graphLoading) {
+      console.log('ナレッジグラフデータを読み込み中...');
       return;
     }
-    
-    console.log(`WebSocketリスナーをセットアップ: roleModelId=${roleModelId}`);
-    // roleModelIdを明示的に指定してWebSocket接続を初期化
-    const socket = initSocket(roleModelId);
     
     // グラフ更新の変数
     let updateCounter = 0;
