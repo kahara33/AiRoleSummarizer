@@ -58,6 +58,22 @@ export async function getDriver(): Promise<Driver> {
 }
 
 /**
+ * Neo4j接続をテストする
+ * @returns 接続が成功した場合はtrue、失敗した場合はfalse
+ */
+export async function testConnection(): Promise<boolean> {
+  try {
+    const driverInstance = await getDriver();
+    await driverInstance.verifyConnectivity();
+    console.log('Neo4j接続に成功しました');
+    return true;
+  } catch (error) {
+    console.error('Neo4j接続テストに失敗しました:', error);
+    return false;
+  }
+}
+
+/**
  * セッションを取得する
  * @returns Neo4jセッション
  */

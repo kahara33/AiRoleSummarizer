@@ -1,21 +1,34 @@
 /**
  * グラフサービスアダプタ
- * メモリベースのグラフサービスを提供する
- * （Neo4jが利用できない環境でも動作するよう、常にメモリベースの実装を使用）
+ * 優先的にNeo4jを使用し、利用できない場合はメモリベースのグラフサービスにフォールバック
  */
 
 import * as memoryGraphService from './memory-graph-service';
+import * as neo4jService from './neo4j-service';
 
-// 常にメモリベースのグラフサービスを使用
+// Neo4jの利用可能性を保持するフラグ
 let neo4jAvailable = false;
 
 /**
  * Neo4jサービスが利用可能かどうかを確認する
- * @returns 常にfalseを返す
+ * @returns Neo4jサービスが利用可能な場合はtrue、そうでない場合はfalse
  */
 export async function checkNeo4jAvailability(): Promise<boolean> {
-  console.log('メモリベースのグラフサービスを使用します');
-  return false;
+  try {
+    const result = await neo4jService.testConnection();
+    neo4jAvailable = result;
+    if (result) {
+      console.log('Neo4jデータベースに接続しました。Neo4jグラフサービスを使用します。');
+    } else {
+      console.log('Neo4jに接続できませんでした。メモリベースのグラフサービスを使用します。');
+    }
+    return result;
+  } catch (error) {
+    console.error('Neo4j接続テスト中にエラーが発生しました:', error);
+    neo4jAvailable = false;
+    console.log('メモリベースのグラフサービスを使用します');
+    return false;
+  }
 }
 
 /**
@@ -30,6 +43,14 @@ export async function createNode(
   properties?: Record<string, any>,
   roleModelId?: string
 ): Promise<string> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.createNode(labelOrOptions, properties, roleModelId);
+    } catch (error) {
+      console.error('Neo4jでのノード作成に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.createNode(labelOrOptions, properties, roleModelId);
 }
 
@@ -43,6 +64,14 @@ export async function findOrCreateNode(options: {
   matchProperties: Record<string, any>;
   createProperties?: Record<string, any>;
 }): Promise<string> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.findOrCreateNode(options);
+    } catch (error) {
+      console.error('Neo4jでのノード検索/作成に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.findOrCreateNode(options);
 }
 
@@ -57,6 +86,14 @@ export async function createRelationship(options: {
   type: string;
   properties?: Record<string, any>;
 }): Promise<string> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.createRelationship(options);
+    } catch (error) {
+      console.error('Neo4jでのリレーションシップ作成に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.createRelationship(options);
 }
 
@@ -69,6 +106,15 @@ export async function deleteRelationship(options: {
   targetNodeId: string;
   type?: string;
 }): Promise<void> {
+  if (neo4jAvailable) {
+    try {
+      await neo4jService.deleteRelationship(options);
+      return;
+    } catch (error) {
+      console.error('Neo4jでのリレーションシップ削除に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   await memoryGraphService.deleteRelationship(options);
 }
 
@@ -81,6 +127,14 @@ export async function getKnowledgeGraphForRoleModel(roleModelId: string): Promis
   nodes: Record<string, any>[];
   edges: Record<string, any>[];
 }> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.getKnowledgeGraphForRoleModel(roleModelId);
+    } catch (error) {
+      console.error('Neo4jでのナレッジグラフ取得に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.getKnowledgeGraphForRoleModel(roleModelId);
 }
 
