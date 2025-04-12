@@ -28,12 +28,13 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Loader2, ZapIcon, RotateCcw, BoltIcon, FlaskConical, Save, Download } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
+import { useKnowledgeGraph } from '../../hooks/use-knowledge-graph-websocket';
+import { useMultiAgentWebSocket } from '../../hooks/use-multi-agent-websocket-fixed';
 import { NodeEditDialog } from './NodeEditDialog';
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNodeOperations } from './NodeOperations';
 import { toast, useToast } from '@/hooks/use-toast';
 import KnowledgeGraphSavePanel from './KnowledgeGraphSavePanel';
-import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph-websocket';
 
 
 type KnowledgeNode = ExtendedKnowledgeNode;

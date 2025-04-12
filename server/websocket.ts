@@ -392,15 +392,18 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         
       case 'get_knowledge_graph':
         // ナレッジグラフ取得リクエストの処理
-        console.log('ナレッジグラフ取得リクエストを処理します');
-        handleGetKnowledgeGraph(ws, data);
-        break;
-        
-      case 'get_knowledge_graph':
-        // ナレッジグラフ取得リクエストの処理
         console.log(`既存ナレッジグラフデータの取得リクエストを処理します: roleModelId=${specificRoleModelId}`);
         try {
-          sendExistingKnowledgeGraph(ws, specificRoleModelId);
+          // 非同期関数なのでawaitしない場合はエラーハンドリングのためにcatchブロックでラップ
+          sendExistingKnowledgeGraph(ws, specificRoleModelId).catch(error => {
+            console.error(`ナレッジグラフ取得エラー: ${error}`);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'ナレッジグラフの取得中にエラーが発生しました',
+              error: String(error),
+              timestamp: new Date().toISOString()
+            }));
+          });
         } catch (error) {
           console.error(`ナレッジグラフ取得エラー: ${error}`);
           ws.send(JSON.stringify({
