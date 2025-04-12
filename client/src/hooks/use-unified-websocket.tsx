@@ -32,6 +32,7 @@ interface UnifiedWebSocketContextType {
   
   // 特化型機能: ナレッジグラフ生成
   sendCreateKnowledgeGraphRequest: (options: {
+    roleModelId?: string;
     includeCollectionPlan?: boolean;
     industry?: string;
     keywords?: string[];
@@ -386,6 +387,7 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
 
   // ナレッジグラフ生成リクエスト関数
   const sendCreateKnowledgeGraphRequest = useCallback((options: {
+    roleModelId?: string;
     includeCollectionPlan?: boolean;
     industry?: string;
     keywords?: string[];
@@ -397,12 +399,13 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
     const messageType = options.useExistingGraph ? 'create_collection_plan' : 'create_knowledge_graph';
     
     return sendMessage(messageType, {
+      roleModelId: options.roleModelId || currentRoleModelId,
       includeCollectionPlan: options.includeCollectionPlan !== false, // デフォルトでtrue
       industry: options.industry || '一般',
       keywords: options.keywords || ['情報収集', 'ナレッジグラフ'],
       useExistingGraph: !!options.useExistingGraph
     });
-  }, [sendMessage]);
+  }, [sendMessage, currentRoleModelId]);
   
   // キャンセル操作リクエスト関数
   const sendCancelOperationRequest = useCallback((operationType: string) => {

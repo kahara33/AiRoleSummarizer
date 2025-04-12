@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Loader2, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useKnowledgeGraphGeneration } from '@/hooks/use-knowledge-graph-generation';
+import { useUnifiedWebSocket } from '@/hooks/use-unified-websocket';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 
@@ -43,7 +43,7 @@ export default function CollectionPlanGenerationButton({
     sendCancelOperationRequest,
     cancelOperation,
     sendCreateKnowledgeGraphRequest
-  } = useKnowledgeGraphGeneration();
+  } = useUnifiedWebSocket();
   
   // コンポーネントのマウント時にWebSocketを接続（roleModelIdが変更されたときに再実行）
   useEffect(() => {

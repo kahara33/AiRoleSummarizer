@@ -18,6 +18,7 @@ import SettingsPage from '@/pages/settings';
 import NotebookPage from '@/pages/notebook-page';
 import { ComponentProps } from '@/lib/types';
 import { MultiAgentWebSocketProvider } from '@/hooks/use-multi-agent-websocket';
+import { UnifiedWebSocketProvider } from '@/hooks/use-unified-websocket';
 
 // QueryClientの設定
 const queryClient = new QueryClient({
@@ -125,8 +126,10 @@ const App: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <MultiAgentWebSocketProvider>
-          <AppRoutes />
-          <Toaster />
+          <UnifiedWebSocketProvider>
+            <AppRoutes />
+            <Toaster />
+          </UnifiedWebSocketProvider>
         </MultiAgentWebSocketProvider>
       </AuthProvider>
     </QueryClientProvider>
