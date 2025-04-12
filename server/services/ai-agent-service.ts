@@ -13,14 +13,25 @@ export enum ProcessFlowType {
   KNOWLEDGE_GRAPH_CREATION = 'knowledge_graph_creation',
   COLLECTION_PLAN_CREATION = 'collection_plan_creation',
   COLLECTION_EXECUTION = 'collection_execution',
-  GRAPH_UPDATE_RECOMMENDATION = 'graph_update_recommendation'
+  GRAPH_UPDATE_RECOMMENDATION = 'graph_update_recommendation',
+  USER_INTERVIEW = 'user_interview',
+  SAMPLE_SUMMARY_GENERATION = 'sample_summary_generation'
 }
 
-// エージェントタイプ
+// エージェントタイプ（新構成）
 export enum AgentType {
+  // 共通エージェント
   ORCHESTRATOR = 'Orchestrator',
-  INITIAL_RESEARCHER = 'InitialResearcher',
-  PLAN_STRATEGIST = 'PlanStrategist',
+  
+  // グラフ作成と情報収集プラン作成関連
+  GRAPH_BUILDER = 'GraphBuilder',         // グラフ構築エージェント
+  INFORMATION_EXPLORER = 'InfoExplorer',  // 情報探索エージェント
+  CONTENT_EVALUATOR = 'ContentEvaluator', // コンテンツ評価エージェント
+  SAMPLE_SUMMARIZER = 'SampleSummarizer', // サンプル要約エージェント
+  INTERVIEWER = 'Interviewer',            // ヒアリングエージェント
+  PLAN_DESIGNER = 'PlanDesigner',         // プラン設計エージェント
+  
+  // 情報収集実行と要約関連（従来のエージェント）
   SEARCH_CONDUCTOR = 'SearchConductor',
   CONTENT_PROCESSOR = 'ContentProcessor',
   DUPLICATION_MANAGER = 'DuplicationManager',
@@ -67,12 +78,25 @@ function sendAgentThought(
  */
 function getAgentName(agentType: AgentType | string): string {
   switch (agentType) {
+    // 共通エージェント
     case AgentType.ORCHESTRATOR:
       return 'オーケストレーター';
-    case AgentType.INITIAL_RESEARCHER:
-      return '初期調査エージェント';
-    case AgentType.PLAN_STRATEGIST:
-      return 'プランストラテジスト';
+    
+    // 新エージェント（グラフ作成と情報収集プラン作成関連）
+    case AgentType.GRAPH_BUILDER:
+      return 'グラフ構築エージェント';
+    case AgentType.INFORMATION_EXPLORER:
+      return '情報探索エージェント';
+    case AgentType.CONTENT_EVALUATOR:
+      return 'コンテンツ評価エージェント';
+    case AgentType.SAMPLE_SUMMARIZER:
+      return 'サンプル要約エージェント';
+    case AgentType.INTERVIEWER:
+      return 'ヒアリングエージェント';
+    case AgentType.PLAN_DESIGNER:
+      return 'プラン設計エージェント';
+    
+    // 情報収集実行と要約関連（従来のエージェント）
     case AgentType.SEARCH_CONDUCTOR:
       return '検索実行エージェント';
     case AgentType.CONTENT_PROCESSOR:
@@ -135,10 +159,10 @@ export async function runKnowledgeGraphCreationFlow(
       'ナレッジグラフの構造を分析中...'
     );
     
-    // 初期調査エージェントの思考
+    // グラフ構築エージェントの思考
     sendAgentThought(
-      AgentType.INITIAL_RESEARCHER,
-      `${params.mainTopic}に関する初期データ収集を開始します。キーワード: ${params.subTopics.join(', ')}`,
+      AgentType.GRAPH_BUILDER,
+      `${params.mainTopic}に関する初期データ収集とナレッジグラフ構造設計を開始します。キーワード: ${params.subTopics.join(', ')}`,
       roleModelId,
       ThoughtStatus.THINKING
     );
@@ -180,9 +204,9 @@ export async function runKnowledgeGraphCreationFlow(
       'ナレッジグラフを生成しました。情報収集プランを作成しています...'
     );
     
-    // プランストラテジストの思考
+    // プラン設計エージェントの思考
     sendAgentThought(
-      AgentType.PLAN_STRATEGIST,
+      AgentType.PLAN_DESIGNER,
       `生成したナレッジグラフに基づいて最適な情報収集戦略を構築しています`,
       roleModelId,
       ThoughtStatus.THINKING
@@ -289,9 +313,9 @@ export async function runCollectionPlanCreationFlow(
       '既存のナレッジグラフを使用して情報収集プランのみを作成しています...'
     );
     
-    // プランストラテジストの思考
+    // プラン設計エージェントの思考
     sendAgentThought(
-      AgentType.PLAN_STRATEGIST,
+      AgentType.PLAN_DESIGNER,
       '既存の知識グラフを活用して最適な情報収集プランを作成します',
       roleModelId,
       ThoughtStatus.THINKING
@@ -302,7 +326,7 @@ export async function runCollectionPlanCreationFlow(
     
     if (!existingGraph || existingGraph.nodes.length === 0) {
       sendAgentThought(
-        AgentType.PLAN_STRATEGIST,
+        AgentType.PLAN_DESIGNER,
         '既存のナレッジグラフが見つかりません。新しく作成することをお勧めします',
         roleModelId,
         ThoughtStatus.DECISION
@@ -625,9 +649,9 @@ export async function runGraphUpdateRecommendationFlow(
       '更新レコメンデーションを作成しています...'
     );
     
-    // プランストラテジストの思考
+    // プラン設計エージェントの思考
     sendAgentThought(
-      AgentType.PLAN_STRATEGIST,
+      AgentType.PLAN_DESIGNER,
       'ナレッジグラフの最適な拡張と更新戦略を策定しています',
       roleModelId,
       ThoughtStatus.THINKING

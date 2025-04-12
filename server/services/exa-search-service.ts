@@ -1,22 +1,36 @@
 /**
  * Exa Search APIサービス
  * 情報検索と収集プランのための外部データ検索機能を提供
+ * 添付資料の「Exa Search API 検索パターン例」を参考に拡張
  */
 
 import fetch from 'node-fetch';
 
-// 検索カテゴリー
-export type SearchCategory = 
-  | 'web_search' 
-  | 'news' 
-  | 'academic' 
-  | 'github' 
-  | 'twitter' 
-  | 'pdf' 
-  | 'personal_site';
+// 検索カテゴリー（拡張版）
+export enum SearchCategory {
+  // 基本カテゴリ
+  WEB_SEARCH = 'web_search',
+  NEWS = 'news',
+  ACADEMIC = 'academic',
+  GITHUB = 'github',
+  TWITTER = 'twitter',
+  PDF = 'pdf',
+  PERSONAL_SITE = 'personal_site',
+  
+  // 特殊カテゴリ
+  COMPANY_INFO = 'company_info',      // 企業情報
+  PRODUCT_INFO = 'product_info',      // 製品情報
+  TECHNOLOGY_TREND = 'tech_trend',    // 技術トレンド
+  MARKET_ANALYSIS = 'market_analysis', // 市場分析
+  COMPETITORS = 'competitors',        // 競合情報
+  USE_CASES = 'use_cases',            // 活用事例
+  CHALLENGES = 'challenges',          // 課題
+  WHITEPAPER = 'whitepaper',          // ホワイトペーパー
+  RESEARCH_PAPER = 'research_paper',  // 研究論文
+}
 
 // 時間範囲
-export type TimeRange = '1d' | '1w' | '1m' | '3m' | '1y' | 'all';
+export type TimeRange = '1d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | 'all';
 
 // 検索パラメータ
 export interface SearchParams {
@@ -203,77 +217,152 @@ export async function summarizeSearchResults(results: SearchResult[], query: str
 
 /**
  * 情報収集プランに関するパターンを生成する
+ * 添付資料の「Exa Search API 検索パターン例」を参考に拡張実装
+ * 
  * @param industry 業界
  * @param keywords キーワード
  * @returns 情報収集パターンのリスト
  */
 export function generateCollectionPlanPatterns(industry: string, keywords: string[]): any[] {
-  // 実際にはAIを使用してより適切なパターンを生成
-  // ここではテンプレートベースのシンプルな実装
-  
+  // 添付資料に基づく高度な検索パターンを実装
   const patterns = [];
   
-  // 業界概要パターン
+  // 業界分析パターン
   patterns.push({
-    id: `plan-industry-overview-${Date.now()}`,
-    name: `${industry}業界の概要`,
-    description: `${industry}業界の基本情報、市場規模、主要プレイヤーに関する情報を収集`,
+    id: `plan-industry-analysis-${Date.now()}`,
+    name: `${industry}業界の包括分析`,
+    description: `${industry}業界の基本情報、市場規模、主要プレイヤー、最新トレンドに関する総合的な情報を収集`,
     queries: [
-      `${industry} 業界 概要`,
-      `${industry} 市場規模`,
-      `${industry} 主要企業`
+      `"${industry}" industry overview market size leading companies trends`,
+      `"${industry}" 業界分析 市場規模 主要企業`,
+      `"${industry}" recent developments future prospects`
     ],
-    categories: ['web_search', 'news'],
-    timeRange: '1y'
+    categories: [SearchCategory.WEB_SEARCH, SearchCategory.NEWS, SearchCategory.COMPANY_INFO],
+    timeRange: '1y',
+    executionPriority: 'high'
   });
   
-  // トレンド分析パターン
+  // 業界主要企業分析
   patterns.push({
-    id: `plan-trends-${Date.now()}`,
-    name: `${industry}のトレンド分析`,
-    description: `${industry}における最新トレンド、技術革新、将来予測に関する情報を収集`,
+    id: `plan-key-companies-${Date.now()}`,
+    name: `${industry}主要企業分析`,
+    description: `${industry}における主要企業の戦略、製品、サービス、市場ポジションを詳細に分析`,
     queries: [
-      `${industry} 最新トレンド`,
-      `${industry} 技術革新`,
-      `${industry} 将来予測`
+      `"${industry}" "top companies" "market leaders" strategy`,
+      `"${industry}" 主要企業 市場シェア 戦略`,
+      `"${industry}" competitive landscape "company profiles"`,
+      `"${industry}" leading companies financial performance`
     ],
-    categories: ['news', 'academic'],
-    timeRange: '3m'
+    categories: [SearchCategory.COMPANY_INFO, SearchCategory.NEWS, SearchCategory.MARKET_ANALYSIS],
+    timeRange: '1y',
+    executionPriority: 'medium'
   });
   
-  // キーワード関連パターン
+  // 最新技術トレンド分析
+  patterns.push({
+    id: `plan-tech-trends-${Date.now()}`,
+    name: `${industry}における技術トレンド分析`,
+    description: `${industry}における最新技術トレンド、革新、研究開発動向について詳細に調査`,
+    queries: [
+      `"${industry}" "emerging technologies" "innovation" "research and development"`,
+      `"${industry}" 最新技術 イノベーション 研究開発`,
+      `"${industry}" "technology adoption" "digital transformation"`,
+      `"${industry}" technological breakthroughs "future trends"`
+    ],
+    categories: [SearchCategory.TECHNOLOGY_TREND, SearchCategory.RESEARCH_PAPER, SearchCategory.NEWS],
+    timeRange: '6m',
+    executionPriority: 'high'
+  });
+  
+  // 市場課題と機会分析
+  patterns.push({
+    id: `plan-challenges-opportunities-${Date.now()}`,
+    name: `${industry}の市場課題と機会`,
+    description: `${industry}市場における主要な課題、リスク、将来の成長機会を特定`,
+    queries: [
+      `"${industry}" "market challenges" "risks" "barriers to entry"`,
+      `"${industry}" 市場課題 リスク 参入障壁`,
+      `"${industry}" "growth opportunities" "emerging markets"`,
+      `"${industry}" "future outlook" "market potential"`
+    ],
+    categories: [SearchCategory.MARKET_ANALYSIS, SearchCategory.CHALLENGES, SearchCategory.NEWS],
+    timeRange: '6m',
+    executionPriority: 'medium'
+  });
+  
+  // 規制・法的環境分析
+  patterns.push({
+    id: `plan-regulatory-environment-${Date.now()}`,
+    name: `${industry}の規制・法的環境`,
+    description: `${industry}に影響を与える規制・法的フレームワーク、コンプライアンス要件、政策動向を調査`,
+    queries: [
+      `"${industry}" "regulations" "legal framework" "compliance requirements"`,
+      `"${industry}" 規制 法的要件 コンプライアンス`,
+      `"${industry}" "policy changes" "government initiatives"`,
+      `"${industry}" "regulatory trends" "compliance challenges"`
+    ],
+    categories: [SearchCategory.NEWS, SearchCategory.CHALLENGES, SearchCategory.WHITEPAPER],
+    timeRange: '1y',
+    executionPriority: 'low'
+  });
+  
+  // キーワード関連分析（最大3つまで）
   if (keywords && keywords.length > 0) {
     keywords.forEach((keyword, index) => {
-      if (index < 3) { // 最大3つのキーワードのみ使用
+      if (index < 3) {
         patterns.push({
-          id: `plan-keyword-${keyword}-${Date.now()}`,
-          name: `${keyword}に関する詳細分析`,
-          description: `${industry}における${keyword}の重要性、応用事例、課題に関する情報を収集`,
+          id: `plan-keyword-${keyword.replace(/\s+/g, '-')}-${Date.now()}`,
+          name: `${keyword}の詳細分析`,
+          description: `${industry}における${keyword}の重要性、応用事例、最新技術、市場動向を詳細に調査`,
           queries: [
-            `${industry} ${keyword} 重要性`,
-            `${industry} ${keyword} 応用事例`,
-            `${industry} ${keyword} 課題`
+            `"${industry}" "${keyword}" "importance" "applications"`,
+            `"${industry}" "${keyword}" "case studies" "best practices"`,
+            `"${industry}" "${keyword}" "latest technologies" "innovations"`,
+            `"${industry}" "${keyword}" "market trends" "future developments"`
           ],
-          categories: ['web_search', 'academic', 'news'],
-          timeRange: '6m'
+          categories: [SearchCategory.USE_CASES, SearchCategory.TECHNOLOGY_TREND, SearchCategory.RESEARCH_PAPER],
+          timeRange: '6m',
+          executionPriority: 'high'
         });
       }
     });
   }
   
-  // 競合分析パターン
-  patterns.push({
-    id: `plan-competitors-${Date.now()}`,
-    name: `${industry}の競合分析`,
-    description: `${industry}における競合状況、主要企業の戦略、市場シェアに関する情報を収集`,
-    queries: [
-      `${industry} 競合分析`,
-      `${industry} 企業戦略`,
-      `${industry} 市場シェア`
-    ],
-    categories: ['news', 'web_search'],
-    timeRange: '6m'
-  });
+  // 特定のSaaSに関するカスタムパターン（Cloudキーワードが含まれる場合）
+  if (keywords.some(k => k.toLowerCase().includes('cloud') || k.toLowerCase().includes('saas') || k.toLowerCase().includes('クラウド'))) {
+    patterns.push({
+      id: `plan-cloud-saas-${Date.now()}`,
+      name: `クラウド/SaaSサービス最新動向`,
+      description: `${industry}におけるクラウドコンピューティング、SaaS、プラットフォームサービスの最新動向と将来展望`,
+      queries: [
+        `"${industry}" "cloud computing" "SaaS" "platform services" "trends"`,
+        `"${industry}" クラウドサービス SaaS プラットフォーム 最新動向`,
+        `"${industry}" "cloud adoption" "digital transformation" "case studies"`,
+        `"${industry}" "cloud providers" "market share" "competitive analysis"`
+      ],
+      categories: [SearchCategory.TECHNOLOGY_TREND, SearchCategory.COMPANY_INFO, SearchCategory.USE_CASES],
+      timeRange: '6m',
+      executionPriority: 'high'
+    });
+  }
+  
+  // 特定のAIに関するカスタムパターン（AIキーワードが含まれる場合）
+  if (keywords.some(k => k.toLowerCase().includes('ai') || k.toLowerCase().includes('artificial intelligence') || k.toLowerCase().includes('人工知能'))) {
+    patterns.push({
+      id: `plan-ai-analysis-${Date.now()}`,
+      name: `AI技術活用最前線`,
+      description: `${industry}におけるAI技術の活用事例、最新研究、実装課題、将来展望を詳細に調査`,
+      queries: [
+        `"${industry}" "artificial intelligence" "AI applications" "machine learning" "use cases"`,
+        `"${industry}" 人工知能 AI活用 機械学習 事例`,
+        `"${industry}" "AI research" "deep learning" "latest developments"`,
+        `"${industry}" "AI implementation challenges" "ethical considerations"`
+      ],
+      categories: [SearchCategory.TECHNOLOGY_TREND, SearchCategory.RESEARCH_PAPER, SearchCategory.USE_CASES],
+      timeRange: '6m',
+      executionPriority: 'high'
+    });
+  }
   
   return patterns;
 }
