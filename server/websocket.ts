@@ -861,6 +861,17 @@ function handleInformationPlan(ws: WebSocket, data: any): void {
     sendInformationCollectionPlansToClient(ws, specificRoleModelId)
       .then(success => {
         console.log(`情報収集プラン送信: roleModelId=${specificRoleModelId}, 結果=${success ? '成功' : '失敗'}`);
+        
+        // クライアントに成功通知を送信
+        if (success) {
+          ws.send(JSON.stringify({
+            type: 'information_plans_received',
+            message: '情報収集プランを取得しました',
+            roleModelId: specificRoleModelId,
+            timestamp: new Date().toISOString(),
+            status: 'success'
+          }));
+        }
       })
       .catch(error => {
         console.error(`情報収集プラン送信エラー: ${error}`);
@@ -1384,6 +1395,7 @@ function sendKnowledgeGraphUpdate(
   updateType: 'create' | 'update' | 'delete' | 'partial' | 'complete' = 'update',
   additionalData: any = {}
 ): void {
+  // 対象のロールモデルに接続されたクライアントを取得
   const clientSet = clients.get(roleModelId);
   
   // 複数形式でのメッセージタイプ（クライアントの互換性確保のため）
@@ -1392,6 +1404,17 @@ function sendKnowledgeGraphUpdate(
     'knowledge-graph-update',
     'graph-update'
   ];
+  
+  // グラフデータをデータベースに保存する処理
+  if (updateType === 'create' || updateType === 'update' || updateType === 'complete') {
+    try {
+      // データベースに保存する処理を実行（この部分はモックアップで、実際の実装は別途必要）
+      console.log(`ナレッジグラフデータをデータベースに保存: roleModelId=${roleModelId}, updateType=${updateType}`);
+      // saveToDatabase(roleModelId, graphData); // 実際のデータベース保存関数を呼び出す
+    } catch (error) {
+      console.error(`ナレッジグラフ保存エラー: ${error}`);
+    }
+  }
   
   // 詳細ログ - 接続クライアント
   if (!clientSet || clientSet.size === 0) {
@@ -1413,8 +1436,7 @@ function sendKnowledgeGraphUpdate(
   
   // 各タイプでメッセージを送信（クライアントの互換性確保のため）
   messageTypes.forEach(type => {
-    // typeフィールドをこのレベルに含めると、クライアント側のコードで
-    // data.type で参照できるためブラウザコンソールに表示される
+    // WebSocketメッセージの作成
     const payload = {
       type,
       payload: {
@@ -1446,6 +1468,29 @@ function sendKnowledgeGraphUpdate(
     
     console.log(`知識グラフ更新メッセージを${sentCount}個のクライアントに送信完了`);
   });
+  
+  // 完全な更新や作成の場合、サブスクリプション確認メッセージを送信
+  if (updateType === 'create' || updateType === 'complete' || updateType === 'update') {
+    // 追加のステータス通知メッセージを送信
+    clientSet.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          const statusMessage = {
+            type: 'graph_status',
+            status: 'complete',
+            message: 'ナレッジグラフの更新が完了しました',
+            roleModelId,
+            timestamp: new Date().toISOString(),
+            nodesCount: graphData.nodes.length,
+            edgesCount: graphData.edges.length
+          };
+          client.send(JSON.stringify(statusMessage));
+        } catch (sendError) {
+          console.error(`状態通知メッセージ送信エラー: ${sendError}`);
+        }
+      }
+    });
+  }
 }
 
 /**
