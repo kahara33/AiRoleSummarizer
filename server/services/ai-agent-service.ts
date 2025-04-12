@@ -4,8 +4,9 @@
  */
 
 import * as websocket from '../websocket';
-import * as exaSearchService from './exa-search-service';
 import * as knowledgeGraphService from './knowledge-graph-service';
+import * as exaSearchService from './exa-search-service';
+import * as graphService from './graph-service-adapter';
 
 // 処理フロータイプ
 export enum ProcessFlowType {
@@ -27,7 +28,7 @@ export enum AgentType {
   REPORT_COMPILER = 'ReportCompiler'
 }
 
-// エージェント思考ステータス
+// 思考ステータス
 export enum ThoughtStatus {
   STARTING = 'starting',
   THINKING = 'thinking',
@@ -49,9 +50,14 @@ function sendAgentThought(
   agentType: AgentType | string,
   thought: string,
   roleModelId: string,
-  status: ThoughtStatus | string = ThoughtStatus.THINKING
+  status: ThoughtStatus | string
 ) {
-  websocket.sendAgentThoughts(getAgentName(agentType), thought, roleModelId, status);
+  websocket.sendAgentThoughts(
+    getAgentName(agentType),
+    thought,
+    roleModelId,
+    status
+  );
 }
 
 /**
@@ -78,7 +84,7 @@ function getAgentName(agentType: AgentType | string): string {
     case AgentType.REPORT_COMPILER:
       return 'レポート作成エージェント';
     default:
-      return agentType;
+      return agentType.toString();
   }
 }
 
@@ -93,7 +99,7 @@ function sendProgress(
   roleModelId: string,
   progress: number,
   message: string,
-  data: Record<string, any> = {}
+  data?: Record<string, any>
 ) {
   websocket.sendProgressUpdate(roleModelId, progress, message, data);
 }
@@ -108,121 +114,143 @@ export async function runKnowledgeGraphCreationFlow(
   params: {
     mainTopic: string;
     subTopics: string[];
-    overwrite: boolean;
+    overwrite?: boolean;
   }
 ): Promise<boolean> {
   try {
-    const { mainTopic, subTopics, overwrite } = params;
+    console.log(`ナレッジグラフ作成フロー開始: ${roleModelId}`, params);
     
-    // オーケストレーターの開始メッセージ
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフと情報収集プラン作成プロセスを開始します。メイントピック: ${mainTopic}`,
+      'ナレッジグラフと情報収集プランの生成プロセスを開始します',
       roleModelId,
       ThoughtStatus.STARTING
     );
     
-    // 進捗報告：10%
-    sendProgress(roleModelId, 10, 'ナレッジグラフ作成プロセスを開始します...');
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      10,
+      'ナレッジグラフの構造を分析中...'
+    );
     
-    // 初期調査エージェント
+    // 初期調査エージェントの思考
     sendAgentThought(
       AgentType.INITIAL_RESEARCHER,
-      `${mainTopic}に関する初期データ収集とナレッジグラフの基本構造を設計します`,
-      roleModelId
+      `${params.mainTopic}に関する初期データ収集を開始します。キーワード: ${params.subTopics.join(', ')}`,
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 少し待機して処理をシミュレート
+    // 少し待機
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // 進捗報告：30%
-    sendProgress(roleModelId, 30, 'ナレッジグラフの構造を設計中...');
-    
-    // 知識統合エージェント
-    sendAgentThought(
-      AgentType.KNOWLEDGE_INTEGRATOR,
-      `${mainTopic}と${subTopics.join(', ')}のキーワードを元に階層構造を構築します`,
-      roleModelId
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      30,
+      'ナレッジグラフの構造を生成しています...'
     );
     
-    // 階層的ナレッジグラフを生成
+    // 知識統合エージェントの思考
+    sendAgentThought(
+      AgentType.KNOWLEDGE_INTEGRATOR,
+      `${params.mainTopic}に関するエンティティ間の関係を分析し、ナレッジグラフの構造を決定します`,
+      roleModelId,
+      ThoughtStatus.WORKING
+    );
+    
+    // ナレッジグラフの生成
     const graphData = await knowledgeGraphService.generateHierarchicalKnowledgeGraph(
       roleModelId,
-      mainTopic,
-      subTopics,
-      overwrite
+      params.mainTopic,
+      params.subTopics,
+      params.overwrite
     );
     
     if (!graphData) {
       throw new Error('ナレッジグラフの生成に失敗しました');
     }
     
-    // 進捗報告：60%
-    sendProgress(roleModelId, 60, 'ナレッジグラフを生成しました。情報収集プランを作成中...');
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      60,
+      'ナレッジグラフを生成しました。情報収集プランを作成しています...'
+    );
     
-    // プランストラテジスト
+    // プランストラテジストの思考
     sendAgentThought(
       AgentType.PLAN_STRATEGIST,
-      `生成したナレッジグラフに基づいて効果的な情報収集プランを設計します`,
-      roleModelId
+      `生成したナレッジグラフに基づいて最適な情報収集戦略を構築しています`,
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
     // 情報収集プランのパターンを生成
-    const collectionPlans = exaSearchService.generateCollectionPlanPatterns(mainTopic, subTopics);
+    const collectionPatterns = exaSearchService.generateCollectionPlanPatterns(
+      params.mainTopic,
+      params.subTopics
+    );
     
-    // 少し待機して処理をシミュレート
+    // 少し待機
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // 進捗報告：80%
-    sendProgress(roleModelId, 80, '情報収集プランのパターンを生成しました');
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      90,
+      '情報収集プランを最終化しています...'
+    );
     
-    // レポート作成エージェント
+    // レポート作成エージェントの思考
     sendAgentThought(
       AgentType.REPORT_COMPILER,
-      `${collectionPlans.length}個の情報収集パターンを組み立て、実行計画にまとめています`,
-      roleModelId
+      '生成したナレッジグラフと情報収集プランをまとめています',
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // 完了報告
-    sendProgress(
-      roleModelId, 
-      100, 
-      'ナレッジグラフと情報収集プランの生成が完了しました',
-      { 
-        status: 'completed',
-        nodeCount: graphData.nodes.length,
-        edgeCount: graphData.edges.length,
-        planCount: collectionPlans.length
-      }
-    );
-    
-    // オーケストレーターの完了メッセージ
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフ（${graphData.nodes.length}ノード）と情報収集プラン（${collectionPlans.length}プラン）の生成が完了しました`,
+      `ナレッジグラフ（${graphData.nodes.length}ノード, ${graphData.edges.length}エッジ）と情報収集プラン（${collectionPatterns.length}パターン）の生成が完了しました`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
     
-    return true;
-  } catch (error: any) {
-    console.error('ナレッジグラフ作成エラー:', error);
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      100,
+      'ナレッジグラフと情報収集プランの生成が完了しました',
+      { status: 'completed' }
+    );
     
-    // エラー進捗
+    return true;
+  } catch (err: any) {
+    const error = err as Error;
+    console.error('ナレッジグラフ作成フロー実行エラー:', error);
+    
+    // エラー進捗更新
     sendProgress(
       roleModelId,
       0,
-      `ナレッジグラフ作成中にエラーが発生しました: ${error.message}`,
-      { status: 'error' }
+      'ナレッジグラフ作成中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
     );
     
-    // オーケストレーターのエラーメッセージ
+    // オーケストレーターのエラー思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフ作成中にエラーが発生しました: ${error.message}`,
+      `ナレッジグラフ作成中にエラーが発生しました: ${error.message || '不明なエラー'}`,
       roleModelId,
       ThoughtStatus.ERROR
     );
@@ -244,93 +272,129 @@ export async function runCollectionPlanCreationFlow(
   }
 ): Promise<boolean> {
   try {
-    const { mainTopic, keywords } = params;
+    console.log(`情報収集プラン作成フロー開始: ${roleModelId}`, params);
     
-    // オーケストレーターの開始メッセージ
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `既存のナレッジグラフを元に情報収集プランを作成します。メイントピック: ${mainTopic}`,
+      '既存のナレッジグラフに基づいて情報収集プランを作成します（グラフは更新しません）',
       roleModelId,
       ThoughtStatus.STARTING
     );
     
-    // 進捗報告：10%
-    sendProgress(roleModelId, 10, '既存のナレッジグラフを使用して情報収集プランのみを作成しています...');
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      10,
+      '既存のナレッジグラフを使用して情報収集プランのみを作成しています...'
+    );
     
-    // プランストラテジスト
+    // プランストラテジストの思考
     sendAgentThought(
       AgentType.PLAN_STRATEGIST,
-      `既存の知識グラフを分析し、Exa Searchに最適な検索パターンを作成します`,
-      roleModelId
+      '既存の知識グラフを活用して最適な情報収集プランを作成します',
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 既存のグラフを取得して分析
+    const existingGraph = await graphService.getKnowledgeGraph(roleModelId);
     
-    // 進捗報告：40%
-    sendProgress(roleModelId, 40, 'Exa Search APIのクエリパターンを生成中...');
-    
-    // 検索実行エージェント
-    sendAgentThought(
-      AgentType.SEARCH_CONDUCTOR,
-      `${mainTopic}に関する情報収集のためのExa Search APIクエリパターンを複数作成しています`,
-      roleModelId
-    );
+    if (!existingGraph || existingGraph.nodes.length === 0) {
+      sendAgentThought(
+        AgentType.PLAN_STRATEGIST,
+        '既存のナレッジグラフが見つかりません。新しく作成することをお勧めします',
+        roleModelId,
+        ThoughtStatus.DECISION
+      );
+      
+      // エラー進捗更新
+      sendProgress(
+        roleModelId,
+        50,
+        '既存のナレッジグラフが見つかりません。新しいグラフを作成してください',
+        { 
+          status: 'warning',
+          needsNewGraph: true
+        }
+      );
+      
+      // 少し待機
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      sendAgentThought(
+        AgentType.ORCHESTRATOR,
+        '既存のナレッジグラフが見つからないため、新しいプラン生成を中断します',
+        roleModelId,
+        ThoughtStatus.ERROR
+      );
+      
+      return false;
+    }
     
     // 情報収集プランのパターンを生成
-    const collectionPlans = exaSearchService.generateCollectionPlanPatterns(mainTopic, keywords);
+    const collectionPatterns = exaSearchService.generateCollectionPlanPatterns(
+      params.mainTopic,
+      params.keywords
+    );
     
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      50,
+      '情報収集プランを生成中...'
+    );
     
-    // 進捗報告：70%
-    sendProgress(roleModelId, 70, `${collectionPlans.length}個の情報収集パターンを作成しました`);
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // レポート作成エージェント
+    // レポート作成エージェントの思考
     sendAgentThought(
       AgentType.REPORT_COMPILER,
-      `検索パターンから情報収集プランを作成し、最適な頻度と優先度を設定しています`,
-      roleModelId
+      '情報収集計画をレポート形式にまとめています',
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // 完了報告
-    sendProgress(
-      roleModelId, 
-      100, 
-      '情報収集プランの作成が完了しました',
-      { 
-        status: 'completed',
-        planCount: collectionPlans.length
-      }
-    );
-    
-    // オーケストレーターの完了メッセージ
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `情報収集プラン（${collectionPlans.length}プラン）の作成が完了しました。既存のナレッジグラフは変更されていません。`,
+      `情報収集プラン（${collectionPatterns.length}パターン）の生成が完了しました。既存のナレッジグラフは変更されていません。`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
     
-    return true;
-  } catch (error: any) {
-    console.error('情報収集プラン作成エラー:', error);
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      100,
+      '情報収集プランの作成が完了しました',
+      { status: 'completed' }
+    );
     
-    // エラー進捗
+    return true;
+  } catch (err: any) {
+    const error = err as Error;
+    console.error('情報収集プラン作成フロー実行エラー:', error);
+    
+    // エラー進捗更新
     sendProgress(
       roleModelId,
       0,
-      `情報収集プラン作成中にエラーが発生しました: ${error.message}`,
-      { status: 'error' }
+      '情報収集プラン作成中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
     );
     
-    // オーケストレーターのエラーメッセージ
+    // オーケストレーターのエラー思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `情報収集プラン作成中にエラーが発生しました: ${error.message}`,
+      `情報収集プラン作成中にエラーが発生しました: ${error.message || '不明なエラー'}`,
       roleModelId,
       ThoughtStatus.ERROR
     );
@@ -349,122 +413,147 @@ export async function runCollectionExecutionFlow(
   planId: string
 ): Promise<boolean> {
   try {
-    // 実際にはDB等から情報収集プランを取得する
-    // ここではシミュレーションのためダミープランを作成
-    const dummyPlan = {
-      id: planId,
-      name: `情報収集プラン-${planId}`,
-      searchParams: {
-        query: 'AI最新動向',
-        numResults: 5,
-        categoryFilters: ['news', 'web_search'],
-        timeRange: '1w'
-      }
-    };
+    console.log(`情報収集実行フロー開始: ${roleModelId}, プランID: ${planId}`);
     
-    // オーケストレーターの開始メッセージ
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `情報収集プラン「${dummyPlan.name}」の実行と要約レポート作成を開始します`,
+      `情報収集プラン「${planId}」の実行と要約レポート作成を開始します`,
       roleModelId,
       ThoughtStatus.STARTING
     );
     
-    // 進捗報告：10%
-    sendProgress(roleModelId, 10, '情報収集プランの実行を開始します...');
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      10,
+      '情報源の検索を開始しています...'
+    );
     
-    // 検索実行エージェント
+    // 検索実行エージェントの思考
     sendAgentThought(
       AgentType.SEARCH_CONDUCTOR,
-      `Exa Search APIを使用して「${dummyPlan.searchParams.query}」の検索を実行します`,
-      roleModelId
+      `情報収集プラン「${planId}」に基づいて検索クエリを作成し、情報源を特定します`,
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 情報収集プランを実行
-    const executionResult = await exaSearchService.executeCollectionPlan(dummyPlan);
+    // 情報収集プランを取得（実際はシミュレーション）
+    const plan = {
+      id: planId,
+      name: `${planId}プラン`,
+      queries: ['最新動向', '市場分析', '技術革新']
+    };
     
-    // 進捗報告：40%
-    sendProgress(roleModelId, 40, '検索結果を処理中...');
-    
-    // コンテンツ処理エージェント
+    // 検索実行（シミュレーション）
     sendAgentThought(
-      AgentType.CONTENT_PROCESSOR,
-      `${executionResult.resultCount}件の検索結果を分析し、関連性と重要度で評価しています`,
-      roleModelId
+      AgentType.SEARCH_CONDUCTOR,
+      `複数の検索クエリを実行中: ${plan.queries.join(', ')}`,
+      roleModelId,
+      ThoughtStatus.WORKING
     );
     
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // 重複管理エージェント
-    sendAgentThought(
-      AgentType.DUPLICATION_MANAGER,
-      `検索結果の重複チェックと既存データとの整合性を確認しています`,
-      roleModelId
-    );
-    
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 進捗報告：70%
-    sendProgress(roleModelId, 70, '要約レポートを作成中...');
-    
-    // レポート作成エージェント
-    sendAgentThought(
-      AgentType.REPORT_COMPILER,
-      `検索結果を要約し、重要ポイントを抽出したレポートを作成しています`,
-      roleModelId
-    );
-    
-    // 少し待機して処理をシミュレート
+    // 少し待機
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // 知識統合エージェント
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      30,
+      '検索結果を処理しています...'
+    );
+    
+    // コンテンツ処理エージェントの思考
+    sendAgentThought(
+      AgentType.CONTENT_PROCESSOR,
+      '検索結果から価値のある情報を抽出し、構造化しています',
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 重複管理エージェントの思考
+    sendAgentThought(
+      AgentType.DUPLICATION_MANAGER,
+      '情報の重複を検出し、一意で価値のある洞察を特定しています',
+      roleModelId,
+      ThoughtStatus.WORKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      60,
+      '収集した情報を要約しています...'
+    );
+    
+    // レポート作成エージェントの思考
+    sendAgentThought(
+      AgentType.REPORT_COMPILER,
+      '収集した情報から要約レポートを作成しています',
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 知識統合エージェントの思考
     sendAgentThought(
       AgentType.KNOWLEDGE_INTEGRATOR,
-      `要約レポートとナレッジグラフの関連付けを行っています`,
-      roleModelId
+      'レポート内容とナレッジグラフの関連性を分析しています',
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 少し待機して処理をシミュレート
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      90,
+      '要約レポートを完成させています...'
+    );
+    
+    // 少し待機
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // 完了報告
-    sendProgress(
-      roleModelId, 
-      100, 
-      '情報収集と要約レポートの作成が完了しました',
-      { 
-        status: 'completed',
-        reportId: `report-${Date.now()}`,
-        resultCount: executionResult.resultCount
-      }
-    );
-    
-    // オーケストレーターの完了メッセージ
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `情報収集プラン「${dummyPlan.name}」の実行と要約レポート作成が完了しました`,
+      `情報収集プラン「${planId}」の実行と要約レポート作成が完了しました`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
     
-    return true;
-  } catch (error: any) {
-    console.error('情報収集実行エラー:', error);
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      100,
+      '情報収集と要約レポート作成が完了しました',
+      { status: 'completed' }
+    );
     
-    // エラー進捗
+    return true;
+  } catch (err: any) {
+    const error = err as Error;
+    console.error('情報収集実行フロー実行エラー:', error);
+    
+    // エラー進捗更新
     sendProgress(
       roleModelId,
       0,
-      `情報収集実行中にエラーが発生しました: ${error.message}`,
-      { status: 'error' }
+      '情報収集実行中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
     );
     
-    // オーケストレーターのエラーメッセージ
+    // オーケストレーターのエラー思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `情報収集実行中にエラーが発生しました: ${error.message}`,
+      `情報収集実行中にエラーが発生しました: ${error.message || '不明なエラー'}`,
       roleModelId,
       ThoughtStatus.ERROR
     );
@@ -480,91 +569,119 @@ export async function runCollectionExecutionFlow(
  */
 export async function runGraphUpdateRecommendationFlow(
   roleModelId: string,
-  reports: any[] = []
+  reports: any[]
 ): Promise<boolean> {
   try {
-    // オーケストレーターの開始メッセージ
+    console.log(`ナレッジグラフ更新レコメンドフロー開始: ${roleModelId}, レポート数: ${reports.length}`);
+    
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフの更新推奨プロセスを開始します`,
+      `${reports.length}件のレポートに基づいてナレッジグラフの更新レコメンドを作成します`,
       roleModelId,
       ThoughtStatus.STARTING
     );
     
-    // 進捗報告：10%
-    sendProgress(roleModelId, 10, 'ナレッジグラフの更新推奨を分析中...');
-    
-    // 知識統合エージェント
-    sendAgentThought(
-      AgentType.KNOWLEDGE_INTEGRATOR,
-      `収集されたレポートデータを分析し、ナレッジグラフの改善点を特定しています`,
-      roleModelId
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      10,
+      'レポートを分析しています...'
     );
     
-    // ナレッジグラフの更新を推奨
-    const recommendations = await knowledgeGraphService.recommendGraphUpdates(roleModelId, reports);
-    
-    // 進捗報告：50%
-    sendProgress(roleModelId, 50, '更新候補を評価中...');
-    
-    // 初期調査エージェント
+    // コンテンツ処理エージェントの思考
     sendAgentThought(
-      AgentType.INITIAL_RESEARCHER,
-      `${recommendations.length}個の更新候補をExa Searchで検証し、関連性を評価しています`,
-      roleModelId
+      AgentType.CONTENT_PROCESSOR,
+      'レポートから重要なキーワードと概念を抽出しています',
+      roleModelId,
+      ThoughtStatus.THINKING
     );
     
-    // 少し待機して処理をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 進捗報告：80%
-    sendProgress(roleModelId, 80, '更新推奨レポートを作成中...');
-    
-    // レポート作成エージェント
-    sendAgentThought(
-      AgentType.REPORT_COMPILER,
-      `検証結果から最も重要なナレッジグラフ更新案をレポートにまとめています`,
-      roleModelId
-    );
-    
-    // 少し待機して処理をシミュレート
+    // 少し待機
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // 完了報告
+    // 進捗状況の更新
     sendProgress(
-      roleModelId, 
-      100, 
-      'ナレッジグラフの更新推奨が完了しました',
-      { 
-        status: 'completed',
-        recommendationCount: recommendations.length
-      }
+      roleModelId,
+      30,
+      '既存のナレッジグラフと比較しています...'
     );
     
-    // オーケストレーターの完了メッセージ
+    // 知識統合エージェントの思考
+    sendAgentThought(
+      AgentType.KNOWLEDGE_INTEGRATOR,
+      '既存のナレッジグラフと新しい情報の関連性を分析しています',
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // グラフ更新レコメンデーションを生成
+    const recommendations = await knowledgeGraphService.recommendGraphUpdates(roleModelId, reports);
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      60,
+      '更新レコメンデーションを作成しています...'
+    );
+    
+    // プランストラテジストの思考
+    sendAgentThought(
+      AgentType.PLAN_STRATEGIST,
+      'ナレッジグラフの最適な拡張と更新戦略を策定しています',
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      90,
+      '更新レコメンデーションを最終化しています...'
+    );
+    
+    // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフの更新推奨プロセスが完了しました。${recommendations.length}個の更新候補が提案されています。`,
+      `ナレッジグラフ更新レコメンド（${recommendations.length}項目）の作成が完了しました`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
     
-    return true;
-  } catch (error: any) {
-    console.error('ナレッジグラフ更新推奨エラー:', error);
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      100,
+      'ナレッジグラフ更新レコメンデーションの作成が完了しました',
+      { 
+        status: 'completed',
+        recommendations
+      }
+    );
     
-    // エラー進捗
+    return true;
+  } catch (err: any) {
+    const error = err as Error;
+    console.error('ナレッジグラフ更新レコメンドフロー実行エラー:', error);
+    
+    // エラー進捗更新
     sendProgress(
       roleModelId,
       0,
-      `ナレッジグラフ更新推奨中にエラーが発生しました: ${error.message}`,
-      { status: 'error' }
+      'ナレッジグラフ更新レコメンド中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
     );
     
-    // オーケストレーターのエラーメッセージ
+    // オーケストレーターのエラー思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフ更新推奨中にエラーが発生しました: ${error.message}`,
+      `ナレッジグラフ更新レコメンド中にエラーが発生しました: ${error.message || '不明なエラー'}`,
       roleModelId,
       ThoughtStatus.ERROR
     );

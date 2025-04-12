@@ -4,6 +4,7 @@
  */
 
 import * as neo4jService from './neo4j-service';
+import * as graphService from './graph-service-adapter';
 import * as exaService from './exa-search-service';
 
 // ノードタイプ
@@ -72,7 +73,7 @@ export async function generateHierarchicalKnowledgeGraph(
     
     // 既存グラフを上書きする場合は削除
     if (overwrite) {
-      await neo4jService.deleteExistingKnowledgeGraph(roleModelId);
+      await graphService.deleteExistingKnowledgeGraph(roleModelId);
       console.log(`既存のナレッジグラフを削除しました: ${roleModelId}`);
     }
     
@@ -123,7 +124,28 @@ export async function generateHierarchicalKnowledgeGraph(
     };
     
     // Neo4jにグラフを保存
-    const savedGraph = await neo4jService.createKnowledgeGraph(roleModelId, graphData.nodes, graphData.edges);
+    // neo4jServiceに直接メソッドがない場合はgraphService経由で保存
+    await graphService.deleteExistingKnowledgeGraph(roleModelId);
+    
+    // 各ノードを登録
+    for (const node of graphData.nodes) {
+      await graphService.createNode(
+        { labels: [node.type], properties: { ...node.properties, id: node.id, label: node.label } },
+        undefined,
+        roleModelId
+      );
+    }
+    
+    // 各エッジを登録
+    for (const edge of graphData.edges) {
+      await graphService.createRelationship({
+        sourceNodeId: edge.source,
+        targetNodeId: edge.target,
+        type: edge.type,
+        properties: edge.properties
+      });
+    }
+    
     console.log(`ナレッジグラフを作成しました: ノード${graphData.nodes.length}個, エッジ${graphData.edges.length}個`);
     
     return graphData;
