@@ -175,9 +175,28 @@ export async function getParentNodes(nodeId: string, relationshipType?: string):
 }
 
 /**
+ * 特定のロールモデルの既存ナレッジグラフを削除する
+ * @param roleModelId ロールモデルID
+ * @returns 削除されたノード数
+ */
+export async function deleteExistingKnowledgeGraph(roleModelId: string): Promise<number> {
+  console.log(`ロールモデル "${roleModelId}" の既存ナレッジグラフを削除します`);
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.deleteKnowledgeGraphByRoleModelId(roleModelId);
+    } catch (error) {
+      console.error('Neo4jでのナレッジグラフ削除に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
+  return 0; // メモリベースの場合は新規生成時に自動的に上書きされる
+}
+
+/**
  * 新しいナレッジグラフを生成する
  * @param roleModelId ロールモデルID
  * @param options グラフ生成オプション
+ * @param forceOverwrite 既存のグラフを上書きするかどうか
  * @returns 生成されたグラフのメインノードID
  */
 export async function generateNewKnowledgeGraph(
@@ -187,8 +206,17 @@ export async function generateNewKnowledgeGraph(
     subTopics?: string[];
     description?: string;
     createdBy?: string;
-  }
+  },
+  forceOverwrite: boolean = false
 ): Promise<string> {
+  // 強制上書きモードが有効なら、まず既存のグラフを削除
+  if (forceOverwrite) {
+    console.log(`既存のナレッジグラフを削除します (roleModelId=${roleModelId})`);
+    const deletedCount = await deleteExistingKnowledgeGraph(roleModelId);
+    console.log(`${deletedCount}ノードが削除されました`);
+  }
+  
+  // 新しいグラフを生成
   if (neo4jAvailable) {
     try {
       return await neo4jService.generateNewKnowledgeGraph(roleModelId, options);

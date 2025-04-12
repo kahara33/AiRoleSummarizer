@@ -87,6 +87,7 @@ export function initWebSocketServer(server: Server): void {
                 timestamp: new Date().toISOString()
               }
             }));
+            console.log('Ping received from client');
           } else if (type === 'subscribe') {
             // サブスクリプションリクエスト - 既に接続時に処理されているので、確認メッセージを送信
             ws.send(JSON.stringify({
@@ -98,6 +99,57 @@ export function initWebSocketServer(server: Server): void {
               }
             }));
             console.log(`Client ${parsedMessage.clientId || 'unknown'} subscribed to role model ${roleModelId}`);
+          } else if (type === 'create_knowledge_graph') {
+            // ナレッジグラフ生成リクエスト（新規または既存グラフを使用するかのフラグ付き）
+            console.log(`クライアントからのナレッジグラフ生成リクエスト:`, parsedMessage);
+            
+            // websocket-handlersモジュールから動的にインポート
+            import('./websocket-handlers').then(handlers => {
+              handlers.handleCreateKnowledgeGraph(parsedMessage, roleModelId);
+            }).catch(error => {
+              console.error('ナレッジグラフハンドラのロードエラー:', error);
+              
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'ナレッジグラフ生成ハンドラの読み込みに失敗しました',
+                error: error.message,
+                timestamp: new Date().toISOString()
+              }));
+            });
+          } else if (type === 'create_collection_plan') {
+            // 情報収集プラン生成リクエスト（既存グラフを使用）
+            console.log(`クライアントからの情報収集プラン生成リクエスト:`, parsedMessage);
+            
+            // websocket-handlersモジュールから動的にインポート
+            import('./websocket-handlers').then(handlers => {
+              handlers.handleCreateCollectionPlan(parsedMessage, roleModelId);
+            }).catch(error => {
+              console.error('情報収集プランハンドラのロードエラー:', error);
+              
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: '情報収集プラン生成ハンドラの読み込みに失敗しました',
+                error: error.message,
+                timestamp: new Date().toISOString()
+              }));
+            });
+          } else if (type === 'cancel_operation') {
+            // 操作キャンセルリクエスト
+            console.log(`クライアントからの操作キャンセルリクエスト:`, parsedMessage);
+            
+            // websocket-handlersモジュールから動的にインポート
+            import('./websocket-handlers').then(handlers => {
+              handlers.handleCancelOperation(parsedMessage, roleModelId);
+            }).catch(error => {
+              console.error('キャンセルハンドラのロードエラー:', error);
+              
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'キャンセル処理ハンドラの読み込みに失敗しました',
+                error: error.message,
+                timestamp: new Date().toISOString()
+              }));
+            });
           } else if (type === 'agent_thoughts' || type === 'progress' || type === 'graph_update') {
             // メッセージをそのまま処理（受信も送信も同じ型を使用）
             console.log(`Processing message type: ${type}`);
