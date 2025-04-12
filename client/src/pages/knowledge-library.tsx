@@ -253,8 +253,8 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
         };
         
         // ローカルステートを直接更新
-        setAgentThoughts(prev => [...prev, thought]);
-        setProgressUpdates(prev => [...prev, progress]);
+        setLocalAgentThoughts(prev => [...prev, thought]);
+        setLocalProgressUpdates(prev => [...prev, progress]);
       }
       
       // 最後に成功メッセージを追加
@@ -284,11 +284,11 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
       };
       
       // ローカルステートを更新
-      setAgentThoughts(prev => [...prev, completionThought]);
-      setProgressUpdates(prev => [...prev, completionProgress]);
+      setLocalAgentThoughts(prev => [...prev, completionThought]);
+      setLocalProgressUpdates(prev => [...prev, completionProgress]);
       
       // WebSocketに依存せず、ローカルシミュレーションが完了
-      setIsProcessing(false);
+      setLocalIsProcessing(false);
       
       // 実際のAPIを呼び出す
       return apiRequest("POST", `/api/knowledge-library/generate/${roleModelId}`, {});
@@ -320,7 +320,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
   // 新規Exa検索の実行（WebSocketに依存しない改善版）
   const handleExaSearch = async () => {
     // 処理中フラグを設定
-    setIsProcessing(true);
+    setLocalIsProcessing(true);
     
     // エージェントパネルを確実に表示
     setShowAgentPanel(true);
@@ -357,8 +357,8 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
     };
     
     // ローカルステートを更新
-    setAgentThoughts(prev => [...prev, searchThought]);
-    setProgressUpdates(prev => [...prev, searchProgress]);
+    setLocalAgentThoughts(prev => [...prev, searchThought]);
+    setLocalProgressUpdates(prev => [...prev, searchProgress]);
     
     // 検索処理をシミュレート
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -387,11 +387,11 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
     };
     
     // ローカルステートを更新
-    setAgentThoughts(prev => [...prev, completionThought]);
-    setProgressUpdates(prev => [...prev, completionProgress]);
+    setLocalAgentThoughts(prev => [...prev, completionThought]);
+    setLocalProgressUpdates(prev => [...prev, completionProgress]);
     
     // 処理中フラグを解除
-    setIsProcessing(false);
+    setLocalIsProcessing(false);
     
     // 実際のAPIリクエストをバックグラウンドで実行（オプション）
     try {
