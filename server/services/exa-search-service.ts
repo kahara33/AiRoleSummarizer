@@ -147,13 +147,14 @@ export async function searchWithExa(params: SearchParams): Promise<SearchRespons
       status: 'success'
     };
     */
-  } catch (error) {
+  } catch (err: any) {
+    const error = err as Error;
     console.error('Exa Search API検索エラー:', error);
     return {
       results: [],
       status: 'error',
       message: error.message || '検索中にエラーが発生しました',
-      error
+      error: error.toString()
     };
   }
 }
@@ -193,7 +194,8 @@ export async function summarizeSearchResults(results: SearchResult[], query: str
 最新のトレンド、市場成長、および技術革新が挙げられます。
 特に注目すべきは、人工知能やデータ分析の活用が進んでいる点です。
     `.trim();
-  } catch (error) {
+  } catch (err: any) {
+    const error = err as Error;
     console.error('検索結果要約エラー:', error);
     return `「${query}」に関する要約の生成中にエラーが発生しました。`;
   }
@@ -288,6 +290,8 @@ export async function executeCollectionPlan(plan: any): Promise<any> {
     const allResults = [];
     
     // 各クエリに対して検索を実行
+    let lastSearchResults: SearchResponse | null = null;
+    
     for (const query of plan.queries) {
       // 検索を実行
       const searchResults = await searchWithExa({
@@ -300,6 +304,7 @@ export async function executeCollectionPlan(plan: any): Promise<any> {
       
       if (searchResults.status === 'success') {
         allResults.push(...searchResults.results);
+        lastSearchResults = searchResults;
       }
     }
     
@@ -318,11 +323,11 @@ export async function executeCollectionPlan(plan: any): Promise<any> {
       planName: plan.name,
       executedAt: new Date().toISOString(),
       summary,
-      sources: searchResults.results.map((r: SearchResult) => ({
+      sources: lastSearchResults && lastSearchResults.results ? lastSearchResults.results.map((r: SearchResult) => ({
         title: r.title,
         url: r.url,
         publishedDate: r.publishedDate
-      })),
+      })) : [],
       keyInsights: [
         `${plan.name}に関する最新の動向`,
         `主要企業の取り組みと戦略`,
@@ -332,7 +337,8 @@ export async function executeCollectionPlan(plan: any): Promise<any> {
     
     console.log(`情報収集プラン「${plan.name}」の実行完了、レポート作成`);
     return report;
-  } catch (error) {
+  } catch (err: any) {
+    const error = err as Error;
     console.error('情報収集プラン実行エラー:', error);
     return {
       id: `report-error-${Date.now()}`,
