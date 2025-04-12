@@ -100,6 +100,21 @@ export class CrewManager extends EventEmitter {
       // Azure OpenAIへのリクエストを構築
       console.log(`エージェント ${agentName} の思考を生成します...`);
       
+      // WebSocketを通じて思考中であることを送信
+      const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+      try {
+        // WebSocketを通じて「思考中」状態を送信
+        sendAgentThoughts(
+          agentName,
+          `${agentName}が考えています...`,
+          roleModelId,
+          'thinking'
+        );
+        console.log(`WebSocketを通じて${agentName}の思考中状態を送信しました`);
+      } catch (wsError) {
+        console.error('WebSocket送信エラー (思考中):', wsError);
+      }
+      
       // .envから取得されるAzure OpenAI API設定を使用
       const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY;
       const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || 'https://api.cognitive.microsoft.com';
@@ -107,7 +122,19 @@ export class CrewManager extends EventEmitter {
       
       if (!AZURE_OPENAI_API_KEY) {
         console.error('Azure OpenAI API キーが設定されていません');
-        return `${agentName}の思考を生成できませんでした。API設定を確認してください。`;
+        const errorMsg = `${agentName}の思考を生成できませんでした。API設定を確認してください。`;
+        // WebSocketを通じてエラーを送信
+        try {
+          sendAgentThoughts(
+            agentName,
+            errorMsg,
+            roleModelId,
+            'error'
+          );
+        } catch (wsError) {
+          console.error('WebSocket送信エラー (APIキーなし):', wsError);
+        }
+        return errorMsg;
       }
       
       // OpenAI APIに直接リクエストを送信
@@ -142,7 +169,18 @@ export class CrewManager extends EventEmitter {
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Azure OpenAI APIエラー:', errorData);
-        return `${agentName}: 考え中...`;
+        const errorMsg = `${agentName}: 考え中...`;
+        try {
+          sendAgentThoughts(
+            agentName,
+            errorMsg,
+            roleModelId,
+            'error'
+          );
+        } catch (wsError) {
+          console.error('WebSocket送信エラー (API応答エラー):', wsError);
+        }
+        return errorMsg;
       }
       
       const data = await response.json();
@@ -159,11 +197,40 @@ export class CrewManager extends EventEmitter {
         thought = sentences.slice(0, 3).join('。') + '。';
       }
       
-      console.log(`エージェント ${agentName} の思考生成完了`);
+      console.log(`エージェント ${agentName} の思考生成完了: ${thought.substring(0, 50)}...`);
+      
+      // WebSocketを通じて完了した思考を送信
+      try {
+        sendAgentThoughts(
+          agentName,
+          thought,
+          roleModelId,
+          'decision'
+        );
+        console.log(`WebSocketを通じて${agentName}の思考結果を送信しました`);
+      } catch (wsError) {
+        console.error('WebSocket送信エラー (思考結果):', wsError);
+      }
+      
       return thought;
     } catch (error) {
       console.error(`エージェント ${agentName} の思考生成中にエラーが発生しました:`, error);
-      return `${agentName}: エラーが発生しました。詳細: ${error instanceof Error ? error.message : '不明なエラー'}`;
+      const errorMsg = `${agentName}: エラーが発生しました。詳細: ${error instanceof Error ? error.message : '不明なエラー'}`;
+      
+      // WebSocketを通じてエラーを送信
+      try {
+        const roleModelId = (this as any).roleModelId || 'default-role-model-id';
+        sendAgentThoughts(
+          agentName,
+          errorMsg,
+          roleModelId,
+          'error'
+        );
+      } catch (wsError) {
+        console.error('WebSocket送信エラー (例外発生):', wsError);
+      }
+      
+      return errorMsg;
     }
   }
   
@@ -216,11 +283,7 @@ export class CrewManager extends EventEmitter {
               japaneseAgentName,
               thoughtContent,
               roleModelId,
-              {
-                taskName: data.taskName,
-                type: 'thinking', // 思考中タイプを明示的に設定
-                timestamp: new Date().toISOString()
-              }
+              'thinking' // 思考中タイプを明示的に設定
             );
             console.log(`WebSocketを介してエージェント思考を直接送信: ${japaneseAgentName}`);
           } catch (wsError) {
@@ -274,12 +337,7 @@ export class CrewManager extends EventEmitter {
               agentName,
               thought,
               roleModelId,
-              {
-                taskName: data.taskName,
-                type: 'success', // 成功タイプを明示的に設定
-                timestamp: new Date().toISOString(),
-                id: crypto.randomUUID() // 一意のIDを必ず設定
-              }
+              'success' // 成功タイプを明示的に設定
             );
             console.log(`タスク完了メッセージをWebSocketで直接送信: ${agentName} - ${data.taskName}`);
           } catch (wsError) {
