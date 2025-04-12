@@ -1022,11 +1022,15 @@ export async function runUserFeedbackCollectionFlow(
 export async function generateSummarySamples(topic: string): Promise<any[]> {
   try {
     const agentName = AgentType.SAMPLE_SUMMARIZER;
-    websocket.sendAgentThoughts(
-      agentName,
-      `${topic}に関する5種類の異なるタイプの要約サンプルを生成します`,
-      'start'
-    );
+    try {
+      websocket.sendAgentThoughts(
+        agentName,
+        `${topic}に関する5種類の異なるタイプの要約サンプルを生成します`,
+        'start'
+      );
+    } catch (error) {
+      console.error('WebSocketエージェント思考送信エラー:', error);
+    }
 
     // 5種類の要約パターンを定義
     const summaryTypes = [
@@ -1071,30 +1075,42 @@ export async function generateSummarySamples(topic: string): Promise<any[]> {
       };
 
       // 各サンプル生成の進捗を報告
-      websocket.sendAgentThoughts(
-        agentName,
-        `${type.type}のサンプル要約を生成しました`,
-        'thinking'
-      );
+      try {
+        websocket.sendAgentThoughts(
+          agentName,
+          `${type.type}のサンプル要約を生成しました`,
+          'thinking'
+        );
+      } catch (error) {
+        console.error('WebSocketエージェント思考送信エラー:', error);
+      }
 
       return sample;
     });
 
     // 完了報告
-    websocket.sendAgentThoughts(
-      agentName,
-      `${topic}に関する5種類の要約サンプルの生成が完了しました`,
-      'complete'
-    );
+    try {
+      websocket.sendAgentThoughts(
+        agentName,
+        `${topic}に関する5種類の要約サンプルの生成が完了しました`,
+        'complete'
+      );
+    } catch (error) {
+      console.error('WebSocketエージェント思考送信エラー:', error);
+    }
 
     return samples;
   } catch (error) {
     console.error('要約サンプル生成エラー:', error);
-    websocket.sendAgentThoughts(
-      AgentType.SAMPLE_SUMMARIZER,
-      `要約サンプル生成中にエラーが発生しました: ${error}`,
-      'error'
-    );
+    try {
+      websocket.sendAgentThoughts(
+        AgentType.SAMPLE_SUMMARIZER,
+        `要約サンプル生成中にエラーが発生しました: ${error}`,
+        'error'
+      );
+    } catch (err) {
+      console.error('WebSocketエラーメッセージ送信エラー:', err);
+    }
     return [];
   }
 }
