@@ -44,8 +44,10 @@ export function useKnowledgeGraphGeneration(): UseKnowledgeGraphGenerationResult
   // 基本のWebSocketフックを使用
   const wsHook = useMultiAgentWebSocket();
   
-  // 接続状態のデバッグログ（直接表示）
-  console.log('useKnowledgeGraphGeneration: WebSocket接続状態:', wsHook.isConnected ? '接続済み' : '未接続');
+  // 接続状態のデバッグログ（useEffectで処理）
+  useEffect(() => {
+    console.log('useKnowledgeGraphGeneration: WebSocket接続状態:', wsHook.isConnected ? '接続済み' : '未接続');
+  }, [wsHook.isConnected]);
   
   // ナレッジグラフ生成リクエスト送信関数
   const sendCreateKnowledgeGraphRequest = useCallback((options: {

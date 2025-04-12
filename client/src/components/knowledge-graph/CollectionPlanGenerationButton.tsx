@@ -45,13 +45,13 @@ export default function CollectionPlanGenerationButton({
     sendCreateKnowledgeGraphRequest
   } = useKnowledgeGraphGeneration();
   
-  // コンポーネントのマウント時にWebSocketを接続（useEffect内で実行）
+  // コンポーネントのマウント時にWebSocketを接続（roleModelIdが変更されたときに再実行）
   useEffect(() => {
     if (roleModelId && !isConnected) {
       console.log('CollectionPlanGenerationButton: WebSocket接続を開始します', roleModelId);
       connect(roleModelId);
     }
-  }, []);
+  }, [roleModelId, isConnected, connect]);
 
   // WebSocketからの進捗状況更新を処理するエフェクト
   useEffect(() => {
