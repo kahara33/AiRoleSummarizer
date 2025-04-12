@@ -94,7 +94,7 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
   
   // スタイル設定
   const containerStyle = {
-    height: height || '500px'
+    height: height || '100%' // 親の高さに合わせる
   };
   
   // エラー表示

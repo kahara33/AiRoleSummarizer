@@ -59,12 +59,27 @@ export default function KnowledgeGraphGenerationButton({
       const latestUpdate = progressUpdates[progressUpdates.length - 1];
       if (latestUpdate && typeof latestUpdate.progress === 'number') {
         setProgress(latestUpdate.progress);
+        
+        // 進捗が100%に達した場合、生成が完了したと判断
+        if (latestUpdate.progress === 100) {
+          setTimeout(() => {
+            setIsGenerating(false);
+            toast({
+              title: "処理完了",
+              description: "ナレッジグラフと情報収集プランの生成が完了しました",
+            });
+            // 1秒後にページをリロードして新しいグラフを表示
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }, 1000); // 1秒待ってから完了させる
+        }
       }
       if (latestUpdate && latestUpdate.message) {
         setStatusMessage(latestUpdate.message);
       }
     }
-  }, [progressUpdates]);
+  }, [progressUpdates, toast]);
   
   // 生成状態が変更されたときに親コンポーネントに通知
   useEffect(() => {
@@ -111,6 +126,11 @@ export default function KnowledgeGraphGenerationButton({
         return;
       }
 
+      // 上書き処理を行うことを明示的に表示
+      if (hasKnowledgeGraph) {
+        setStatusMessage('既存のナレッジグラフを上書きしています...');
+      }
+
       // ナレッジグラフ生成リクエストを送信
       console.log('ナレッジグラフ生成リクエスト送信:', roleModelId);
       
@@ -121,6 +141,7 @@ export default function KnowledgeGraphGenerationButton({
           includeCollectionPlan: true,  // ナレッジグラフ生成と情報収集プラン生成の両方を行う
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
+          forceOverwrite: true,  // 既存グラフがあっても強制的に上書き
         });
       } else {
         // フォールバック: 直接メッセージを送信
@@ -129,11 +150,16 @@ export default function KnowledgeGraphGenerationButton({
           includeCollectionPlan: true,
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
+          forceOverwrite: true,  // 既存グラフがあっても強制的に上書き
         });
       }
 
       console.log('業界:', industry || '一般');
       console.log('キーワード:', initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ']);
+      console.log('上書きモード:', true);
+      
+      // 確認ダイアログを閉じる
+      setShowConfirmDialog(false);
       
     } catch (error) {
       console.error('ナレッジグラフ生成リクエストエラー:', error);
