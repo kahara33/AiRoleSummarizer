@@ -277,8 +277,10 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     const rawMessageType = data.type || 'unknown';
     const messageType = typeof rawMessageType === 'string' ? rawMessageType.toLowerCase() : 'unknown';
     
-    // デバッグ: 元のメッセージタイプと正規化した結果を表示
-    console.log(`メッセージタイプの正規化: 元=${rawMessageType} → 正規化後=${messageType}`);
+    // 追加デバッグ: 元のメッセージタイプと正規化した結果を詳細に表示
+    console.log(`メッセージタイプの正規化: 元=${rawMessageType} (${typeof rawMessageType}) → 正規化後=${messageType} (${typeof messageType})`);
+    // 追加: トリミング処理も追加（余分なスペースや改行文字が含まれている可能性がある）
+    const trimmedMessageType = messageType.trim();
     
     // ペイロードの抽出（直接またはpayloadフィールドから）
     const payload = data.payload || data;
@@ -287,9 +289,10 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     const specificRoleModelId = payload.roleModelId || data.roleModelId || (ws as any).roleModelId;
     
     // 詳細なデバッグログ
-    console.log(`メッセージ処理 type=${messageType}, roleModelId=${specificRoleModelId}`, {
+    console.log(`メッセージ処理 type=${trimmedMessageType}, roleModelId=${specificRoleModelId}`, {
       originalType: data.type,
       normalizedType: messageType,
+      trimmedType: trimmedMessageType,
       payloadSize: payload ? Object.keys(payload).length : 0,
       hasRoleModelId: !!specificRoleModelId
     });
@@ -299,8 +302,8 @@ function handleClientMessage(ws: WebSocket, data: any): void {
       console.log(`クライアントID: ${(ws as any).clientId}`);
     }
     
-    // メッセージタイプに基づいて処理を分岐（小文字比較）
-    switch (messageType) {
+    // メッセージタイプに基づいて処理を分岐（小文字比較およびトリム処理済み）
+    switch (trimmedMessageType) {
       case 'subscribe':
         console.log('サブスクリプションメッセージを処理します：', data);
         handleSubscribe(ws, data);
