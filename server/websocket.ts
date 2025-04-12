@@ -346,6 +346,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
           payloadKeys: data.payload ? Object.keys(data.payload) : []
         });
         handleAgentThoughts(ws, data);
+        messageHandled = true;
         break;
         
       case 'progress':
@@ -362,6 +363,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
           payloadKeys: data.payload ? Object.keys(data.payload) : []
         });
         handleProgressUpdate(ws, data);
+        messageHandled = true;
         break;
         
       case 'chat_message':
@@ -369,6 +371,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         // チャットメッセージの処理
         console.log('チャットメッセージを処理します');
         handleChatMessage(ws, data);
+        messageHandled = true;
         break;
         
       case 'knowledge_graph_update':
@@ -378,6 +381,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         // 知識グラフ更新の処理
         console.log('知識グラフ更新メッセージを処理します');
         handleGraphUpdate(ws, data);
+        messageHandled = true;
         break;
         
       case 'information_collection_plan':
@@ -386,6 +390,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         // 情報収集プラン取得の処理
         console.log('情報収集プラン取得メッセージを処理します');
         handleInformationPlan(ws, data);
+        messageHandled = true;
         break;
         
       case 'save_information_plan':
@@ -394,6 +399,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         // 情報収集プラン保存の処理
         console.log('情報収集プラン保存メッセージを処理します');
         handleSaveInformationPlan(ws, data);
+        messageHandled = true;
         break;
         
       case 'delete_information_plan':
