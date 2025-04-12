@@ -249,6 +249,77 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   return await memoryGraphService.getKnowledgeGraph(roleModelId);
 }
 
+/**
+ * ナレッジグラフを保存する
+ * @param roleModelId ロールモデルID
+ * @param graphData グラフデータ
+ * @returns 保存が成功したかどうか
+ */
+export async function saveKnowledgeGraph(roleModelId: string, graphData: {
+  nodes: any[];
+  edges: any[];
+}): Promise<boolean> {
+  console.log(`ナレッジグラフを保存: roleModelId=${roleModelId}, ノード数=${graphData.nodes.length}, エッジ数=${graphData.edges.length}`);
+  
+  if (neo4jAvailable) {
+    try {
+      // 既存のグラフを削除
+      await neo4jService.deleteKnowledgeGraphByRoleModelId(roleModelId);
+      
+      // ノードの作成
+      const nodeIdMap = new Map<string, string>();
+      
+      for (const node of graphData.nodes) {
+        const nodeId = await neo4jService.createNode(
+          node.type,
+          {
+            ...node.properties,
+            label: node.label,
+            roleModelId
+          },
+          roleModelId
+        );
+        
+        // 元のノードIDと新しいノードIDのマッピングを保存
+        nodeIdMap.set(node.id, nodeId);
+      }
+      
+      // エッジの作成
+      for (const edge of graphData.edges) {
+        // マッピングされたノードIDを使用
+        const sourceId = nodeIdMap.get(edge.source);
+        const targetId = nodeIdMap.get(edge.target);
+        
+        if (sourceId && targetId) {
+          await neo4jService.createRelationship(
+            sourceId,
+            targetId,
+            edge.type,
+            edge.properties || {}
+          );
+        }
+      }
+      
+      console.log(`ナレッジグラフを保存しました: roleModelId=${roleModelId}`);
+      return true;
+    } catch (error) {
+      console.error('Neo4jでのナレッジグラフ保存に失敗しました:', error);
+      neo4jAvailable = false;
+    }
+  }
+  
+  // メモリベースストレージの場合は簡易的に保存
+  try {
+    // メモリサービスには直接的な保存機能がないため、既存のグラフの代わりに新しいグラフを設定
+    console.log(`メモリベースでナレッジグラフを保存: roleModelId=${roleModelId}`);
+    memoryGraphService.setKnowledgeGraph(roleModelId, graphData);
+    return true;
+  } catch (error) {
+    console.error('メモリベースでのナレッジグラフ保存に失敗しました:', error);
+    return false;
+  }
+}
+
 // 初期化関数
 (async function initialize() {
   try {

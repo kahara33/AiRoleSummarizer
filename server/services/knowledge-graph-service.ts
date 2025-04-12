@@ -1079,6 +1079,103 @@ function generateCrossEntityEdges(entityNodes: GraphNode[]): GraphEdge[] {
  * @param reports 要約レポート一覧
  * @returns 更新推奨
  */
+/**
+ * ユーザーフィードバックをナレッジグラフに反映
+ * @param roleModelId ロールモデルID
+ * @param graphData 現在のグラフデータ
+ * @param userPreferences ユーザー嗜好データ
+ * @returns 更新されたグラフデータ
+ */
+export async function incorporateUserFeedback(
+  roleModelId: string,
+  graphData: GraphData,
+  userPreferences: {
+    categories: string[];
+    priorityKeywords: string[];
+    feedbackType: string;
+  }
+): Promise<GraphData> {
+  try {
+    console.log(`ユーザーフィードバックの反映開始: roleModelId=${roleModelId}, 優先カテゴリ=${userPreferences.categories.join(', ')}`);
+    
+    // 優先カテゴリに合致するノードを強調
+    const enhancedNodes = graphData.nodes.map(node => {
+      // ユーザーが関心を示したカテゴリに関連するノードを強調
+      if (userPreferences.categories.some(category => 
+          node.label.includes(category) || 
+          (node.properties?.category && node.properties.category.includes(category))
+      )) {
+        return {
+          ...node,
+          properties: {
+            ...node.properties,
+            importance: 'high',
+            userPreferred: true,
+            visualWeight: 1.5
+          }
+        };
+      }
+
+      // 優先キーワードに関連するノードを強調
+      if (userPreferences.priorityKeywords.some(keyword => 
+          node.label.toLowerCase().includes(keyword.toLowerCase())
+      )) {
+        return {
+          ...node,
+          properties: {
+            ...node.properties,
+            importance: 'medium',
+            userRelevant: true,
+            visualWeight: 1.2
+          }
+        };
+      }
+      
+      return node;
+    });
+    
+    // エッジの重み付けを調整
+    const enhancedEdges = graphData.edges.map(edge => {
+      const sourceNode = graphData.nodes.find(n => n.id === edge.source);
+      const targetNode = graphData.nodes.find(n => n.id === edge.target);
+      
+      // 優先カテゴリに関連するエッジを強調
+      if (sourceNode && targetNode) {
+        const sourcePreferred = sourceNode.properties?.userPreferred || sourceNode.properties?.userRelevant;
+        const targetPreferred = targetNode.properties?.userPreferred || targetNode.properties?.userRelevant;
+        
+        if (sourcePreferred && targetPreferred) {
+          return {
+            ...edge,
+            properties: {
+              ...edge.properties,
+              weight: Math.min((edge.properties?.weight || 0.5) * 1.5, 1.0),
+              userFeedback: 'preferred_connection'
+            }
+          };
+        }
+      }
+      
+      return edge;
+    });
+    
+    // フィードバックを反映した更新済みグラフを返す
+    const updatedGraph = {
+      nodes: enhancedNodes,
+      edges: enhancedEdges
+    };
+    
+    console.log(`ユーザーフィードバック反映完了: ノード数=${updatedGraph.nodes.length}, エッジ数=${updatedGraph.edges.length}`);
+    
+    // 実際の環境では、このグラフをNeo4jなどのデータベースに保存するロジックを追加
+    
+    return updatedGraph;
+  } catch (error) {
+    console.error('ユーザーフィードバック反映エラー:', error);
+    return graphData; // エラー時は元のグラフをそのまま返す
+  }
+}
+
 export async function recommendGraphUpdates(roleModelId: string, reports: any[]): Promise<any[]> {
   try {
     console.log(`ナレッジグラフ更新レコメンデーション生成: ${roleModelId}`);
