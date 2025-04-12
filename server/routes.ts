@@ -1325,6 +1325,92 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  // 情報収集プランの実行エンドポイント（クライアント側でのボタン操作用）
+  app.post('/api/knowledge-library/execute/:roleModelId/:planId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, planId } = req.params;
+      
+      if (!roleModelId || !isValidUUID(roleModelId)) {
+        return res.status(400).json({ error: '有効なロールモデルIDが必要です' });
+      }
+      
+      if (!planId || !isValidUUID(planId)) {
+        return res.status(400).json({ error: '有効な情報収集プランIDが必要です' });
+      }
+      
+      // ロールモデルとプランの取得（権限チェックのため）
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId)
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      const plan = await db.query.collectionPlans.findFirst({
+        where: eq(collectionPlans.id, planId)
+      });
+      
+      if (!plan) {
+        return res.status(404).json({ error: '情報収集プランが見つかりません' });
+      }
+      
+      // アクセス権チェック（シンプル版 - 必要に応じて厳密なチェックを追加）
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // 管理者であれば実行可能
+      if (user.role !== 'admin') {
+        // プランの作成者か、共有設定を確認
+        const isCreator = plan.createdBy === user.id;
+        if (!isCreator) {
+          return res.status(403).json({ error: 'このプランを実行する権限がありません' });
+        }
+      }
+      
+      // 初期レスポンスを返す（処理は非同期で続行）
+      res.json({ 
+        status: 'processing', 
+        message: 'マルチエージェント処理を開始しました',
+        planId: planId,
+        roleModelId: roleModelId
+      });
+      
+      // バックグラウンドで処理実行
+      runKnowledgeLibraryProcess(roleModelId, planId, {
+        title: plan.title || "マルチエージェント情報処理",
+        industries: [], // 必要に応じてロールモデルから産業情報を取得
+        keywords: []   // 必要に応じてロールモデルからキーワード情報を取得
+      })
+      .then(result => {
+        console.log(`プラン実行完了: ${planId}`);
+        sendProgressUpdate(roleModelId, {
+          type: 'plan_execution_complete',
+          message: '実行が完了しました',
+          data: { success: true, result, planId }
+        });
+      })
+      .catch(error => {
+        console.error(`プラン実行エラー: ${planId}`, error);
+        sendProgressUpdate(roleModelId, {
+          type: 'plan_execution_error',
+          message: `実行エラー: ${error instanceof Error ? error.message : '不明なエラー'}`,
+          planId
+        });
+      });
+    } catch (error) {
+      console.error('プラン実行エラー:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'プランの実行に失敗しました', 
+          details: error instanceof Error ? error.message : '不明なエラー' 
+        });
+      }
+    }
+  });
+
   // 情報収集プランの検索結果取得
   app.get('/api/collection-plans/:planId/search-results', isAuthenticated, async (req, res) => {
     try {

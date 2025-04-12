@@ -40,6 +40,8 @@ interface InformationPlanDetailProps {
 
 export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate, onBack }: InformationPlanDetailProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const queryClient = useQueryClient();
   const [editForm, setEditForm] = useState({
     title: plan?.title || '',
     description: plan?.description || '',
@@ -47,6 +49,49 @@ export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate,
     tags: plan?.tags ? plan?.tags.join(', ') : ''
   });
   const { toast } = useToast();
+  
+  // 情報収集プランを実行する処理
+  const handleExecutePlan = async () => {
+    if (!plan || !roleModelId) return;
+    
+    try {
+      setIsExecuting(true);
+      toast({
+        title: '実行開始',
+        description: '情報収集プランの実行を開始しました。処理が完了するまでお待ちください。',
+      });
+      
+      // プラン実行APIを呼び出し
+      const response = await apiRequest(
+        'POST',
+        `/api/knowledge-library/execute/${roleModelId}/${plan.id}`,
+        {}
+      );
+      
+      if (response.ok) {
+        toast({
+          title: '処理開始',
+          description: 'プロセスがバックグラウンドで実行されています。完了までに数分かかる場合があります。',
+        });
+        
+        // 関連データの再取得
+        queryClient.invalidateQueries({ queryKey: [`/api/role-models/${roleModelId}/information-collection-plans`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/role-models/${roleModelId}/collection-summaries`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/knowledge-graph/${roleModelId}`] });
+      } else {
+        throw new Error('プラン実行の開始に失敗しました');
+      }
+    } catch (error) {
+      console.error('プラン実行エラー:', error);
+      toast({
+        title: 'エラー',
+        description: 'プランの実行開始に失敗しました',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
 
   // 編集ダイアログを開く
   const handleOpenEditDialog = () => {
@@ -82,7 +127,9 @@ export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate,
       };
       
       // WebSocket経由で保存
-      saveInformationPlan(roleModelId, updatedPlan);
+      if (roleModelId) {
+        saveInformationPlan(roleModelId, updatedPlan);
+      }
       
       // APIでも保存
       const response = await apiRequest(
@@ -213,9 +260,9 @@ export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate,
             <Edit className="h-4 w-4 mr-1" />
             編集
           </Button>
-          <Button variant="primary" size="sm" onClick={handleExecutePlan}>
+          <Button variant="default" size="sm" onClick={handleExecutePlan} disabled={isExecuting}>
             <FileText className="h-4 w-4 mr-1" />
-            実行
+            {isExecuting ? '実行中...' : '実行'}
           </Button>
         </div>
       </div>
