@@ -316,46 +316,126 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.THINKING
     );
     
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 要約サンプルパターンを生成
+    const summarySamples = [
+      {
+        id: 'market-overview',
+        name: '市場概要',
+        description: `${params.mainTopic}業界の市場規模、成長率、主要セグメント、地域分布などの基本情報を簡潔にまとめた要約です。`,
+        sample: `${params.mainTopic}業界は2024年に約XX億円の市場規模を持ち、今後5年間でY%の年間成長率が予測されています。特に${params.subTopics[0] || '主要分野'}セグメントが最も急速に成長しており、${params.subTopics[1] || '新興技術'}の普及が市場をけん引しています。`
+      },
+      {
+        id: 'tech-trends',
+        name: '技術トレンド',
+        description: `${params.mainTopic}業界における最新の技術動向と革新を分析した要約です。`,
+        sample: `${params.mainTopic}業界では、${params.subTopics.join('、')}などの技術が急速に普及しています。特にAIと機械学習の統合が業務プロセスを変革し、効率性を40%向上させています。今後18ヶ月以内に、これらの技術の採用率は2倍になると予測されています。`
+      },
+      {
+        id: 'key-players',
+        name: '主要プレイヤー分析',
+        description: `${params.mainTopic}業界の主要企業、市場シェア、競争戦略を分析した要約です。`,
+        sample: `${params.mainTopic}業界では、上位5社で市場シェアの60%を占めています。業界リーダーはXYZ社で、革新的な${params.subTopics[0] || '技術'}ソリューションにより市場の25%を支配しています。新興企業のABC社は、ニッチな${params.subTopics[1] || '分野'}に特化することで急速に成長しています。`
+      },
+      {
+        id: 'challenges',
+        name: '課題と機会',
+        description: `${params.mainTopic}業界が直面する主な課題と、それに関連する成長機会の分析です。`,
+        sample: `${params.mainTopic}業界の主な課題は、${params.subTopics[0] || '技術'}の急速な変化に対する適応、規制環境の複雑さ、人材不足です。しかし、これらの課題は${params.subTopics[1] || '新たな市場'}における革新的なソリューション開発の機会も提供しています。`
+      },
+      {
+        id: 'future-outlook',
+        name: '将来展望',
+        description: `${params.mainTopic}業界の今後3-5年の展望と長期的な発展予測を提供する要約です。`,
+        sample: `${params.mainTopic}業界は今後5年間で大きな変革が予想されています。${params.subTopics.join('と')}の融合により、新しいビジネスモデルが出現し、従来の業界の境界が再定義されるでしょう。持続可能性と技術革新が業界の将来を形作る主要な推進力となります。`
+      }
+    ];
     
     // サンプル要約エージェントの完了思考
     sendAgentThought(
       AgentType.SAMPLE_SUMMARIZER,
-      `5種類の要約レポートパターンの生成が完了しました。これらのテンプレートはユーザーの選択に基づいて情報収集プランに活用されます。`,
+      `5種類の要約レポートパターンの生成が完了しました: ${summarySamples.map(s => s.name).join('、')}`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
     
-    // ========== フェーズ6: ヒアリングエージェントによるユーザー嗜好分析（シミュレーション） ==========
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // ========== フェーズ6: ヒアリングエージェントによるユーザーサンプル提示 ==========
     
     // 進捗状況の更新
     sendProgress(
       roleModelId,
-      70,
-      'ユーザー嗜好に基づいてナレッジグラフを最適化中...'
+      65,
+      'ユーザー向け要約サンプルを準備しています...',
+      { 
+        status: 'waiting_for_user_input',
+        summarySamples,
+        message: `${params.mainTopic}業界に関する5種類の要約レポートパターンを生成しました。どのパターンが最も関心に合致するか、フィードバックをお願いします。`
+      }
     );
     
     // ヒアリングエージェントの思考
     sendAgentThought(
       AgentType.INTERVIEWER,
-      `過去のユーザー行動パターンと選択された業界/キーワードから嗜好を分析しています。最適なナレッジグラフ構造のためのパラメータを特定中...`,
+      `生成した5種類の要約サンプルをユーザーに提示し、どのタイプの情報が最も有用かフィードバックを求めています...`,
       roleModelId,
       ThoughtStatus.THINKING
     );
     
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // ユーザー入力待機（実際のアプリケーションでは、ここでクライアント側からの入力を受け取る）
+    // この例ではシミュレーションとして、ユーザーが「市場概要」と「技術トレンド」を選択したと仮定
     
-    // ヒアリングエージェントの完了思考
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // ヒアリングエージェントの思考
     sendAgentThought(
       AgentType.INTERVIEWER,
-      `ユーザー嗜好分析が完了しました。${params.mainTopic}業界における関心領域とキーワード（${params.subTopics.join(', ')}）の重み付けを確定しました。`,
+      `ユーザーからのフィードバックを受け取りました。市場概要と技術トレンドの情報に特に関心があるようです。この嗜好に基づいて情報収集プランとナレッジグラフを最適化します。`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
     
-    // ========== フェーズ7: グラフ構築エージェントによるグラフ最終化 ==========
+    // ========== フェーズ7: ユーザーフィードバックの反映 ==========
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      75,
+      'ユーザーのフィードバックをナレッジグラフに反映しています...'
+    );
+    
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `ユーザーのフィードバックを分析し、知識グラフの重み付けを調整しています。市場概要と技術トレンド関連のノードを強化します...`,
+      roleModelId,
+      ThoughtStatus.WORKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // ナレッジグラフのユーザーフィードバック集約
+    const userPreferences = {
+      categories: ['市場概要', '技術トレンド'],
+      priorityKeywords: params.subTopics.slice(0, 2),
+      feedbackType: 'explicit'
+    };
+    
+    // ユーザーフィードバックをナレッジグラフサービスに送信（実際の実装ではこのデータを使用してグラフを調整）
+    await knowledgeGraphService.incorporateUserFeedback(roleModelId, initialGraphData, userPreferences);
+    
+    // ヒアリングエージェントの完了思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `ユーザーフィードバックの反映が完了しました。ナレッジグラフの関連部分を強化し、優先度を更新しました。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ8: グラフ構築エージェントによるグラフ最終化 ==========
     
     // 進捗状況の更新
     sendProgress(
