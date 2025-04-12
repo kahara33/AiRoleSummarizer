@@ -7,7 +7,7 @@
 import * as memoryGraphService from './memory-graph-service';
 
 // 常にメモリベースのグラフサービスを使用
-const neo4jAvailable = false;
+let neo4jAvailable = false;
 
 /**
  * Neo4jサービスが利用可能かどうかを確認する
