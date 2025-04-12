@@ -235,10 +235,15 @@ export function initWebSocketServer(server: Server): void {
       
       // メッセージ受信時の処理（非同期関数に処理を委譲）
       ws.on('message', (message) => {
-        console.log(`メッセージ受信: clientId=${clientId}, type=${JSON.parse(message.toString()).type}`);
-        handleMessage(message, ws).catch(err => {
-          console.error('WebSocketメッセージ処理エラー:', err);
-        });
+        try {
+          const msgData = JSON.parse(message.toString());
+          console.log(`メッセージ受信: type=${msgData.type || 'unknown'}`);
+          handleMessage(message, ws).catch(err => {
+            console.error('WebSocketメッセージ処理エラー:', err);
+          });
+        } catch (error) {
+          console.error('WebSocketメッセージの解析に失敗:', error);
+        }
       });
     } else {
       // ロールモデルIDが指定されていない場合は切断
