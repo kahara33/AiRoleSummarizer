@@ -251,15 +251,64 @@ export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn 
   
   // グラフデータを明示的にリクエスト（Promiseを返すように修正）
   const requestGraphData = useCallback(async () => {
-    if (isConnected && roleModelId) {
-      console.log('ナレッジグラフデータをリクエスト:', roleModelId);
-      setLoading(true);
-      sendMessage('get_knowledge_graph', { roleModelId });
-      return Promise.resolve(); // 正常終了
-    } else {
-      console.error('WebSocket接続がないため、グラフデータをリクエストできません');
-      setError('サーバーに接続できません。後でもう一度お試しください。');
-      return Promise.reject(new Error('WebSocket接続がありません')); // エラー終了
+    console.log('ナレッジグラフデータをリクエスト:', roleModelId);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // API経由でグラフデータを直接取得
+      console.log(`API経由でグラフデータを取得中: /api/knowledge-graph/${roleModelId}`);
+      const response = await fetch(`/api/knowledge-graph/${roleModelId}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          // 404の場合はデータが存在しないだけなのでエラー扱いにしない
+          console.log('ナレッジグラフはまだ作成されていません');
+          setNodes([]);
+          setEdges([]);
+          setLoading(false);
+          return Promise.resolve();
+        }
+        
+        const errorText = await response.text();
+        console.error('グラフデータの取得エラー:', response.status, errorText);
+        throw new Error(`グラフデータの取得に失敗しました (${response.status})`);
+      }
+      
+      const graphData = await response.json();
+      console.log('グラフデータ取得成功:', graphData);
+      
+      if (graphData && graphData.nodes && graphData.nodes.length > 0) {
+        // データがある場合は更新
+        setNodes(graphData.nodes || []);
+        setEdges(graphData.edges || []);
+        console.log(`API取得完了: ${graphData.nodes.length}ノード, ${graphData.edges?.length || 0}エッジ`);
+      } else {
+        // データがない場合は空にする
+        console.log('グラフデータがないかemptyです');
+        setNodes([]);
+        setEdges([]);
+      }
+      
+      // WebSocketでもデータを要求（リアルタイム更新のため）
+      if (isConnected) {
+        sendMessage('get_knowledge_graph', { roleModelId });
+      }
+      
+      setLoading(false);
+      return Promise.resolve();
+    } catch (error) {
+      console.error('グラフデータ取得処理エラー:', error);
+      setError(error instanceof Error ? error.message : 'グラフデータの取得に失敗しました');
+      setLoading(false);
+      
+      // WebSocketでのリトライ
+      if (isConnected) {
+        console.log('WebSocketでリトライします');
+        sendMessage('get_knowledge_graph', { roleModelId });
+      }
+      
+      return Promise.reject(error);
     }
   }, [roleModelId, isConnected, sendMessage]);
   
