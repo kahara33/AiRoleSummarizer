@@ -39,8 +39,8 @@ export default function SummaryPanel({ roleModelId, selectedNodeId }: SummaryPan
 
   // 選択されたノードに関連するサマリーを取得
   const { data: nodeSummaries, isLoading: isLoadingNodeSummaries } = useQuery<CollectionSummary[]>({
-    queryKey: [`/api/knowledge-graph/nodes/${selectedNodeId}/summaries`],
-    enabled: !!selectedNodeId && activeTab === 'byNode',
+    queryKey: [`/api/knowledge-library/node-summaries/${roleModelId}/${selectedNodeId}`],
+    enabled: !!roleModelId && !!selectedNodeId && activeTab === 'byNode',
   });
 
   // 現在のタブに基づいてサマリーリストを決定

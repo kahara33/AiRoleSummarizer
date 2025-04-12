@@ -2421,6 +2421,116 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   
   // 特定の情報収集プラン取得API
   app.get('/api/information-collection-plans/:planId', isAuthenticated, getInformationCollectionPlan);
+  
+  // ロールモデルの最新の要約を取得するAPI
+  app.get('/api/role-models/:roleModelId/collection-summaries', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      
+      if (!roleModelId) {
+        return res.status(400).json({ error: 'roleModelIdは必須です' });
+      }
+      
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // ロールモデルの存在確認とアクセス権チェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権のチェック
+      const hasAccess = roleModel.createdBy === user.id || 
+                         user.role === 'admin' || 
+                         roleModel.isShared === 1;
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'このロールモデルにアクセスする権限がありません' });
+      }
+      
+      // ロールモデルに関連する最新の要約を取得する
+      const summaries = await db.query.collectionSummaries.findMany({
+        where: eq(collectionSummaries.collectionPlanId, sql`(SELECT id FROM collection_plans WHERE role_model_id = ${roleModelId} LIMIT 1)`),
+        orderBy: [desc(collectionSummaries.generatedAt)],
+        limit: 10
+      });
+      
+      return res.status(200).json(summaries);
+    } catch (error) {
+      console.error('コレクション要約取得エラー:', error);
+      return res.status(500).json({ error: 'コレクション要約の取得に失敗しました' });
+    }
+  });
+  
+  // ノードに関連する要約を取得するAPI
+  app.get('/api/knowledge-library/node-summaries/:roleModelId/:nodeId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId, nodeId } = req.params;
+      
+      if (!roleModelId || !nodeId) {
+        return res.status(400).json({ error: 'roleModelIdとnodeIdは必須です' });
+      }
+      
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      // ロールモデルの存在確認とアクセス権チェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権のチェック（省略可能なロジック）
+      const hasAccess = roleModel.createdBy === user.id || 
+                         user.role === 'admin' || 
+                         roleModel.isShared === 1;
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'このロールモデルにアクセスする権限がありません' });
+      }
+      
+      // ノードの存在確認
+      const node = await db.query.knowledgeNodes.findFirst({
+        where: eq(knowledgeNodes.id, nodeId),
+      });
+      
+      if (!node) {
+        return res.status(404).json({ error: 'ノードが見つかりません' });
+      }
+      
+      // ノードに関連する要約を取得する
+      // ここではノード名をキーワードとして関連する要約を探す
+      const summaries = await db.query.collectionSummaries.findMany({
+        where: and(
+          eq(collectionSummaries.collectionPlanId, sql`(SELECT id FROM collection_plans WHERE role_model_id = ${roleModelId} LIMIT 1)`),
+          or(
+            sql`LOWER(collection_summaries.title) LIKE LOWER('%' || ${node.name} || '%')`,
+            sql`LOWER(collection_summaries.content) LIKE LOWER('%' || ${node.name} || '%')`
+          )
+        ),
+        orderBy: [desc(collectionSummaries.generatedAt)],
+        limit: 10
+      });
+      
+      return res.status(200).json(summaries);
+    } catch (error) {
+      console.error('ノード関連の要約取得エラー:', error);
+      return res.status(500).json({ error: 'ノード関連の要約の取得に失敗しました' });
+    }
+  });
 
   return httpServer;
 }
