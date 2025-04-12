@@ -279,8 +279,8 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     
     // 追加デバッグ: 元のメッセージタイプと正規化した結果を詳細に表示
     console.log(`メッセージタイプの正規化: 元=${rawMessageType} (${typeof rawMessageType}) → 正規化後=${messageType} (${typeof messageType})`);
-    // 追加: トリミング処理も追加（余分なスペースや改行文字が含まれている可能性がある）
-    const trimmedMessageType = messageType.trim();
+    // トリミング処理とハイフン/アンダースコア削除で完全に正規化（agent-thoughts や agent_thoughts を agentthoughts として扱う）
+    const trimmedMessageType = messageType.trim().replace(/[-_]/g, '');
     
     // WebSocket処理デバッグ: 受信したメッセージタイプの最終形を強調表示
     console.log(`⚠️ 処理するメッセージタイプ: [${trimmedMessageType}]`);
@@ -332,9 +332,8 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         messageHandled = true;
         break;
         
-      case 'agent_thoughts':
-      case 'agent_thought':
-      case 'agent-thoughts':  // ハイフン形式も対応
+      case 'agentthoughts':
+      case 'agentthought':
       case 'thought':
       case 'thinking':
         // エージェント思考の処理
@@ -350,10 +349,8 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         break;
         
       case 'progress':
-      case 'progress_update':
-      case 'progress-update':  // ハイフン形式も対応
-      case 'crewai_progress':
-      case 'crewai-progress':  // ハイフン形式も対応
+      case 'progressupdate':
+      case 'crewaiprogresss':
         // 進捗更新の処理
         console.log('進捗更新メッセージを処理します', {
           dataType: data.type,
@@ -366,7 +363,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         messageHandled = true;
         break;
         
-      case 'chat_message':
+      case 'chatmessage':
       case 'message':
         // チャットメッセージの処理
         console.log('チャットメッセージを処理します');
@@ -374,36 +371,34 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         messageHandled = true;
         break;
         
-      case 'knowledge_graph_update':
-      case 'knowledge-graph-update':
-      case 'graph-update':
-      case 'graph_update':
+      case 'knowledgegraphupdate':
+      case 'graphupdate':
         // 知識グラフ更新の処理
         console.log('知識グラフ更新メッセージを処理します');
         handleGraphUpdate(ws, data);
         messageHandled = true;
         break;
         
-      case 'information_collection_plan':
-      case 'information_plan':
-      case 'get_information_plans':
+      case 'informationcollectionplan':
+      case 'informationplan':
+      case 'getinformationplans':
         // 情報収集プラン取得の処理
         console.log('情報収集プラン取得メッセージを処理します');
         handleInformationPlan(ws, data);
         messageHandled = true;
         break;
         
-      case 'save_information_plan':
-      case 'create_information_plan':
-      case 'update_information_plan':
+      case 'saveinformationplan':
+      case 'createinformationplan':
+      case 'updateinformationplan':
         // 情報収集プラン保存の処理
         console.log('情報収集プラン保存メッセージを処理します');
         handleSaveInformationPlan(ws, data);
         messageHandled = true;
         break;
         
-      case 'delete_information_plan':
-      case 'remove_information_plan':
+      case 'deleteinformationplan':
+      case 'removeinformationplan':
         // 情報収集プラン削除の処理
         console.log('情報収集プラン削除メッセージを処理します');
         handleDeleteInformationPlan(ws, data);
@@ -424,8 +419,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         messageHandled = true;
         break;
         
-      case 'get_knowledge_graph':
-      case 'getknowledgegraph': // 小文字のケースも許容
+      case 'getknowledgegraph':
         // ナレッジグラフ取得リクエストの処理
         console.log(`既存ナレッジグラフデータの取得リクエストを処理します: roleModelId=${specificRoleModelId}, type=${rawMessageType}`);
         try {
