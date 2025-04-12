@@ -87,7 +87,8 @@ export async function runKnowledgeLibraryProcess(
         websocket.sendAgentThoughts(
           agent.name, 
           `I'm developing a strategy for gathering information about "${plan.title}".`, 
-          roleModelId
+          roleModelId,
+          'thinking'
         );
         
         // 戦略策定の思考過程をクライアントに通知
@@ -95,7 +96,8 @@ export async function runKnowledgeLibraryProcess(
           websocket.sendAgentThoughts(
             agent.name,
             `For "${plan.title}", we need to gather information from authoritative sources, recent research, industry reports, and expert opinions.`,
-            roleModelId
+            roleModelId,
+            'thinking'
           );
         }, 2000);
         
