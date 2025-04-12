@@ -715,6 +715,7 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
   keywords: { id: string; name: string; description: string }[] | null;
   roleModelName: string;
   roleModelDescription: string;
+  userId?: string; // ナレッジライブラリを生成するユーザーID
 }): Promise<{ success: boolean; error?: any }> {
   try {
     console.log(`ナレッジライブラリ生成を開始します: ${input.roleModelId}`);
@@ -726,7 +727,7 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
     const plan = await createCollectionPlan(
       roleModelId,
       initialPlanTitle,
-      'system',
+      input.userId || '00000000-0000-0000-0000-000000000000', // システム生成プランのデフォルトユーザーID
       {
         enabledTools: ['exa'],
         searchDepth: 2,
