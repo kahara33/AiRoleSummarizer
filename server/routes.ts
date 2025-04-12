@@ -36,7 +36,7 @@ import {
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
 import { generateKnowledgeGraphWithCrewAI } from './agents';
-import { runKnowledgeLibraryProcess, createCollectionPlan, getCollectionPlans, getCollectionSummaries, getCollectionSources } from './services/crew-ai/knowledge-library-service';
+import { runKnowledgeLibraryProcess, createCollectionPlan, getCollectionPlans, getCollectionSummaries, getCollectionSources, generateKnowledgeLibraryWithCrewAI } from './services/crew-ai/knowledge-library-service';
 import { searchWithExa, executeSearchForCollectionPlan } from './services/exa-search';
 import { randomUUID } from 'crypto';
 

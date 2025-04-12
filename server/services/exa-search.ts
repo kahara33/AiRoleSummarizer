@@ -97,6 +97,10 @@ export async function searchWithExa(
       endPublishedDate: options.endPublishedDate
     };
 
+    // デバッグログ：検索リクエスト情報
+    console.log(`Exa検索実行: クエリ="${options.query}", 結果件数=${options.numResults}`);
+    console.log('検索オプション:', JSON.stringify(searchOptions));
+    
     // Exa API へのリクエスト
     const response = await fetch('https://api.exa.ai/search', {
       method: 'POST',
@@ -221,6 +225,10 @@ export async function fetchContentWithExa(
       sendProgressUpdate(roleModelId, 40, 'コンテンツを取得中...');
     }
 
+    // デバッグログ：コンテンツ取得リクエスト情報
+    console.log(`Exaコンテンツ取得実行: URLs=${urls.length}件`);
+    console.log('URLs:', urls);
+    
     // Exa API へのリクエスト
     const response = await fetch('https://api.exa.ai/contents', {
       method: 'POST',
