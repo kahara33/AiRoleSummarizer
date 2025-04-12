@@ -122,7 +122,8 @@ export function initWebSocketServer(server: Server): void {
       console.warn('WebSocket connection without roleModelId rejected.');
       ws.send(JSON.stringify({
         type: 'error',
-        message: 'Missing roleModelId parameter.'
+        message: 'ロールモデルIDが指定されていないため接続できません',
+        details: 'WebSocket接続URLまたはメッセージペイロードにroleModelIdパラメータが必要です。クライアント側でroleModelIdが設定されていることを確認してください。'
       }));
       ws.close();
     }
