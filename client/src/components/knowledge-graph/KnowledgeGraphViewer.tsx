@@ -26,7 +26,7 @@ import AgentNode from './AgentNode';
 import DataFlowEdge from './DataFlowEdge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, ZapIcon, RotateCcw, BoltIcon, FlaskConical, Save, Download } from 'lucide-react';
+import { Loader2, ZapIcon, RotateCcw, BoltIcon, Save, Download } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
 import { useKnowledgeGraph } from '../../hooks/use-knowledge-graph-websocket';
 import { useMultiAgentWebSocket } from '../../hooks/use-multi-agent-websocket-fixed';
@@ -1000,86 +1000,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [agentMessages, setAgentMessages] = useState<{agent: string, message: string, timestamp: string}[]>([]);
   
-  // テスト用のナレッジグラフを生成する関数
-  const generateTestKnowledgeGraph = useCallback(async () => {
-    try {
-      // 分かりやすいスタイルでクリックイベントのログを出力
-      console.log('%c === テスト用ナレッジグラフ生成ボタンがクリックされました ===', 
-        'background: #4CAF50; color: white; font-weight: bold; padding: 5px; border-radius: 3px; font-size: 16px;');
-      
-      console.log(`%c [KnowledgeGraphViewer] generateTestKnowledgeGraph: roleModelId=${roleModelId}, autoLoad=${autoLoad}`, 'color: blue; font-weight: bold;');
-      
-      if (!roleModelId) {
-        console.error('%c エラー: roleModelIdが未定義です！', 'color: red; font-weight: bold;', { roleModelId });
-        setError('ロールモデルIDが未定義のため、テスト用ナレッジグラフを生成できません。');
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      
-      // グラフ生成APIのURLをログ出力
-      const apiUrl = `/api/test-knowledge-graph/${roleModelId}`;
-      console.log('%c APIリクエスト送信中... ', 'background: #2196F3; color: white; font-weight: bold; padding: 3px 5px; border-radius: 3px;', {
-        url: apiUrl,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
 
-      // リクエスト送信時間を記録
-      const startTime = new Date().getTime();
-      
-      // 実際にAPIを呼び出す
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      // リクエスト完了時間と所要時間を計算
-      const endTime = new Date().getTime();
-      const requestTime = endTime - startTime;
-      
-      console.log('APIレスポンス受信:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('APIエラーレスポンス:', errorData);
-        throw new Error(errorData.error || 'テスト用ナレッジグラフの生成に失敗しました');
-      }
-      
-      const result = await response.json();
-      console.log('テスト用ナレッジグラフ生成リクエスト成功:', result);
-      
-      // 成功通知
-      toast({
-        title: 'グラフ生成開始',
-        description: 'テスト用ナレッジグラフの生成を開始しました。WebSocketで進捗状況が通知されます。',
-        duration: 3000,
-      });
-      
-      // グラフデータを明示的にリクエスト
-      console.log('明示的なグラフデータリクエストをスケジュール...');
-      setTimeout(() => {
-        console.log('明示的にグラフデータをリクエストします');
-        requestGraphData(); // fetchGraphData()からrequestGraphData()に変更
-      }, 1000);
-      
-    } catch (error) {
-      console.error('テスト用ナレッジグラフ生成エラー:', error);
-      setError(error instanceof Error ? error.message : '不明なエラーが発生しました');
-      setLoading(false);
-      
-      // エラー通知
-      toast({
-        title: 'エラー',
-        description: error instanceof Error ? error.message : 'テスト用ナレッジグラフの生成中にエラーが発生しました',
-        variant: 'destructive',
-        duration: 5000,
-      });
-    }
-  }, [roleModelId, requestGraphData]);
 
   // AI生成リクエスト
   const generateKnowledgeGraph = useCallback(async () => {
@@ -1189,24 +1110,6 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
         <div className="flex space-x-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={generateTestKnowledgeGraph}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
-                  テストグラフ生成
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>テスト用のナレッジグラフを生成して表示</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
           {hasKnowledgeGraph && (
             <TooltipProvider>
               <Tooltip>
