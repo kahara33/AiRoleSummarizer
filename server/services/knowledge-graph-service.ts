@@ -341,6 +341,739 @@ function generateExtendedEdges(mainNodeId: string, subNodes: GraphNode[], extend
 }
 
 /**
+ * 既存のナレッジグラフを強化する
+ * 添付資料の階層的ナレッジグラフ構造に基づいて既存グラフを拡張
+ * 
+ * @param roleModelId ロールモデルID
+ * @param initialGraph 初期グラフデータ
+ * @param keywords キーワード配列
+ * @returns 強化されたグラフデータ
+ */
+export async function enhanceKnowledgeGraph(
+  roleModelId: string,
+  initialGraph: GraphData,
+  keywords: string[]
+): Promise<GraphData> {
+  try {
+    console.log(`ナレッジグラフの強化開始: roleModelId=${roleModelId}, ノード数=${initialGraph.nodes.length}, エッジ数=${initialGraph.edges.length}`);
+    
+    // メインノード（業界ノード）を特定
+    const mainNode = initialGraph.nodes.find(node => node.type === NodeType.INDUSTRY);
+    
+    if (!mainNode) {
+      console.warn('メインノード（業界ノード）が見つかりません。初期グラフをそのまま返します。');
+      return initialGraph;
+    }
+    
+    // 階層1: カテゴリノードの追加（メインノードに直接接続）
+    const categoryNodes = generateCategoryNodes(mainNode.label);
+    
+    // 階層2: サブカテゴリノードの追加（カテゴリノードに接続）
+    const subCategoryNodes = generateSubCategoryNodes(categoryNodes, keywords);
+    
+    // 階層3: 具体的なエンティティノードの追加（サブカテゴリに接続）
+    const entityNodes = generateEntityNodes(subCategoryNodes, keywords);
+    
+    // カテゴリノードをメインノードに接続するエッジ
+    const categoryEdges = categoryNodes.map((node, index) => ({
+      id: `cat-edge-${Date.now()}-${index}`,
+      source: mainNode.id,
+      target: node.id,
+      type: EdgeType.RELATED_TO,
+      properties: {
+        weight: 0.9,
+        description: `${mainNode.label} has category ${node.label}`
+      }
+    }));
+    
+    // サブカテゴリノードをカテゴリノードに接続するエッジ
+    const subCategoryEdges = subCategoryNodes.map((node) => ({
+      id: `subcat-edge-${Date.now()}-${node.id.split('-').pop()}`,
+      source: node.properties.parentId,
+      target: node.id,
+      type: EdgeType.BELONGS_TO,
+      properties: {
+        weight: 0.85,
+        description: `${node.label} belongs to category`
+      }
+    }));
+    
+    // エンティティノードをサブカテゴリノードに接続するエッジ
+    const entityEdges = entityNodes.map((node) => ({
+      id: `entity-edge-${Date.now()}-${node.id.split('-').pop()}`,
+      source: node.properties.parentId,
+      target: node.id,
+      type: node.properties.relationshipType || EdgeType.BELONGS_TO,
+      properties: {
+        weight: 0.8,
+        description: `${node.label} belongs to subcategory`
+      }
+    }));
+    
+    // エンティティ間の相互接続（一部のエンティティ間に関連性を追加）
+    const crossEntityEdges = generateCrossEntityEdges(entityNodes);
+    
+    // 新しいノードとエッジをデータベースに保存
+    const allNewNodes = [...categoryNodes, ...subCategoryNodes, ...entityNodes];
+    const allNewEdges = [...categoryEdges, ...subCategoryEdges, ...entityEdges, ...crossEntityEdges];
+    
+    // 各ノードを登録
+    for (const node of allNewNodes) {
+      await graphService.createNode(
+        { labels: [node.type], properties: { ...node.properties, id: node.id, label: node.label } },
+        undefined,
+        roleModelId
+      );
+    }
+    
+    // 各エッジを登録
+    for (const edge of allNewEdges) {
+      await graphService.createRelationship({
+        sourceNodeId: edge.source,
+        targetNodeId: edge.target,
+        type: edge.type,
+        properties: edge.properties
+      });
+    }
+    
+    // 強化されたグラフデータを返す
+    const enhancedGraph: GraphData = {
+      nodes: [...initialGraph.nodes, ...allNewNodes],
+      edges: [...initialGraph.edges, ...allNewEdges]
+    };
+    
+    console.log(`ナレッジグラフの強化完了: 合計ノード数=${enhancedGraph.nodes.length}, 合計エッジ数=${enhancedGraph.edges.length}`);
+    return enhancedGraph;
+    
+  } catch (error) {
+    console.error('ナレッジグラフ強化エラー:', error);
+    return initialGraph; // エラー時は初期グラフをそのまま返す
+  }
+}
+
+/**
+ * カテゴリノードを生成（階層1）
+ * @param mainTopicLabel メイントピックラベル
+ * @returns カテゴリノード配列
+ */
+function generateCategoryNodes(mainTopicLabel: string): GraphNode[] {
+  const timestamp = Date.now();
+  
+  // 業界に関する6つの主要カテゴリを生成
+  return [
+    {
+      id: `cat-market-${timestamp}`,
+      label: '市場動向',
+      type: NodeType.CONCEPT,
+      properties: {
+        name: '市場動向',
+        description: `${mainTopicLabel}における市場の傾向、規模、成長率に関する情報`,
+        importance: 0.95,
+        category: 'market'
+      }
+    },
+    {
+      id: `cat-companies-${timestamp}`,
+      label: '主要企業',
+      type: NodeType.CONCEPT,
+      properties: {
+        name: '主要企業',
+        description: `${mainTopicLabel}業界における主要プレイヤーと競合状況`,
+        importance: 0.9,
+        category: 'companies'
+      }
+    },
+    {
+      id: `cat-tech-${timestamp}`,
+      label: '技術動向',
+      type: NodeType.CONCEPT,
+      properties: {
+        name: '技術動向',
+        description: `${mainTopicLabel}業界における主要技術とイノベーション`,
+        importance: 0.9,
+        category: 'technology'
+      }
+    },
+    {
+      id: `cat-products-${timestamp}`,
+      label: '製品・サービス',
+      type: NodeType.CONCEPT,
+      properties: {
+        name: '製品・サービス',
+        description: `${mainTopicLabel}業界における代表的な製品とサービス`,
+        importance: 0.85,
+        category: 'products'
+      }
+    },
+    {
+      id: `cat-challenges-${timestamp}`,
+      label: '課題と機会',
+      type: NodeType.CONCEPT,
+      properties: {
+        name: '課題と機会',
+        description: `${mainTopicLabel}業界が直面する課題と成長機会`,
+        importance: 0.8,
+        category: 'challenges'
+      }
+    },
+    {
+      id: `cat-trends-${timestamp}`,
+      label: '将来展望',
+      type: NodeType.CONCEPT,
+      properties: {
+        name: '将来展望',
+        description: `${mainTopicLabel}業界の将来予測と新興トレンド`,
+        importance: 0.85,
+        category: 'trends'
+      }
+    }
+  ];
+}
+
+/**
+ * サブカテゴリノードを生成（階層2）
+ * @param categoryNodes カテゴリノード配列
+ * @param keywords キーワード配列
+ * @returns サブカテゴリノード配列
+ */
+function generateSubCategoryNodes(categoryNodes: GraphNode[], keywords: string[]): GraphNode[] {
+  const timestamp = Date.now();
+  const subCategoryNodes: GraphNode[] = [];
+  
+  // 各カテゴリに対するサブカテゴリを生成
+  categoryNodes.forEach((category, categoryIndex) => {
+    const categoryType = category.properties.category;
+    
+    // カテゴリタイプに基づいて適切なサブカテゴリを生成
+    switch (categoryType) {
+      case 'market':
+        subCategoryNodes.push(
+          {
+            id: `subcat-market-size-${timestamp}-${categoryIndex}`,
+            label: '市場規模',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '市場規模',
+              description: '業界の市場規模と成長率',
+              importance: 0.8,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-segments-${timestamp}-${categoryIndex}`,
+            label: '市場セグメント',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '市場セグメント',
+              description: '業界の主要セグメントと構造',
+              importance: 0.75,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-regions-${timestamp}-${categoryIndex}`,
+            label: '地域分析',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '地域分析',
+              description: '地域別市場動向',
+              importance: 0.7,
+              parentId: category.id
+            }
+          }
+        );
+        break;
+        
+      case 'companies':
+        subCategoryNodes.push(
+          {
+            id: `subcat-leaders-${timestamp}-${categoryIndex}`,
+            label: '市場リーダー',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '市場リーダー',
+              description: '業界をリードする企業',
+              importance: 0.85,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-innovators-${timestamp}-${categoryIndex}`,
+            label: '革新的企業',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '革新的企業',
+              description: '革新的な企業と新興企業',
+              importance: 0.8,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-strategies-${timestamp}-${categoryIndex}`,
+            label: '企業戦略',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '企業戦略',
+              description: '主要企業の戦略と競争優位性',
+              importance: 0.75,
+              parentId: category.id
+            }
+          }
+        );
+        break;
+        
+      case 'technology':
+        subCategoryNodes.push(
+          {
+            id: `subcat-core-tech-${timestamp}-${categoryIndex}`,
+            label: '中核技術',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '中核技術',
+              description: '業界の中核となる技術',
+              importance: 0.85,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-emerging-tech-${timestamp}-${categoryIndex}`,
+            label: '新興技術',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '新興技術',
+              description: '新たに登場している技術と研究開発',
+              importance: 0.8,
+              parentId: category.id
+            }
+          }
+        );
+        
+        // キーワードが技術関連の場合、キーワードベースのサブカテゴリを追加
+        keywords.forEach((keyword, kwIndex) => {
+          if (kwIndex < 2) { // 最初の2つのキーワードのみ使用
+            subCategoryNodes.push({
+              id: `subcat-tech-kw-${timestamp}-${kwIndex}`,
+              label: `${keyword}技術`,
+              type: NodeType.CONCEPT,
+              properties: {
+                name: `${keyword}関連技術`,
+                description: `${keyword}に関連する技術動向`,
+                importance: 0.75,
+                parentId: category.id
+              }
+            });
+          }
+        });
+        break;
+        
+      case 'products':
+        subCategoryNodes.push(
+          {
+            id: `subcat-flagship-${timestamp}-${categoryIndex}`,
+            label: '主力製品',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '主力製品',
+              description: '業界の代表的な製品',
+              importance: 0.8,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-services-${timestamp}-${categoryIndex}`,
+            label: 'サービス',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: 'サービス',
+              description: '業界の主要サービス提供',
+              importance: 0.75,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-pricing-${timestamp}-${categoryIndex}`,
+            label: '価格モデル',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '価格モデル',
+              description: '製品とサービスの価格設定モデル',
+              importance: 0.7,
+              parentId: category.id
+            }
+          }
+        );
+        break;
+        
+      case 'challenges':
+        subCategoryNodes.push(
+          {
+            id: `subcat-barriers-${timestamp}-${categoryIndex}`,
+            label: '障壁',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '障壁',
+              description: '業界の成長に対する障壁',
+              importance: 0.75,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-opportunities-${timestamp}-${categoryIndex}`,
+            label: '機会',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '機会',
+              description: '新たな成長機会',
+              importance: 0.8,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-regulations-${timestamp}-${categoryIndex}`,
+            label: '規制環境',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '規制環境',
+              description: '業界に影響を与える規制と政策',
+              importance: 0.7,
+              parentId: category.id
+            }
+          }
+        );
+        break;
+        
+      case 'trends':
+        subCategoryNodes.push(
+          {
+            id: `subcat-future-tech-${timestamp}-${categoryIndex}`,
+            label: '将来技術',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '将来技術',
+              description: '今後5-10年で重要となる技術',
+              importance: 0.85,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-market-predict-${timestamp}-${categoryIndex}`,
+            label: '市場予測',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '市場予測',
+              description: '業界の長期的な市場予測',
+              importance: 0.8,
+              parentId: category.id
+            }
+          },
+          {
+            id: `subcat-disruptions-${timestamp}-${categoryIndex}`,
+            label: '破壊的変化',
+            type: NodeType.CONCEPT,
+            properties: {
+              name: '破壊的変化',
+              description: '業界に破壊的変化をもたらす可能性のある要因',
+              importance: 0.75,
+              parentId: category.id
+            }
+          }
+        );
+        break;
+    }
+  });
+  
+  return subCategoryNodes;
+}
+
+/**
+ * エンティティノードを生成（階層3）
+ * @param subCategoryNodes サブカテゴリノード配列
+ * @param keywords キーワード配列
+ * @returns エンティティノード配列
+ */
+function generateEntityNodes(subCategoryNodes: GraphNode[], keywords: string[]): GraphNode[] {
+  const timestamp = Date.now();
+  const entityNodes: GraphNode[] = [];
+  
+  // サブカテゴリごとに具体的なエンティティを生成
+  subCategoryNodes.forEach((subCategory, index) => {
+    const subcatId = subCategory.id;
+    const subcatLabel = subCategory.label;
+    
+    // サブカテゴリラベルに基づいて適切なエンティティを生成
+    if (subcatLabel.includes('市場リーダー')) {
+      // 市場リーダー企業のエンティティ
+      entityNodes.push(
+        {
+          id: `entity-company1-${timestamp}-${index}`,
+          label: 'トップ企業A',
+          type: NodeType.COMPANY,
+          properties: {
+            name: 'トップ企業A',
+            description: '業界最大手企業',
+            importance: 0.9,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        },
+        {
+          id: `entity-company2-${timestamp}-${index}`,
+          label: 'トップ企業B',
+          type: NodeType.COMPANY,
+          properties: {
+            name: 'トップ企業B',
+            description: '業界2位の企業',
+            importance: 0.85,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        }
+      );
+    } 
+    else if (subcatLabel.includes('革新的企業')) {
+      // 革新的企業のエンティティ
+      entityNodes.push(
+        {
+          id: `entity-innovator1-${timestamp}-${index}`,
+          label: '革新企業X',
+          type: NodeType.COMPANY,
+          properties: {
+            name: '革新企業X',
+            description: '革新的な技術で注目されるスタートアップ',
+            importance: 0.8,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        },
+        {
+          id: `entity-innovator2-${timestamp}-${index}`,
+          label: '新興企業Y',
+          type: NodeType.COMPANY,
+          properties: {
+            name: '新興企業Y',
+            description: '急成長中の新興企業',
+            importance: 0.75,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        }
+      );
+    }
+    else if (subcatLabel.includes('主力製品')) {
+      // 主力製品のエンティティ
+      entityNodes.push(
+        {
+          id: `entity-product1-${timestamp}-${index}`,
+          label: '主要製品1',
+          type: NodeType.PRODUCT,
+          properties: {
+            name: '主要製品1',
+            description: '市場シェア上位の製品',
+            importance: 0.85,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        },
+        {
+          id: `entity-product2-${timestamp}-${index}`,
+          label: '主要製品2',
+          type: NodeType.PRODUCT,
+          properties: {
+            name: '主要製品2',
+            description: '人気の高い製品',
+            importance: 0.8,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        }
+      );
+    }
+    else if (subcatLabel.includes('中核技術') || subcatLabel.includes('新興技術')) {
+      // 技術関連のエンティティ
+      let techName1 = '基盤技術';
+      let techName2 = '先端技術';
+      
+      // キーワードがあれば使用
+      if (keywords.length > 0) {
+        techName1 = `${keywords[0]}技術`;
+        if (keywords.length > 1) {
+          techName2 = `${keywords[1]}技術`;
+        }
+      }
+      
+      entityNodes.push(
+        {
+          id: `entity-tech1-${timestamp}-${index}`,
+          label: techName1,
+          type: NodeType.TECHNOLOGY,
+          properties: {
+            name: techName1,
+            description: '業界の基盤となる技術',
+            importance: 0.85,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        },
+        {
+          id: `entity-tech2-${timestamp}-${index}`,
+          label: techName2,
+          type: NodeType.TECHNOLOGY,
+          properties: {
+            name: techName2,
+            description: '最先端技術',
+            importance: 0.8,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        }
+      );
+    }
+    else if (subcatLabel.includes('市場規模')) {
+      // 市場データのエンティティ
+      entityNodes.push(
+        {
+          id: `entity-market-data-${timestamp}-${index}`,
+          label: '市場規模データ',
+          type: NodeType.CONCEPT,
+          properties: {
+            name: '市場規模データ',
+            description: '市場規模と成長率の定量的データ',
+            importance: 0.8,
+            parentId: subcatId,
+            relationshipType: EdgeType.BELONGS_TO
+          }
+        }
+      );
+    }
+    else if (subcatLabel.includes('将来技術') || subcatLabel.includes('破壊的変化')) {
+      // 将来トレンドのエンティティ
+      entityNodes.push(
+        {
+          id: `entity-trend1-${timestamp}-${index}`,
+          label: '成長トレンド',
+          type: NodeType.TREND,
+          properties: {
+            name: '成長トレンド',
+            description: '今後5年間の重要成長トレンド',
+            importance: 0.85,
+            parentId: subcatId,
+            relationshipType: EdgeType.INFLUENCES
+          }
+        },
+        {
+          id: `entity-trend2-${timestamp}-${index}`,
+          label: '新興動向',
+          type: NodeType.TREND,
+          properties: {
+            name: '新興動向',
+            description: '新たに出現しつつある業界動向',
+            importance: 0.8,
+            parentId: subcatId,
+            relationshipType: EdgeType.INFLUENCES
+          }
+        }
+      );
+    }
+  });
+  
+  return entityNodes;
+}
+
+/**
+ * エンティティ間の相互接続エッジを生成
+ * @param entityNodes エンティティノード配列
+ * @returns クロスエンティティエッジ配列
+ */
+function generateCrossEntityEdges(entityNodes: GraphNode[]): GraphEdge[] {
+  const timestamp = Date.now();
+  const crossEdges: GraphEdge[] = [];
+  
+  // 企業ノードを抽出
+  const companyNodes = entityNodes.filter(node => node.type === NodeType.COMPANY);
+  
+  // 製品ノードを抽出
+  const productNodes = entityNodes.filter(node => node.type === NodeType.PRODUCT);
+  
+  // 技術ノードを抽出
+  const techNodes = entityNodes.filter(node => node.type === NodeType.TECHNOLOGY);
+  
+  // トレンドノードを抽出
+  const trendNodes = entityNodes.filter(node => node.type === NodeType.TREND);
+  
+  // 企業間の競合関係
+  if (companyNodes.length >= 2) {
+    crossEdges.push({
+      id: `cross-comp-${timestamp}-1`,
+      source: companyNodes[0].id,
+      target: companyNodes[1].id,
+      type: EdgeType.COMPETES_WITH,
+      properties: {
+        weight: 0.85,
+        description: `${companyNodes[0].label}と${companyNodes[1].label}は市場競合関係にある`
+      }
+    });
+  }
+  
+  // 企業と製品の関係（開発関係）
+  if (companyNodes.length > 0 && productNodes.length > 0) {
+    crossEdges.push({
+      id: `cross-comp-prod-${timestamp}-1`,
+      source: companyNodes[0].id,
+      target: productNodes[0].id,
+      type: EdgeType.DEVELOPS,
+      properties: {
+        weight: 0.9,
+        description: `${companyNodes[0].label}は${productNodes[0].label}を開発している`
+      }
+    });
+  }
+  
+  // 製品と技術の関係（利用関係）
+  if (productNodes.length > 0 && techNodes.length > 0) {
+    crossEdges.push({
+      id: `cross-prod-tech-${timestamp}-1`,
+      source: productNodes[0].id,
+      target: techNodes[0].id,
+      type: EdgeType.USES,
+      properties: {
+        weight: 0.85,
+        description: `${productNodes[0].label}は${techNodes[0].label}を利用している`
+      }
+    });
+  }
+  
+  // トレンドと企業の関係（影響関係）
+  if (trendNodes.length > 0 && companyNodes.length > 0) {
+    crossEdges.push({
+      id: `cross-trend-comp-${timestamp}-1`,
+      source: trendNodes[0].id,
+      target: companyNodes[0].id,
+      type: EdgeType.INFLUENCES,
+      properties: {
+        weight: 0.8,
+        description: `${trendNodes[0].label}は${companyNodes[0].label}に影響を与えている`
+      }
+    });
+  }
+  
+  // トレンドと技術の関係（影響関係）
+  if (trendNodes.length > 0 && techNodes.length > 0) {
+    crossEdges.push({
+      id: `cross-trend-tech-${timestamp}-1`,
+      source: trendNodes[0].id,
+      target: techNodes[0].id,
+      type: EdgeType.INFLUENCES,
+      properties: {
+        weight: 0.85,
+        description: `${trendNodes[0].label}は${techNodes[0].label}の発展に影響を与えている`
+      }
+    });
+  }
+  
+  return crossEdges;
+}
+
+/**
  * ナレッジグラフの更新を推奨する（レコメンデーション）
  * @param roleModelId ロールモデルID
  * @param reports 要約レポート一覧

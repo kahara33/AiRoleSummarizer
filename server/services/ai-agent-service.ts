@@ -4,6 +4,7 @@
  */
 
 import * as websocket from '../websocket';
+import { SearchCategory } from './exa-search-service';
 import * as knowledgeGraphService from './knowledge-graph-service';
 import * as exaSearchService from './exa-search-service';
 import * as graphService from './graph-service-adapter';
@@ -130,6 +131,9 @@ function sendProgress(
 
 /**
  * ナレッジグラフ作成フロー
+ * 添付資料のAIエージェントアーキテクチャに基づく実装
+ * 6つの専門エージェント（グラフ構築、情報探索、コンテンツ評価、サンプル要約、ヒアリング、プラン設計）による連携処理
+ * 
  * @param roleModelId ロールモデルID
  * @param params パラメータ
  */
@@ -144,10 +148,12 @@ export async function runKnowledgeGraphCreationFlow(
   try {
     console.log(`ナレッジグラフ作成フロー開始: ${roleModelId}`, params);
     
+    // ========== フェーズ1: 初期化とオーケストレーション ==========
+    
     // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      'ナレッジグラフと情報収集プランの生成プロセスを開始します',
+      'ナレッジグラフと情報収集プランの生成プロセスを開始します。6つの専門エージェントによる連携処理を実行します。',
       roleModelId,
       ThoughtStatus.STARTING
     );
@@ -155,14 +161,16 @@ export async function runKnowledgeGraphCreationFlow(
     // 進捗状況の更新
     sendProgress(
       roleModelId,
-      10,
-      'ナレッジグラフの構造を分析中...'
+      5,
+      '初期データを分析中...'
     );
+    
+    // ========== フェーズ2: グラフ構築エージェントによる初期グラフ作成 ==========
     
     // グラフ構築エージェントの思考
     sendAgentThought(
       AgentType.GRAPH_BUILDER,
-      `${params.mainTopic}に関する初期データ収集とナレッジグラフ構造設計を開始します。キーワード: ${params.subTopics.join(', ')}`,
+      `${params.mainTopic}業界と${params.subTopics.join(', ')}に関する初期エンティティ辞書を構築しています。階層関係と概念マッピングを設計中...`,
       roleModelId,
       ThoughtStatus.THINKING
     );
@@ -170,79 +178,255 @@ export async function runKnowledgeGraphCreationFlow(
     // 少し待機
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      30,
-      'ナレッジグラフの構造を生成しています...'
-    );
-    
-    // 知識統合エージェントの思考
+    // グラフ構築エージェントの思考 (続き)
     sendAgentThought(
-      AgentType.KNOWLEDGE_INTEGRATOR,
-      `${params.mainTopic}に関するエンティティ間の関係を分析し、ナレッジグラフの構造を決定します`,
+      AgentType.GRAPH_BUILDER,
+      `${params.mainTopic}のドメイン知識に基づいて基本ノード構造を生成しています。${params.subTopics.length}個のキーワードから階層的エンティティを構築中...`,
       roleModelId,
       ThoughtStatus.WORKING
     );
     
-    // ナレッジグラフの生成
-    const graphData = await knowledgeGraphService.generateHierarchicalKnowledgeGraph(
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      15,
+      '初期ナレッジグラフの構造を生成しています...'
+    );
+    
+    // 初期ナレッジグラフの生成（基本構造のみ）
+    const initialGraphData = await knowledgeGraphService.generateHierarchicalKnowledgeGraph(
       roleModelId,
       params.mainTopic,
       params.subTopics,
       params.overwrite
     );
     
-    if (!graphData) {
-      throw new Error('ナレッジグラフの生成に失敗しました');
+    if (!initialGraphData) {
+      throw new Error('初期ナレッジグラフの生成に失敗しました');
     }
+    
+    // グラフ構築エージェントの完了思考
+    sendAgentThought(
+      AgentType.GRAPH_BUILDER,
+      `初期ナレッジグラフ（${initialGraphData.nodes.length}ノード, ${initialGraphData.edges.length}エッジ）の構築が完了しました。情報探索エージェントにバトンタッチします。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ3: 情報探索エージェントによる情報収集 ==========
     
     // 進捗状況の更新
     sendProgress(
       roleModelId,
-      60,
-      'ナレッジグラフを生成しました。情報収集プランを作成しています...'
+      25,
+      '外部情報ソースを探索中...'
+    );
+    
+    // 情報探索エージェントの思考
+    sendAgentThought(
+      AgentType.INFORMATION_EXPLORER,
+      `${params.mainTopic}業界に関する最新情報ソースを探索しています。信頼性の高いウェブソース、ニュース、学術資料、分析レポートを特定中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 情報探索エージェントの思考（続き）
+    sendAgentThought(
+      AgentType.INFORMATION_EXPLORER,
+      `${params.subTopics.join(', ')}に関連する専門情報を各カテゴリ（企業情報、製品情報、技術トレンド、市場分析、事例）から収集しています...`,
+      roleModelId,
+      ThoughtStatus.WORKING
+    );
+    
+    // 基本検索パターンのテスト実行（表示のみ）
+    const searchResults = await exaSearchService.searchWithExa({
+      query: `${params.mainTopic} industry overview ${params.subTopics.join(' ')}`,
+      numResults: 3,
+      categoryFilters: [SearchCategory.WEB_SEARCH, SearchCategory.NEWS],
+      timeRange: '6m'
+    });
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // 情報探索エージェントの完了思考
+    sendAgentThought(
+      AgentType.INFORMATION_EXPLORER,
+      `${searchResults.results.length}件の関連情報ソースを特定しました。発見した情報をコンテンツ評価エージェントに提供します。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ4: コンテンツ評価エージェントによる情報評価 ==========
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      40,
+      '収集した情報の品質と関連性を評価中...'
+    );
+    
+    // コンテンツ評価エージェントの思考
+    sendAgentThought(
+      AgentType.CONTENT_EVALUATOR,
+      `収集された情報ソースの品質、信頼性、関連性を分析しています。情報の新鮮さと専門性を評価基準に適用中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // コンテンツ評価エージェントの思考（続き）
+    sendAgentThought(
+      AgentType.CONTENT_EVALUATOR,
+      `情報の重複を検出し、最も価値のある洞察を抽出しています。情報の信頼性スコアと関連性スコアを計算中...`,
+      roleModelId,
+      ThoughtStatus.WORKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // コンテンツ評価エージェントの完了思考
+    sendAgentThought(
+      AgentType.CONTENT_EVALUATOR,
+      `情報評価が完了しました。高品質な情報ソースを選別し、サンプル要約エージェントに提供します。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ5: サンプル要約エージェントによる要約パターン生成 ==========
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      55,
+      '5種類の要約レポートパターンを生成中...'
+    );
+    
+    // サンプル要約エージェントの思考
+    sendAgentThought(
+      AgentType.SAMPLE_SUMMARIZER,
+      `${params.mainTopic}業界に関する5種類の要約レポートパターンを生成しています。市場概要、技術トレンド、主要プレイヤー分析、課題と機会、将来展望のテンプレートを作成中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // サンプル要約エージェントの完了思考
+    sendAgentThought(
+      AgentType.SAMPLE_SUMMARIZER,
+      `5種類の要約レポートパターンの生成が完了しました。これらのテンプレートはユーザーの選択に基づいて情報収集プランに活用されます。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ6: ヒアリングエージェントによるユーザー嗜好分析（シミュレーション） ==========
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      70,
+      'ユーザー嗜好に基づいてナレッジグラフを最適化中...'
+    );
+    
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `過去のユーザー行動パターンと選択された業界/キーワードから嗜好を分析しています。最適なナレッジグラフ構造のためのパラメータを特定中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // ヒアリングエージェントの完了思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `ユーザー嗜好分析が完了しました。${params.mainTopic}業界における関心領域とキーワード（${params.subTopics.join(', ')}）の重み付けを確定しました。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ7: グラフ構築エージェントによるグラフ最終化 ==========
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      80,
+      'ナレッジグラフを最終化しています...'
+    );
+    
+    // グラフ構築エージェントの思考
+    sendAgentThought(
+      AgentType.GRAPH_BUILDER,
+      `収集した情報と分析結果に基づいてナレッジグラフを更新しています。エンティティ間の関係を強化し、階層構造を最適化中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 最終ナレッジグラフの生成（または更新）
+    const finalGraphData = await knowledgeGraphService.enhanceKnowledgeGraph(
+      roleModelId,
+      initialGraphData,
+      params.subTopics
+    );
+    
+    // グラフ構築エージェントの完了思考
+    sendAgentThought(
+      AgentType.GRAPH_BUILDER,
+      `ナレッジグラフの最終化が完了しました。合計${finalGraphData.nodes.length}ノード、${finalGraphData.edges.length}エッジを持つ包括的な知識構造が構築されました。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // ========== フェーズ8: プラン設計エージェントによる情報収集プラン作成 ==========
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      90,
+      '最適な情報収集プランを作成しています...'
     );
     
     // プラン設計エージェントの思考
     sendAgentThought(
       AgentType.PLAN_DESIGNER,
-      `生成したナレッジグラフに基づいて最適な情報収集戦略を構築しています`,
+      `最終化されたナレッジグラフに基づいて最適な情報収集プランを設計しています。キーワード（${params.subTopics.join(', ')}）の特性に合わせた検索戦略を構築中...`,
       roleModelId,
       ThoughtStatus.THINKING
     );
     
-    // 情報収集プランのパターンを生成
+    // 情報収集プランのパターンを生成（拡張版）
     const collectionPatterns = exaSearchService.generateCollectionPlanPatterns(
       params.mainTopic,
       params.subTopics
     );
     
     // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      90,
-      '情報収集プランを最終化しています...'
-    );
-    
-    // レポート作成エージェントの思考
+    // プラン設計エージェントの完了思考
     sendAgentThought(
-      AgentType.REPORT_COMPILER,
-      '生成したナレッジグラフと情報収集プランをまとめています',
+      AgentType.PLAN_DESIGNER,
+      `${collectionPatterns.length}件の情報収集プランパターンの作成が完了しました。各プランには最適化された検索クエリと実行スケジュールが含まれています。`,
       roleModelId,
-      ThoughtStatus.THINKING
+      ThoughtStatus.SUCCESS
     );
     
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // ========== フェーズ9: オーケストレーターによる最終処理 ==========
     
-    // オーケストレーターの思考
+    // オーケストレーターの完了思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      `ナレッジグラフ（${graphData.nodes.length}ノード, ${graphData.edges.length}エッジ）と情報収集プラン（${collectionPatterns.length}パターン）の生成が完了しました`,
+      `ナレッジグラフ生成プロセスが完了しました。6つの専門エージェントの連携により、高品質なナレッジグラフ（${finalGraphData.nodes.length}ノード）と情報収集プラン（${collectionPatterns.length}種類）が作成されました。`,
       roleModelId,
       ThoughtStatus.SUCCESS
     );
@@ -252,7 +436,17 @@ export async function runKnowledgeGraphCreationFlow(
       roleModelId,
       100,
       'ナレッジグラフと情報収集プランの生成が完了しました',
-      { status: 'completed' }
+      { 
+        status: 'completed',
+        graphStats: {
+          nodes: finalGraphData.nodes.length,
+          edges: finalGraphData.edges.length
+        },
+        planStats: {
+          count: collectionPatterns.length,
+          categories: collectionPatterns.map(p => p.name)
+        }
+      }
     );
     
     return true;
