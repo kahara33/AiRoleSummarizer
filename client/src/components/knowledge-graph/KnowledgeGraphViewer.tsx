@@ -1450,31 +1450,28 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               <strong>RoleModelID:</strong> {roleModelId || '未設定 (必須パラメータ)'}
             </p>
             <p><strong>WebSocket接続状態:</strong> {isConnected ? '接続済み' : '未接続'}</p>
-            <p><strong>WebSocketステータス:</strong> {wsLoading ? "読込中" : wsError ? "エラー" : "接続済み"}</p>
+            <p><strong>WebSocketステータス:</strong> {loading ? "読込中" : error ? "エラー" : isConnected ? "接続済み" : "未接続"}</p>
           </div>
           <div>
-            <p><strong>ノード数:</strong> {nodes.length} (WebSocket: {websocketNodes.length})</p>
-            <p><strong>エッジ数:</strong> {edges.length} (WebSocket: {websocketEdges.length})</p>
+            <p><strong>ノード数:</strong> {nodes.length}</p>
+            <p><strong>エッジ数:</strong> {edges.length}</p>
             <p><strong>ロード状態:</strong> {loading ? `読込中 (${loadingProgress}%)` : '完了'}</p>
             <p><strong>グラフ存在:</strong> {hasKnowledgeGraph ? 'あり' : 'なし'}</p>
           </div>
         </div>
         <div className="mt-1">
           <p className={error ? 'text-red-600 font-semibold' : ''}><strong>エラー:</strong> {error || 'なし'}</p>
-          <p><strong>最終更新:</strong> {lastUpdateTime ? new Date(lastUpdateTime).toLocaleString() : 'なし'}</p>
-          <p><strong>更新元:</strong> {lastUpdateSource || 'なし'}</p>
+          <p><strong>最終更新:</strong> {new Date().toLocaleString()}</p>
+          <p><strong>更新元:</strong> {isConnected ? 'WebSocket' : 'API'}</p>
         </div>
         <pre className="mt-1 text-xs bg-gray-100 p-1 rounded overflow-auto">
           {JSON.stringify(debugInfo, null, 2)}
         </pre>
 
-        {/* WebSocketから受け取ったノードのサンプル */}
-        {websocketNodes.length > 0 && (
+        {/* WebSocketステータス情報 */}
+        {nodes.length > 0 && (
           <div className="mt-1">
-            <p><strong>WebSocketノードサンプル:</strong></p>
-            <pre className="bg-gray-100 p-1 rounded overflow-auto" style={{ maxHeight: '100px' }}>
-              {JSON.stringify(websocketNodes[0], null, 2)}
-            </pre>
+            <p><strong>WebSocketステータス:</strong> {isConnected ? '接続済み' : '未接続'}</p>
           </div>
         )}
       </div>
@@ -1521,7 +1518,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               <p>{error}</p>
               <Button
                 className="mt-4"
-                onClick={requestGraphData}
+                onClick={fetchGraphData}
               >
                 再試行
               </Button>
@@ -1568,7 +1565,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                   <Panel position="top-right" style={{ right: 10, top: 10 }}>
                     <KnowledgeGraphSavePanel 
                       roleModelId={roleModelId} 
-                      onSaveSuccess={requestGraphData}
+                      onSaveSuccess={fetchGraphData}
                     />
                   </Panel>
                   
