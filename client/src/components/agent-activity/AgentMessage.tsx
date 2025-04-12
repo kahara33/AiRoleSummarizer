@@ -3,7 +3,7 @@ import './styles.css';
 import { 
   BrainCircuit, Bot, Zap, CheckCircle2, AlertTriangle, 
   Database, Search, Network, BarChart4, Brain, Sparkles,
-  InfoIcon, CheckCircle
+  InfoIcon, CheckCircle, FileText as FileTextIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -73,6 +73,22 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       'knowledgegraphagent': 'knowledge-graph',
       '知識グラフエージェント': 'knowledge-graph',
       'ナレッジグラフエージェント': 'knowledge-graph',
+      // 新しいエージェントタイプを追加
+      'strategyplanner': 'strategy-planner',
+      '戦略プランナー': 'strategy-planner',
+      'strategy_planner': 'strategy-planner',
+      'searchspecialist': 'search-specialist',
+      '検索スペシャリスト': 'search-specialist',
+      'search_specialist': 'search-specialist',
+      'contentanalyst': 'content-analyst',
+      'コンテンツアナリスト': 'content-analyst',
+      'content_analyst': 'content-analyst',
+      'knowledgearchitect': 'knowledge-architect',
+      'ナレッジアーキテクト': 'knowledge-architect',
+      'knowledge_architect': 'knowledge-architect',
+      'reportwriter': 'report-writer',
+      'レポートライター': 'report-writer',
+      'report_writer': 'report-writer',
     };
     
     return knownAgents[normalizedName] || normalizedName;
@@ -98,7 +114,7 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       return <Search size={16} />;
     } else if (name.includes('コンテキスト') || name.includes('context')) {
       return <Network size={16} />;
-    } else if (name.includes('プラン') || name.includes('plan')) {
+    } else if (name.includes('プラン') || name.includes('plan') || name.includes('戦略') || name.includes('strategy')) {
       return <BarChart4 size={16} />;
     } else if (name.includes('クリティカル') || name.includes('critical')) {
       return <Brain size={16} />;
@@ -106,6 +122,14 @@ const AgentMessage: React.FC<AgentMessageProps> = ({
       return <Sparkles size={16} />;
     } else if (name.includes('システム') || name.includes('system')) {
       return <InfoIcon size={16} />;
+    } else if (name.includes('検索') || name.includes('search') || name.includes('スペシャリスト') || name.includes('specialist')) {
+      return <Search size={16} />;
+    } else if (name.includes('コンテンツ') || name.includes('content') || name.includes('アナリスト') || name.includes('analyst')) {
+      return <FileTextIcon size={16} />;
+    } else if (name.includes('ナレッジ') || name.includes('knowledge') || name.includes('アーキテクト') || name.includes('architect')) {
+      return <Network size={16} />;
+    } else if (name.includes('レポート') || name.includes('report') || name.includes('ライター') || name.includes('writer')) {
+      return <FileTextIcon size={16} />;
     } else {
       // メッセージタイプに応じたアイコンをフォールバックとして使用
       switch (type) {
