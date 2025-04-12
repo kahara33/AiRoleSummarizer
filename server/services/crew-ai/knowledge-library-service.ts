@@ -14,7 +14,7 @@ import {
 } from '../../../shared/schema';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, and, desc, SQL } from 'drizzle-orm';
-import { searchWithExa } from '../exa-search';
+import { searchWithExa, executeSearchForCollectionPlan } from '../exa-search';
 import * as neo4jService from '../neo4j-service';
 import * as websocket from '../../websocket';
 import { 
@@ -975,15 +975,15 @@ export async function executeCollectionPlan(
       {
         collectionPlanId: planId,
         title: plan.title,
-        strategy: plan.strategy ? JSON.parse(plan.strategy) : {}
+        strategy: plan.toolsConfig ? { primaryKeywords: [plan.title], secondaryKeywords: [] } : {}
       },
       roleModelId,
       {
         timePeriod: options?.timePeriod || 'month', // デフォルトで過去1ヶ月を検索
         searchType: 'hybrid',
-        language: 'ja',          // 日本語コンテンツを優先
-        advancedQuery: true,     // 高度なクエリ構文を使用
-        sortBy: 'relevance'      // 関連性でソート
+        language: options?.language || 'ja',          // 日本語コンテンツを優先（オプションから取得）
+        advancedQuery: options?.advancedQuery || true,     // 高度なクエリ構文を使用
+        sortBy: options?.sortBy || 'relevance'      // 関連性でソート
       }
     );
     
