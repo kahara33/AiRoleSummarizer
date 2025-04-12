@@ -412,7 +412,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                       <div className="h-full">
                         <InformationPlanList 
                           roleModelId={roleModelId}
-                          onSelectPlan={handlePlanSelect}
+                          onPlanSelect={handlePlanSelect}
                         />
                         
                         {/* Exa検索ボタン */}
