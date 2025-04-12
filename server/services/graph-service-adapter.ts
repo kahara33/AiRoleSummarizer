@@ -1,6 +1,7 @@
 /**
  * グラフサービスアダプタ
  * 優先的にNeo4jを使用し、利用できない場合はメモリベースのグラフサービスにフォールバック
+ * ナレッジグラフの作成、取得、操作するための統合インターフェースを提供
  */
 
 import * as memoryGraphService from './memory-graph-service';

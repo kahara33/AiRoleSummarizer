@@ -2,9 +2,9 @@
  * WebSocketメッセージハンドラ
  * クライアントから受信したWebSocketメッセージを処理する
  */
-import * as graphService from './services/graph-service-adapter';
+
 import * as websocket from './websocket';
-import * as knowledgeLibraryService from './services/crew-ai/knowledge-library-service';
+import * as aiAgentService from './services/ai-agent-service';
 
 /**
  * ナレッジグラフ生成リクエストを処理する
@@ -16,133 +16,24 @@ export async function handleCreateKnowledgeGraph(message: any, roleModelId: stri
     console.log('ナレッジグラフ生成リクエスト処理:', message);
 
     const payload = message.payload || message;
-    // 常に新しいグラフを生成し、既存のものを上書きする
-    const forceOverwrite = true;
-
-    // 進捗状況更新
-    websocket.sendProgressUpdate(
-      roleModelId,
-      10,
-      'ナレッジグラフと情報収集プランを生成しています...'
-    );
-
-    // エージェント思考の送信
-    websocket.sendAgentThoughts(
-      'オーケストレーター',
-      'ナレッジグラフと情報収集プランの生成プロセスを開始します',
-      roleModelId,
-      'starting'
-    );
-
-    websocket.sendAgentThoughts(
-      '初期調査エージェント',
-      '初期データ収集を開始し、知識グラフの基本構造を設計しています',
-      roleModelId,
-      'thinking'
-    );
     
-    // 処理時間をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // 進捗報告
-    websocket.sendProgressUpdate(
-      roleModelId,
-      30,
-      'ナレッジグラフの構造を生成しています...'
-    );
-
-    // 新しいグラフを生成（既存グラフは必ず上書き）
-    const mainTopicName = payload.mainTopic || payload.industry || '一般';
-    
-    // サブトピックの生成（キーワードがあればそれを使用、なければデフォルト）
-    const keywords = payload.keywords && payload.keywords.length > 0
+    // メイントピックとサブトピックを取得
+    const mainTopic = payload.mainTopic || payload.industry || '一般';
+    const subTopics = payload.keywords && payload.keywords.length > 0
       ? payload.keywords
       : ['情報収集', 'ナレッジ管理', 'データ分析', '意思決定支援'];
     
-    // グラフ生成オプション
-    const graphOptions = {
-      mainTopic: mainTopicName,
-      subTopics: keywords,
-      description: `${mainTopicName}に関するナレッジグラフ`,
-      createdBy: payload.userId
-    };
-    
-    console.log('ナレッジグラフ生成オプション:', graphOptions);
-    console.log('強制上書き:', forceOverwrite);
-    
-    try {
-      // ナレッジグラフの生成（既存データを消去して新規作成）
-      // 注：実際のAPI呼び出しはコメントアウトして時間制御のみでシミュレーション
-      
-      // まず既存グラフを削除
-      await graphService.deleteExistingKnowledgeGraph(roleModelId);
-      console.log(`ロールモデル ${roleModelId} の既存ナレッジグラフを削除しました`);
-      
-      // 新しいグラフを生成
-      await graphService.generateNewKnowledgeGraph(roleModelId, graphOptions, forceOverwrite);
-      console.log(`ロールモデル ${roleModelId} に新しいナレッジグラフを生成しました`);
-    } catch (graphError) {
-      console.error('グラフ生成/削除中にエラーが発生しました:', graphError);
-      // エラーが発生しても処理を続行
-    }
-    
-    websocket.sendAgentThoughts(
-      '知識統合エージェント',
-      'ナレッジグラフを構築し、関連概念間のリンクを確立しています',
-      roleModelId,
-      'thinking'
+    // AIエージェントサービスを使用してナレッジグラフ作成フローを実行
+    const result = await aiAgentService.runKnowledgeGraphCreationFlow(
+      roleModelId, 
+      {
+        mainTopic,
+        subTopics,
+        overwrite: true // 常に既存グラフを上書き
+      }
     );
     
-    // さらに進捗を報告
-    websocket.sendProgressUpdate(
-      roleModelId,
-      60,
-      'ナレッジグラフを生成しました。情報収集プランを作成しています...'
-    );
-    
-    websocket.sendAgentThoughts(
-      'プランストラテジスト',
-      '生成したナレッジグラフに基づいて最適な情報収集戦略を構築しています',
-      roleModelId,
-      'thinking'
-    );
-    
-    // 情報収集プラン生成の処理時間をシミュレート
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 最終進捗
-    websocket.sendProgressUpdate(
-      roleModelId,
-      90,
-      '情報収集プランを最終化しています...'
-    );
-    
-    websocket.sendAgentThoughts(
-      'レポート作成エージェント',
-      '生成したナレッジグラフと情報収集プランをまとめています',
-      roleModelId,
-      'thinking'
-    );
-    
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 完了メッセージ
-    websocket.sendProgressUpdate(
-      roleModelId,
-      100,
-      'ナレッジグラフと情報収集プランの生成が完了しました',
-      { status: 'completed' }
-    );
-    
-    websocket.sendAgentThoughts(
-      'オーケストレーター',
-      'ナレッジグラフと情報収集プランの生成プロセスが完了しました',
-      roleModelId,
-      'success'
-    );
-
-    return true;
+    return result;
   } catch (err) {
     const error = err as Error;
     console.error('ナレッジグラフ生成エラー:', error);
@@ -173,66 +64,22 @@ export async function handleCreateCollectionPlan(message: any, roleModelId: stri
     
     const payload = message.payload || message;
     
-    // 進捗状況更新
-    websocket.sendProgressUpdate(
+    // メイントピックとキーワードを取得
+    const mainTopic = payload.mainTopic || payload.industry || '一般';
+    const keywords = payload.keywords && payload.keywords.length > 0
+      ? payload.keywords
+      : ['情報収集', 'ナレッジ管理', 'データ分析', '意思決定支援'];
+    
+    // AIエージェントサービスを使用して情報収集プラン作成フローを実行
+    const result = await aiAgentService.runCollectionPlanCreationFlow(
       roleModelId,
-      10,
-      '既存のナレッジグラフを使用して情報収集プランのみを作成しています...'
+      {
+        mainTopic,
+        keywords
+      }
     );
     
-    // エージェント処理
-    websocket.sendAgentThoughts(
-      'オーケストレーター',
-      '既存のナレッジグラフに基づいて情報収集プランを作成します（グラフは更新しません）',
-      roleModelId,
-      'starting'
-    );
-
-    websocket.sendAgentThoughts(
-      'プランストラテジスト',
-      '既存の知識グラフを活用して最適な情報収集プランを作成します',
-      roleModelId,
-      'thinking'
-    );
-    
-    // 情報収集プランのみを生成（ナレッジグラフは更新しない）
-    // プラン生成専用サービスを呼び出す代わりに、シミュレーションだけ行う
-    await new Promise(resolve => setTimeout(resolve, 2000)); // 処理時間をシミュレート
-    
-    // 進捗報告50%
-    websocket.sendProgressUpdate(
-      roleModelId,
-      50,
-      '情報収集プランを生成中...'
-    );
-    
-    // エージェント処理の続き
-    websocket.sendAgentThoughts(
-      'レポート作成エージェント',
-      '情報収集計画をレポート形式にまとめています',
-      roleModelId,
-      'thinking'
-    );
-    
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 処理完了
-    websocket.sendProgressUpdate(
-      roleModelId,
-      100,
-      '情報収集プランの作成が完了しました',
-      { status: 'completed' }
-    );
-    
-    websocket.sendAgentThoughts(
-      'オーケストレーター',
-      '情報収集プランの生成が完了しました。既存のナレッジグラフは変更されていません。',
-      roleModelId,
-      'success'
-    );
-    
-    return true;
+    return result;
   } catch (err) {
     const error = err as Error;
     console.error('情報収集プラン生成エラー:', error);
@@ -242,6 +89,82 @@ export async function handleCreateCollectionPlan(message: any, roleModelId: stri
       roleModelId,
       0,
       '情報収集プラン生成中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
+    );
+    
+    return false;
+  }
+}
+
+/**
+ * 情報収集実行リクエストを処理する
+ * @param message 受信したメッセージ
+ * @param roleModelId ロールモデルID 
+ */
+export async function handleExecuteCollectionPlan(message: any, roleModelId: string) {
+  try {
+    console.log('情報収集実行リクエスト処理:', message);
+    
+    const payload = message.payload || message;
+    const planId = payload.planId || `plan-${Date.now()}`;
+    
+    // AIエージェントサービスを使用して情報収集実行フローを実行
+    const result = await aiAgentService.runCollectionExecutionFlow(
+      roleModelId,
+      planId
+    );
+    
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    console.error('情報収集実行エラー:', error);
+    
+    // エラー進捗更新
+    websocket.sendProgressUpdate(
+      roleModelId,
+      0,
+      '情報収集実行中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
+    );
+    
+    return false;
+  }
+}
+
+/**
+ * ナレッジグラフ更新レコメンドリクエストを処理する
+ * @param message 受信したメッセージ
+ * @param roleModelId ロールモデルID
+ */
+export async function handleGraphUpdateRecommendation(message: any, roleModelId: string) {
+  try {
+    console.log('ナレッジグラフ更新レコメンドリクエスト処理:', message);
+    
+    const payload = message.payload || message;
+    const reports = payload.reports || [];
+    
+    // AIエージェントサービスを使用してナレッジグラフ更新レコメンドフローを実行
+    const result = await aiAgentService.runGraphUpdateRecommendationFlow(
+      roleModelId,
+      reports
+    );
+    
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    console.error('ナレッジグラフ更新レコメンドエラー:', error);
+    
+    // エラー進捗更新
+    websocket.sendProgressUpdate(
+      roleModelId,
+      0,
+      'ナレッジグラフ更新レコメンド中にエラーが発生しました',
       { 
         status: 'error',
         error: error.message || '不明なエラー'
