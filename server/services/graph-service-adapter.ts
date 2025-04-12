@@ -1,29 +1,21 @@
 /**
  * グラフサービスアダプタ
- * Neo4jとメモリベースのグラフサービスを統合して提供する
+ * メモリベースのグラフサービスを提供する
+ * （Neo4jが利用できない環境でも動作するよう、常にメモリベースの実装を使用）
  */
 
-import * as neo4jService from './neo4j-service';
 import * as memoryGraphService from './memory-graph-service';
 
-// Neo4jサービスが利用可能かどうかの状態
-let neo4jAvailable = false;
+// 常にメモリベースのグラフサービスを使用
+const neo4jAvailable = false;
 
 /**
  * Neo4jサービスが利用可能かどうかを確認する
- * @returns 利用可能であればtrue
+ * @returns 常にfalseを返す
  */
 export async function checkNeo4jAvailability(): Promise<boolean> {
-  try {
-    await neo4jService.initDriver();
-    neo4jAvailable = true;
-    console.log('Neo4jサービスが利用可能です');
-    return true;
-  } catch (error) {
-    neo4jAvailable = false;
-    console.warn('Neo4jサービスが利用できません。メモリベースのグラフサービスを使用します:', error);
-    return false;
-  }
+  console.log('メモリベースのグラフサービスを使用します');
+  return false;
 }
 
 /**
@@ -38,17 +30,7 @@ export async function createNode(
   properties?: Record<string, any>,
   roleModelId?: string
 ): Promise<string> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.createNode(labelOrOptions, properties, roleModelId);
-    } else {
-      return await memoryGraphService.createNode(labelOrOptions, properties, roleModelId);
-    }
-  } catch (error) {
-    console.warn('Neo4jでノード作成に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.createNode(labelOrOptions, properties, roleModelId);
-  }
+  return await memoryGraphService.createNode(labelOrOptions, properties, roleModelId);
 }
 
 /**
@@ -61,17 +43,7 @@ export async function findOrCreateNode(options: {
   matchProperties: Record<string, any>;
   createProperties?: Record<string, any>;
 }): Promise<string> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.findOrCreateNode(options);
-    } else {
-      return await memoryGraphService.findOrCreateNode(options);
-    }
-  } catch (error) {
-    console.warn('Neo4jでノード検索/作成に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.findOrCreateNode(options);
-  }
+  return await memoryGraphService.findOrCreateNode(options);
 }
 
 /**

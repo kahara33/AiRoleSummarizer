@@ -1075,7 +1075,7 @@ export async function executeCollectionPlan(
       });
       
       // メインノードとの関連付け
-      await neo4jService.createRelationship({
+      await graphService.createRelationship({
         sourceNodeId: mainNodeId,
         targetNodeId: subNodeId,
         type: 'HAS_SOURCE',
