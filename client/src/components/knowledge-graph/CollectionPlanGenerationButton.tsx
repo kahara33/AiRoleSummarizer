@@ -45,13 +45,30 @@ export default function CollectionPlanGenerationButton({
     sendCreateKnowledgeGraphRequest
   } = useKnowledgeGraphGeneration();
   
-  // コンポーネントのマウント時にWebSocketを接続
+  // コンポーネントのマウント時にWebSocketを接続（再試行ロジック付き）
   useEffect(() => {
-    if (roleModelId) {
-      console.log('CollectionPlanGenerationButton: WebSocket接続を開始します', roleModelId);
-      connect(roleModelId);
-    }
-  }, [roleModelId, connect]);
+    // WebSocket接続を処理する関数
+    const connectWebSocket = () => {
+      if (roleModelId) {
+        console.log('CollectionPlanGenerationButton: WebSocket接続を開始します', roleModelId);
+        connect(roleModelId);
+      }
+    };
+    
+    // 初回接続
+    connectWebSocket();
+    
+    // 定期的に接続状態を確認し、切断されていれば再接続
+    const checkInterval = setInterval(() => {
+      if (!isConnected && roleModelId) {
+        console.log('CollectionPlanGenerationButton: WebSocket接続が切断されています。再接続を試みます...');
+        connectWebSocket();
+      }
+    }, 3000); // 3秒ごとに確認
+    
+    // クリーンアップ
+    return () => clearInterval(checkInterval);
+  }, [roleModelId, connect, isConnected]);
 
   // WebSocketからの進捗状況更新を処理するエフェクト
   useEffect(() => {
