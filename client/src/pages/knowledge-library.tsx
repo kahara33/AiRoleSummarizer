@@ -749,39 +749,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                     />
                   </div>
                   
-                  <div className="p-3 border-t">
-                    <div className="relative">
-                      <Textarea 
-                        placeholder="メッセージを入力..."
-                        value={userInput}
-                        onChange={(e) => setUserInput(e.target.value)}
-                        className="pr-12 resize-none"
-                        rows={2}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (userInput.trim()) {
-                              handleSendMessage(userInput.trim());
-                              setUserInput('');
-                            }
-                          }
-                        }}
-                      />
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="absolute right-1 bottom-1"
-                        onClick={() => {
-                          if (userInput.trim()) {
-                            handleSendMessage(userInput.trim());
-                            setUserInput('');
-                          }
-                        }}
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                  {/* チャット入力欄はAgentConversationの内部に統合しました */}
                 </div>
               </Panel>
             </>

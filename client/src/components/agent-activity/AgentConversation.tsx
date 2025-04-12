@@ -3,7 +3,7 @@ import './styles.css';
 import { Bot, AlertCircle, WifiIcon, WifiOffIcon, Loader2, Send, User } from 'lucide-react';
 import AgentMessage from './AgentMessage';
 import AgentThinking from './AgentThinking';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import { useUnifiedWebSocket } from '@/hooks/use-unified-websocket';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -39,15 +39,17 @@ const AgentConversation: React.FC<AgentConversationProps> = ({
   
   const { 
     isConnected,
-    connecting,
-    error, 
+    connect,
+    disconnect,
     agentThoughts: internalAgentThoughts,
     progressUpdates: internalProgressUpdates,
     isProcessing: internalIsProcessing,
-    connect,
-    disconnect,
-    sendMessage
-  } = useMultiAgentWebSocket();
+    sendMessage,
+    error
+  } = useUnifiedWebSocket();
+  
+  // 接続中かどうかの状態（useUnifiedWebSocketにはconnecting状態がないため独自に管理）
+  const [connecting, setConnecting] = useState(false);
   
   // 親から渡されたプロパティを優先して使用、なければ内部状態を使用
   const agentThoughts = externalAgentThoughts || internalAgentThoughts;
