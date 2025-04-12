@@ -407,6 +407,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         // 情報収集プラン削除の処理
         console.log('情報収集プラン削除メッセージを処理します');
         handleDeleteInformationPlan(ws, data);
+        messageHandled = true;
         break;
         
       case 'ping':
@@ -420,6 +421,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         } catch (error) {
           console.error(`Pong送信エラー: ${error}`);
         }
+        messageHandled = true;
         break;
         
       case 'get_knowledge_graph':
@@ -446,6 +448,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
             timestamp: new Date().toISOString()
           }));
         }
+        messageHandled = true;
         break;
         
       default:
