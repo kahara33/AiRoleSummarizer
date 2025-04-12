@@ -48,7 +48,7 @@ interface UseKnowledgeGraphReturn {
   requestGraphData: () => Promise<void>;
 }
 
-export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn {
+export function useKnowledgeGraphWebSocket(roleModelId: string): UseKnowledgeGraphReturn {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [loading, setLoading] = useState(true);

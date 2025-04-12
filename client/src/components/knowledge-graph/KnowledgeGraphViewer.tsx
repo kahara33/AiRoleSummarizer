@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Loader2, ZapIcon, RotateCcw, BoltIcon, Save, Download } from 'lucide-react';
 import { CrewAIButton } from './CrewAIButton';
-import { useKnowledgeGraph } from '../../hooks/use-knowledge-graph-websocket';
+import { useKnowledgeGraphWebSocket } from '../../hooks/use-knowledge-graph-websocket';
 import { useMultiAgentWebSocket } from '../../hooks/use-multi-agent-websocket-fixed';
 import { NodeEditDialog } from './NodeEditDialog';
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -81,7 +81,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     lastUpdateTime,
     lastUpdateSource,
     requestGraphData // 明示的なグラフデータリクエスト関数を追加
-  } = useKnowledgeGraph(roleModelId);
+  } = useKnowledgeGraphWebSocket(roleModelId);
   
   // WebSocketコネクション用のカスタムフック
   const { isConnected, sendMessage } = useMultiAgentWebSocket();
@@ -124,6 +124,15 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     message: '',
     confirmAction: () => {},
   });
+
+  // グラフ生成関連のステート
+  const [generating, setGenerating] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [agentMessages, setAgentMessages] = useState<{agent: string, message: string, timestamp: string}[]>([]);
+
+  // デバッグ情報
+  const [debugInfo, setDebugInfo] = useState<any>({});
 
   // サーバーからグラフデータを取得する関数（デバッグログ追加、エラー処理改善）
   const fetchGraphData = useCallback(async () => {
@@ -477,629 +486,432 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       try {
         const response = await fetch(`/api/knowledge-graph/${roleModelId}/exists`);
         if (response.ok) {
-          const { exists } = await response.json();
-          setHasKnowledgeGraph(exists);
+          const data = await response.json();
+          console.log('ナレッジグラフ存在確認結果:', data);
+          
+          // データが存在する場合、完全データを取得
+          if (data.exists) {
+            await fetchGraphData();
+          } else {
+            // データが存在しない場合は適切に状態を更新
+            setHasKnowledgeGraph(false);
+            setLoading(false);
+            
+            if (onGraphDataChange) {
+              onGraphDataChange(false);
+            }
+            if (onDataStatus) {
+              onDataStatus(false);
+            }
+          }
+        } else {
+          console.error('ナレッジグラフ存在確認エラー:', response.statusText);
+          setLoading(false);
+          // エラー発生時も状態更新
+          setHasKnowledgeGraph(false);
+          
           if (onGraphDataChange) {
-            onGraphDataChange(exists);
+            onGraphDataChange(false);
           }
           if (onDataStatus) {
-            onDataStatus(exists);
-          }
-          
-          // グラフが存在する場合はデータを読み込む
-          if (exists) {
-            console.log('ナレッジグラフが存在するため、データを読み込みます');
-            fetchGraphData();
-          } else {
-            console.log('ナレッジグラフが存在しないため、データ読み込みをスキップします');
-            setLoading(false); // 読み込み状態を解除
+            onDataStatus(false);
           }
         }
-      } catch (error) {
-        console.error('ナレッジグラフ確認エラー:', error);
-        setLoading(false); // エラー時にも読み込み状態を解除
+      } catch (err) {
+        console.error('ナレッジグラフ存在確認中にエラーが発生しました:', err);
+        setLoading(false);
+        setHasKnowledgeGraph(false);
+        
+        if (onGraphDataChange) {
+          onGraphDataChange(false);
+        }
+        if (onDataStatus) {
+          onDataStatus(false);
+        }
       }
     };
     
-    console.log(`[KnowledgeGraphViewer] autoLoad=${autoLoad}のため、ナレッジグラフの存在を確認します`);
     checkKnowledgeGraphExists();
-  }, [roleModelId, onGraphDataChange, autoLoad]);
+  }, [roleModelId, fetchGraphData, onGraphDataChange, onDataStatus, autoLoad]);
 
-  // 関数宣言の順序を変更して依存関係を解決
-  
-  // ノード操作ダイアログを開く関数を先に定義
-  const openNodeDialog = useCallback((type: 'edit' | 'add-child' | 'add-sibling', nodeId: string) => {
-    const node = nodes.find((n: Node) => n.id === nodeId)?.data as KnowledgeNode | undefined;
+  // ノード編集ダイアログを開く
+  const handleEditNode = useCallback((nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      setNodeDialog({
+        open: true,
+        type: 'edit',
+        nodeId: nodeId,
+        node: node.data as KnowledgeNode
+      });
+    }
+  }, [nodes]);
+
+  // 子ノード追加ダイアログを開く
+  const handleAddChildNode = useCallback((parentId: string) => {
     setNodeDialog({
       open: true,
-      type,
-      nodeId,
-      node: node || null
+      type: 'add-child',
+      nodeId: parentId,
+      node: null
     });
-  }, [nodes]);
-  
-  // ノード編集
-  const handleEditNode = useCallback((nodeId: string) => {
-    openNodeDialog('edit', nodeId);
-  }, [openNodeDialog]);
-  
-  // 子ノード追加
-  const handleAddChildNode = useCallback((parentId: string) => {
-    openNodeDialog('add-child', parentId);
-  }, [openNodeDialog]);
-  
-  // 兄弟ノード追加
+  }, []);
+
+  // 兄弟ノード追加ダイアログを開く
   const handleAddSiblingNode = useCallback((siblingId: string) => {
-    openNodeDialog('add-sibling', siblingId);
-  }, [openNodeDialog]);
-  
-  // ノード削除
+    setNodeDialog({
+      open: true,
+      type: 'add-sibling',
+      nodeId: siblingId,
+      node: null
+    });
+  }, []);
+
+  // ノード削除処理
   const handleDeleteNode = useCallback(async (nodeId: string) => {
-    // 確認ダイアログ表示
+    // ノード削除の確認ダイアログを表示
     setAlertDialog({
       open: true,
-      title: 'ノードの削除確認',
-      message: 'このノードを削除してもよろしいですか？子ノードもすべて削除されます。',
+      title: 'ノードの削除',
+      message: 'このノードとその子ノードをすべて削除します。この操作は元に戻せません。続行しますか？',
       confirmAction: async () => {
+        if (!nodeId) return;
+        
         try {
-          // GraphQLから全データ取得（Undo用に保存するため）
-          const graphData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
+          // 削除前の状態をUndoスタックに保存
+          setUndoStack(prev => [
+            ...prev,
+            {
+              action: 'deleteNode',
+              data: {
+                nodeId,
+                nodes: [...nodes],
+                edges: [...edges]
+              },
+              timestamp: Date.now()
+            }
+          ]);
           
-          // 削除対象のノードとその子孫を特定
-          const nodeToDelete = graphData.nodes.find((n: any) => n.id === nodeId);
+          // ノードとその子孫を特定
+          const nodeToDelete = nodes.find(n => n.id === nodeId);
           if (!nodeToDelete) {
-            throw new Error('削除対象のノードが見つかりません');
+            console.error('削除するノードが見つかりません:', nodeId);
+            return;
           }
           
-          // 削除リクエスト
-          const response = await fetch(`/api/knowledge-nodes/${nodeId}`, {
-            method: 'DELETE',
-          });
-          
-          if (!response.ok) {
-            throw new Error('ノードの削除に失敗しました');
-          }
-          
-          // 削除情報をUndoスタックに追加
-          const nodesToDelete = [nodeToDelete];
-          const relatedEdges = graphData.edges.filter(
-            (e: any) => e.sourceId === nodeId || e.targetId === nodeId
-          );
-          
-          // 再帰的に子ノードを検索
-          const findChildNodes = (parentId: string, allNodes: any[]) => {
-            const children = allNodes.filter(n => n.parentId === parentId);
-            let result = [...children];
+          // 子孫ノードのIDをすべて収集する関数
+          const findDescendants = (parentId: string, allNodes: Node[]): string[] => {
+            const directChildren = allNodes.filter(n => n.data?.parentId === parentId).map(n => n.id);
+            let descendants = [...directChildren];
             
-            for (const child of children) {
-              result = [...result, ...findChildNodes(child.id, allNodes)];
+            for (const childId of directChildren) {
+              descendants = [...descendants, ...findDescendants(childId, allNodes)];
             }
             
-            return result;
+            return descendants;
           };
           
-          const childNodes = findChildNodes(nodeId, graphData.nodes);
+          // 削除対象のノードIDを特定
+          const descendants = findDescendants(nodeId, nodes);
+          const nodesToDelete = [nodeId, ...descendants];
           
-          // UndoスタックにPush
-          setUndoStack(prev => [...prev, {
-            action: 'delete',
-            data: {
-              nodes: [nodeToDelete, ...childNodes],
-              edges: relatedEdges,
-            },
-            timestamp: Date.now(),
-          }]);
+          console.log('削除対象ノード:', nodesToDelete);
           
-          // 成功したら再読み込み
-          requestGraphData();
+          // 削除対象のノードに接続されているエッジをすべて取得
+          const edgesToDelete = edges.filter(edge => 
+            nodesToDelete.includes(edge.source) || nodesToDelete.includes(edge.target)
+          );
+          
+          // APIでノードを削除
+          const response = await fetch(`/api/knowledge-graph/${roleModelId}/nodes/${nodeId}`, {
+            method: 'DELETE'
+          });
+          
+          if (response.ok) {
+            // UI上でノードを削除（残りのノードを取得）
+            const remainingNodes = nodes.filter(node => !nodesToDelete.includes(node.id));
+            const remainingEdges = edges.filter(edge => 
+              !nodesToDelete.includes(edge.source) && !nodesToDelete.includes(edge.target)
+            );
+            
+            // ステートを更新
+            setNodes(remainingNodes);
+            setEdges(remainingEdges);
+            
+            // 成功メッセージを表示
+            toast({
+              title: 'ノードを削除しました',
+              description: `${nodesToDelete.length}個のノードと${edgesToDelete.length}個の接続が削除されました`,
+              variant: 'default',
+            });
+          } else {
+            console.error('ノード削除APIエラー:', await response.text());
+            toast({
+              title: 'ノード削除エラー',
+              description: '削除処理中にエラーが発生しました。再試行してください。',
+              variant: 'destructive',
+            });
+          }
         } catch (error) {
-          console.error('ノード削除エラー:', error);
-          alert('ノードの削除中にエラーが発生しました');
+          console.error('ノード削除処理エラー:', error);
+          toast({
+            title: 'エラー',
+            description: 'ノードの削除中にエラーが発生しました',
+            variant: 'destructive',
+          });
         }
-      },
+      }
     });
-  }, [roleModelId, requestGraphData]);
-  
-  // ノード拡張（AI）
+  }, [nodes, edges, roleModelId]);
+
+  // ノード展開処理
   const handleExpandNode = useCallback(async (nodeId: string) => {
     try {
-      // 既存のノードデータを保存
-      const existingData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
-      
-      // 拡張リクエスト
-      const response = await fetch(`/api/knowledge-graph/nodes/${nodeId}/expand`, {
-        method: 'POST',
-      });
-      
-      if (!response.ok) {
-        throw new Error('ノードの拡張に失敗しました');
+      // ノードを特定
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node) {
+        console.error('展開するノードが見つかりません:', nodeId);
+        return;
       }
       
-      // Undo用に保存（拡張前の状態を記録）
-      setUndoStack(prev => [...prev, {
-        action: 'expand',
-        data: {
-          nodeId,
-          prevState: existingData,
-        },
-        timestamp: Date.now(),
-      }]);
+      // ノードの色に基づいて、展開されるノードの色を決定
+      const getNodeTypeColor = (type: string) => {
+        switch (type) {
+          case 'concept': return '#47c1ff';
+          case 'keyword': return '#77dd77';
+          case 'task': return '#ff6961';
+          case 'question': return '#fdfd96';
+          case 'info': return '#b19cd9';
+          default: return '#47c1ff';
+        }
+      };
       
-      // 成功したら再読み込み
-      requestGraphData();
-    } catch (error) {
-      console.error('ノード拡張エラー:', error);
-      alert('ノードの拡張中にエラーが発生しました');
-    }
-  }, [roleModelId, requestGraphData]);
-  
-  // ノード操作ユーティリティのセットアップ
-  const nodeOperations = useNodeOperations(roleModelId, requestGraphData, setUndoStack);
-  
-  // ノードダイアログで保存ボタンが押されたときの処理
-  const handleNodeSave = useCallback(async (data: { name: string; description: string; nodeType: string }) => {
-    const { type, nodeId } = nodeDialog;
-    
-    if (!nodeId) return;
-    
-    try {
-      const nodeData = nodes.find(n => n.id === nodeId)?.data as KnowledgeNode;
-      
-      if (!nodeData) {
-        throw new Error('対象ノードが見つかりません');
-      }
-      
-      switch (type) {
-        case 'edit':
-          await nodeOperations.updateNode(nodeId, 
-            { 
-              name: data.name, 
-              description: data.description, 
-              color: nodeData.color ? nodeData.color : undefined,
-              nodeType: data.nodeType
-            }, 
-            nodeData
-          );
-          // 編集の場合は再取得
-          await requestGraphData();
-          break;
-          
-        case 'add-child':
-          const childResult = await nodeOperations.addChildNode(nodeId, data, nodeData);
-          
-          // シームレスに追加（サーバー取得なし）
-          if (childResult.success && childResult.node) {
-            // ノードの位置を設定
-            // nodeData.positionは存在しない可能性があるためデフォルト値を設定
-            const nodePosition = {x: 0, y: 0};
-            if (typeof nodeData.position === 'object' && nodeData.position !== null) {
-              nodePosition.x = nodeData.position.x || 0;
-              nodePosition.y = nodeData.position.y || 0;
-            }
+      // 元に戻すためのデータをスタックに保存
+      const handleUndo = useCallback(async () => {
+        if (undoStack.length === 0) return;
+        
+        const lastAction = undoStack[undoStack.length - 1];
+        setUndoStack(prev => prev.slice(0, -1)); // 最後の要素を削除
+        
+        try {
+          if (lastAction.action === 'deleteNode') {
+            // 削除されたノードを復元
+            setNodes(lastAction.data.nodes);
+            setEdges(lastAction.data.edges);
             
-            // 新しいノードを作成（完全なカスタムノードに）
-            // 親ノードの位置を基準にして、子ノードは親の真下に配置
-            const parentNode = nodes.find(n => n.id === nodeId);
-            let newPos = {
-              x: nodePosition.x,
-              y: nodePosition.y + 150
-            };
+            toast({
+              title: '操作を元に戻しました',
+              description: 'ノード削除操作が取り消されました',
+              variant: 'default',
+            });
+          } else if (lastAction.action === 'addNodes') {
+            // 追加されたノードを削除
+            const nodesToKeep = nodes.filter(n => !lastAction.data.addedNodeIds.includes(n.id));
+            const edgesToKeep = edges.filter(e => 
+              !lastAction.data.addedNodeIds.includes(e.source) && 
+              !lastAction.data.addedNodeIds.includes(e.target)
+            );
             
-            // 親ノードが見つかった場合はその位置を基準に配置する
-            if (parentNode) {
-              newPos = {
-                x: parentNode.position.x,
-                y: parentNode.position.y + 150
-              };
-            }
+            setNodes(nodesToKeep);
+            setEdges(edgesToKeep);
             
-            const newNode = {
-              id: childResult.node.id,
-              type: data.nodeType === 'concept' ? 'concept' : 'agent',
-              position: newPos,
-              data: {
-                ...childResult.node,
-                // ReactFlowのノードデータに必要な追加情報
-                position: newPos,
-                color: getNodeColor(data.nodeType),
-                name: childResult.node.name,
-                description: childResult.node.description,
-                type: childResult.node.type,
-                onEditNode: handleEditNode,
-                onAddChildNode: handleAddChildNode,
-                onAddSiblingNode: handleAddSiblingNode,
-                onDeleteNode: handleDeleteNode,
-                onExpandNode: handleExpandNode,
-                level: childResult.node.level,
-                roleModelId: roleModelId
-              }
-            };
-
-            // 新しいエッジを作成（edge が undefined の場合のフォールバック対応）
-            const targetId = childResult.node?.id || '';
-            const newEdge = {
-              id: childResult.edge?.id || `e-${Math.random().toString(36).substring(2)}`,
-              source: childResult.edge?.sourceId || nodeId,
-              target: childResult.edge?.targetId || targetId,
-              type: 'dataFlowEdge',
-              data: childResult.edge || {
-                type: 'parent_child',
-                sourceId: nodeId,
-                targetId: targetId
-              } as any
-            };
-            
-            // ReactFlowノードとエッジを更新
-            setNodes(oldNodes => [...oldNodes, newNode]);
-            setEdges(oldEdges => [...oldEdges, newEdge]);
-          } else {
-            await requestGraphData(); // 失敗時は全体を再取得
+            toast({
+              title: '操作を元に戻しました',
+              description: 'ノード追加操作が取り消されました',
+              variant: 'default',
+            });
           }
-          break;
-          
-        case 'add-sibling':
-          const siblingResult = await nodeOperations.addSiblingNode(nodeId, data, nodeData);
-          
-          // シームレスに追加（サーバー取得なし）
-          if (siblingResult.success && siblingResult.node) {
-            // ノードの位置を設定
-            // nodeData.positionは存在しない可能性があるためデフォルト値を設定
-            const nodePosition = {x: 0, y: 0};
-            if (typeof nodeData.position === 'object' && nodeData.position !== null) {
-              nodePosition.x = nodeData.position.x || 0;
-              nodePosition.y = nodeData.position.y || 0;
-            }
-            
-            // 新しいノードを作成（完全なカスタムノードに）
-            // 兄弟ノードは元ノードの右側に配置
-            const siblingNode = nodes.find(n => n.id === nodeId);
-            let newPos = {
-              x: nodePosition.x + 180,
-              y: nodePosition.y
-            };
-            
-            // 兄弟の元となるノードが見つかった場合はその位置を基準に配置する
-            if (siblingNode) {
-              newPos = {
-                x: siblingNode.position.x + 180, // 元ノードより右に配置
-                y: siblingNode.position.y
-              };
-            }
-            
-            const newNode = {
-              id: siblingResult.node.id,
-              type: data.nodeType === 'concept' ? 'concept' : 'agent',
-              position: newPos,
-              data: {
-                ...siblingResult.node,
-                // ReactFlowのノードデータに必要な追加情報
-                position: newPos,
-                color: getNodeColor(data.nodeType),
-                name: siblingResult.node.name,
-                description: siblingResult.node.description,
-                type: siblingResult.node.type,
-                onEditNode: handleEditNode,
-                onAddChildNode: handleAddChildNode,
-                onAddSiblingNode: handleAddSiblingNode,
-                onDeleteNode: handleDeleteNode, 
-                onExpandNode: handleExpandNode,
-                level: siblingResult.node.level,
-                roleModelId: roleModelId
-              }
-            };
-
-            // 新しいエッジを作成（edge が undefined の場合のフォールバック対応）
-            const targetId = siblingResult.node?.id || '';
-            const sourceId = nodeData.parentId || nodeId;
-            const newEdge = {
-              id: siblingResult.edge?.id || `e-${Math.random().toString(36).substring(2)}`,
-              source: siblingResult.edge?.sourceId || sourceId,
-              target: siblingResult.edge?.targetId || targetId,
-              type: 'dataFlowEdge',
-              data: siblingResult.edge || {
-                type: 'sibling',
-                sourceId: sourceId,
-                targetId: targetId
-              } as any
-            };
-            
-            // ReactFlowノードとエッジを更新
-            setNodes(oldNodes => [...oldNodes, newNode]);
-            setEdges(oldEdges => [...oldEdges, newEdge]);
-          } else {
-            await requestGraphData(); // 失敗時は全体を再取得
-          }
-          break;
-      }
-      
-    } catch (error) {
-      console.error('ノード操作エラー:', error);
-      alert('操作中にエラーが発生しました');
-      await requestGraphData(); // エラー時は全体を再取得
-    }
-  }, [nodeDialog, nodes, nodeOperations, requestGraphData, setNodes, setEdges]);
-  
-  // ノードタイプに基づいて色を取得する関数
-  const getNodeColor = useCallback((nodeType: string) => {
-    switch (nodeType) {
-      case 'concept': return '#47c1ff';
-      case 'keyword': return '#77dd77';
-      case 'task': return '#ff6961';
-      case 'question': return '#fdfd96';
-      case 'info': return '#b19cd9';
-      default: return '#47c1ff';
-    }
-  }, []);
-  
-  // Undo（元に戻す）処理
-  const handleUndo = useCallback(async () => {
-    if (undoStack.length === 0) return;
-    
-    try {
-      // スタックから最新の操作を取得
-      const lastAction = undoStack[undoStack.length - 1];
-      console.log('元に戻す操作:', lastAction);
-      
-      // 操作に応じた処理
-      switch (lastAction.action) {
-        case 'edit':
-          // 編集を元に戻す
-          await fetch(`/api/knowledge-nodes/${lastAction.data.nodeId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(lastAction.data.prevData),
+        } catch (error) {
+          console.error('Undo処理エラー:', error);
+          toast({
+            title: 'エラー',
+            description: '操作を元に戻せませんでした',
+            variant: 'destructive',
           });
-          break;
-          
-        case 'add-child':
-        case 'add-sibling':
-          // 新規追加を元に戻す（最後に追加されたノードを削除）
-          const graphData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
-          
-          // 親IDと名前から新しく追加されたノードを特定
-          const addedNode = graphData.nodes.find((n: any) => 
-            n.name === lastAction.data.nodeData.name && 
-            n.parentId === lastAction.data.parentId
-          );
-          
-          if (addedNode) {
-            await fetch(`/api/knowledge-nodes/${addedNode.id}`, {
-              method: 'DELETE',
-            });
-          }
-          break;
-          
-        case 'delete':
-          // 削除を元に戻す（ノードを復元）
-          for (const node of lastAction.data.nodes) {
-            await fetch(`/api/knowledge-nodes`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ...node,
-                id: undefined, // 新しいIDを自動生成
-              }),
-            });
-          }
-          break;
-          
-        case 'expand':
-          // 拡張を元に戻す（追加されたノードを削除）
-          // 拡張前と後の差分を特定
-          const currentData = await fetch(`/api/knowledge-graph/${roleModelId}`).then(r => r.json());
-          const prevNodes = lastAction.data.prevState.nodes.map((n: any) => n.id);
-          
-          // 拡張後に追加されたノードを特定
-          const newNodes = currentData.nodes.filter((n: any) => !prevNodes.includes(n.id));
-          
-          // 拡張で追加されたノードを削除
-          for (const node of newNodes) {
-            await fetch(`/api/knowledge-nodes/${node.id}`, {
-              method: 'DELETE',
-            });
-          }
-          break;
-      }
+        }
+      }, [undoStack, nodes, edges]);
       
-      // 操作履歴からポップ
-      setUndoStack(prev => prev.slice(0, -1));
-      
-      // グラフデータを再取得
-      await requestGraphData();
-      
-    } catch (error) {
-      console.error('Undo処理エラー:', error);
-      alert('操作を元に戻す際にエラーが発生しました');
-    }
-  }, [undoStack, roleModelId, requestGraphData]);
-  
-  // キーボードショートカット処理（Ctrl+Z）
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Z で元に戻す
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        console.log('Ctrl+Z キーが押されました');
-        handleUndo();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleUndo]);
-  
-
-
-  // グラフデータの処理（自動リクエストなし）
-  // WebSocketからのノードとエッジデータを処理するuseEffect
-  useEffect(() => {
-    // 明示的なリクエストがあった場合のみデータを処理
-    if (websocketNodes.length > 0 || websocketEdges.length > 0) {
-      console.log('WebSocketからグラフデータを受信:', { nodes: websocketNodes, edges: websocketEdges });
-      try {
-        // グラフエリアサイズの取得
-        const graphAreaWidth = window.innerWidth - 100;
-        const graphAreaHeight = window.innerHeight - 150;
-        const centerX = graphAreaWidth / 2;
-        const centerY = 150;
+      // キーボードショートカットを設定
+      useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+          // Ctrl+Z (Windows) or Command+Z (Mac)
+          if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            handleUndo();
+          }
+        };
         
-        // カラーマップの定義
-        const colorMap = [
-          '#4361ee', '#3a0ca3', '#7209b7', '#f72585', '#4cc9f0', 
-          '#4895ef', '#560bad', '#480ca8', '#b5179e', '#3f37c9'
-        ];
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+          window.removeEventListener('keydown', handleKeyDown);
+        };
+      }, [handleUndo]);
+      
+      setUndoStack(prev => [
+        ...prev,
+        {
+          action: 'addNodes',
+          data: {
+            parentNodeId: nodeId,
+            addedNodeIds: [] // 後で追加されるノードのIDで更新
+          },
+          timestamp: Date.now()
+        }
+      ]);
+      
+      // APIで関連ノードを取得
+      const response = await fetch(`/api/knowledge-graph/${roleModelId}/nodes/${nodeId}/expand`);
+      
+      if (response.ok) {
+        const { relatedNodes, relatedEdges } = await response.json();
         
-        // ノードをReactFlowノードに変換
-        const flowNodes: Node[] = websocketNodes.map((node: any, index: number) => {
-          // ノードのレベルを取得（またはデフォルト値を使用）
-          const level = node.level || 0;
-          // 色の選択
-          const color = colorMap[level % colorMap.length];
+        if (!relatedNodes || relatedNodes.length === 0) {
+          toast({
+            title: '関連ノードがありません',
+            description: 'このノードに関連するノードは見つかりませんでした',
+            variant: 'default',
+          });
+          return;
+        }
+        
+        console.log('取得した関連ノード:', relatedNodes);
+        console.log('取得した関連エッジ:', relatedEdges);
+        
+        // 新しいノードとエッジを既存のものとマージ
+        const existingNodeIds = nodes.map(n => n.id);
+        
+        // 新しいノードのみをフィルタリング
+        const newNodes = relatedNodes.filter((rNode: any) => !existingNodeIds.includes(rNode.id));
+        
+        // 追加されたノードのIDを記録
+        const addedNodeIds = newNodes.map((n: any) => n.id);
+        
+        // UndoスタックのデータをこれらのIDで更新
+        setUndoStack(prev => {
+          const newStack = [...prev];
+          const lastAction = newStack[newStack.length - 1];
+          if (lastAction && lastAction.action === 'addNodes') {
+            lastAction.data.addedNodeIds = addedNodeIds;
+          }
+          return newStack;
+        });
+        
+        // レベルを計算（親ノードのレベル + 1）
+        const parentLevel = node.data?.level || 0;
+        const childLevel = parentLevel + 1;
+        
+        // 新しいノードをReactFlowノードに変換
+        const flowNodes = newNodes.map((rNode: any, idx: number) => {
+          // 親ノードの位置を基準に配置
+          const parentPos = node.position;
+          const angleStep = (2 * Math.PI) / newNodes.length;
+          const radius = 200; // 円の半径
+          const angle = angleStep * idx;
           
-          // ノードの位置計算
-          let x = centerX + (index % 3 - 1) * 250; // 簡易的な水平配置
-          let y = centerY + (Math.floor(index / 3)) * 150; // 簡易的な垂直配置
+          const x = parentPos.x + radius * Math.cos(angle);
+          const y = parentPos.y + radius * Math.sin(angle);
           
-          // ノードタイプの判定
-          const nodeType = node.type === 'agent' ? 'agent' : 'concept';
+          // ノードタイプに基づいて色を設定
+          const color = getNodeTypeColor(rNode.nodeType || 'concept');
           
           return {
-            id: node.id,
-            type: nodeType,
+            id: rNode.id,
+            type: rNode.type === 'agent' ? 'agent' : 'concept',
             position: { x, y },
             data: {
-              ...node,
-              label: node.name,
-              color: node.color || color,
-              // ノード操作ハンドラを追加
-              onEdit: handleEditNode,
-              onDelete: handleDeleteNode,
-              onAddChild: handleAddChildNode,
-              onAddSibling: handleAddSiblingNode,
-              onExpand: handleExpandNode,
+              ...rNode,
+              label: rNode.name,
+              color: rNode.color || color,
+              level: childLevel,
+              parentId: nodeId,
+              onEdit: (id: string) => handleEditNode(id),
+              onDelete: (id: string) => handleDeleteNode(id),
+              onAddChild: (id: string) => handleAddChildNode(id),
+              onAddSibling: (id: string) => handleAddSiblingNode(id),
+              onExpand: (id: string) => handleExpandNode(id),
             },
             style: {
-              background: node.color || color,
+              background: rNode.color || color,
               borderColor: color,
-            },
-          };
-        });
-        
-        // エッジの検証と変換
-        const validEdges = websocketEdges.filter((edge: any) => {
-          // sourceとtargetが存在するか確認
-          const sourceExists = flowNodes.some(node => node.id === edge.source || node.id === edge.sourceId);
-          const targetExists = flowNodes.some(node => node.id === edge.target || node.id === edge.targetId);
-          
-          return sourceExists && targetExists;
-        });
-        
-        // ReactFlowエッジに変換
-        const flowEdges: Edge[] = validEdges.map((edge: any) => {
-          const source = edge.sourceId || edge.source;
-          const target = edge.targetId || edge.target;
-          
-          return {
-            id: edge.id || `${source}-${target}-${Math.random().toString(36).substr(2, 9)}`,
-            source,
-            target,
-            type: 'dataFlow',
-            animated: edge.type === 'data-flow',
-            label: edge.label || '',
-            data: {
-              strength: edge.strength || 1,
-            },
-          };
-        });
-        
-        // グラフの複雑さに基づいてレイアウト選択
-        const hasHierarchy = flowNodes.some(node => node.data && typeof node.data.level === 'number');
-        const hasMultipleLevels = new Set(flowNodes.map(node => node.data?.level || 0)).size > 1;
-        const isComplex = flowNodes.length > 15 || flowEdges.length > 20;
-        
-        const useHierarchicalLayout = hasHierarchy && (hasMultipleLevels || isComplex);
-        
-        if (useHierarchicalLayout) {
-          // 階層構造のあるグラフには階層レイアウトを使用
-          console.log('階層レイアウトを適用します');
-          const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
-            flowNodes,
-            flowEdges
-          );
-          setNodes(layoutedNodes);
-          setEdges(layoutedEdges);
-        } else {
-          // シンプルなグラフには標準レイアウトを使用
-          console.log('標準レイアウトを適用します');
-          const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedLayoutedElements(
-            flowNodes,
-            flowEdges,
-            { 
-              direction: 'TB',
-              nodesep: 120,
-              ranksep: 150,
-              marginx: 30,
-              marginy: 50
             }
-          );
-          setNodes(layoutedNodes);
-          setEdges(layoutedEdges);
-        }
+          };
+        });
         
-        // データ状態の更新
-        setLoading(false);
-        const hasData = flowNodes.length > 0;
-        setHasKnowledgeGraph(hasData);
-        if (onGraphDataChange) {
-          onGraphDataChange(hasData);
-        }
-      } catch (error) {
-        console.error('グラフデータの処理エラー:', error);
-        setError(error instanceof Error ? error.message : '不明なエラーが発生しました');
-        setLoading(false);
+        // エッジの処理
+        const existingEdgeKeys = new Set(edges.map(e => `${e.source}-${e.target}`));
+        const newEdges = relatedEdges
+          .filter((edge: any) => {
+            const sourceExists = [...existingNodeIds, ...addedNodeIds].includes(edge.source || edge.sourceId);
+            const targetExists = [...existingNodeIds, ...addedNodeIds].includes(edge.target || edge.targetId);
+            return sourceExists && targetExists;
+          })
+          .map((edge: any) => {
+            const source = edge.sourceId || edge.source;
+            const target = edge.targetId || edge.target;
+            const edgeKey = `${source}-${target}`;
+            
+            // 既存のエッジと重複しないようにする
+            if (existingEdgeKeys.has(edgeKey)) {
+              return null;
+            }
+            
+            return {
+              id: edge.id || `${edgeKey}-${Date.now().toString(36).substr(-6)}`,
+              source,
+              target,
+              type: 'dataFlow',
+              animated: edge.type === 'data-flow',
+              label: edge.label || '',
+              data: {
+                strength: edge.strength || 1,
+              },
+            };
+          })
+          .filter(Boolean); // nullをフィルタリング
+        
+        // ノードとエッジを更新
+        setNodes(prevNodes => [...prevNodes, ...flowNodes]);
+        setEdges(prevEdges => [...prevEdges, ...newEdges]);
+        
+        // 成功メッセージを表示
+        toast({
+          title: 'ノードを展開しました',
+          description: `${flowNodes.length}個の関連ノードを追加しました`,
+          variant: 'default',
+        });
+      } else {
+        console.error('ノード展開APIエラー:', await response.text());
+        toast({
+          title: 'ノード展開エラー',
+          description: '関連ノードの取得中にエラーが発生しました',
+          variant: 'destructive',
+        });
       }
-    } else if (wsLoading) {
-      // WebSocket接続中
-      console.log('WebSocket接続中...');
-      setLoading(true);
-    } else if (wsError) {
-      // WebSocketエラー
-      console.error('WebSocketエラー:', wsError);
-      setError(wsError);
-      setLoading(false);
-    }
-  }, [websocketNodes, websocketEdges, wsLoading, wsError]);
-
-  // ナレッジグラフの更新通知用
-  useEffect(() => {
-    if (wsUpdating) {
+    } catch (error) {
+      console.error('ノード展開処理エラー:', error);
       toast({
-        title: 'グラフ更新中',
-        description: '知識グラフが更新されています...',
-        duration: 2000,
+        title: 'エラー',
+        description: 'ノードの展開中にエラーが発生しました',
+        variant: 'destructive',
       });
     }
-        
-    return () => {
-      // このコンポーネントがアンマウントされるときの処理
-      console.log('ナレッジグラフビューワーのクリーンアップ');
-    };
-  }, [wsUpdating, toast]);
+  }, [nodes, edges, roleModelId, undoStack, handleEditNode, handleDeleteNode, handleAddChildNode, handleAddSiblingNode]);
 
-  // ノード選択のハンドラ
+  // ノードクリック処理
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      console.log('ノードクリック:', node);
+      
+      // ノード選択コールバックがある場合は実行
       if (onNodeSelect) {
-        onNodeSelect(node.data as KnowledgeNode);
+        const nodeData = node.data as KnowledgeNode;
+        onNodeSelect(nodeData);
       }
     },
     [onNodeSelect]
   );
 
-  // ノードの変更を処理
+  // ノード変更ハンドラ
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       onNodesChange(changes);
@@ -1107,7 +919,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     [onNodesChange]
   );
 
-  // エッジの変更を処理
+  // エッジ変更ハンドラ
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       onEdgesChange(changes);
@@ -1115,189 +927,409 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     [onEdgesChange]
   );
 
-  // 接続の処理（必要な場合）
+  // 接続ハンドラ
   const handleConnect: OnConnect = useCallback(
     (connection) => {
-      // 必要に応じて接続を処理（現在は読み取り専用なので不要）
+      console.log('新しい接続:', connection);
+      // 接続をステートに追加
+      setEdges((eds) => {
+        const newEdge = {
+          id: `${connection.source}-${connection.target}-${Date.now().toString(36).substr(-6)}`,
+          source: connection.source,
+          target: connection.target,
+          type: 'dataFlow',
+          animated: true,
+          data: { strength: 1 },
+        };
+        return [...eds, newEdge];
+      });
     },
-    []
+    [setEdges]
   );
 
-  // AIによるグラフ生成
-  const [generating, setGenerating] = useState<boolean>(false);
-  const [progress, setProgress] = useState<number>(0);
-  const [progressMessage, setProgressMessage] = useState<string>('');
-  const [agentMessages, setAgentMessages] = useState<{agent: string, message: string, timestamp: string}[]>([]);
-  
+  // ノード保存ハンドラ
+  const handleNodeSave = useCallback(async (data: { name: string; description: string; nodeType: string }) => {
+    console.log('ノード保存:', data, nodeDialog);
+    
+    try {
+      if (nodeDialog.type === 'edit' && nodeDialog.nodeId) {
+        // 既存ノードの編集
+        const nodeId = nodeDialog.nodeId;
+        const updatedNode = {
+          ...nodeDialog.node,
+          name: data.name,
+          description: data.description,
+          nodeType: data.nodeType
+        };
+        
+        // APIでノードを更新
+        const response = await fetch(`/api/knowledge-graph/${roleModelId}/nodes/${nodeId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedNode),
+        });
+        
+        if (response.ok) {
+          // UI上のノードを更新
+          setNodes(nodes.map(node => {
+            if (node.id === nodeId) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  name: data.name,
+                  description: data.description,
+                  nodeType: data.nodeType,
+                  label: data.name, // ラベルも更新
+                }
+              };
+            }
+            return node;
+          }));
+          
+          toast({
+            title: 'ノードを更新しました',
+            description: `"${data.name}" ノードが更新されました`,
+            variant: 'default',
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('ノード更新APIエラー:', errorText);
+          toast({
+            title: 'ノード更新エラー',
+            description: '保存中にエラーが発生しました',
+            variant: 'destructive',
+          });
+        }
+      } else if (nodeDialog.type === 'add-child' && nodeDialog.nodeId) {
+        // 子ノードの追加
+        const parentId = nodeDialog.nodeId;
+        const parentNode = nodes.find(n => n.id === parentId);
+        
+        if (!parentNode) {
+          console.error('親ノードが見つかりません:', parentId);
+          return;
+        }
+        
+        const parentLevel = parentNode.data?.level || 0;
+        const parentPos = parentNode.position;
+        
+        // 新しいノードのデータ
+        const newNodeData = {
+          name: data.name,
+          description: data.description,
+          nodeType: data.nodeType,
+          parentId: parentId,
+          roleModelId: roleModelId,
+          level: parentLevel + 1,
+        };
+        
+        // APIで新しいノードを作成
+        const response = await fetch(`/api/knowledge-graph/${roleModelId}/nodes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newNodeData),
+        });
+        
+        if (response.ok) {
+          const newNode = await response.json();
+          console.log('作成されたノード:', newNode);
+          
+          // ノードの色を決定
+          const color = '#47c1ff'; // 基本色
+          
+          // UI上に新しいノードを追加
+          const flowNode = {
+            id: newNode.id,
+            type: 'concept',
+            position: {
+              x: parentPos.x + (Math.random() - 0.5) * 200,
+              y: parentPos.y + 150
+            },
+            data: {
+              ...newNode,
+              label: data.name,
+              color,
+              onEdit: (id: string) => handleEditNode(id),
+              onDelete: (id: string) => handleDeleteNode(id),
+              onAddChild: (id: string) => handleAddChildNode(id),
+              onAddSibling: (id: string) => handleAddSiblingNode(id),
+              onExpand: (id: string) => handleExpandNode(id),
+            },
+            style: {
+              background: color,
+              borderColor: color,
+            }
+          };
+          
+          // 新しいエッジを作成
+          const newEdge = {
+            id: `${parentId}-${newNode.id}-${Date.now().toString(36).substr(-6)}`,
+            source: parentId,
+            target: newNode.id,
+            type: 'dataFlow',
+            animated: true,
+            data: { strength: 1 },
+          };
+          
+          // ステートを更新
+          setNodes(prevNodes => [...prevNodes, flowNode]);
+          setEdges(prevEdges => [...prevEdges, newEdge]);
+          
+          toast({
+            title: '子ノードを追加しました',
+            description: `"${data.name}" が親ノードの下に追加されました`,
+            variant: 'default',
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('ノード作成APIエラー:', errorText);
+          toast({
+            title: 'ノード作成エラー',
+            description: '子ノードの追加中にエラーが発生しました',
+            variant: 'destructive',
+          });
+        }
+      } else if (nodeDialog.type === 'add-sibling' && nodeDialog.nodeId) {
+        // 兄弟ノードの追加
+        const siblingId = nodeDialog.nodeId;
+        const siblingNode = nodes.find(n => n.id === siblingId);
+        
+        if (!siblingNode) {
+          console.error('兄弟ノードが見つかりません:', siblingId);
+          return;
+        }
+        
+        const parentId = siblingNode.data?.parentId;
+        const siblingLevel = siblingNode.data?.level || 0;
+        const siblingPos = siblingNode.position;
+        
+        // 新しいノードのデータ
+        const newNodeData = {
+          name: data.name,
+          description: data.description,
+          nodeType: data.nodeType,
+          parentId: parentId, // 同じ親を持つ
+          roleModelId: roleModelId,
+          level: siblingLevel, // 同じレベル
+        };
+        
+        // APIで新しいノードを作成
+        const response = await fetch(`/api/knowledge-graph/${roleModelId}/nodes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newNodeData),
+        });
+        
+        if (response.ok) {
+          const newNode = await response.json();
+          console.log('作成された兄弟ノード:', newNode);
+          
+          // ノードの色を決定
+          const color = '#47c1ff'; // 基本色
+          
+          // UI上に新しいノードを追加
+          const flowNode = {
+            id: newNode.id,
+            type: 'concept',
+            position: {
+              x: siblingPos.x + 200, // 兄弟の右側に配置
+              y: siblingPos.y
+            },
+            data: {
+              ...newNode,
+              label: data.name,
+              color,
+              onEdit: (id: string) => handleEditNode(id),
+              onDelete: (id: string) => handleDeleteNode(id),
+              onAddChild: (id: string) => handleAddChildNode(id),
+              onAddSibling: (id: string) => handleAddSiblingNode(id),
+              onExpand: (id: string) => handleExpandNode(id),
+            },
+            style: {
+              background: color,
+              borderColor: color,
+            }
+          };
+          
+          // 親が存在する場合は親からのエッジも追加
+          let newEdges = [];
+          if (parentId) {
+            const newEdge = {
+              id: `${parentId}-${newNode.id}-${Date.now().toString(36).substr(-6)}`,
+              source: parentId,
+              target: newNode.id,
+              type: 'dataFlow',
+              animated: true,
+              data: { strength: 1 },
+            };
+            newEdges.push(newEdge);
+          }
+          
+          // ステートを更新
+          setNodes(prevNodes => [...prevNodes, flowNode]);
+          setEdges(prevEdges => [...prevEdges, ...newEdges]);
+          
+          toast({
+            title: '兄弟ノードを追加しました',
+            description: `"${data.name}" が同じレベルに追加されました`,
+            variant: 'default',
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('ノード作成APIエラー:', errorText);
+          toast({
+            title: 'ノード作成エラー',
+            description: '兄弟ノードの追加中にエラーが発生しました',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('ノード保存処理エラー:', error);
+      toast({
+        title: 'エラー',
+        description: 'ノードの保存中にエラーが発生しました',
+        variant: 'destructive',
+      });
+    } finally {
+      // ダイアログを閉じる
+      setNodeDialog(prev => ({ ...prev, open: false }));
+    }
+  }, [nodeDialog, nodes, roleModelId, handleEditNode, handleDeleteNode, handleAddChildNode, handleAddSiblingNode, handleExpandNode]);
 
-
-  // AI生成リクエスト
-  const generateKnowledgeGraph = useCallback(async () => {
+  // CrewAIを使ったグラフ生成
+  const startGraphGeneration = useCallback(async () => {
+    if (!roleModelId || !generating) return;
+    
     try {
       setGenerating(true);
       setProgress(0);
-      setProgressMessage('ナレッジグラフの生成を開始しています...');
+      setProgressMessage('開始中...');
       setAgentMessages([]);
       
-      // 生成リクエストを送信
-      const response = await fetch(`/api/knowledge-graph/generate/${roleModelId}`, {
+      // 進捗更新ハンドラ
+      const handleProgress = (data: any) => {
+        console.log('グラフ生成進捗:', data);
+        
+        if (data && typeof data.progress === 'number') {
+          setProgress(data.progress);
+        }
+        
+        if (data && data.message) {
+          setProgressMessage(data.message);
+        }
+      };
+      
+      // エージェント思考プロセス処理ハンドラ
+      const handleAgentThoughts = (data: any) => {
+        if (data && data.agent && data.message) {
+          console.log(`エージェント思考 (${data.agent}):`, data.message);
+          
+          // 新しいメッセージを追加
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              agent: data.agent,
+              message: data.message,
+              timestamp: data.timestamp || new Date().toISOString()
+            }
+          ]);
+        }
+      };
+      
+      // WebSocketイベントリスナーを設定
+      addSocketListener('knowledgeGraphProgress', handleProgress);
+      addSocketListener('agentThoughts', handleAgentThoughts);
+      
+      // APIリクエストを送信
+      const response = await fetch(`/api/knowledge-graph/${roleModelId}/generate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
       
       if (!response.ok) {
-        throw new Error(`ナレッジグラフの生成リクエストに失敗しました: ${response.statusText}`);
+        throw new Error('グラフ生成APIエラー: ' + response.statusText);
       }
       
-      // WebSocketで進捗が通知されるので、レスポンスは特に処理しない
+      const result = await response.json();
+      console.log('グラフ生成開始結果:', result);
       
-    } catch (err) {
-      console.error('ナレッジグラフ生成エラー:', err);
-      setProgressMessage(err instanceof Error ? err.message : '不明なエラーが発生しました');
-      setGenerating(false);
-    }
-  }, [roleModelId, autoLoad]);
-
-  // WebSocketから進捗と結果を受信（AI生成中の進捗表示用）
-  useEffect(() => {
-    if (!roleModelId || !generating) return;
-    
-    console.log(`[KnowledgeGraphViewer] 進捗リスナーをセットアップ: roleModelId=${roleModelId}, autoLoad=${autoLoad}`);
-    
-    // 進捗更新リスナー
-    const handleProgress = (data: any) => {
-      console.log('Progress update received:', data);
+      // ユーザーに通知
+      toast({
+        title: 'グラフ生成開始',
+        description: '生成処理を開始しました。完了までしばらくお待ちください。',
+        variant: 'default',
+      });
       
-      // データ構造を正規化（WebSocketメッセージ形式対応）
-      const payload = data.payload || data;
-      
-      // roleModelIdが一致する場合、またはpayload.roleModelIdがundefinedの場合
-      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
-      const matchesRoleModel = !targetRoleModelId || targetRoleModelId === roleModelId;
-      
-      if (matchesRoleModel) {
-        console.log(`Progress update for ${roleModelId}:`, data);
-        const progressValue = payload.progress || payload.percent || payload.progressPercent || 0;
-        setProgress(progressValue);
-        setProgressMessage(payload.message || 'Processing...');
-        
-        // 完了時
-        if (progressValue >= 100 || payload.status === 'completed' || payload.status === 'complete') {
-          console.log('Progress complete, fetching updated graph data');
-          setTimeout(() => {
-            setGenerating(false);
-            // 少し遅延させてデータベースの更新が確実に反映されるようにする
-            setTimeout(() => {
-              console.log('明示的にグラフデータをリクエストします（進捗完了後）');
-              requestGraphData(); // fetchGraphDataからrequestGraphDataに変更
-            }, 1500);
-          }, 500);
-        }
-      }
-    };
-    
-    // エージェント思考リスナー
-    const handleAgentThoughts = (data: any) => {
-      console.log('Agent thoughts received:', data);
-      
-      // データ構造を正規化（WebSocketメッセージ形式対応）
-      const payload = data.payload || data;
-      
-      // roleModelIdが一致する場合、またはpayload.roleModelIdがundefinedの場合
-      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
-      const matchesRoleModel = !targetRoleModelId || targetRoleModelId === roleModelId;
-      
-      if (matchesRoleModel) {
-        console.log(`Agent thoughts for ${roleModelId}:`, data);
-        setAgentMessages(prev => [
-          ...prev, 
-          {
-            agent: payload.agentName || 'Agent', 
-            message: payload.thought || payload.thoughts || payload.message || 'Working...',
-            timestamp: payload.timestamp || new Date().toISOString()
+      // 生成完了を検出するためのポーリング
+      const checkInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/knowledge-graph/${roleModelId}/generation-status`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            
+            if (statusData.status === 'completed') {
+              clearInterval(checkInterval);
+              
+              // 生成が完了したらグラフを読み込む
+              await fetchGraphData();
+              
+              // 生成状態をリセット
+              setGenerating(false);
+              setProgress(100);
+              setProgressMessage('完了しました');
+              
+              // 完了通知
+              toast({
+                title: 'グラフ生成完了',
+                description: 'ナレッジグラフが正常に生成されました',
+                variant: 'default',
+              });
+            } else if (statusData.status === 'failed') {
+              clearInterval(checkInterval);
+              setGenerating(false);
+              
+              // エラー通知
+              toast({
+                title: 'グラフ生成失敗',
+                description: statusData.error || '生成中にエラーが発生しました',
+                variant: 'destructive',
+              });
+            }
           }
-        ]);
-      }
-    };
-    
-    // イベントリスナーの登録
-    addSocketListener('progress', handleProgress);
-    addSocketListener('agent_thoughts', handleAgentThoughts);
-    
-    return () => {
-      // イベントリスナーの解除
-      removeSocketListener('progress', handleProgress);
-      removeSocketListener('agent_thoughts', handleAgentThoughts);
-      console.log('Removed progress and agent_thoughts listeners');
-    };
-  }, [roleModelId, requestGraphData, generating, autoLoad]);
-
-  // デバッグ情報を生成
-  const debugInfo = {
-    roleModelId,
-    connectionStatus: {
-      isConnected,
-      wsStatus: wsLoading ? "loading" : wsError ? "error" : "connected"
-    },
-    stateInfo: {
-      loading,
-      error,
-      hasKnowledgeGraph,
-      loadingProgress,
-      loadingMessagesCount: loadingMessages.length,
-      nodesCount: nodes.length,
-      edgesCount: edges.length,
-    },
-    webSocketData: {
-      websocketNodesCount: websocketNodes.length,
-      websocketEdgesCount: websocketEdges.length,
-      lastUpdateTime,
-      lastUpdateSource
+        } catch (err) {
+          console.error('生成状態チェックエラー:', err);
+        }
+      }, 5000); // 5秒ごとにチェック
+      
+      // クリーンアップ関数
+      return () => {
+        clearInterval(checkInterval);
+        removeSocketListener('knowledgeGraphProgress', handleProgress);
+        removeSocketListener('agentThoughts', handleAgentThoughts);
+      };
+    } catch (error) {
+      console.error('グラフ生成エラー:', error);
+      setGenerating(false);
+      
+      toast({
+        title: 'グラフ生成エラー',
+        description: error instanceof Error ? error.message : '不明なエラーが発生しました',
+        variant: 'destructive',
+      });
     }
-  };
+  }, [roleModelId, generating, fetchGraphData]);
 
   return (
     <div className="flex flex-col w-full h-full" style={{ height: '100%' }}>
       <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
-        
-        {/* デバッグ情報表示エリア */}
-        <div className="mb-2 p-2 bg-yellow-50 rounded-md border border-yellow-200 text-xs overflow-auto" style={{ maxHeight: '350px', width: '100%' }}>
-          <h4 className="font-bold">デバッグ情報:</h4>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p><strong>RoleModelID:</strong> {roleModelId}</p>
-              <p><strong>WebSocket接続状態:</strong> {isConnected ? '接続済み' : '未接続'}</p>
-              <p><strong>WebSocketステータス:</strong> {wsLoading ? "読込中" : wsError ? "エラー" : "接続済み"}</p>
-            </div>
-            <div>
-              <p><strong>ノード数:</strong> {nodes.length} (WebSocket: {websocketNodes.length})</p>
-              <p><strong>エッジ数:</strong> {edges.length} (WebSocket: {websocketEdges.length})</p>
-              <p><strong>ロード状態:</strong> {loading ? `読込中 (${loadingProgress}%)` : '完了'}</p>
-              <p><strong>グラフ存在:</strong> {hasKnowledgeGraph ? 'あり' : 'なし'}</p>
-            </div>
-          </div>
-          <div className="mt-1">
-            <p><strong>エラー:</strong> {error || 'なし'}</p>
-            <p><strong>最終更新:</strong> {lastUpdateTime ? new Date(lastUpdateTime).toLocaleString() : 'なし'}</p>
-            <p><strong>更新元:</strong> {lastUpdateSource || 'なし'}</p>
-          </div>
-          <pre className="mt-1 text-xs bg-gray-100 p-1 rounded overflow-auto">
-            {JSON.stringify(debugInfo, null, 2)}
-          </pre>
-
-          {/* WebSocketから受け取ったノードのサンプル */}
-          {websocketNodes.length > 0 && (
-            <div className="mt-1">
-              <p><strong>WebSocketノードサンプル:</strong></p>
-              <pre className="bg-gray-100 p-1 rounded overflow-auto" style={{ maxHeight: '100px' }}>
-                {JSON.stringify(websocketNodes[0], null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
         
         <div className="flex space-x-2">
           {hasKnowledgeGraph && (
@@ -1345,169 +1377,205 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             </TooltipProvider>
           )}
 
-
-          
           {/* CrewAIボタンはKnowledgeGraphPageに移動しました */}
         </div>
       </div>
       
-      {generating ? (
-        <div className="flex-1 flex flex-col items-center justify-center bg-white/50 rounded-lg p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <div className="w-full max-w-md">
-            <div className="flex justify-between mb-2">
-              <span className="text-sm font-medium">{progressMessage}</span>
-              <span className="text-sm font-medium">{progress}%</span>
-            </div>
-            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+      {/* デバッグ情報表示エリア */}
+      <div className="w-full mb-2 p-2 bg-yellow-50 rounded-md border border-yellow-200 text-xs overflow-auto" style={{ maxHeight: '350px' }}>
+        <h4 className="font-bold">デバッグ情報:</h4>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p><strong>RoleModelID:</strong> {roleModelId}</p>
+            <p><strong>WebSocket接続状態:</strong> {isConnected ? '接続済み' : '未接続'}</p>
+            <p><strong>WebSocketステータス:</strong> {wsLoading ? "読込中" : wsError ? "エラー" : "接続済み"}</p>
           </div>
-          
-          {agentMessages.length > 0 && (
-            <div className="mt-8 w-full max-w-md">
-              <h4 className="text-md font-medium mb-2">AI思考プロセス:</h4>
-              <div className="bg-muted/30 rounded-lg p-4 max-h-60 overflow-y-auto text-sm">
-                {agentMessages.map((msg, idx) => (
-                  <div key={idx} className="mb-3 last:mb-0">
-                    <div className="font-semibold text-primary">{msg.agent}</div>
-                    <div className="whitespace-pre-line">{msg.message}</div>
-                  </div>
-                ))}
+          <div>
+            <p><strong>ノード数:</strong> {nodes.length} (WebSocket: {websocketNodes.length})</p>
+            <p><strong>エッジ数:</strong> {edges.length} (WebSocket: {websocketEdges.length})</p>
+            <p><strong>ロード状態:</strong> {loading ? `読込中 (${loadingProgress}%)` : '完了'}</p>
+            <p><strong>グラフ存在:</strong> {hasKnowledgeGraph ? 'あり' : 'なし'}</p>
+          </div>
+        </div>
+        <div className="mt-1">
+          <p><strong>エラー:</strong> {error || 'なし'}</p>
+          <p><strong>最終更新:</strong> {lastUpdateTime ? new Date(lastUpdateTime).toLocaleString() : 'なし'}</p>
+          <p><strong>更新元:</strong> {lastUpdateSource || 'なし'}</p>
+        </div>
+        <pre className="mt-1 text-xs bg-gray-100 p-1 rounded overflow-auto">
+          {JSON.stringify(debugInfo, null, 2)}
+        </pre>
+
+        {/* WebSocketから受け取ったノードのサンプル */}
+        {websocketNodes.length > 0 && (
+          <div className="mt-1">
+            <p><strong>WebSocketノードサンプル:</strong></p>
+            <pre className="bg-gray-100 p-1 rounded overflow-auto" style={{ maxHeight: '100px' }}>
+              {JSON.stringify(websocketNodes[0], null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+      
+      <div className="flex-1">
+        {generating ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-white/50 rounded-lg p-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <div className="w-full max-w-md">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">{progressMessage}</span>
+                <span className="text-sm font-medium">{progress}%</span>
+              </div>
+              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             </div>
-          )}
-        </div>
-      ) : loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-      ) : error ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-red-500 bg-red-50 p-4 rounded-lg max-w-md">
-            <h3 className="font-semibold mb-2">エラーが発生しました</h3>
-            <p>{error}</p>
-            <Button
-              className="mt-4"
-              onClick={requestGraphData}
-            >
-              再試行
-            </Button>
+          
+            {agentMessages.length > 0 && (
+              <div className="mt-8 w-full max-w-md">
+                <h4 className="text-md font-medium mb-2">AI思考プロセス:</h4>
+                <div className="bg-muted/30 rounded-lg p-4 max-h-60 overflow-y-auto text-sm">
+                  {agentMessages.map((msg, idx) => (
+                    <div key={idx} className="mb-3 last:mb-0">
+                      <div className="font-semibold text-primary">{msg.agent}</div>
+                      <div className="whitespace-pre-line">{msg.message}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      ) : (
-        <div className="flex-1 h-full" style={{ height: 'calc(100% - 36px)', width: '100%', minHeight: '500px', position: 'relative' }}>
-          <ReactFlowProvider>
-            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
-              <ReactFlow
-                style={{ height: '100%', width: '100%' }}
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={handleNodesChange}
-                onEdgesChange={handleEdgesChange}
-                onNodeClick={handleNodeClick}
-                onConnect={handleConnect}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
-                connectionLineType={ConnectionLineType.SmoothStep}
-                fitView
-                attributionPosition="bottom-right"
-                onNodeContextMenu={(e, node) => {
-                  // コンテキストメニューは各ノードコンポーネント内で処理
-                  e.preventDefault();
-                }}
-                defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        ) : loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-red-500 bg-red-50 p-4 rounded-lg max-w-md">
+              <h3 className="font-semibold mb-2">エラーが発生しました</h3>
+              <p>{error}</p>
+              <Button
+                className="mt-4"
+                onClick={requestGraphData}
               >
-                <Background color="#aaa" gap={16} />
-                <Controls 
-                  position="bottom-left"
-                  style={{ bottom: 42, left: 12 }}
-                />
-                <MiniMap
-                  position="bottom-right"
-                  style={{ bottom: 28, right: 12 }}
-                  nodeStrokeWidth={3}
-                  nodeColor={(node) => {
-                    return node.data?.color || '#1a192b';
-                  }}
-                />
-                
-                {/* グラフ保存パネル */}
-                <Panel position="top-right" style={{ right: 10, top: 10 }}>
-                  <KnowledgeGraphSavePanel 
-                    roleModelId={roleModelId} 
-                    onSaveSuccess={requestGraphData}
-                  />
-                </Panel>
-                
-                {/* 元に戻すボタン - Undoスタックに操作がある場合のみ表示 */}
-                {undoStack.length > 0 && (
-                  <div 
-                    style={{ 
-                      position: 'absolute', 
-                      top: 10, 
-                      left: 10, 
-                      zIndex: 10 
-                    }}
-                    className="bg-white dark:bg-gray-800 shadow-md rounded-md p-1"
-                  >
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={handleUndo}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                          <p>元に戻す (Ctrl+Z)</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                )}
-              </ReactFlow>
+                再試行
+              </Button>
             </div>
-          </ReactFlowProvider>
-          
-          {/* ノード編集ダイアログ */}
-          <NodeEditDialog
-            open={nodeDialog.open}
-            onOpenChange={(open) => setNodeDialog(prev => ({ ...prev, open }))}
-            type={nodeDialog.type}
-            node={nodeDialog.node}
-            onSave={handleNodeSave}
-          />
-          
-          {/* アラートダイアログ */}
-          <AlertDialog 
-            open={alertDialog.open} 
-            onOpenChange={(open) => setAlertDialog(prev => ({ ...prev, open }))}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{alertDialog.title}</AlertDialogTitle>
-              </AlertDialogHeader>
-              <AlertDialogDescription>
-                {alertDialog.message}
-              </AlertDialogDescription>
-              <AlertDialogFooter>
-                <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                <AlertDialogAction onClick={alertDialog.confirmAction}>
-                  確認
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="flex-1 h-full" style={{ height: 'calc(100% - 36px)', width: '100%', minHeight: '500px', position: 'relative' }}>
+            <ReactFlowProvider>
+              <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+                <ReactFlow
+                  style={{ height: '100%', width: '100%' }}
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={handleNodesChange}
+                  onEdgesChange={handleEdgesChange}
+                  onNodeClick={handleNodeClick}
+                  onConnect={handleConnect}
+                  nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
+                  connectionLineType={ConnectionLineType.SmoothStep}
+                  fitView
+                  attributionPosition="bottom-right"
+                  onNodeContextMenu={(e, node) => {
+                    // コンテキストメニューは各ノードコンポーネント内で処理
+                    e.preventDefault();
+                  }}
+                  defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                >
+                  <Background color="#aaa" gap={16} />
+                  <Controls 
+                    position="bottom-left"
+                    style={{ bottom: 42, left: 12 }}
+                  />
+                  <MiniMap
+                    position="bottom-right"
+                    style={{ bottom: 28, right: 12 }}
+                    nodeStrokeWidth={3}
+                    nodeColor={(node) => {
+                      return node.data?.color || '#1a192b';
+                    }}
+                  />
+                  
+                  {/* グラフ保存パネル */}
+                  <Panel position="top-right" style={{ right: 10, top: 10 }}>
+                    <KnowledgeGraphSavePanel 
+                      roleModelId={roleModelId} 
+                      onSaveSuccess={requestGraphData}
+                    />
+                  </Panel>
+                  
+                  {/* 元に戻すボタン - Undoスタックに操作がある場合のみ表示 */}
+                  {undoStack.length > 0 && (
+                    <div 
+                      style={{ 
+                        position: 'absolute', 
+                        top: 10, 
+                        left: 10, 
+                        zIndex: 10 
+                      }}
+                      className="bg-white dark:bg-gray-800 shadow-md rounded-md p-1"
+                    >
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={handleUndo}
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">
+                            <p>元に戻す (Ctrl+Z)</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  )}
+                </ReactFlow>
+              </div>
+            </ReactFlowProvider>
+            
+            {/* ノード編集ダイアログ */}
+            <NodeEditDialog
+              open={nodeDialog.open}
+              onOpenChange={(open) => setNodeDialog(prev => ({ ...prev, open }))}
+              type={nodeDialog.type}
+              node={nodeDialog.node}
+              onSave={handleNodeSave}
+            />
+            
+            {/* アラートダイアログ */}
+            <AlertDialog 
+              open={alertDialog.open} 
+              onOpenChange={(open) => setAlertDialog(prev => ({ ...prev, open }))}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{alertDialog.title}</AlertDialogTitle>
+                </AlertDialogHeader>
+                <AlertDialogDescription>
+                  {alertDialog.message}
+                </AlertDialogDescription>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                  <AlertDialogAction onClick={alertDialog.confirmAction}>
+                    確認
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
