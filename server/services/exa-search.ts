@@ -22,6 +22,7 @@ export interface ExaSearchOptions {
   excludeDomains?: string[];
   startPublishedDate?: string;
   endPublishedDate?: string;
+  useCache?: boolean; // キャッシュを使用するかどうか（実際のAPIに送信されず、ローカル処理のみで使用）
 }
 
 /**

@@ -84,8 +84,7 @@ export function createSearchSpecialistAgent(): Agent {
           try {
             return await searchWithExa({
               query: query,
-              numResults: maxResults,
-              useCache: true
+              numResults: maxResults
             });
           } catch (error) {
             console.error("Error using Exa search:", error);
