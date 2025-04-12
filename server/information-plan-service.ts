@@ -285,10 +285,10 @@ export function notifyInformationPlanUpdate(
   roleModelId: string,
   planData: any,
   updateType: string = 'update',
-  sendSocketMessage: (type: string, data: any) => void
+  sendSocketMessage: (targetRoleModelId: string | string[] | undefined, type: string, data: any) => void
 ): void {
   try {
-    sendSocketMessage('information_plan_update', {
+    sendSocketMessage(roleModelId, 'information_plan_update', {
       message: `情報収集プランが${updateType === 'create' ? '作成' : updateType === 'update' ? '更新' : '削除'}されました`,
       roleModelId,
       plan: planData,

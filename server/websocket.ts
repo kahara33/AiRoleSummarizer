@@ -72,8 +72,8 @@ export function initWebSocket(server: HttpServer): void {
       }
     });
     
-    // 接続イベントのハンドリング
-    wss.on('connection', (ws, req) => {
+    // 接続イベントのハンドリング - 非同期関数として定義
+    wss.on('connection', async (ws, req) => {
       try {
         // クエリパラメータの解析
         const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
@@ -111,8 +111,8 @@ export function initWebSocket(server: HttpServer): void {
           try {
             const cookies = parseCookie(req.headers.cookie);
             if (cookies.sessionId) {
-              const sessionCheck = verifySession(cookies.sessionId);
-              authVerified = sessionCheck ? true : false;
+              const sessionCheck = await verifySession(cookies.sessionId);
+              authVerified = sessionCheck !== null;
             }
           } catch (cookieError) {
             console.error('Cookie解析エラー:', cookieError);
