@@ -32,6 +32,16 @@ interface MultiAgentWebSocketContextType {
   sendMessage: (type: string, payload: any) => boolean;
   clearMessages: () => void;
   forceResetProcessing: () => void;
+  // 追加機能：ナレッジグラフ生成リクエスト専用の便利関数
+  sendCreateKnowledgeGraphRequest?: (options: {
+    includeCollectionPlan?: boolean;
+    industry?: string;
+    keywords?: string[];
+  }) => boolean;
+  // 追加機能：キャンセル操作リクエスト専用の便利関数
+  sendCancelOperationRequest?: (operationType: string) => boolean;
+  // 追加機能：WebSocket操作のキャンセル共通関数
+  cancelOperation?: () => boolean;
 }
 
 /**
@@ -369,6 +379,44 @@ function useMultiAgentWebSocketManager() {
     setIsProcessing(false);
   }, []);
   
+  // 追加機能: ナレッジグラフ生成リクエスト専用の便利関数
+  const sendCreateKnowledgeGraphRequest = useCallback((options: {
+    includeCollectionPlan?: boolean;
+    industry?: string;
+    keywords?: string[];
+  }) => {
+    console.log('ナレッジグラフ生成リクエスト:', options);
+    return sendMessage('create_knowledge_graph', {
+      roleModelId: currentRoleModelId,
+      includeCollectionPlan: options.includeCollectionPlan !== false, // デフォルトでtrue
+      industry: options.industry || '一般',
+      keywords: options.keywords || ['情報収集', 'ナレッジグラフ']
+    });
+  }, [sendMessage, currentRoleModelId]);
+  
+  // 追加機能: キャンセル操作リクエスト専用の便利関数
+  const sendCancelOperationRequest = useCallback((operationType: string) => {
+    console.log(`${operationType} 操作のキャンセルリクエストを送信`);
+    return sendMessage('cancel_operation', {
+      roleModelId: currentRoleModelId,
+      operationType
+    });
+  }, [sendMessage, currentRoleModelId]);
+  
+  // 追加機能: WebSocket操作のキャンセル共通関数
+  const cancelOperation = useCallback(() => {
+    console.log('WebSocket操作のキャンセルを実行');
+    // まず、汎用的なキャンセル操作を送信
+    const result = sendMessage('cancel', {
+      roleModelId: currentRoleModelId
+    });
+    
+    // 処理状態をリセット
+    setIsProcessing(false);
+    
+    return result;
+  }, [sendMessage, currentRoleModelId]);
+  
   return {
     isConnected,
     connecting,
@@ -380,6 +428,9 @@ function useMultiAgentWebSocketManager() {
     progressUpdates,
     isProcessing,
     clearMessages,
-    forceResetProcessing
+    forceResetProcessing,
+    sendCreateKnowledgeGraphRequest,
+    sendCancelOperationRequest,
+    cancelOperation
   };
 }

@@ -35,6 +35,7 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/comp
 import { useNodeOperations } from './NodeOperations';
 import { toast, useToast } from '@/hooks/use-toast';
 import KnowledgeGraphSavePanel from './KnowledgeGraphSavePanel';
+import AIGenerationButtonsContainer from './AIGenerationButtonsContainer';
 
 
 type KnowledgeNode = ExtendedKnowledgeNode;
