@@ -1,10 +1,11 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { Server, createServer } from 'http';
 import { 
-  initWebSocket,
+  initWebSocketServer,
   sendProgressUpdate,
   sendAgentThoughts,
-  sendMessageToRoleModelViewers
+  sendToRoleModel,
+  sendGraphUpdate
 } from './websocket';
 import { db } from './db';
 import { setupAuth, isAuthenticated, requireRole, hashPassword, comparePasswords } from './auth';
@@ -35,7 +36,8 @@ import {
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
 import { generateKnowledgeGraphWithCrewAI } from './agents';
-import { generateKnowledgeLibraryWithCrewAI } from './services/crew-ai/knowledge-library-service';
+import { runKnowledgeLibraryProcess, createCollectionPlan, getCollectionPlans, getCollectionSummaries, getCollectionSources } from './services/crew-ai/knowledge-library-service';
+import { searchWithExa, executeSearchForCollectionPlan } from './services/exa-search';
 import { randomUUID } from 'crypto';
 
 // UUIDの検証関数
@@ -61,7 +63,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
   
   // WebSocketサーバーのセットアップはserver/index.tsで行われるため、ここでは不要
-  // initWebSocket(httpServer);
+  // initWebSocketServer(httpServer);
   
   // API エンドポイントの設定
   // システム状態の確認
@@ -938,9 +940,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
               });
               
               // WebSocketで接続中のクライアントに通知
-              sendMessageToRoleModelViewers('knowledge_graph_update', {
+              sendToRoleModel(roleModelId, {
+                type: 'knowledge_graph_update',
                 message: '知識グラフが更新されました'
-              }, roleModelId);
+              });
               
             } catch (dbError) {
               console.error('知識グラフ保存エラー:', dbError);
@@ -1159,6 +1162,195 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ==================
   // ナレッジライブラリ関連
   // ==================
+  
+  // Exa検索API - 検索実行
+  app.post('/api/exa/search', isAuthenticated, async (req, res) => {
+    try {
+      const { query, roleModelId, options } = req.body;
+      
+      if (!query) {
+        return res.status(400).json({ error: '検索クエリが必要です' });
+      }
+      
+      const searchOptions = {
+        query,
+        ...options
+      };
+      
+      const results = await searchWithExa(searchOptions, roleModelId);
+      res.json(results);
+    } catch (error) {
+      console.error('Exa検索エラー:', error);
+      res.status(500).json({ 
+        error: 'Exa検索の実行に失敗しました', 
+        details: error instanceof Error ? error.message : '不明なエラー' 
+      });
+    }
+  });
+  
+  // Exa検索API - コンテンツ取得
+  app.post('/api/exa/content', isAuthenticated, async (req, res) => {
+    try {
+      const { url, roleModelId } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URLまたはIDが必要です' });
+      }
+      
+      const content = await fetchContentWithExa(url, roleModelId);
+      res.json(content);
+    } catch (error) {
+      console.error('Exaコンテンツ取得エラー:', error);
+      res.status(500).json({ 
+        error: 'Exaコンテンツの取得に失敗しました', 
+        details: error instanceof Error ? error.message : '不明なエラー' 
+      });
+    }
+  });
+  
+  // 情報収集プランに基づいた検索実行
+  app.post('/api/collection-plans/:planId/execute-search', isAuthenticated, async (req, res) => {
+    try {
+      const { planId } = req.params;
+      const { roleModelId } = req.body;
+      
+      if (!roleModelId || !isValidUUID(roleModelId)) {
+        return res.status(400).json({ error: '有効なロールモデルIDが必要です' });
+      }
+      
+      // プランの取得
+      const plan = await db.query.collectionPlans.findFirst({
+        where: eq(collectionPlans.id, planId)
+      });
+      
+      if (!plan) {
+        return res.status(404).json({ error: '情報収集プランが見つかりません' });
+      }
+      
+      // アクセス権チェック（シンプルバージョン）
+      if (plan.createdBy !== req.user?.id && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'このプランにアクセスする権限がありません' });
+      }
+      
+      // 検索を開始
+      res.json({ status: 'processing', message: '検索を開始しました' });
+      
+      // バックグラウンドで処理
+      executeSearchForCollectionPlan(plan, roleModelId)
+        .then(results => {
+          console.log(`検索成功: ${planId}, ${results.length}件の結果`);
+          // WebSocketでクライアントに通知
+          sendProgressUpdate(roleModelId, {
+            type: 'collection_plan_search_complete',
+            message: `${results.length}件の検索結果が見つかりました`,
+            data: { count: results.length }
+          });
+        })
+        .catch(error => {
+          console.error(`検索エラー: ${planId}`, error);
+          // WebSocketでクライアントに通知
+          sendProgressUpdate(roleModelId, {
+            type: 'collection_plan_search_error',
+            message: `検索エラー: ${error instanceof Error ? error.message : '不明なエラー'}`
+          });
+        });
+    } catch (error) {
+      console.error('情報収集プラン検索実行エラー:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: '検索の実行に失敗しました', 
+          details: error instanceof Error ? error.message : '不明なエラー' 
+        });
+      }
+    }
+  });
+  
+  // 情報収集プランの検索結果取得
+  app.get('/api/collection-plans/:planId/search-results', isAuthenticated, async (req, res) => {
+    try {
+      const { planId } = req.params;
+      const { executionId } = req.query;
+      
+      // アクセス権チェック（シンプルバージョン）
+      const plan = await db.query.collectionPlans.findFirst({
+        where: eq(collectionPlans.id, planId)
+      });
+      
+      if (!plan) {
+        return res.status(404).json({ error: '情報収集プランが見つかりません' });
+      }
+      
+      if (plan.createdBy !== req.user?.id && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'このプランにアクセスする権限がありません' });
+      }
+      
+      // 検索結果の取得
+      let query = db.select().from(collectionSources)
+        .where(eq(collectionSources.collectionPlanId, planId))
+        .orderBy(desc(collectionSources.scoreRelevance));
+      
+      // 特定の実行IDに絞る場合
+      if (executionId) {
+        query = query.where(eq(collectionSources.executionId, executionId.toString()));
+      }
+      
+      const results = await query;
+      
+      res.json(results);
+    } catch (error) {
+      console.error('情報収集プラン検索結果取得エラー:', error);
+      res.status(500).json({ 
+        error: '検索結果の取得に失敗しました', 
+        details: error instanceof Error ? error.message : '不明なエラー' 
+      });
+    }
+  });
+  
+  // CrewAIを使用してマルチエージェント処理を実行
+  app.post('/api/knowledge-library/run-agents/:roleModelId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      const { collectionPlanId } = req.body;
+      
+      if (!roleModelId || !isValidUUID(roleModelId)) {
+        return res.status(400).json({ error: '有効なロールモデルIDが必要です' });
+      }
+      
+      if (!collectionPlanId || !isValidUUID(collectionPlanId)) {
+        return res.status(400).json({ error: '有効な情報収集プランIDが必要です' });
+      }
+      
+      // 初期レスポンスを返す
+      res.json({ status: 'processing', message: 'マルチエージェント処理を開始しました' });
+      
+      // バックグラウンドで処理
+      runKnowledgeLibraryProcess(collectionPlanId, roleModelId)
+        .then(result => {
+          console.log(`マルチエージェント処理完了: ${collectionPlanId}`);
+          sendProgressUpdate(roleModelId, {
+            type: 'agents_process_complete',
+            message: '処理が完了しました',
+            data: result
+          });
+        })
+        .catch(error => {
+          console.error(`マルチエージェント処理エラー: ${collectionPlanId}`, error);
+          sendProgressUpdate(roleModelId, {
+            type: 'agents_process_error',
+            message: `処理エラー: ${error instanceof Error ? error.message : '不明なエラー'}`
+          });
+        });
+    } catch (error) {
+      console.error('マルチエージェント処理実行エラー:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'マルチエージェント処理の実行に失敗しました', 
+          details: error instanceof Error ? error.message : '不明なエラー' 
+        });
+      }
+    }
+  });
+  
   // ナレッジライブラリの生成
   app.post('/api/knowledge-library/generate/:roleModelId', isAuthenticated, async (req, res) => {
     try {
@@ -1504,7 +1696,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       });
       
       // WebSocketでリアルタイム更新を通知
-      sendMessageToRoleModelViewers('graph-update', { 
+      sendToRoleModel(roleModelId, {
+        type: 'graph-update', 
         updateType: 'expand', 
         nodeId,
         data: {

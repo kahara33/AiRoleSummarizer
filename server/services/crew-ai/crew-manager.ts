@@ -18,7 +18,7 @@ import {
 } from './tasks/task-definitions';
 
 // WebSocketサーバー関連のインポート
-import { sendAgentThoughts, sendProgressUpdate, sendMessageToRoleModelViewers, sendPartialGraphUpdate } from '../../websocket';
+import { sendAgentThoughts, sendProgressUpdate, sendToRoleModel, sendGraphUpdate } from '../../websocket';
 
 /**
  * CrewAIマネージャークラス
@@ -787,10 +787,9 @@ JSONを含む詳細な分析結果を返してください。`;
     });
     
     // 初期グラフデータをWebSocketを介して送信
-    sendPartialGraphUpdate(
+    sendGraphUpdate(
       roleModelId,
-      { nodes, edges },
-      'システム'
+      { nodes, edges }
     );
     
     return { nodes, edges };
@@ -813,10 +812,9 @@ JSONを含む詳細な分析結果を返してください。`;
       
       // 初期グラフ構造を部分的に送信
       try {
-        sendPartialGraphUpdate(
+        sendGraphUpdate(
           roleModelId,
-          initialGraphData,
-          'システム（初期化）'
+          initialGraphData
         );
         console.log('初期グラフ構造を送信しました。');
       } catch (error) {
@@ -941,10 +939,9 @@ JSONを含む詳細な分析結果を返してください。`;
         
         // 部分更新として送信
         if (analysisGraphData.nodes.length > 0) {
-          sendPartialGraphUpdate(
+          sendGraphUpdate(
             roleModelId,
-            analysisGraphData,
-            'ドメインアナリスト'
+            analysisGraphData
           );
           console.log(`業界分析結果から${analysisGraphData.nodes.length}個のノードをグラフに追加しました`);
         }
@@ -1316,7 +1313,8 @@ JSONを含む詳細な分析結果を返してください。`;
           // 同じメッセージを複数のタイプで送信する理由：
           // - さまざまなクライアントコードの互換性を維持するため
           // - エラー発生時のフォールバック機構として機能
-          sendMessageToRoleModelViewers(roleModelId, 'graph-update', {
+          sendToRoleModel(roleModelId, {
+            type: 'graph-update',
             message: 'ナレッジグラフが完成しました',
             timestamp: timestamp,
             updateType: 'complete',
@@ -1324,7 +1322,8 @@ JSONを含む詳細な分析結果を返してください。`;
           });
           
           setTimeout(() => {
-            sendMessageToRoleModelViewers(roleModelId, 'knowledge-graph-update', {
+            sendToRoleModel(roleModelId, {
+              type: 'knowledge-graph-update',
               message: 'ナレッジグラフが完成しました',
               timestamp: timestamp,
               updateType: 'complete',

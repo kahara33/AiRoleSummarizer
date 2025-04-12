@@ -5,7 +5,7 @@ import {
   KnowledgeGraphData 
 } from '@shared/schema';
 import { callAzureOpenAI } from './azure-openai';
-import { sendProgressUpdate, sendKnowledgeGraphUpdate } from './websocket';
+import { sendProgressUpdate, sendGraphUpdate } from './websocket';
 import { randomUUID } from 'crypto';
 
 /**
@@ -480,7 +480,7 @@ async function saveKnowledgeGraphToDatabase(
       };
       
       // 複数の互換性のあるメッセージタイプで知識グラフ更新を通知
-      sendKnowledgeGraphUpdate(roleModelId, graphPayload, 'update');
+      sendGraphUpdate(roleModelId, graphPayload, 'update');
       
       console.log(`WebSocket notification sent for knowledge graph update (${graphData.nodes.length} nodes, ${graphData.edges.length} edges)`);
     } catch (notificationError) {
