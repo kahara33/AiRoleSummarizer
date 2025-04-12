@@ -28,6 +28,17 @@ export default function AIGenerationButtonsContainer({
   // ボタン状態を管理
   const [graphGenerationActive, setGraphGenerationActive] = useState(false);
   const [planGenerationActive, setPlanGenerationActive] = useState(false);
+  
+  // WebSocket接続を確立
+  const { connect, isConnected } = useKnowledgeGraphGeneration();
+  
+  // コンポーネントマウント時に接続を確保
+  useEffect(() => {
+    if (roleModelId && !isConnected) {
+      console.log('AIGenerationButtonsContainer: WebSocket接続を開始します', roleModelId);
+      connect(roleModelId);
+    }
+  }, [roleModelId, isConnected, connect]);
 
   // ボタン間で状態を共有
   useEffect(() => {
