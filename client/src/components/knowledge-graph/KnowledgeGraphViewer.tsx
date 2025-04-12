@@ -33,6 +33,7 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/comp
 import { useNodeOperations } from './NodeOperations';
 import { toast, useToast } from '@/hooks/use-toast';
 import KnowledgeGraphSavePanel from './KnowledgeGraphSavePanel';
+import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph-websocket';
 
 
 type KnowledgeNode = ExtendedKnowledgeNode;
