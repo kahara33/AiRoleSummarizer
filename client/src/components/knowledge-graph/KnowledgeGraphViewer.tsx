@@ -802,345 +802,163 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       return;
     }
     
-    // グラフ更新の変数
-    let updateCounter = 0;
-    let lastUpdateTimestamp = 0;
-    
-    // エージェント思考の受信ハンドラ
-    const handleAgentThoughts = (data: any) => {
-      // ペイロードを抽出
-      const payload = data.payload || data;
-      const agentName = payload.agentName || payload.agent_name || payload.agent || '不明なエージェント';
-      const thoughts = payload.thought || payload.thoughts || payload.message || payload.content || '';
-      
-      // エージェント思考を受信したときのスクロール自動化など、ビューへの影響はここに追加
-      console.log(`エージェント思考を受信: ${agentName} - ${thoughts.substring(0, 50)}...`);
-    };
-    
-    // 進捗更新の受信ハンドラ
-    const handleProgressUpdate = (data: any) => {
-      // ペイロードを抽出
-      const payload = data.payload || data;
-      const progress = payload.progress || 0;
-      const message = payload.message || '';
-      const stage = payload.stage || '';
-      
-      // 進捗更新を受信したときのプログレスバー更新などビューへの影響はここに追加
-      console.log(`進捗更新を受信: ${progress}% - ${stage} - ${message}`);
-    };
-    
-    // グラフ更新のイベントハンドラ
-    const handleGraphUpdate = (data: any) => {
-      updateCounter++;
-      const currentUpdateId = updateCounter;
-      const now = Date.now();
-      
-      // 更新間隔が短すぎる場合、レート制限を適用（100ms以内の更新はスキップ）
-      if (now - lastUpdateTimestamp < 100) {
-        console.log(`更新間隔が短すぎるため、更新をスキップします (${currentUpdateId})`);
-        return;
-      }
-      
-      lastUpdateTimestamp = now;
-      console.log(`ナレッジグラフ更新を受信 (ID: ${currentUpdateId}):`, data);
-      
-      // 受信したデータがpayloadを持つ場合（WebSocketサーバーからのメッセージ形式）
-      const payload = data.payload || data;
-      
-      // デバッグのために詳細情報を出力
-      console.log(`グラフ更新詳細 - 更新タイプ: ${payload.updateType || 'unknown'}`);
-      console.log(`グラフ更新詳細 - ノード数: ${(payload.nodes || []).length}`);
-      console.log(`グラフ更新詳細 - エッジ数: ${(payload.edges || []).length}`);
-      
-      if (payload.nodes && payload.nodes.length > 0) {
-        console.log('最初のノードのサンプル:', payload.nodes[0]);
-      }
-      
-      if (payload.edges && payload.edges.length > 0) {
-        console.log('最初のエッジのサンプル:', payload.edges[0]);
-      }
-      
-      // roleModelIdが一致するか、payload.roleModelIdがundefinedの場合（後方互換性のため）
-      const targetRoleModelId = payload.roleModelId || (data.payload?.roleModelId);
-      
-      // ノードとエッジのデータを取得して確認
-      const nodes = payload.nodes || [];
-      const edges = payload.edges || [];
-      
-      // 更新タイプを取得
-      const updateType = payload.updateType || '';
-      console.log(`グラフ更新メッセージ (ID: ${currentUpdateId}): type=${updateType}, roleModel=${targetRoleModelId}, ノード数=${nodes.length}, エッジ数=${edges.length}`);
-      
-      // ノードとエッジのデータが存在し、WebSocketからの直接更新が可能な場合
-      const hasGraphData = nodes.length > 0 || edges.length > 0;
-      if (hasGraphData) {
-        console.log(`WebSocketから直接グラフデータを受信しました: ノード数=${nodes.length}, エッジ数=${edges.length}`);
-        
-        try {
-          // 部分的な更新かどうかを確認（isPartialフラグで判断）
-          const isPartialUpdate = payload.isPartial === true;
-          
-          if (isPartialUpdate) {
-            console.log(`部分的なグラフ更新を受信しました: agentName=${payload.agentName || '不明'}`);
-            
-            // 部分的な更新の場合は、既存のグラフに新しいノードとエッジを追加する
-            // これにより、リアルタイムでグラフが構築されていく様子を可視化できる
-            if (nodes.length > 0 || edges.length > 0) {
-              try {
-                // 新しいノードを既存のグラフに変換して追加
-                const newFlowNodes = nodes.map((node: any) => {
-                  // ノードの色を取得（タイプに応じた色分け）
-                  const color = getNodeColor(node.type || 'default');
-                  
-                  // 初期位置は中央付近にランダムに配置（後でレイアウトエンジンで調整）
-                  const x = Math.random() * 500 - 250;
-                  const y = Math.random() * 500 - 250;
-                  
-                  return {
-                    id: node.id,
-                    type: node.type === 'agent' ? 'agent' : 'concept',
-                    position: { x, y },
-                    data: {
-                      ...node,
-                      label: node.name,
-                      color: node.color || color,
-                      // ノード操作ハンドラを追加
-                      onEdit: handleEditNode,
-                      onDelete: handleDeleteNode,
-                      onAddChild: handleAddChildNode,
-                      onAddSibling: handleAddSiblingNode,
-                      onExpand: handleExpandNode,
-                    },
-                    style: {
-                      background: node.color || color,
-                      borderColor: color,
-                    },
-                  };
-                });
-                
-                // 新しいエッジを既存のグラフに変換して追加
-                const newFlowEdges = edges.map((edge: any) => {
-                  return {
-                    id: edge.id || `${edge.source}-${edge.target}`,
-                    source: edge.source,
-                    target: edge.target,
-                    type: 'dataFlowEdge',
-                    label: edge.label || '',
-                    data: {
-                      ...edge,
-                      roleModelId,
-                    },
-                  };
-                });
-                
-                // 既存のノードとエッジに追加
-                setNodes(currentNodes => [...currentNodes, ...newFlowNodes]);
-                setEdges(currentEdges => [...currentEdges, ...newFlowEdges]);
-                
-                // レイアウトの再計算
-                setTimeout(() => {
-                  // 既存のノードとエッジを取得
-                  const currentNodes = nodes || [];
-                  const currentEdges = edges || [];
-                  
-                  if (currentNodes.length > 0) {
-                    const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
-                      currentNodes,
-                      currentEdges
-                    );
-                    
-                    // レイアウト済みのノードとエッジを設定
-                    setNodes(layoutedNodes);
-                    setEdges(layoutedEdges);
-                    
-                    console.log('部分更新後にレイアウトを再計算しました');
-                  }
-                }, 100);
-                
-                console.log(`部分更新を適用しました: ${newFlowNodes.length}個のノードと${newFlowEdges.length}個のエッジを追加`);
-              } catch (error) {
-                console.error('部分更新の適用中にエラーが発生しました:', error);
-                // エラー時はAPIから全体を再取得
-                fetchGraphData();
-              }
-            }
-          } else {
-            // 完全な更新またはその他のケースではAPIから再取得
-            fetchGraphData();
-          }
-          
-          // 親コンポーネントにデータ変更を通知
-          if (onGraphDataChange) {
-            onGraphDataChange(true);
-          }
-          
-          console.log(`WebSocketからのグラフデータを処理しました (ID: ${currentUpdateId})`);
-          return; // 直接更新したため、APIからの再取得は不要
-        } catch (error) {
-          console.error('WebSocketデータの処理中にエラーが発生しました:', error);
-          // 処理に失敗した場合はAPIからデータを取得
-        }
-      }
-      
-      // タイムスタンプを確認して古いメッセージを除外
-      if (payload.timestamp) {
-        const messageTime = new Date(payload.timestamp).getTime();
-        const currentTime = Date.now();
-        // 5分以上前のメッセージは古いとみなす
-        if (currentTime - messageTime > 5 * 60 * 1000) {
-          console.log(`古いメッセージ (${payload.timestamp}) のため無視します`);
-          return;
-        }
-      }
-      
-      if (!targetRoleModelId || targetRoleModelId === roleModelId) {
-        console.log(`グラフデータの再取得をトリガー (ID: ${currentUpdateId})`);
-        
-        // 更新タイプに基づいて処理を調整
-        if (updateType === 'complete' || updateType === 'improvement_complete') {
-          console.log(`完全更新を検出 (ID: ${currentUpdateId})。即座にグラフを再取得します`);
-          // 即時実行
-          fetchGraphData();
-          
-          // 短いディレイ後に再確認
-          setTimeout(() => {
-            if (currentUpdateId === updateCounter) {
-              console.log(`完全更新後の再確認を行います (ID: ${currentUpdateId})`);
-              fetchGraphData();
-            }
-          }, 2000);
-          return;
-        }
-        
-        // その他の更新タイプ、または更新タイプがない場合は段階的に再取得
-        // 更新IDを利用して、後続の更新がある場合は処理をスキップ
-        setTimeout(() => {
-          if (currentUpdateId === updateCounter) {
-            console.log(`グラフデータを再取得します（1回目 - ID: ${currentUpdateId}）`);
-            fetchGraphData();
-            
-            // 2回目の試行 - より長いディレイ後
-            setTimeout(() => {
-              if (currentUpdateId === updateCounter) {
-                console.log(`グラフデータを再取得します（2回目 - ID: ${currentUpdateId}）`);
-                fetchGraphData();
-                
-                // 3回目の試行 - さらに長いディレイ後
-                setTimeout(() => {
-                  if (currentUpdateId === updateCounter) {
-                    console.log(`グラフデータを再取得します（3回目 - 最終確認 - ID: ${currentUpdateId}）`);
-                    fetchGraphData();
-                  }
-                }, 5000);
-              }
-            }, 3000);
-          }
-        }, 1000);
-      }
-    };
-    
-    // WebSocketの接続状態を確認する関数
-    const subscribeToRoleModel = () => {
-      if (socket.readyState === WebSocket.OPEN) {
-        console.log(`ロールモデル ${roleModelId} を購読`);
-        
-        // 現在の日時を含めて、キャッシュバスティングを行う
-        const timestamp = new Date().getTime();
-        sendSocketMessage('subscribe', { 
-          roleModelId,
-          timestamp,
-          clientId: `client-${Math.random().toString(36).substring(2, 9)}`
-        });
-      } else {
-        console.log('WebSocketが開いていません。接続待機中...');
-      }
-    };
-    
-    // ソケットの状態に応じて購読を試みる
-    if (socket.readyState === WebSocket.OPEN) {
-      subscribeToRoleModel();
+    if (graphError) {
+      console.error('ナレッジグラフ読み込みエラー:', graphError);
+      toast({
+        title: 'エラー',
+        description: graphError,
+        variant: 'destructive'
+      });
+      return;
     }
     
-    // 接続イベントのハンドラ
-    const handleSocketOpen = () => {
-      console.log('WebSocket接続が確立されました。ロールモデルを購読します。');
-      subscribeToRoleModel();
-    };
-    
-    // イベントリスナーの登録
-    socket.addEventListener('open', handleSocketOpen);
-    
-    // 知識グラフ更新のリスナー
-    addSocketListener('knowledge-graph-update', handleGraphUpdate);
-    addSocketListener('knowledge_graph_update', handleGraphUpdate); // アンダースコア版も登録
-    addSocketListener('graph-update', handleGraphUpdate); // ハイフン版も登録
-    
-    // エージェント思考のリスナー
-    addSocketListener('agent_thoughts', handleAgentThoughts);
-    addSocketListener('agent_thought', handleAgentThoughts);
-    addSocketListener('thought', handleAgentThoughts);
-    addSocketListener('thinking', handleAgentThoughts);
-    
-    // 進捗更新のリスナー
-    addSocketListener('progress', handleProgressUpdate);
-    addSocketListener('progress_update', handleProgressUpdate);
-    addSocketListener('progress-update', handleProgressUpdate);
-    
-    // 明示的なリアルタイム更新リスナーを追加（グラフデータ再取得のための追加処理）
-    addSocketListener('progress-update', (data: any) => {
-      console.log('進捗更新メッセージを受信（グラフ再取得確認）:', data);
-      // payloadまたはdata自体からpercentを取得
-      const payload = data.payload || data;
-      const percent = payload.percent || payload.progress || payload.progressPercent || 0;
-      const status = payload.status || '';
+    // 有効なグラフデータがある場合、ReactFlowコンポーネント用に変換
+    if (graphNodes.length > 0 || graphEdges.length > 0) {
+      console.log(`グラフデータを更新: ノード数=${graphNodes.length}, エッジ数=${graphEdges.length}`);
       
-      // 進捗が95%以上または完了メッセージの場合にグラフを再取得
-      if (percent >= 95 || percent === 100 || status === 'completed' || status === 'complete') {
-        console.log('高進捗更新を検出、グラフデータを再取得します');
-        // 少し遅延させてDBの更新が完了するのを待つ
-        setTimeout(() => {
-          fetchGraphData();
-        }, 1500);
+      try {
+        // APIから取得したノードをReactFlowノードに変換
+        const newNodes = graphNodes.map((node: any) => {
+          const color = getNodeColor(node.type || 'default');
+          // レイアウトアルゴリズムで配置されるように初期位置をランダムに設定
+          const x = node.x || (Math.random() * 800 - 400);
+          const y = node.y || (Math.random() * 800 - 400);
+          
+          return {
+            id: node.id,
+            type: node.type === 'agent' ? 'agent' : 'concept',
+            position: { x, y },
+            data: {
+              ...node,
+              label: node.name,
+              color: node.color || color,
+              onEdit: handleEditNode,
+              onDelete: handleDeleteNode,
+              onAddChild: handleAddChildNode,
+              onAddSibling: handleAddSiblingNode,
+              onExpand: handleExpandNode,
+            }
+          };
+        });
+        
+        // APIから取得したエッジをReactFlowエッジに変換
+        const newEdges = graphEdges.map((edge: any) => {
+          return {
+            id: edge.id,
+            source: edge.source || edge.sourceId,
+            target: edge.target || edge.targetId,
+            label: edge.label || edge.type || '',
+            type: 'dataFlow',
+            data: {
+              ...edge,
+              // エッジの編集と削除は現在サポートされていません
+              onEdit: undefined,
+              onDelete: undefined
+            },
+            animated: edge.animated || false,
+            style: {
+              stroke: edge.color || '#888',
+              strokeWidth: edge.strokeWidth || 1.5
+            }
+          };
+        });
+        
+        // グラフの複雑さによってレイアウト方法を選択
+        const hasHierarchy = newNodes.some(node => node.data && typeof node.data.level === 'number');
+        const hasMultipleLevels = new Set(newNodes.map(node => node.data?.level || 0)).size > 1;
+        const isComplex = newNodes.length > 15 || newEdges.length > 20;
+        
+        // レイアウト選択ロジック
+        const useHierarchicalLayout = hasHierarchy && (hasMultipleLevels || isComplex);
+        
+        if (useHierarchicalLayout) {
+          // 複雑なグラフや階層構造がある場合は最適化された階層レイアウトを使用
+          console.log('階層レイアウトを適用します');
+          const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
+            newNodes,
+            newEdges
+          );
+          setNodes(layoutedNodes);
+          setEdges(layoutedEdges);
+        } else {
+          // シンプルなグラフの場合は改良された基本レイアウトを使用
+          console.log('標準レイアウトを適用します');
+          const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedLayoutedElements(
+            newNodes,
+            newEdges,
+            { 
+              direction: 'TB',
+              nodesep: 120,
+              ranksep: 150,
+              marginx: 30,
+              marginy: 50
+            }
+          );
+          setNodes(layoutedNodes);
+          setEdges(layoutedEdges);
+        }
+        
+        // ナレッジグラフの存在状態を更新
+        const hasData = newNodes.length > 0;
+        setHasKnowledgeGraph(hasData);
+        if (onGraphDataChange) {
+          onGraphDataChange(hasData);
+        }
+        
+        // 更新通知（最初の読み込み時は除く）
+        if (lastUpdateTime && !graphLoading) {
+          toast({
+            title: 'グラフ更新',
+            description: `${lastUpdateSource || 'システム'}からの更新を適用しました`,
+            variant: 'default'
+          });
+        }
+      } catch (error) {
+        console.error('グラフデータの変換エラー:', error);
+        toast({
+          title: 'エラー',
+          description: 'グラフデータの変換中にエラーが発生しました',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
       }
-    });
+    } else {
+      setLoading(false);
+    }
+    // グラフの状態が更新されたときに表示するトースト
+    if (graphUpdating) {
+      console.log('グラフ更新中...');
+    }
     
-    // 定期的な再接続と購読の確認（5秒ごと）
-    const intervalId = setInterval(() => {
-      if (socket.readyState !== WebSocket.OPEN) {
-        console.log('WebSocket接続が閉じられています。再接続を試みます。');
-        initSocket(); // 再接続
-      } else {
-        // 接続中に購読状態を確認
-        subscribeToRoleModel();
-      }
-    }, 5000);
-    
+    // ナレッジグラフが更新されるたびに、レイアウトを再適用
+    // これはuseKnowledgeGraphフックが内部でWebSocketリスナーを管理し、
+    // 最新のグラフデータを提供するようになったため、単純化されています
+        
     return () => {
-      // イベントリスナーの解除
-      socket.removeEventListener('open', handleSocketOpen);
-      
-      // 知識グラフ更新リスナーの解除
-      removeSocketListener('knowledge-graph-update', handleGraphUpdate);
-      removeSocketListener('knowledge_graph_update', handleGraphUpdate);
-      removeSocketListener('graph-update', handleGraphUpdate);
-      
-      // エージェント思考リスナーの解除
-      removeSocketListener('agent_thoughts', handleAgentThoughts);
-      removeSocketListener('agent_thought', handleAgentThoughts);
-      removeSocketListener('thought', handleAgentThoughts);
-      removeSocketListener('thinking', handleAgentThoughts);
-      
-      // 進捗更新リスナーの解除
-      removeSocketListener('progress', handleProgressUpdate);
-      removeSocketListener('progress_update', handleProgressUpdate);
-      removeSocketListener('progress-update', handleProgressUpdate);
-      
-      // 明示的に追加した進捗更新リスナーの解除
-      removeSocketListener('progress-update', () => {}); 
-      
-      clearInterval(intervalId);
+      // このコンポーネントがアンマウントされるときの処理
+      console.log('ナレッジグラフビューワーのクリーンアップ');
     };
-  }, [roleModelId, fetchGraphData]);
+  }, [
+    graphNodes, 
+    graphEdges, 
+    graphLoading, 
+    graphError, 
+    graphUpdating,
+    lastUpdateTime, 
+    lastUpdateSource,
+    roleModelId,
+    onGraphDataChange,
+    handleEditNode,
+    handleDeleteNode,
+    handleAddChildNode,
+    handleAddSiblingNode,
+    handleExpandNode,
+    fetchGraphData,
+    setHasKnowledgeGraph,
+    setLoading,
+    toast
+  ]);
 
   // ノード選択のハンドラ
   const handleNodeClick = useCallback(
