@@ -5,7 +5,13 @@
 
 import { storage } from '../../storage';
 import { db } from '../../db';
-import { collectionPlans, collectionSources, collectionSummaries } from '../../../shared/schema';
+import { 
+  collectionPlans, 
+  collectionSources, 
+  collectionSummaries,
+  knowledgeNodes,
+  knowledgeEdges
+} from '../../../shared/schema';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, and, desc, SQL } from 'drizzle-orm';
 import { searchWithExa } from '../exa-search';
@@ -716,11 +722,11 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
   roleModelName: string;
   roleModelDescription: string;
   userId?: string; // ナレッジライブラリを生成するユーザーID
-}): Promise<{ success: boolean; planId?: string; error?: any }> {
+}): Promise<{ success: boolean; planId?: string; graphCreated?: boolean; error?: any }> {
   try {
     console.log(`ナレッジライブラリ情報収集プラン生成を開始します: ${input.roleModelId}`);
     
-    const { roleModelId, industries, keywords, roleModelName } = input;
+    const { roleModelId, industries, keywords, roleModelName, roleModelDescription } = input;
     
     // 情報収集プランを作成
     const initialPlanTitle = `${roleModelName}の知識ベース構築`;
@@ -735,11 +741,168 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
       }
     );
     
-    // 情報収集プランの作成のみを行い、ユーザーが手動で実行できるようにする
     console.log(`情報収集プラン作成完了: planId=${plan.id}`);
+    
+    // WebSocket経由でユーザーに進捗を通知
+    websocket.sendAgentThoughts(
+      'ナレッジグラフ生成エージェント',
+      `${roleModelName}のナレッジグラフの初期構造を生成しています...`,
+      roleModelId,
+      'processing'
+    );
+    
+    // ナレッジグラフの初期ノードを作成
+    let graphCreated = false;
+    try {
+      // Neo4jとPostgreSQLの両方にメインノードを作成
+      const mainNodeId = uuidv4();
+      
+      // PostgreSQLにメインノードを保存
+      const mainNode = await db.insert(knowledgeNodes).values({
+        id: mainNodeId,
+        name: roleModelName,
+        description: roleModelDescription || `${roleModelName}に関する知識グラフ`,
+        roleModelId,
+        level: 0,
+        type: 'concept',
+        isRoot: true,
+        color: '#3182CE' // 青色
+      }).returning();
+      
+      console.log(`メインノード作成: ${mainNode[0].id}`);
+      
+      // Neo4jにもノードを作成
+      await neo4jService.createNode('Concept', {
+        id: mainNodeId,
+        name: roleModelName,
+        description: roleModelDescription || `${roleModelName}に関する知識グラフ`,
+        level: 0,
+        isRoot: true,
+        color: '#3182CE'
+      }, roleModelId);
+      
+      // 業界をノードとして追加
+      if (industries && industries.length > 0) {
+        for (const industry of industries) {
+          if (!industry || !industry.id) continue;
+          
+          const industryNodeId = uuidv4();
+          
+          // PostgreSQLにノード追加
+          await db.insert(knowledgeNodes).values({
+            id: industryNodeId,
+            name: industry.name,
+            description: industry.description || `${industry.name}業界`,
+            roleModelId,
+            parentId: mainNodeId,
+            level: 1,
+            type: 'industry',
+            color: '#ED8936' // オレンジ色
+          });
+          
+          // Neo4jにノード追加
+          await neo4jService.createNode('Industry', {
+            id: industryNodeId,
+            name: industry.name,
+            description: industry.description || `${industry.name}業界`,
+            level: 1,
+            color: '#ED8936'
+          }, roleModelId);
+          
+          // Neo4jにエッジ追加
+          await neo4jService.createRelationship({
+            sourceNodeId: mainNodeId,
+            targetNodeId: industryNodeId,
+            type: 'HAS_INDUSTRY',
+            properties: { createdAt: new Date().toISOString() }
+          });
+          
+          // PostgreSQLにエッジ追加
+          await db.insert(knowledgeEdges).values({
+            id: uuidv4(),
+            sourceId: mainNodeId,
+            targetId: industryNodeId,
+            type: 'HAS_INDUSTRY',
+            roleModelId,
+            label: '関連業界'
+          });
+        }
+      }
+      
+      // キーワードをノードとして追加
+      if (keywords && keywords.length > 0) {
+        for (const keyword of keywords) {
+          if (!keyword || !keyword.id) continue;
+          
+          const keywordNodeId = uuidv4();
+          
+          // PostgreSQLにノード追加
+          await db.insert(knowledgeNodes).values({
+            id: keywordNodeId,
+            name: keyword.name,
+            description: keyword.description || `${keyword.name}に関するキーワード`,
+            roleModelId,
+            parentId: mainNodeId,
+            level: 1,
+            type: 'keyword',
+            color: '#805AD5' // 紫色
+          });
+          
+          // Neo4jにノード追加
+          await neo4jService.createNode('Keyword', {
+            id: keywordNodeId,
+            name: keyword.name,
+            description: keyword.description || `${keyword.name}に関するキーワード`,
+            level: 1,
+            color: '#805AD5'
+          }, roleModelId);
+          
+          // Neo4jにエッジ追加
+          await neo4jService.createRelationship({
+            sourceNodeId: mainNodeId,
+            targetNodeId: keywordNodeId,
+            type: 'HAS_KEYWORD',
+            properties: { createdAt: new Date().toISOString() }
+          });
+          
+          // PostgreSQLにエッジ追加
+          await db.insert(knowledgeEdges).values({
+            id: uuidv4(),
+            sourceId: mainNodeId,
+            targetId: keywordNodeId,
+            type: 'HAS_KEYWORD',
+            roleModelId,
+            label: '関連キーワード'
+          });
+        }
+      }
+      
+      // ナレッジグラフ生成成功を通知
+      websocket.sendAgentThoughts(
+        'ナレッジグラフ生成エージェント',
+        `${roleModelName}のナレッジグラフ初期構造を生成しました。情報収集プランを実行してさらに情報を追加できます。`,
+        roleModelId,
+        'success'
+      );
+      
+      graphCreated = true;
+    } catch (graphError) {
+      console.error('ナレッジグラフ初期構造生成エラー:', graphError);
+      websocket.sendAgentThoughts(
+        'ナレッジグラフ生成エージェント',
+        `ナレッジグラフの生成中にエラーが発生しました: ${graphError.message}`,
+        roleModelId,
+        'error'
+      );
+    }
+    
     console.log(`ナレッジライブラリ生成成功: ${roleModelId}`);
     
-    return { success: true, planId: plan.id };
+    return { 
+      success: true, 
+      planId: plan.id, 
+      graphCreated 
+    };
   } catch (error) {
     console.error(`ナレッジライブラリ生成エラー:`, error);
     return { success: false, error };
