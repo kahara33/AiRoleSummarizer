@@ -223,9 +223,41 @@ export async function summarizeSearchResults(results: SearchResult[], query: str
  * @param keywords キーワード
  * @returns 情報収集パターンのリスト
  */
-export function generateCollectionPlanPatterns(industry: string, keywords: string[]): any[] {
+/**
+ * 情報収集プランのパターンを生成する
+ * @param industry 業界名
+ * @param keywords キーワード一覧
+ * @param preferredTopics ユーザーが選択した好みのトピック（任意）
+ * @returns 情報収集プランのパターン
+ */
+export function generateCollectionPlanPatterns(
+  industry: string, 
+  keywords: string[], 
+  preferredTopics: string[] = []
+): any[] {
   // 添付資料に基づく高度な検索パターンを実装
   const patterns = [];
+  
+  // ユーザーの好みに基づいて優先度を調整
+  const getPriority = (patternType: string): 'high' | 'medium' | 'low' => {
+    // 特定のパターンタイプにマッチするユーザー好みのトピックがあれば、優先度を高くする
+    const priorities: Record<string, string[]> = {
+      'industry-analysis': ['市場概要', '概要把握型'],
+      'key-companies': ['主要プレイヤー分析', '比較分析型'],
+      'tech-trends': ['技術トレンド', 'トレンド分析型'],
+      'challenges-opportunities': ['課題と機会'],
+      'regulatory': ['規制', '将来展望']
+    };
+    
+    for (const [key, matchingTopics] of Object.entries(priorities)) {
+      if (patternType === key && matchingTopics.some(topic => preferredTopics.includes(topic))) {
+        return 'high';
+      }
+    }
+    
+    // デフォルトはmedium
+    return 'medium';
+  };
   
   // 業界分析パターン
   patterns.push({
@@ -239,7 +271,8 @@ export function generateCollectionPlanPatterns(industry: string, keywords: strin
     ],
     categories: [SearchCategory.WEB_SEARCH, SearchCategory.NEWS, SearchCategory.COMPANY_INFO],
     timeRange: '1y',
-    executionPriority: 'high'
+    executionPriority: getPriority('industry-analysis'),
+    userPreferenceMatch: preferredTopics.some(topic => ['市場概要', '概要把握型'].includes(topic))
   });
   
   // 業界主要企業分析
@@ -255,7 +288,8 @@ export function generateCollectionPlanPatterns(industry: string, keywords: strin
     ],
     categories: [SearchCategory.COMPANY_INFO, SearchCategory.NEWS, SearchCategory.MARKET_ANALYSIS],
     timeRange: '1y',
-    executionPriority: 'medium'
+    executionPriority: getPriority('key-companies'),
+    userPreferenceMatch: preferredTopics.some(topic => ['主要プレイヤー分析', '比較分析型'].includes(topic))
   });
   
   // 最新技術トレンド分析
@@ -271,7 +305,8 @@ export function generateCollectionPlanPatterns(industry: string, keywords: strin
     ],
     categories: [SearchCategory.TECHNOLOGY_TREND, SearchCategory.RESEARCH_PAPER, SearchCategory.NEWS],
     timeRange: '6m',
-    executionPriority: 'high'
+    executionPriority: getPriority('tech-trends'),
+    userPreferenceMatch: preferredTopics.some(topic => ['技術トレンド', 'トレンド分析型'].includes(topic))
   });
   
   // 市場課題と機会分析
@@ -287,7 +322,8 @@ export function generateCollectionPlanPatterns(industry: string, keywords: strin
     ],
     categories: [SearchCategory.MARKET_ANALYSIS, SearchCategory.CHALLENGES, SearchCategory.NEWS],
     timeRange: '6m',
-    executionPriority: 'medium'
+    executionPriority: getPriority('challenges-opportunities'),
+    userPreferenceMatch: preferredTopics.some(topic => ['課題と機会'].includes(topic))
   });
   
   // 規制・法的環境分析
@@ -303,7 +339,8 @@ export function generateCollectionPlanPatterns(industry: string, keywords: strin
     ],
     categories: [SearchCategory.NEWS, SearchCategory.CHALLENGES, SearchCategory.WHITEPAPER],
     timeRange: '1y',
-    executionPriority: 'low'
+    executionPriority: getPriority('regulatory'),
+    userPreferenceMatch: preferredTopics.some(topic => ['規制', '将来展望'].includes(topic))
   });
   
   // キーワード関連分析（最大3つまで）

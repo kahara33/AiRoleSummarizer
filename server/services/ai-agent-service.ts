@@ -1004,6 +1004,210 @@ function generateSampleContent(topic: string, type: string, characteristics: str
   return contentByType[type] || `${topic}に関する${type}サンプル要約です。このサンプルは${characteristics.join('、')}の特性を持っています。`;
 }
 
+/**
+ * ユーザーフィードバックに基づいてナレッジグラフを完成させる処理
+ * ナレッジグラフ作成フローの第2フェーズ（ユーザーフィードバック後の処理）を担当
+ * 
+ * @param roleModelId ロールモデルID 
+ * @param feedbackData ユーザーからのフィードバックデータ
+ * @param mainTopic メイントピック
+ * @param subTopics サブトピック
+ * @returns 処理成功かどうか
+ */
+export async function completeKnowledgeGraphCreation(
+  roleModelId: string,
+  feedbackData: {
+    preferredSummaryTypes: string[];
+    additionalComments?: string;
+  },
+  mainTopic: string,
+  subTopics: string[]
+): Promise<boolean> {
+  try {
+    console.log(`ナレッジグラフ作成フロー フェーズ2開始: ${roleModelId}`, feedbackData);
+    
+    // ============== AI処理フェーズ2: ユーザーフィードバック反映と最終化 ==============
+    
+    // オーケストレーターの思考
+    sendAgentThought(
+      AgentType.ORCHESTRATOR,
+      'ユーザーのフィードバックを受け取りました。フェーズ2（ナレッジグラフの最適化と情報収集プラン作成）を開始します。',
+      roleModelId,
+      ThoughtStatus.STARTING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      70,
+      'ユーザーのフィードバックを分析中...'
+    );
+    
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `ユーザーが選択した要約タイプ（${feedbackData.preferredSummaryTypes.join('、')}）を分析しています。ユーザーの情報ニーズと優先事項を特定中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 少し待機
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // 既存のグラフを取得
+    const existingGraph = await graphService.getKnowledgeGraph(roleModelId);
+    
+    if (!existingGraph || existingGraph.nodes.length === 0) {
+      throw new Error('ナレッジグラフが見つかりません');
+    }
+    
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `ユーザーのフィードバックを分析し、知識グラフの重み付けを調整しています。${feedbackData.preferredSummaryTypes.join('、')}関連のノードを強化します...`,
+      roleModelId,
+      ThoughtStatus.WORKING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      75,
+      'ユーザーのフィードバックをナレッジグラフに反映しています...'
+    );
+    
+    // ユーザーフィードバックの処理
+    const userPreferences = {
+      categories: feedbackData.preferredSummaryTypes,
+      priorityKeywords: subTopics.slice(0, 2),
+      feedbackType: 'explicit'
+    };
+    
+    // ユーザーフィードバックをナレッジグラフサービスに送信
+    await knowledgeGraphService.incorporateUserFeedback(roleModelId, existingGraph, userPreferences);
+    
+    // ヒアリングエージェントの完了思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `ユーザーフィードバックの反映が完了しました。ナレッジグラフの関連部分を強化し、優先度を更新しました。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // グラフ構築エージェントの思考
+    sendAgentThought(
+      AgentType.GRAPH_BUILDER,
+      `ユーザーフィードバックに基づいてナレッジグラフを最終化しています。エンティティ間の関係を強化し、階層構造を最適化中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      80,
+      'ナレッジグラフを最終化しています...'
+    );
+    
+    // 最終ナレッジグラフの生成（または更新）
+    const finalGraphData = await knowledgeGraphService.enhanceKnowledgeGraph(
+      roleModelId,
+      existingGraph,
+      subTopics
+    );
+    
+    // グラフ構築エージェントの完了思考
+    sendAgentThought(
+      AgentType.GRAPH_BUILDER,
+      `ナレッジグラフの最終化が完了しました。合計${finalGraphData.nodes.length}ノード、${finalGraphData.edges.length}エッジを持つ包括的な知識構造が構築されました。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // プラン設計エージェントの思考
+    sendAgentThought(
+      AgentType.PLAN_DESIGNER,
+      `ユーザーフィードバックと最終化されたナレッジグラフに基づいて情報収集プランを設計しています。${mainTopic}業界と${subTopics.join('、')}に関する最適な検索戦略を構築中...`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      90,
+      'ユーザーフィードバックに基づく最適な情報収集プランを作成しています...'
+    );
+    
+    // 情報収集プランのパターンを生成
+    const collectionPatterns = exaSearchService.generateCollectionPlanPatterns(
+      mainTopic,
+      subTopics,
+      feedbackData.preferredSummaryTypes
+    );
+    
+    // プラン設計エージェントの完了思考
+    sendAgentThought(
+      AgentType.PLAN_DESIGNER,
+      `${collectionPatterns.length}件の情報収集プランパターンの作成が完了しました。各プランはユーザー嗜好に合わせて最適化されています。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // オーケストレーターの完了思考
+    sendAgentThought(
+      AgentType.ORCHESTRATOR,
+      `ナレッジグラフ生成プロセス全体が完了しました。ユーザーフィードバックを反映した高品質なナレッジグラフと情報収集プランが作成されました。`,
+      roleModelId,
+      ThoughtStatus.SUCCESS
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      100,
+      'ナレッジグラフと情報収集プランの生成が完了しました',
+      { 
+        status: 'completed',
+        graphStats: {
+          nodes: finalGraphData.nodes.length,
+          edges: finalGraphData.edges.length
+        },
+        planStats: {
+          count: collectionPatterns.length,
+          categories: collectionPatterns.map(p => p.name)
+        }
+      }
+    );
+    
+    return true;
+  } catch (err: any) {
+    const error = err as Error;
+    console.error('ナレッジグラフ作成フェーズ2実行エラー:', error);
+    
+    // エラー進捗更新
+    sendProgress(
+      roleModelId,
+      0,
+      'ナレッジグラフ最終化中にエラーが発生しました',
+      { 
+        status: 'error',
+        error: error.message || '不明なエラー'
+      }
+    );
+    
+    // オーケストレーターのエラー思考
+    sendAgentThought(
+      AgentType.ORCHESTRATOR,
+      `ナレッジグラフ最終化中にエラーが発生しました: ${error.message || '不明なエラー'}`,
+      roleModelId,
+      ThoughtStatus.ERROR
+    );
+    
+    return false;
+  }
+}
+
 export async function runGraphUpdateRecommendationFlow(
   roleModelId: string,
   reports: any[]

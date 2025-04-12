@@ -213,51 +213,64 @@ export async function handleUserFeedback(message: any, roleModelId: string) {
       
       // 次のステップの通知（要約サンプル選択の場合）
       if (feedbackType === userFeedbackService.FeedbackType.SUMMARY_PREFERENCE) {
-        // フィードバックを基にグラフを更新
-        websocket.sendProgressUpdate(
-          roleModelId,
-          75,
-          'ユーザーのフィードバックに基づいてナレッジグラフと収集プランを更新しています...',
-          { status: 'updating_graph' }
-        );
-        
-        // ナレッジグラフの更新処理
-        const mainTopic = payload.data.mainTopic || payload.mainTopic || 'AI';
-        
-        // グラフ更新が完了したら情報収集プランを生成
-        websocket.sendProgressUpdate(
-          roleModelId,
-          90,
-          'ナレッジグラフを最適化しました。情報収集プランを生成中...',
-          { status: 'graph_updated' }
-        );
-        
-        // 情報収集プラン作成を開始
-        websocket.sendProgressUpdate(
-          roleModelId,
-          95,
-          'ユーザーフィードバックを反映した情報収集プランを生成しています...',
-          { status: 'creating_collection_plan' }
-        );
-        
-        // 情報収集プラン作成フローを実行（非同期で行う）
-        setTimeout(async () => {
-          try {
-            const collectionPlanResult = await aiAgentService.runCollectionPlanCreationFlow(
-              roleModelId,
-              {
-                mainTopic: mainTopic,
-                keywords: Array.isArray(payload.data.preferredSummaryTypes) 
-                  ? payload.data.preferredSummaryTypes 
-                  : []
-              }
-            );
-            
-            console.log('情報収集プラン作成完了:', collectionPlanResult);
-          } catch (planError) {
-            console.error('情報収集プラン作成エラー:', planError);
-          }
-        }, 3000);
+        try {
+          // フィードバックを基にグラフを更新
+          websocket.sendProgressUpdate(
+            roleModelId,
+            75,
+            'ユーザーのフィードバックに基づいてナレッジグラフと収集プランを更新しています...',
+            { status: 'updating_graph' }
+          );
+          
+          // フィードバックデータの準備
+          const mainTopic = payload.data.mainTopic || payload.mainTopic || 'AI';
+          const subTopics = Array.isArray(payload.data.keywords) ? payload.data.keywords : [];
+          const preferredSummaryTypes = Array.isArray(payload.data.preferredSummaryTypes) 
+            ? payload.data.preferredSummaryTypes 
+            : [];
+          
+          // ナレッジグラフ作成フェーズ2の実行（ユーザーフィードバック反映）
+          console.log('ナレッジグラフ作成フェーズ2（フィードバック反映）を開始します');
+          
+          // 非同期で処理を実行して処理をブロックしないようにする
+          setTimeout(async () => {
+            try {
+              // completeKnowledgeGraphCreation関数を呼び出して、AIプロセスのフェーズ2を実行
+              const result = await aiAgentService.completeKnowledgeGraphCreation(
+                roleModelId,
+                {
+                  preferredSummaryTypes,
+                  additionalComments: payload.data.comments
+                },
+                mainTopic,
+                subTopics
+              );
+              
+              console.log('ナレッジグラフフェーズ2完了:', result);
+            } catch (error) {
+              console.error('ナレッジグラフフェーズ2エラー:', error);
+              
+              // エラー進捗更新
+              websocket.sendProgressUpdate(
+                roleModelId,
+                0,
+                'ナレッジグラフの最終化中にエラーが発生しました',
+                { 
+                  status: 'error',
+                  error: error instanceof Error ? error.message : '不明なエラー'
+                }
+              );
+            }
+          }, 1000);
+        } catch (error) {
+          console.error('フィードバック処理のフェーズ2初期化エラー:', error);
+          websocket.sendProgressUpdate(
+            roleModelId,
+            0,
+            'フィードバック処理の初期化中にエラーが発生しました',
+            { status: 'error', error: 'initialization_error' }
+          );
+        }
       }
       
       // サンプル収集リクエストの場合は、サンプル提示フローを開始
