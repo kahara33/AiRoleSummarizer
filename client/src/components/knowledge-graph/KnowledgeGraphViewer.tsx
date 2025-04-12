@@ -65,6 +65,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   width = '100%',
   height = '600px',
   onGraphDataChange,
+  autoLoad = true, // デフォルトはtrue（従来の動作を維持）
 }) => {
   // useKnowledgeGraphフックを使用してWebSocket通信を行う
   const {
