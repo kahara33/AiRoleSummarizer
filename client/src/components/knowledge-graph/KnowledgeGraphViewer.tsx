@@ -45,6 +45,7 @@ interface KnowledgeGraphViewerProps {
   width?: string | number;
   height?: string | number;
   onGraphDataChange?: (hasData: boolean) => void;
+  onDataStatus?: (hasData: boolean) => void; // 既存のonGraphDataChangeと同様の機能
   autoLoad?: boolean;  // 自動データロードを制御するプロパティ（デフォルトはtrue）
 }
 
@@ -65,6 +66,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   width = '100%',
   height = '600px',
   onGraphDataChange,
+  onDataStatus,
   autoLoad = true, // デフォルトはtrue（従来の動作を維持）
 }) => {
   // useKnowledgeGraphフックを使用してWebSocket通信を行う
@@ -136,6 +138,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           if (onGraphDataChange) {
             onGraphDataChange(false);
           }
+          if (onDataStatus) {
+            onDataStatus(false);
+          }
           setLoading(false);
           return;
         }
@@ -148,6 +153,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         setHasKnowledgeGraph(false);
         if (onGraphDataChange) {
           onGraphDataChange(false);
+        }
+        if (onDataStatus) {
+          onDataStatus(false);
         }
         setLoading(false);
         return;
@@ -323,6 +331,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         if (onGraphDataChange) {
           onGraphDataChange(hasData);
         }
+        if (onDataStatus) {
+          onDataStatus(hasData);
+        }
         return;
       }
       
@@ -342,6 +353,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setHasKnowledgeGraph(hasData);
       if (onGraphDataChange) {
         onGraphDataChange(hasData);
+      }
+      if (onDataStatus) {
+        onDataStatus(hasData);
       }
     } catch (err) {
       console.error('グラフデータの取得エラー:', err);
@@ -367,6 +381,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           setHasKnowledgeGraph(exists);
           if (onGraphDataChange) {
             onGraphDataChange(exists);
+          }
+          if (onDataStatus) {
+            onDataStatus(exists);
           }
           
           // グラフが存在する場合はデータを読み込む
