@@ -4,9 +4,10 @@
  */
 
 import { storage } from '../../storage';
+import { db } from '../../db';
 import { collectionPlans, collectionSources, collectionSummaries } from '../../../shared/schema';
 import { v4 as uuidv4 } from 'uuid';
-import { eq } from 'drizzle-orm';
+import { eq, and, desc, SQL } from 'drizzle-orm';
 import { searchWithExa } from '../exa-search';
 import * as neo4jService from '../neo4j-service';
 import * as websocket from '../../websocket';
@@ -45,13 +46,19 @@ async function initCrewAI() {
 
 /**
  * CrewAIを使用してナレッジライブラリの情報収集と分析処理を実行する
- * @param collectionPlanId 情報収集プランID
  * @param roleModelId ロールモデルID
+ * @param collectionPlanId 情報収集プランID
+ * @param input 入力データ (タイトル、キーワード等を含む)
  * @returns 処理結果（成功/失敗）
  */
 export async function runKnowledgeLibraryProcess(
+  roleModelId: string,
   collectionPlanId: string,
-  roleModelId: string
+  input: {
+    title: string;
+    industries?: string[];
+    keywords?: string[];
+  }
 ): Promise<boolean> {
   try {
     const { Crew } = await initCrewAI();
