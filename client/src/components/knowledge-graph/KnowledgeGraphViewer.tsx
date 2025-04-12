@@ -69,22 +69,15 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   onDataStatus,
   autoLoad = true, // デフォルトはtrue（従来の動作を維持）
 }) => {
-  // useKnowledgeGraphフックを使用してWebSocket通信を行う
+  // 統合WebSocketフックを使用してWebSocket通信を行う
   const {
-    nodes: websocketNodes,
-    edges: websocketEdges,
-    loading: wsLoading,
-    error: wsError,
-    saveGraph: wsSaveGraph,
-    loadGraph: wsLoadGraph,
-    isUpdating: wsUpdating,
-    lastUpdateTime,
-    lastUpdateSource,
-    requestGraphData // 明示的なグラフデータリクエスト関数を追加
-  } = useKnowledgeGraphWebSocket(roleModelId);
-  
-  // WebSocketコネクション用のカスタムフック
-  const { isConnected, sendMessage } = useMultiAgentWebSocket();
+    isConnected,
+    sendMessage,
+    connect,
+    agentThoughts,
+    progressUpdates,
+    isProcessing
+  } = useUnifiedWebSocket();
 
   // ReactFlowの状態管理
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -137,6 +130,14 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     lastCheckTime: new Date().toISOString(),
     wsStatus: isConnected ? 'connected' : 'disconnected'
   });
+  
+  // WebSocket接続の初期化
+  useEffect(() => {
+    if (roleModelId && !isConnected) {
+      console.log('KnowledgeGraphViewer: WebSocket接続を開始します', roleModelId);
+      connect(roleModelId);
+    }
+  }, [roleModelId, isConnected, connect]);
 
   // サーバーからグラフデータを取得する関数（デバッグログ追加、エラー処理改善）
   const fetchGraphData = useCallback(async () => {
