@@ -527,7 +527,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       ]);
       
       // 業界IDsの抽出
-      const industryIds = industryRelations.map(rel => rel.industryId);
+      const industrySubcategoryIds = industryRelations.map(rel => rel.industryId);
       
       // 業界データの取得
       const industriesData = industryIds.length ? 
