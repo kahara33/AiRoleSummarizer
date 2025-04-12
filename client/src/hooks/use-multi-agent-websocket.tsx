@@ -367,6 +367,7 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
   const [agentThoughts, setAgentThoughts] = useState<AgentThought[]>([]);
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
   const [currentRoleModelId, setCurrentRoleModelId] = useState<string | null>(null);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   
