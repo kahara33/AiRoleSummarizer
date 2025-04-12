@@ -32,13 +32,13 @@ export default function AIGenerationButtonsContainer({
   // WebSocket接続を確立
   const { connect, isConnected } = useKnowledgeGraphGeneration();
   
-  // コンポーネントマウント時に接続を確保
+  // コンポーネントマウント時に接続を確保（依存配列を空にして初回のみ実行）
   useEffect(() => {
     if (roleModelId && !isConnected) {
       console.log('AIGenerationButtonsContainer: WebSocket接続を開始します', roleModelId);
       connect(roleModelId);
     }
-  }, [roleModelId, isConnected, connect]);
+  }, []);
 
   // ボタン間で状態を共有
   useEffect(() => {

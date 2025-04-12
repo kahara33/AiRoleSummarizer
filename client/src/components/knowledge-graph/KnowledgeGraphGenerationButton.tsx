@@ -45,12 +45,13 @@ export default function KnowledgeGraphGenerationButton({
     cancelOperation
   } = useKnowledgeGraphGeneration();
   
-  // コンポーネントのマウント時にWebSocketを接続
-  // Reactの自動バッチングを利用したもっと単純な方法を使用
-  if (roleModelId && !isConnected) {
-    console.log('KnowledgeGraphGenerationButton: WebSocket接続を開始します', roleModelId);
-    connect(roleModelId);
-  }
+  // コンポーネントのマウント時にWebSocketを接続（useEffect内で実行）
+  useEffect(() => {
+    if (roleModelId && !isConnected) {
+      console.log('KnowledgeGraphGenerationButton: WebSocket接続を開始します', roleModelId);
+      connect(roleModelId);
+    }
+  }, []);
 
   // WebSocketからの進捗状況更新を処理するエフェクト
   useEffect(() => {
