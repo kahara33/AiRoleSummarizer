@@ -1265,6 +1265,62 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
   
+  // 情報収集プランの実行（マルチエージェント処理）
+  app.post('/api/collection-plans/:planId/execute', isAuthenticated, async (req, res) => {
+    try {
+      const { planId } = req.params;
+      
+      if (!planId || !isValidUUID(planId)) {
+        return res.status(400).json({ error: '有効な情報収集プランIDが必要です' });
+      }
+      
+      // プランの取得
+      const plan = await db.query.collectionPlans.findFirst({
+        where: eq(collectionPlans.id, planId)
+      });
+      
+      if (!plan) {
+        return res.status(404).json({ error: '情報収集プランが見つかりません' });
+      }
+      
+      const roleModelId = plan.roleModelId;
+      
+      // アクセス権チェック
+      if (plan.createdBy !== req.user?.id && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'このプランにアクセスする権限がありません' });
+      }
+      
+      // 初期レスポンスを返す
+      res.json({ status: 'processing', message: 'マルチエージェント処理を開始しました' });
+      
+      // バックグラウンドで処理（7つのエージェントによる処理）
+      runKnowledgeLibraryProcess(planId, roleModelId)
+        .then(result => {
+          console.log(`マルチエージェント処理完了: ${planId}`);
+          sendProgressUpdate(roleModelId, {
+            type: 'agents_process_complete',
+            message: '処理が完了しました',
+            data: { success: result }
+          });
+        })
+        .catch(error => {
+          console.error(`マルチエージェント処理エラー: ${planId}`, error);
+          sendProgressUpdate(roleModelId, {
+            type: 'agents_process_error',
+            message: `処理エラー: ${error instanceof Error ? error.message : '不明なエラー'}`
+          });
+        });
+    } catch (error) {
+      console.error('マルチエージェント処理実行エラー:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'マルチエージェント処理の実行に失敗しました', 
+          details: error instanceof Error ? error.message : '不明なエラー' 
+        });
+      }
+    }
+  });
+
   // 情報収集プランの検索結果取得
   app.get('/api/collection-plans/:planId/search-results', isAuthenticated, async (req, res) => {
     try {

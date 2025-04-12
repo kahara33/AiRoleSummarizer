@@ -295,8 +295,8 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
     },
     onSuccess: () => {
       toast({
-        title: "プロセス開始",
-        description: "AI知識ライブラリの生成を開始しました。進捗状況はエージェントパネルで確認できます。"
+        title: "情報収集プラン作成完了",
+        description: "AI生成による情報収集プランが作成されました。左パネルから実行ボタンを押して処理を開始できます。"
       });
     },
     onError: (error) => {
