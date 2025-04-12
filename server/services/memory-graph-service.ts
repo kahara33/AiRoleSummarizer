@@ -521,6 +521,74 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   }
 }
 
+/**
+ * 既存のナレッジグラフを新しいグラフデータで上書き設定する
+ * @param roleModelId ロールモデルID
+ * @param graphData 新しいグラフデータ（ノードとエッジ）
+ */
+export function setKnowledgeGraph(
+  roleModelId: string, 
+  graphData: { 
+    nodes: any[]; 
+    edges: any[]; 
+  }
+): void {
+  try {
+    // ロールモデルIDが有効かチェック
+    if (!roleModelId) {
+      console.warn('無効なロールモデルID');
+      return;
+    }
+
+    // 既存のグラフを削除（このロールモデルに関連するノードをフィルタリング）
+    const roleModelNodes = graphs.filter(n => n.roleModelId === roleModelId);
+    const nodeIds = roleModelNodes.map(n => n.id);
+    
+    // 既存のノードを削除
+    graphs = graphs.filter(n => n.roleModelId !== roleModelId);
+    
+    // 既存のリレーションシップを削除（ノードID参照）
+    relationships = relationships.filter(r => 
+      !nodeIds.includes(r.sourceId) && !nodeIds.includes(r.targetId)
+    );
+    
+    // 新しいノードを追加
+    const newNodes = graphData.nodes.map(node => {
+      const newNodeId = node.id || uuidv4();
+      return {
+        id: newNodeId,
+        labels: [node.type || 'Node'],
+        properties: {
+          ...node.properties,
+          label: node.label || '',
+          updatedAt: new Date().toISOString()
+        },
+        roleModelId
+      };
+    });
+    
+    // 新しいエッジを追加
+    const newRelationships = graphData.edges.map(edge => {
+      return {
+        id: edge.id || uuidv4(),
+        sourceId: edge.source,
+        targetId: edge.target,
+        type: edge.type || 'RELATED_TO',
+        properties: edge.properties || {},
+      };
+    });
+    
+    // グラフデータを更新
+    graphs = [...graphs, ...newNodes];
+    relationships = [...relationships, ...newRelationships];
+    
+    console.log(`メモリベースグラフストレージ: ロールモデル ${roleModelId} のグラフを更新しました。`);
+    console.log(`新しいノード数: ${newNodes.length}, 新しいエッジ数: ${newRelationships.length}`);
+  } catch (error) {
+    console.error(`Error setting knowledge graph for role model ${roleModelId}:`, error);
+  }
+}
+
 // ヘルパー関数: ノードプロパティを処理する
 function processNodeProperties(properties: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};

@@ -1,20 +1,22 @@
 /**
  * ユーザーフィードバックサービス
- * ナレッジグラフと要約サンプルに対するユーザーフィードバックを処理するサービス
+ * AIエージェントの出力に対するユーザーフィードバックを処理するサービス
  */
 
-import * as graphService from './graph-service-adapter';
+import { v4 as uuidv4 } from 'uuid';
+import * as graphServiceAdapter from './graph-service-adapter';
 import * as knowledgeGraphService from './knowledge-graph-service';
-import { GraphData } from './knowledge-graph-service';
-import { WebSocket } from 'ws';
+import * as aiAgentService from './ai-agent-service';
 
 /**
- * ユーザーフィードバックタイプ
+ * ユーザーフィードバックタイプ列挙型
  */
 export enum FeedbackType {
-  SUMMARY_PREFERENCE = 'summary_preference',  // 要約サンプルの嗜好
-  GRAPH_FEEDBACK = 'graph_feedback',          // グラフ構造に対するフィードバック
-  KEYWORD_PRIORITY = 'keyword_priority',      // キーワードの優先順位
+  SUMMARY_PREFERENCE = 'summary_preference',  // 要約スタイルの選好
+  TOPIC_RELEVANCE = 'topic_relevance',        // トピックの関連性評価
+  KEYWORD_INTEREST = 'keyword_interest',      // キーワードへの関心度
+  SEARCH_QUALITY = 'search_quality',          // 検索品質フィードバック
+  GRAPH_STRUCTURE = 'graph_structure',        // グラフ構造フィードバック
   GENERAL_COMMENT = 'general_comment'         // 一般的なコメント
 }
 
@@ -22,157 +24,187 @@ export enum FeedbackType {
  * ユーザーフィードバックインターフェース
  */
 export interface UserFeedback {
+  id?: string;
   roleModelId: string;
   feedbackType: FeedbackType;
-  data: any;  // フィードバックタイプに応じたデータ
+  data: any;
   timestamp: number;
 }
 
 /**
- * 要約サンプル嗜好インターフェース
+ * サマリーサンプルインターフェース
  */
-export interface SummaryPreference {
-  selectedSampleIds: string[];      // 選択されたサンプルID
-  priorityCategories: string[];     // 優先カテゴリ
-  additionalKeywords?: string[];    // 追加のキーワード
+export interface SummarySample {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  characteristics: string[];
 }
 
 /**
- * 要約サンプル嗜好をグラフパラメータに変換
- * @param preference 要約サンプル嗜好
- * @returns グラフ更新パラメータ
- */
-function convertPreferenceToGraphParams(preference: SummaryPreference): {
-  categories: string[];
-  priorityKeywords: string[];
-  feedbackType: string;
-} {
-  return {
-    categories: preference.priorityCategories,
-    priorityKeywords: preference.additionalKeywords || [],
-    feedbackType: 'explicit'
-  };
-}
-
-/**
- * 要約サンプルに基づいてグラフを更新
- * @param roleModelId ロールモデルID
+ * フィードバックを処理する
  * @param feedback ユーザーフィードバック
- * @returns 更新されたグラフデータ
- */
-export async function updateGraphBasedOnSummaryPreference(
-  roleModelId: string,
-  preference: SummaryPreference
-): Promise<GraphData | null> {
-  try {
-    console.log(`要約サンプル嗜好に基づくグラフ更新: roleModelId=${roleModelId}`);
-    
-    // 既存のグラフを取得
-    const existingGraph = await graphService.getKnowledgeGraph(roleModelId);
-    
-    if (!existingGraph) {
-      console.warn('更新対象の既存グラフが見つかりません');
-      return null;
-    }
-    
-    // 嗜好をグラフパラメータに変換
-    const graphParams = convertPreferenceToGraphParams(preference);
-    
-    // ナレッジグラフサービスを使用してグラフを更新
-    const updatedGraph = await knowledgeGraphService.incorporateUserFeedback(
-      roleModelId,
-      existingGraph,
-      graphParams
-    );
-    
-    // 更新されたグラフをデータベースに保存
-    await graphService.saveKnowledgeGraph(roleModelId, updatedGraph);
-    
-    console.log(`グラフ更新完了: roleModelId=${roleModelId}, ノード数=${updatedGraph.nodes.length}`);
-    
-    return updatedGraph;
-  } catch (error) {
-    console.error('要約サンプル嗜好に基づくグラフ更新エラー:', error);
-    return null;
-  }
-}
-
-/**
- * WebSocketを通じてフィードバック要求を送信
- * @param socket WebSocketオブジェクト
- * @param roleModelId ロールモデルID
- * @param samples 要約サンプル
- */
-export function sendFeedbackRequest(
-  socket: WebSocket,
-  roleModelId: string,
-  samples: any[]
-): void {
-  try {
-    if (socket.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocketが開いていないため、フィードバック要求を送信できません');
-      return;
-    }
-    
-    const message = {
-      type: 'feedback_request',
-      roleModelId,
-      data: {
-        requestType: 'summary_preference',
-        samples,
-        message: '以下の要約サンプルから最も関心のあるものを選択してください。これにより、情報収集プランがカスタマイズされます。'
-      }
-    };
-    
-    socket.send(JSON.stringify(message));
-    console.log(`フィードバック要求を送信: roleModelId=${roleModelId}, サンプル数=${samples.length}`);
-  } catch (error) {
-    console.error('フィードバック要求送信エラー:', error);
-  }
-}
-
-/**
- * フィードバックを処理
- * @param feedback ユーザーフィードバック
- * @returns 処理成功フラグ
+ * @returns 処理が成功したかどうか
  */
 export async function processFeedback(feedback: UserFeedback): Promise<boolean> {
   try {
-    console.log(`フィードバック処理開始: roleModelId=${feedback.roleModelId}, タイプ=${feedback.feedbackType}`);
-    
+    feedback.id = feedback.id || uuidv4();
+    console.log(`フィードバック処理: type=${feedback.feedbackType}, roleModelId=${feedback.roleModelId}`);
+
+    // フィードバックタイプに応じた処理
     switch (feedback.feedbackType) {
       case FeedbackType.SUMMARY_PREFERENCE:
-        // 要約サンプル嗜好に基づいてグラフを更新
-        await updateGraphBasedOnSummaryPreference(
-          feedback.roleModelId,
-          feedback.data as SummaryPreference
-        );
-        break;
-        
-      case FeedbackType.GRAPH_FEEDBACK:
-        // グラフ構造に対するフィードバックを処理
-        // 実装省略（将来の拡張用）
-        break;
-        
-      case FeedbackType.KEYWORD_PRIORITY:
-        // キーワードの優先順位に基づいてグラフを更新
-        // 実装省略（将来の拡張用）
-        break;
-        
-      case FeedbackType.GENERAL_COMMENT:
-        // 一般的なコメントを処理
-        // 実装省略（将来の拡張用）
-        break;
-        
+        return await processSummaryPreference(feedback);
+      case FeedbackType.TOPIC_RELEVANCE:
+        return await processTopicRelevance(feedback);
+      case FeedbackType.KEYWORD_INTEREST:
+        return await processKeywordInterest(feedback);
+      case FeedbackType.GRAPH_STRUCTURE:
+        return await processGraphStructure(feedback);
       default:
-        console.warn(`未知のフィードバックタイプ: ${feedback.feedbackType}`);
-        return false;
+        console.log(`未実装のフィードバックタイプ: ${feedback.feedbackType}`);
+        return true; // 一般的なコメントなどはそのまま成功として返す
     }
-    
-    console.log(`フィードバック処理完了: roleModelId=${feedback.roleModelId}`);
-    return true;
   } catch (error) {
     console.error('フィードバック処理エラー:', error);
     return false;
+  }
+}
+
+/**
+ * 要約サンプルの好みに関するフィードバックを処理する
+ * @param feedback ユーザーフィードバック
+ * @returns 処理が成功したかどうか
+ */
+async function processSummaryPreference(feedback: UserFeedback): Promise<boolean> {
+  try {
+    const { preferredSamples, roleModelId } = feedback.data;
+    console.log(`要約サンプル選好処理: ${preferredSamples.length}個のサンプルが選択されました`);
+
+    // 既存のグラフを取得
+    const existingGraph = await graphServiceAdapter.getKnowledgeGraph(roleModelId);
+    
+    if (!existingGraph || !existingGraph.nodes || existingGraph.nodes.length === 0) {
+      console.error('既存のグラフが見つかりません');
+      return false;
+    }
+
+    // フィードバックに基づいてグラフを強化
+    const enhancedGraph = await knowledgeGraphService.incorporateUserFeedback(
+      roleModelId,
+      existingGraph,
+      {
+        preferredSummaryTypes: preferredSamples.map((sample: any) => sample.type),
+        preferredCharacteristics: extractCharacteristics(preferredSamples)
+      }
+    );
+
+    // 強化されたグラフを保存
+    const saveResult = await graphServiceAdapter.saveKnowledgeGraph(roleModelId, enhancedGraph);
+    
+    return saveResult;
+  } catch (error) {
+    console.error('要約サンプル好みフィードバック処理エラー:', error);
+    return false;
+  }
+}
+
+/**
+ * トピックの関連性に関するフィードバックを処理する
+ * @param feedback ユーザーフィードバック
+ * @returns 処理が成功したかどうか
+ */
+async function processTopicRelevance(feedback: UserFeedback): Promise<boolean> {
+  try {
+    const { topicId, relevanceScore, comments } = feedback.data;
+    console.log(`トピック関連性フィードバック: topicId=${topicId}, score=${relevanceScore}`);
+    
+    // トピック関連性スコアを元に処理
+    // ここにトピック関連性処理のロジックを実装
+    
+    return true;
+  } catch (error) {
+    console.error('トピック関連性フィードバック処理エラー:', error);
+    return false;
+  }
+}
+
+/**
+ * キーワードへの関心度に関するフィードバックを処理する
+ * @param feedback ユーザーフィードバック
+ * @returns 処理が成功したかどうか
+ */
+async function processKeywordInterest(feedback: UserFeedback): Promise<boolean> {
+  try {
+    const { keywords, interestScores } = feedback.data;
+    console.log(`キーワード関心度フィードバック: ${keywords.length}個のキーワード`);
+    
+    // キーワード関心度スコアを元に処理
+    // ここにキーワード関心度処理のロジックを実装
+    
+    return true;
+  } catch (error) {
+    console.error('キーワード関心度フィードバック処理エラー:', error);
+    return false;
+  }
+}
+
+/**
+ * グラフ構造に関するフィードバックを処理する
+ * @param feedback ユーザーフィードバック
+ * @returns 処理が成功したかどうか
+ */
+async function processGraphStructure(feedback: UserFeedback): Promise<boolean> {
+  try {
+    const { suggestions, nodeChanges } = feedback.data;
+    console.log(`グラフ構造フィードバック: ${suggestions.length}個の提案`);
+    
+    // グラフ構造の変更提案を元に処理
+    // ここにグラフ構造フィードバック処理のロジックを実装
+    
+    return true;
+  } catch (error) {
+    console.error('グラフ構造フィードバック処理エラー:', error);
+    return false;
+  }
+}
+
+/**
+ * 要約サンプルを5つ生成する
+ * @param roleModelId ロールモデルID
+ * @param mainTopic メイントピック
+ * @returns 要約サンプル配列
+ */
+export async function generateSummarySamples(roleModelId: string, mainTopic: string): Promise<SummarySample[]> {
+  try {
+    console.log(`要約サンプル生成: roleModelId=${roleModelId}, topic=${mainTopic}`);
+    
+    // AIエージェントを使用して5種類の要約サンプルを生成
+    const samples = await aiAgentService.generateSummarySamples(mainTopic);
+    
+    return samples;
+  } catch (error) {
+    console.error('要約サンプル生成エラー:', error);
+    return [];
+  }
+}
+
+/**
+ * ユーザーの好みの特性を抽出
+ * @param preferredSamples ユーザーが好むサンプル
+ * @returns 特性配列
+ */
+function extractCharacteristics(preferredSamples: any[]): string[] {
+  try {
+    // 各サンプルから特性を抽出して一意な配列を返す
+    const allCharacteristics = preferredSamples
+      .flatMap((sample: any) => sample.characteristics || []);
+    
+    // 重複を削除
+    return [...new Set(allCharacteristics)];
+  } catch (error) {
+    console.error('特性抽出エラー:', error);
+    return [];
   }
 }

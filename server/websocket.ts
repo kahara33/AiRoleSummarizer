@@ -185,6 +185,42 @@ export function initWebSocketServer(server: Server): void {
                 { status: 'error' }
               );
             }
+          } else if (type === 'user_feedback') {
+            // ユーザーフィードバックリクエスト
+            console.log(`クライアントからのユーザーフィードバックリクエスト:`, parsedMessage);
+            
+            try {
+              // クライアントに受信確認メッセージを送信
+              ws.send(JSON.stringify({
+                type: 'request_received',
+                requestType: 'user_feedback',
+                message: 'フィードバックを受信しました。処理中...',
+                timestamp: new Date().toISOString()
+              }));
+              
+              // 動的インポートでハンドラーモジュールを読み込む
+              const handlers = await import('./websocket-handlers');
+              const result = await handlers.handleUserFeedback(parsedMessage, roleModelId);
+              
+              console.log('ユーザーフィードバック処理結果:', result ? '成功' : '失敗');
+            } catch (error) {
+              console.error('ユーザーフィードバックハンドラのロードまたは実行エラー:', error);
+              
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'フィードバック処理中にエラーが発生しました',
+                error: error instanceof Error ? error.message : String(error),
+                timestamp: new Date().toISOString()
+              }));
+              
+              // エラー進捗更新
+              sendProgressUpdate(
+                roleModelId,
+                0,
+                'フィードバック処理中にエラーが発生しました',
+                { status: 'error' }
+              );
+            }
           } else if (type === 'cancel_operation') {
             // 操作キャンセルリクエスト
             console.log(`クライアントからの操作キャンセルリクエスト:`, parsedMessage);
