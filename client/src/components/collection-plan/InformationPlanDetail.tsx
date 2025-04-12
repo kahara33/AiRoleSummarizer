@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { saveInformationPlan } from '@/lib/socket';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 // 情報収集プランの型定義
 interface InformationPlan {
@@ -211,6 +212,10 @@ export default function InformationPlanDetail({ plan, roleModelId, onPlanUpdate,
           <Button variant="outline" size="sm" onClick={handleOpenEditDialog}>
             <Edit className="h-4 w-4 mr-1" />
             編集
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleExecutePlan}>
+            <FileText className="h-4 w-4 mr-1" />
+            実行
           </Button>
         </div>
       </div>

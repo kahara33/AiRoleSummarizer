@@ -1294,7 +1294,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.json({ status: 'processing', message: 'マルチエージェント処理を開始しました' });
       
       // バックグラウンドで処理（7つのエージェントによる処理）
-      runKnowledgeLibraryProcess(planId, roleModelId)
+      runKnowledgeLibraryProcess(roleModelId, planId, {
+          title: plan.title,
+          industries: [], // 必要に応じてロールモデルから業界情報を取得
+          keywords: []   // 必要に応じてロールモデルからキーワード情報を取得
+        })
         .then(result => {
           console.log(`マルチエージェント処理完了: ${planId}`);
           sendProgressUpdate(roleModelId, {
@@ -1380,7 +1384,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.json({ status: 'processing', message: 'マルチエージェント処理を開始しました' });
       
       // バックグラウンドで処理
-      runKnowledgeLibraryProcess(collectionPlanId, roleModelId)
+      runKnowledgeLibraryProcess(roleModelId, collectionPlanId, {
+          title: "マルチエージェント情報処理",
+          industries: [], // 必要に応じてデータを取得
+          keywords: []    // 必要に応じてデータを取得
+        })
         .then(result => {
           console.log(`マルチエージェント処理完了: ${collectionPlanId}`);
           sendProgressUpdate(roleModelId, {
