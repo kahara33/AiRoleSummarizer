@@ -34,6 +34,7 @@ import {
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
 import { generateKnowledgeGraphWithCrewAI } from './agents';
+import { generateKnowledgeLibraryWithCrewAI } from './services/crew-ai/knowledge-library-service';
 import { randomUUID } from 'crypto';
 
 // UUIDの検証関数
@@ -1151,6 +1152,101 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch (error) {
       console.error('ロールモデル共有設定変更エラー:', error);
       res.status(500).json({ error: 'ロールモデルの共有設定変更に失敗しました' });
+    }
+  });
+
+  // ==================
+  // ナレッジライブラリ関連
+  // ==================
+  // ナレッジライブラリの生成
+  app.post('/api/knowledge-library/generate/:roleModelId', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      
+      // UUID形式でない場合はエラー
+      if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
+        console.error(`無効なUUID形式: ${roleModelId}`);
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
+      const user = req.user;
+      
+      // 権限チェック
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+        with: {
+          industries: {
+            with: {
+              industry: true,
+            },
+          },
+          keywords: {
+            with: {
+              keyword: true,
+            },
+          },
+        },
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // アクセス権限の確認
+      const hasAccess = roleModel.createdBy === user?.id || 
+                       (roleModel.isShared === 1) || 
+                       (user?.role === 'admin');
+                       
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'このロールモデルにアクセスする権限がありません' });
+      }
+      
+      // 業種とキーワードの取得
+      const industries = roleModel.industries.map(rel => ({
+        id: rel.industry?.id || '',
+        name: rel.industry?.name || '',
+        description: rel.industry?.description || '',
+      })).filter(i => i.id);
+      
+      const keywords = roleModel.keywords
+        .map(rel => rel.keyword ? {
+          id: rel.keyword.id,
+          name: rel.keyword.name,
+          description: rel.keyword.description,
+        } : null)
+        .filter(Boolean);
+        
+      // CrewAIに渡す入力の準備
+      const input = {
+        roleModelId,
+        industries,
+        keywords,
+        roleModelName: roleModel.name,
+        roleModelDescription: roleModel.description || '',
+      };
+      
+      // 処理を開始
+      res.json({ status: 'processing', message: 'ナレッジライブラリの生成を開始しました' });
+      
+      // バックグラウンドで処理
+      generateKnowledgeLibraryWithCrewAI(input)
+        .then(result => {
+          if (result.success) {
+            console.log(`ナレッジライブラリ生成成功: ${roleModelId}`);
+          } else {
+            console.error(`ナレッジライブラリ生成失敗: ${roleModelId}`, result.error);
+          }
+        })
+        .catch(error => {
+          console.error(`ナレッジライブラリ生成エラー: ${roleModelId}`, error);
+        });
+        
+    } catch (error) {
+      console.error('ナレッジライブラリ生成エラー:', error);
+      // すでにレスポンスを返している場合はエラーをキャッチするだけ
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'ナレッジライブラリの生成に失敗しました' });
+      }
     }
   });
 
