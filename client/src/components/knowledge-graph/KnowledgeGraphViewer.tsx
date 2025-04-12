@@ -369,7 +369,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   }, [roleModelId, onGraphDataChange]);
 
   // ノード操作ユーティリティのセットアップ
-  const nodeOperations = useNodeOperations(roleModelId, fetchGraphData, setUndoStack);
+  const nodeOperations = useNodeOperations(roleModelId, requestGraphData, setUndoStack);
   
   // ノード操作ダイアログを開く
   const openNodeDialog = useCallback((type: 'edit' | 'add-child' | 'add-sibling', nodeId: string) => {
@@ -455,7 +455,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           }]);
           
           // 成功したら再読み込み
-          fetchGraphData();
+          requestGraphData();
         } catch (error) {
           console.error('ノード削除エラー:', error);
           alert('ノードの削除中にエラーが発生しました');
@@ -490,7 +490,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       }]);
       
       // 成功したら再読み込み
-      fetchGraphData();
+      requestGraphData();
     } catch (error) {
       console.error('ノード拡張エラー:', error);
       alert('ノードの拡張中にエラーが発生しました');
@@ -522,7 +522,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             nodeData
           );
           // 編集の場合は再取得
-          await fetchGraphData();
+          await requestGraphData();
           break;
           
         case 'add-child':
