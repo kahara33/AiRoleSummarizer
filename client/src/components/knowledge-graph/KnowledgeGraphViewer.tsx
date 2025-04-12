@@ -1130,8 +1130,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             setGenerating(false);
             // 少し遅延させてデータベースの更新が確実に反映されるようにする
             setTimeout(() => {
-              console.log('グラフデータを再取得します（進捗完了後）');
-              fetchGraphData();
+              console.log('明示的にグラフデータをリクエストします（進捗完了後）');
+              requestGraphData(); // fetchGraphDataからrequestGraphDataに変更
             }, 1500);
           }, 500);
         }
@@ -1289,7 +1289,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             <p>{error}</p>
             <Button
               className="mt-4"
-              onClick={fetchGraphData}
+              onClick={requestGraphData}
             >
               再試行
             </Button>
@@ -1335,7 +1335,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
               <Panel position="top-right" style={{ right: 10, top: 10 }}>
                 <KnowledgeGraphSavePanel 
                   roleModelId={roleModelId} 
-                  onSaveSuccess={fetchGraphData}
+                  onSaveSuccess={requestGraphData}
                 />
               </Panel>
               
