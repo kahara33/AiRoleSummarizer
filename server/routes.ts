@@ -30,6 +30,7 @@ import {
   roleModelIndustries,
   roleModelKeywords,
   keywords,
+  collectionPlans, // 情報収集プランテーブル追加
 } from '@shared/schema';
 import { generateKnowledgeGraphForNode } from './azure-openai';
 import { generateKnowledgeGraphForRoleModel } from './knowledge-graph-generator';
@@ -2062,8 +2063,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const { roleModelId } = req.params;
       
       // ロールモデルIDで最新の情報収集プランを取得
-      const plans = await db.query.informationCollectionPlans.findMany({
-        where: eq(informationCollectionPlans.roleModelId, roleModelId)
+      // 現在はcollectionPlansテーブルを使用
+      const plans = await db.query.collectionPlans.findMany({
+        where: eq(collectionPlans.roleModelId, roleModelId)
       });
       
       return res.status(200).json(plans);
