@@ -1378,11 +1378,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         roleModelId: roleModelId
       });
       
-      // バックグラウンドで処理実行
-      runKnowledgeLibraryProcess(roleModelId, planId, {
-        title: plan.title || "マルチエージェント情報処理",
-        industries: [], // 必要に応じてロールモデルから産業情報を取得
-        keywords: []   // 必要に応じてロールモデルからキーワード情報を取得
+      // バックグラウンドで処理実行 - 新しいexecuteCollectionPlan関数を使用
+      const { executeCollectionPlan } = require('./services/crew-ai/knowledge-library-service');
+      
+      executeCollectionPlan(roleModelId, planId, {
+        maxResults: 15,
+        searchDepth: 2
       })
       .then(result => {
         console.log(`プラン実行完了: ${planId}`);

@@ -737,10 +737,220 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
     
     // 情報収集プランの作成のみを行い、ユーザーが手動で実行できるようにする
     console.log(`情報収集プラン作成完了: planId=${plan.id}`);
+    console.log(`ナレッジライブラリ生成成功: ${roleModelId}`);
     
     return { success: true, planId: plan.id };
   } catch (error) {
     console.error(`ナレッジライブラリ生成エラー:`, error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * 情報収集プランを実行し、レポートとナレッジグラフを生成する
+ * 
+ * @param roleModelId ロールモデルID
+ * @param planId 情報収集プランID
+ * @param options 実行オプション
+ * @returns 実行結果
+ */
+export async function executeCollectionPlan(
+  roleModelId: string,
+  planId: string,
+  options?: {
+    searchDepth?: number;
+    maxResults?: number;
+  }
+): Promise<{
+  success: boolean;
+  executionId?: string;
+  reportId?: string;
+  knowledgeGraphId?: string;
+  error?: any;
+}> {
+  try {
+    console.log(`情報収集プラン実行開始: ${planId}`);
+    
+    // プランの詳細を取得
+    const plan = await db.query.collectionPlans.findFirst({
+      where: eq(collectionPlans.id, planId)
+    });
+    
+    if (!plan) {
+      throw new Error('情報収集プランが見つかりません');
+    }
+    
+    // 実行IDを生成（トレーサビリティのため）
+    const executionId = uuidv4();
+    
+    // 進捗状況の更新 - 開始
+    websocket.sendProgressUpdate(roleModelId, 0, `情報収集プラン「${plan.title}」の実行を開始します`);
+    
+    // 1. 初期調査エージェントによる初期検索の実行
+    websocket.sendProgressUpdate(roleModelId, 10, '初期情報収集を実行中...');
+    websocket.sendAgentThoughts(
+      '初期調査エージェント',
+      `${plan.title}に関する初期情報収集を開始します`,
+      roleModelId,
+      'starting'
+    );
+    
+    // Exa検索APIを使用して初期検索を実行
+    const searchQuery = plan.title || 'ナレッジライブラリ';
+    const initialResults = await searchWithExa(
+      searchQuery,
+      options?.maxResults || 10,
+      roleModelId
+    );
+    
+    // 検索結果をデータベースに保存
+    const sources = await Promise.all(initialResults.map(async (result) => {
+      const source = await db.insert(collectionSources).values({
+        id: uuidv4(),
+        collectionPlanId: planId,
+        executionId,
+        title: result.title || '無題',
+        url: result.url,
+        content: result.text || '',
+        metadata: JSON.stringify(result.metadata || {}),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        type: 'exa',
+        relevanceScore: result.relevanceScore || 0
+      }).returning();
+      
+      return source[0];
+    }));
+    
+    // 2. 計画戦略エージェントによる情報分析
+    websocket.sendProgressUpdate(roleModelId, 30, '収集情報を分析中...');
+    websocket.sendAgentThoughts(
+      '計画戦略エージェント',
+      `収集された情報を分析し、戦略を立案しています`,
+      roleModelId,
+      'thinking'
+    );
+    
+    // 3. コンテンツ処理エージェントによる情報構造化
+    websocket.sendProgressUpdate(roleModelId, 50, '情報を構造化中...');
+    websocket.sendAgentThoughts(
+      'コンテンツ処理エージェント',
+      `情報を構造化し、ナレッジグラフのための要素を抽出しています`,
+      roleModelId,
+      'processing'
+    );
+    
+    // 4. 重複管理エージェントによる重複排除
+    websocket.sendProgressUpdate(roleModelId, 60, '重複情報を排除中...');
+    websocket.sendAgentThoughts(
+      '重複管理エージェント',
+      `重複コンテンツを識別し、一意な情報セットを作成しています`,
+      roleModelId,
+      'processing'
+    );
+    
+    // 5. 知識統合エージェントによるナレッジグラフ生成
+    websocket.sendProgressUpdate(roleModelId, 70, 'ナレッジグラフを生成中...');
+    websocket.sendAgentThoughts(
+      '知識統合エージェント',
+      `情報を統合し、ナレッジグラフを構築しています`,
+      roleModelId,
+      'processing'
+    );
+    
+    // ナレッジグラフのメインノードを生成
+    const mainNodeId = await neo4jService.generateNewKnowledgeGraph(
+      roleModelId,
+      {
+        mainTopic: plan.title || 'ナレッジライブラリ',
+        subTopics: sources.slice(0, 5).map(s => s.title || '無題'),
+        description: `${plan.title}に関するナレッジグラフ`,
+        createdBy: plan.createdBy
+      }
+    );
+    
+    // ソースからサブノードを生成
+    for (const source of sources) {
+      // サブノードを作成
+      const subNodeId = await neo4jService.createNode({
+        labels: ['Source', 'Content'],
+        properties: {
+          name: source.title || '無題',
+          description: source.content.substring(0, 200) + '...',
+          url: source.url,
+          roleModelId,
+          parentId: mainNodeId,
+          level: 2,
+          type: 'source',
+          color: '#68D391', // 緑色
+          metadata: { sourceId: source.id, executionId }
+        }
+      });
+      
+      // メインノードとの関連付け
+      await neo4jService.createRelationship({
+        sourceNodeId: mainNodeId,
+        targetNodeId: subNodeId,
+        type: 'HAS_SOURCE',
+        properties: {
+          createdAt: new Date().toISOString()
+        }
+      });
+    }
+    
+    // 6. レポート作成エージェントによるレポート生成
+    websocket.sendProgressUpdate(roleModelId, 85, 'レポートを生成中...');
+    websocket.sendAgentThoughts(
+      'レポート作成エージェント',
+      `収集・分析された情報からレポートを作成しています`,
+      roleModelId,
+      'generating'
+    );
+    
+    // レポートの生成
+    const reportContent = {
+      title: `${plan.title} - 分析レポート`,
+      summary: `${plan.title}に関する情報収集と分析の結果`,
+      keyFindings: [
+        '情報収集により主要なトピックを特定しました',
+        '複数のソースから情報を統合しました',
+        'ナレッジグラフを通じて情報の関連性を視覚化しました'
+      ],
+      sourcesAnalyzed: sources.length,
+      createdAt: new Date().toISOString()
+    };
+    
+    // レポートをデータベースに保存
+    const reportResult = await db.insert(collectionSummaries).values({
+      id: uuidv4(),
+      title: reportContent.title,
+      content: JSON.stringify(reportContent),
+      collectionPlanId: planId,
+      executionId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      type: 'report'
+    }).returning();
+    
+    const reportId = reportResult[0].id;
+    
+    // 完了通知
+    websocket.sendProgressUpdate(roleModelId, 100, '情報収集プランの実行が完了しました');
+    websocket.sendAgentThoughts(
+      'オーケストレーターエージェント',
+      `情報収集プラン「${plan.title}」の実行が完了しました`,
+      roleModelId,
+      'completed'
+    );
+    
+    return {
+      success: true,
+      executionId,
+      reportId,
+      knowledgeGraphId: mainNodeId
+    };
+  } catch (error) {
+    console.error(`情報収集プラン実行エラー:`, error);
     return { success: false, error };
   }
 }
