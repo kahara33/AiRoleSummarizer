@@ -294,6 +294,7 @@ function handleClientMessage(ws: WebSocket, data: any): void {
     // メッセージタイプに基づいて処理を分岐（小文字比較）
     switch (messageType) {
       case 'subscribe':
+        console.log('サブスクリプションメッセージを処理します：', data);
         handleSubscribe(ws, data);
         break;
         
@@ -479,25 +480,35 @@ function handleSubscribe(ws: WebSocket, data: any): void {
       return;
     }
     
-    console.log(`クライアントがロールモデル ${specificRoleModelId} を購読しました`);
+    // クライアントIDを取得
+    const clientId = getClientId(ws);
+    console.log(`クライアント ${clientId} がロールモデル ${specificRoleModelId} を購読しました`);
     
     // 既存のロールモデルグループから削除
-    clients.forEach((clientSet, existingRoleModelId) => {
+    modelIdToClients.forEach((clientSet, existingRoleModelId) => {
       if (existingRoleModelId !== specificRoleModelId) {
-        clientSet.delete(ws);
+        clientSet.delete(clientId);
       }
     });
     
     // 新しいロールモデルグループに追加
-    if (!clients.has(specificRoleModelId)) {
-      clients.set(specificRoleModelId, new Set());
+    if (!modelIdToClients.has(specificRoleModelId)) {
+      modelIdToClients.set(specificRoleModelId, new Set());
     }
     
     // クライアントをセットに追加
-    clients.get(specificRoleModelId)?.add(ws);
+    modelIdToClients.get(specificRoleModelId)?.add(clientId);
     
     // クライアントのカスタムプロパティを更新
     (ws as any).roleModelId = specificRoleModelId;
+    
+    // 確認メッセージを送信
+    ws.send(JSON.stringify({
+      type: 'subscription_confirmed',
+      roleModelId: specificRoleModelId,
+      timestamp: new Date().toISOString(),
+      message: `ロールモデル ${specificRoleModelId} の購読に成功しました`
+    }));
     
     // サブスクリプション情報を保存
     if (!clientSubscriptions.has(ws)) {
