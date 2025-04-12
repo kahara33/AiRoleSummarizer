@@ -92,6 +92,10 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [hasKnowledgeGraph, setHasKnowledgeGraph] = useState<boolean>(false);
+  
+  // ローディング関連の状態
+  const [loadingProgress, setLoadingProgress] = useState<number>(0);
+  const [loadingMessages, setLoadingMessages] = useState<{ agent: string, message: string }[]>([]);
 
   // ノード操作関連の状態
   const [nodeDialog, setNodeDialog] = useState<{
@@ -121,14 +125,23 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     confirmAction: () => {},
   });
 
-  // サーバーからグラフデータを取得
+  // サーバーからグラフデータを取得する関数（デバッグログ追加、エラー処理改善）
   const fetchGraphData = useCallback(async () => {
     try {
       console.log(`[KnowledgeGraphViewer] fetchGraphData実行: roleModelId=${roleModelId}, autoLoad=${autoLoad}`);
       setLoading(true);
       setError(null);
+      setLoadingProgress(10); // 進捗表示開始
       
+      // ローディングメッセージを初期化
+      setLoadingMessages([
+        { agent: 'システム', message: 'ナレッジグラフデータをロード中...' },
+        { agent: 'データベース', message: 'Neo4jグラフデータベースに接続中...' }
+      ]);
+      
+      console.log('[DEBUG] APIリクエスト実行:', `/api/knowledge-graph/${roleModelId}`);
       const response = await fetch(`/api/knowledge-graph/${roleModelId}`);
+      setLoadingProgress(30);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -142,14 +155,24 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             onDataStatus(false);
           }
           setLoading(false);
+          setLoadingProgress(100);
           return;
         }
-        throw new Error(`グラフデータの取得に失敗しました: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`API応答エラー (${response.status}):`, errorText);
+        throw new Error(`グラフデータの取得に失敗しました: ${response.status} ${response.statusText}`);
       }
       
+      // 進捗表示を更新
+      setLoadingProgress(50);
+      setLoadingMessages(prev => [...prev, { agent: 'システム', message: 'グラフデータの解析中...' }]);
+      
+      // APIレスポンスをJSONとして解析
       const graphData = await response.json();
+      console.log('[DEBUG] 取得したグラフデータ:', graphData);
       
       if (!graphData || !graphData.nodes || !graphData.edges) {
+        console.warn('有効なグラフデータが取得できませんでした:', graphData);
         setHasKnowledgeGraph(false);
         if (onGraphDataChange) {
           onGraphDataChange(false);
@@ -158,10 +181,36 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           onDataStatus(false);
         }
         setLoading(false);
+        setLoadingProgress(100);
         return;
       }
       
-      console.log('Received graph data:', graphData);
+      // 進捗表示を更新
+      setLoadingProgress(70);
+      setLoadingMessages(prev => [...prev, 
+        { agent: 'データベース', message: `${graphData.nodes.length}個のノードと${graphData.edges.length}個のエッジを取得しました` },
+        { agent: 'システム', message: 'ReactFlowコンポーネント用にデータを変換中...' }
+      ]);
+      
+      // デモデータを作成（ノードが0個の場合）
+      if (graphData.nodes.length === 0) {
+        console.log('[DEBUG] グラフデータが空のため、デモノードを作成');
+        
+        // この部分は通常実行されないはずですが、APIからデータが取得できない場合のフォールバックとして残しています
+        const demoNode = {
+          id: 'root',
+          name: 'サンプルルートノード',
+          description: 'これはサンプルノードです。実際のデータがロードされるとこのノードは置き換えられます。',
+          type: 'concept',
+          level: 0,
+          nodeType: 'root',
+          parentId: null,
+          roleModelId
+        };
+        
+        graphData.nodes = [demoNode];
+        graphData.edges = [];
+      }
       
       // ReactFlowノードへの変換
       // レベルごとにノードをグループ化
@@ -175,14 +224,16 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       });
       
       // グラフ全体の設定
-      const graphAreaWidth = window.innerWidth - 100; // 余白を考慮
-      const graphAreaHeight = window.innerHeight - 150; // 余白を考慮
+      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
+      const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+      const graphAreaWidth = viewportWidth - 100; // 余白を考慮
+      const graphAreaHeight = viewportHeight - 150; // 余白を考慮
       const centerX = graphAreaWidth / 2;
-      const centerY = 150; // 上から少し下にずらす
+      const centerY = graphAreaHeight / 3; // 上から1/3の位置に配置
       
       // 階層ごとの設定（よりコンパクトなレイアウト）
-      const levelHeight = 180; // 階層間の垂直距離を縮小
-      const minHorizontalSpacing = 220; // ノード間の水平距離を縮小
+      const levelHeight = 180; // 階層間の垂直距離
+      const minHorizontalSpacing = 250; // ノード間の水平距離
       
       // カラーマップ（レベルごとに異なる色を割り当て）
       const colorMap = [
@@ -191,7 +242,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       ];
       
       // ノードの初期位置を計算
-      const flowNodes: Node[] = graphData.nodes.map((node: any) => {
+      const flowNodes: Node[] = graphData.nodes.map((node: any, idx: number) => {
         // レベルとインデックスを取得
         const level = node.level || 0;
         const nodesInThisLevel = nodesByLevel[level] ? nodesByLevel[level].length : 0;
@@ -200,8 +251,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         const index = nodesByLevel[level] ? nodesByLevel[level].indexOf(node) : 0;
         
         // 水平方向の配置計算
-        let x;
-        let y;
+        let x = centerX + (idx % 3) * 150; // 簡易的な配置（後でレイアウトアルゴリズムで最適化）
+        let y = centerY + Math.floor(idx / 3) * 150; // 簡易的な配置
         
         if (level === 0) {
           // ルートノードは中央上部に配置
@@ -211,16 +262,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           // 1つしかない場合は親の下に直接配置
           const parentId = node.parentId;
           const parentNode = parentId ? graphData.nodes.find((n: any) => n.id === parentId) : null;
-          const parentIndex = parentNode ? 
-            (nodesByLevel[parentNode.level || 0] ? nodesByLevel[parentNode.level || 0].indexOf(parentNode) : 0) : 
-            0;
-          
-          // 親ノードの位置に基づいて配置
-          x = parentNode ? (centerX + (parentIndex - (nodesByLevel[parentNode.level || 0].length - 1) / 2) * minHorizontalSpacing) : centerX;
-          y = centerY + level * levelHeight;
-        } else {
+          if (parentNode) {
+            x = centerX;
+            y = 100 + level * levelHeight;
+          }
+        } else if (nodesInThisLevel > 1) {
           // 複数ある場合は均等に配置
-          const sectionWidth = Math.max(minHorizontalSpacing * (nodesInThisLevel - 1), graphAreaWidth * 0.8);
+          const sectionWidth = Math.max(minHorizontalSpacing * (nodesInThisLevel - 1), 400);
           x = centerX - sectionWidth / 2 + index * (sectionWidth / (nodesInThisLevel - 1));
           y = centerY + level * levelHeight;
         }
@@ -228,13 +276,14 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         // ノードのタイプと階層に基づいて色を設定
         const color = colorMap[level % colorMap.length];
         
+        // ReactFlowノードの作成
         return {
           id: node.id,
           type: node.type === 'agent' ? 'agent' : 'concept',
           position: { x, y },
           data: {
             ...node,
-            label: node.name,
+            label: node.name || 'No Name',
             color: node.color || color,
             // ノード操作ハンドラを追加
             onEdit: handleEditNode,
@@ -250,7 +299,10 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         };
       });
       
-      console.log('Created flow nodes:', flowNodes);
+      console.log('[DEBUG] 作成したReactFlowノード:', flowNodes);
+      
+      // 進捗表示を更新
+      setLoadingProgress(80);
       
       // エッジデータのチェックと修正
       const validEdges = graphData.edges.filter((edge: any) => {
@@ -259,7 +311,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         const targetExists = flowNodes.some(node => node.id === edge.target || node.id === edge.targetId);
         
         if (!sourceExists || !targetExists) {
-          console.warn('Skipping invalid edge:', edge);
+          console.warn('無効なエッジをスキップします:', edge);
           return false;
         }
         return true;
@@ -276,10 +328,11 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         
         // 重複チェック用のキー
         const edgeKey = `${source}-${target}`;
+        const edgeId = edge.id || edgeKey + '-' + Date.now().toString(36).substr(-6);
         
         // 重複がない場合だけ追加（後から来たエッジで上書き）
         edgeMap.set(edgeKey, {
-          id: edge.id || edgeKey + '-' + Math.random().toString(36).substr(2, 9), // 一意のIDを生成
+          id: edgeId,
           source,
           target,
           type: 'dataFlow',
@@ -294,62 +347,73 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       // マップから配列に変換
       const flowEdges: Edge[] = Array.from(edgeMap.values());
       
-      console.log('Created flow edges:', flowEdges);
+      console.log('[DEBUG] 作成したReactFlowエッジ:', flowEdges);
+      
+      // 進捗表示を更新
+      setLoadingProgress(90);
+      setLoadingMessages(prev => [...prev, { agent: 'システム', message: 'レイアウト最適化を適用中...' }]);
       
       // グラフの種類に応じてレイアウト方法を選択
       // 階層情報の分析
       const hasHierarchy = flowNodes.some(node => node.data && typeof node.data.level === 'number');
       const hasMultipleLevels = new Set(flowNodes.map(node => node.data?.level || 0)).size > 1;
-      const isComplex = flowNodes.length > 15 || flowEdges.length > 20;
+      const isComplex = flowNodes.length > 5 || flowEdges.length > 10;
       
-      // レイアウト選択のロジック
+      // 最適なレイアウトを選択
       const useHierarchicalLayout = hasHierarchy && (hasMultipleLevels || isComplex);
       
-      console.log(`Graph analysis: nodes=${flowNodes.length}, edges=${flowEdges.length}, hasHierarchy=${hasHierarchy}, hasMultipleLevels=${hasMultipleLevels}, isComplex=${isComplex}`);
+      console.log(`[DEBUG] グラフ分析: ノード数=${flowNodes.length}, エッジ数=${flowEdges.length}, 階層あり=${hasHierarchy}, 複数レベル=${hasMultipleLevels}, 複雑=${isComplex}`);
       
-      if (!useHierarchicalLayout) {
-        // シンプルなグラフや階層が単一の場合は改良された基本レイアウトを使用
-        console.log('Using improved standard layout for simple graph');
-        const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedLayoutedElements(
+      // 実際にレイアウトアルゴリズムを適用し、ノードとエッジを配置
+      let layoutedNodes, layoutedEdges;
+      
+      if (!useHierarchicalLayout || flowNodes.length <= 2) {
+        // シンプルなグラフや階層が単一の場合は基本レイアウトを使用
+        console.log('[DEBUG] シンプルなグラフに標準レイアウトを使用');
+        
+        const result = getImprovedLayoutedElements(
           flowNodes,
           flowEdges,
           { 
-            direction: 'TB',
-            nodesep: 120, // コンパクトなスペース
-            ranksep: 150, // コンパクトなスペース
+            direction: 'TB', // Top to Bottom
+            nodesep: 150,    // ノード間の水平距離
+            ranksep: 150,    // 階層間の垂直距離
             marginx: 30,
             marginy: 50
           }
         );
-        setNodes(layoutedNodes);
-        setEdges(layoutedEdges);
-        setLoading(false);
         
-        // ナレッジグラフが存在することを通知
-        const hasData = flowNodes.length > 0;
-        setHasKnowledgeGraph(hasData);
-        if (onGraphDataChange) {
-          onGraphDataChange(hasData);
-        }
-        if (onDataStatus) {
-          onDataStatus(hasData);
-        }
-        return;
+        layoutedNodes = result.nodes;
+        layoutedEdges = result.edges;
+      } else {
+        // 複雑なグラフには階層的レイアウトを使用
+        console.log('[DEBUG] 複雑なグラフに階層的レイアウトを使用');
+        
+        const result = getImprovedHierarchicalLayout(flowNodes, flowEdges);
+        layoutedNodes = result.nodes;
+        layoutedEdges = result.edges;
       }
       
-      // 複雑なグラフや明確な階層構造がある場合は最適化された階層レイアウトを使用
-      console.log('Using enhanced hierarchical layout for complex/hierarchical graph');
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
-        flowNodes,
-        flowEdges
-      );
+      console.log('[DEBUG] レイアウト適用後のノード:', layoutedNodes);
+      console.log('[DEBUG] レイアウト適用後のエッジ:', layoutedEdges);
       
+      // フォールバック: レイアウトエンジンが失敗した場合、元のノード・エッジをそのまま使用
+      if (!layoutedNodes || layoutedNodes.length === 0) {
+        console.warn('レイアウトエンジンが失敗しました。元のノード配置を使用します。');
+        layoutedNodes = flowNodes;
+        layoutedEdges = flowEdges;
+      }
+      
+      // ReactFlowのステートを更新
       setNodes(layoutedNodes);
       setEdges(layoutedEdges);
+      
+      // ローディング完了
       setLoading(false);
+      setLoadingProgress(100);
       
       // ナレッジグラフが存在することを通知
-      const hasData = flowNodes.length > 0;
+      const hasData = layoutedNodes.length > 0;
       setHasKnowledgeGraph(hasData);
       if (onGraphDataChange) {
         onGraphDataChange(hasData);
@@ -357,12 +421,23 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       if (onDataStatus) {
         onDataStatus(hasData);
       }
+      
+      console.log('[DEBUG] ナレッジグラフの読み込み完了:', hasData ? '成功' : '空グラフ');
     } catch (err) {
       console.error('グラフデータの取得エラー:', err);
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
       setLoading(false);
+      setLoadingProgress(100);
+      // エラー発生時も状態更新
+      setHasKnowledgeGraph(false);
+      if (onGraphDataChange) {
+        onGraphDataChange(false);
+      }
+      if (onDataStatus) {
+        onDataStatus(false);
+      }
     }
-  }, [roleModelId, autoLoad]);
+  }, [roleModelId, autoLoad, handleEditNode, handleDeleteNode, handleAddChildNode, handleAddSiblingNode, handleExpandNode]);
 
   // 初期ナレッジグラフの存在確認
   useEffect(() => {
@@ -405,10 +480,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     checkKnowledgeGraphExists();
   }, [roleModelId, onGraphDataChange, autoLoad]);
 
-  // ノード操作ユーティリティのセットアップ
-  const nodeOperations = useNodeOperations(roleModelId, requestGraphData, setUndoStack);
+  // 関数宣言の順序を変更して依存関係を解決
   
-  // ノード操作ダイアログを開く
+  // ノード操作ダイアログを開く関数を先に定義
   const openNodeDialog = useCallback((type: 'edit' | 'add-child' | 'add-sibling', nodeId: string) => {
     const node = nodes.find((n: Node) => n.id === nodeId)?.data as KnowledgeNode | undefined;
     setNodeDialog({
@@ -533,6 +607,9 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       alert('ノードの拡張中にエラーが発生しました');
     }
   }, [roleModelId, requestGraphData]);
+  
+  // ノード操作ユーティリティのセットアップ
+  const nodeOperations = useNodeOperations(roleModelId, requestGraphData, setUndoStack);
   
   // ノードダイアログで保存ボタンが押されたときの処理
   const handleNodeSave = useCallback(async (data: { name: string; description: string; nodeType: string }) => {
