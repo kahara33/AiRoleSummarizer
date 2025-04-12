@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Loader2, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import { useKnowledgeGraphGeneration } from '@/hooks/use-knowledge-graph-generation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 
@@ -41,10 +41,10 @@ export default function CollectionPlanGenerationButton({
     progressUpdates,
     sendCancelOperationRequest,
     cancelOperation
-  } = useMultiAgentWebSocket();
+  } = useKnowledgeGraphGeneration();
 
   // WebSocketからの進捗状況更新を処理するエフェクト
-  useState(() => {
+  useEffect(() => {
     if (progressUpdates.length > 0) {
       const latestUpdate = progressUpdates[progressUpdates.length - 1];
       if (latestUpdate && typeof latestUpdate.progress === 'number') {
@@ -54,7 +54,7 @@ export default function CollectionPlanGenerationButton({
         setStatusMessage(latestUpdate.message);
       }
     }
-  });
+  }, [progressUpdates]);
   
   // 生成状態が変更されたときに親コンポーネントに通知
   useEffect(() => {
