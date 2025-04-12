@@ -45,6 +45,7 @@ interface KnowledgeGraphViewerProps {
   width?: string | number;
   height?: string | number;
   onGraphDataChange?: (hasData: boolean) => void;
+  autoLoad?: boolean;  // 自動データロードを制御するプロパティ（デフォルトはtrue）
 }
 
 // カスタムノードタイプの定義

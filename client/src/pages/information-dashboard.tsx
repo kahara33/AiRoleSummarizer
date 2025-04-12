@@ -619,7 +619,8 @@ const InformationDashboard: React.FC<InformationDashboardProps> = () => {
                     {/* 知識グラフビューワー */}
                     <KnowledgeGraphViewer 
                       roleModelId={roleModelId} 
-                      onGraphDataChange={handleKnowledgeGraphData} 
+                      onGraphDataChange={handleKnowledgeGraphData}
+                      autoLoad={false} 
                     />
                   </div>
                 </TabsContent>
