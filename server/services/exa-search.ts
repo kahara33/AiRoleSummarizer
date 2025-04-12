@@ -142,12 +142,14 @@ export async function searchWithExa(
       
       try {
         // コンテンツの取得
-        const contents = await fetchContentWithExa(urls, roleModelId);
+        const contents = await fetchContentWithExa(urls, roleModelId, true);
         
         // 検索結果にコンテンツを追加
         contents.forEach((content, i) => {
-          if (i < data.results.length) {
-            data.results[i].text = content.text || data.results[i].text;
+          // 対応するURLの検索結果を探す
+          const matchingResultIndex = data.results.findIndex(r => r.url === content.url);
+          if (matchingResultIndex >= 0) {
+            data.results[matchingResultIndex].text = content.text || data.results[matchingResultIndex].text;
           }
         });
       } catch (error) {
@@ -200,8 +202,9 @@ export async function searchWithExa(
  * @returns 取得したコンテンツ
  */
 export async function fetchContentWithExa(
-  url: string,
-  roleModelId?: string
+  urls: string | string[],
+  roleModelId?: string,
+  useCache: boolean = true
 ): Promise<{url: string; text: string}[]> {
   try {
     // Exa API Key の取得
@@ -225,8 +228,11 @@ export async function fetchContentWithExa(
       sendProgressUpdate(roleModelId, 40, 'コンテンツを取得中...');
     }
 
+    // URL配列に変換
+    const urlsArray = Array.isArray(urls) ? urls : [urls];
+    
     // デバッグログ：コンテンツ取得リクエスト情報
-    console.log(`Exaコンテンツ取得実行: URL=${url}`);
+    console.log(`Exaコンテンツ取得実行: URLs=${JSON.stringify(urlsArray)}, useCache=${useCache}`);
     
     // Exa API へのリクエスト
     const response = await fetch('https://api.exa.ai/contents', {
@@ -235,7 +241,10 @@ export async function fetchContentWithExa(
         'Content-Type': 'application/json',
         'x-api-key': apiKey
       },
-      body: JSON.stringify({ urls: [url] })
+      body: JSON.stringify({ 
+        urls: urlsArray,
+        useCache: useCache 
+      })
     });
 
     // レスポンスのチェック
