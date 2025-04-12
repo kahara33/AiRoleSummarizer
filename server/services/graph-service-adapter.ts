@@ -57,17 +57,7 @@ export async function createRelationship(options: {
   type: string;
   properties?: Record<string, any>;
 }): Promise<string> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.createRelationship(options);
-    } else {
-      return await memoryGraphService.createRelationship(options);
-    }
-  } catch (error) {
-    console.warn('Neo4jでリレーションシップ作成に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.createRelationship(options);
-  }
+  return await memoryGraphService.createRelationship(options);
 }
 
 /**
@@ -79,17 +69,7 @@ export async function deleteRelationship(options: {
   targetNodeId: string;
   type?: string;
 }): Promise<void> {
-  try {
-    if (neo4jAvailable) {
-      await neo4jService.deleteRelationship(options);
-    } else {
-      await memoryGraphService.deleteRelationship(options);
-    }
-  } catch (error) {
-    console.warn('Neo4jでリレーションシップ削除に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    await memoryGraphService.deleteRelationship(options);
-  }
+  await memoryGraphService.deleteRelationship(options);
 }
 
 /**
@@ -101,17 +81,7 @@ export async function getKnowledgeGraphForRoleModel(roleModelId: string): Promis
   nodes: Record<string, any>[];
   edges: Record<string, any>[];
 }> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.getKnowledgeGraphForRoleModel(roleModelId);
-    } else {
-      return await memoryGraphService.getKnowledgeGraphForRoleModel(roleModelId);
-    }
-  } catch (error) {
-    console.warn('Neo4jでナレッジグラフ取得に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.getKnowledgeGraphForRoleModel(roleModelId);
-  }
+  return await memoryGraphService.getKnowledgeGraphForRoleModel(roleModelId);
 }
 
 /**
@@ -121,17 +91,7 @@ export async function getKnowledgeGraphForRoleModel(roleModelId: string): Promis
  * @returns 子ノードの配列
  */
 export async function getChildNodes(nodeId: string, relationshipType?: string): Promise<Record<string, any>[]> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.getChildNodes(nodeId, relationshipType);
-    } else {
-      return await memoryGraphService.getChildNodes(nodeId, relationshipType);
-    }
-  } catch (error) {
-    console.warn('Neo4jで子ノード取得に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.getChildNodes(nodeId, relationshipType);
-  }
+  return await memoryGraphService.getChildNodes(nodeId, relationshipType);
 }
 
 /**
@@ -141,17 +101,7 @@ export async function getChildNodes(nodeId: string, relationshipType?: string): 
  * @returns 親ノードの配列
  */
 export async function getParentNodes(nodeId: string, relationshipType?: string): Promise<Record<string, any>[]> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.getParentNodes(nodeId, relationshipType);
-    } else {
-      return await memoryGraphService.getParentNodes(nodeId, relationshipType);
-    }
-  } catch (error) {
-    console.warn('Neo4jで親ノード取得に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.getParentNodes(nodeId, relationshipType);
-  }
+  return await memoryGraphService.getParentNodes(nodeId, relationshipType);
 }
 
 /**
@@ -169,17 +119,7 @@ export async function generateNewKnowledgeGraph(
     createdBy?: string;
   }
 ): Promise<string> {
-  try {
-    if (neo4jAvailable) {
-      return await neo4jService.generateNewKnowledgeGraph(roleModelId, options);
-    } else {
-      return await memoryGraphService.generateNewKnowledgeGraph(roleModelId, options);
-    }
-  } catch (error) {
-    console.warn('Neo4jでナレッジグラフ生成に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.generateNewKnowledgeGraph(roleModelId, options);
-  }
+  return await memoryGraphService.generateNewKnowledgeGraph(roleModelId, options);
 }
 
 /**
@@ -191,26 +131,8 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   nodes: any[];
   edges: any[];
 }> {
-  try {
-    if (neo4jAvailable) {
-      const result = await neo4jService.getKnowledgeGraph(roleModelId);
-      // Neo4jから空のグラフが返された場合はメモリグラフをチェック
-      if (result.nodes.length === 0 && result.edges.length === 0) {
-        return await memoryGraphService.getKnowledgeGraph(roleModelId);
-      }
-      return result;
-    } else {
-      return await memoryGraphService.getKnowledgeGraph(roleModelId);
-    }
-  } catch (error) {
-    console.warn('Neo4jでナレッジグラフ取得に失敗しました。メモリベースのサービスを使用します:', error);
-    neo4jAvailable = false;
-    return await memoryGraphService.getKnowledgeGraph(roleModelId);
-  }
+  return await memoryGraphService.getKnowledgeGraph(roleModelId);
 }
 
-// 初期化時にNeo4jの利用可能性をチェック
-checkNeo4jAvailability().catch(() => {
-  console.warn('Neo4jの利用可能性チェックに失敗しました。メモリベースのグラフサービスを使用します。');
-  neo4jAvailable = false;
-});
+// Neo4jは使用せず、常にメモリベースのグラフサービスを使用
+console.info('メモリベースのグラフサービスを使用します。');
