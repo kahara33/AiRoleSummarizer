@@ -1598,6 +1598,77 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ==================
   // 知識グラフ関連
   // ==================
+  // 知識グラフの存在確認API
+  app.get('/api/knowledge-graph/:roleModelId/exists', isAuthenticated, async (req, res) => {
+    try {
+      const { roleModelId } = req.params;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ error: '認証が必要です' });
+      }
+      
+      console.log(`知識グラフ存在確認API: roleModelId=${roleModelId}`);
+      
+      // UUID形式でない場合はエラー
+      if (roleModelId === 'default' || !isValidUUID(roleModelId)) {
+        console.error(`無効なUUID形式: ${roleModelId}`);
+        return res.status(400).json({ error: '無効なロールモデルIDです' });
+      }
+      
+      // ロールモデルの存在確認
+      const roleModel = await db.query.roleModels.findFirst({
+        where: eq(roleModels.id, roleModelId),
+      });
+      
+      if (!roleModel) {
+        return res.status(404).json({ error: 'ロールモデルが見つかりません' });
+      }
+      
+      // 本番環境ではアクセス権のチェック
+      if (process.env.NODE_ENV === 'production') {
+        // 組織内共有の場合は、isSharedフィールドと組織IDをチェック
+        const isShared = roleModel.isShared === 1;
+        
+        if (
+          roleModel.createdBy !== user.id && 
+          !(isShared && roleModel.companyId === user.companyId) &&
+          user.role !== 'admin'
+        ) {
+          return res.status(403).json({ error: 'この知識グラフへのアクセス権限がありません' });
+        }
+      }
+      
+      // Neo4jでグラフの存在確認を試みる
+      let exists = false;
+      
+      try {
+        const graphData = await getKnowledgeGraph(roleModelId);
+        exists = graphData.nodes.length > 0;
+        
+        if (exists) {
+          console.log(`Neo4jでグラフの存在を確認: ${graphData.nodes.length}ノード`);
+        }
+      } catch (neo4jError) {
+        console.error('Neo4jグラフ存在確認エラー:', neo4jError);
+      }
+      
+      // Neo4jで確認できなかった場合、PostgreSQLで確認
+      if (!exists) {
+        const nodeCount = await db.select({ count: count() }).from(knowledgeNodes)
+          .where(eq(knowledgeNodes.roleModelId, roleModelId));
+        
+        exists = nodeCount[0].count > 0;
+        console.log(`PostgreSQLでグラフの存在を確認: ${nodeCount[0].count}ノード`);
+      }
+      
+      res.json({ exists, roleModelId });
+    } catch (error) {
+      console.error('知識グラフ存在確認エラー:', error);
+      res.status(500).json({ error: '知識グラフの存在確認に失敗しました' });
+    }
+  });
+
   app.get('/api/knowledge-graph/:roleModelId', isAuthenticated, async (req, res) => {
     try {
       const { roleModelId } = req.params;
