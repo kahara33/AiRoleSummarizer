@@ -28,6 +28,8 @@ export interface ProgressUpdate {
   progressPercent?: number;
   // 処理状態を示す追加フィールド（'completed'、'error'など）
   status?: string;
+  // フィードバックやサンプル要約などの追加データ
+  data?: any;
 }
 
 // グローバルWebSocket状態を管理するためのシングルトンクラス

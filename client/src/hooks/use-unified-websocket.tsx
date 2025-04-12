@@ -50,6 +50,13 @@ interface UnifiedWebSocketContextType {
   // 特化型機能: キャンセル処理
   sendCancelOperationRequest: (operationType: string) => boolean;
   cancelOperation: () => boolean;
+  
+  // 特化型機能: ユーザーフィードバック
+  sendUserFeedback: (feedback: {
+    feedbackType: string;
+    topic?: string;
+    data?: any;
+  }) => boolean;
 }
 
 // WebSocketコンテキストの作成
@@ -324,7 +331,8 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
           roleModelId: payloadAny.roleModelId || message.roleModelId || currentRoleModelId || '',
           stage: payloadAny.stage || message.stage || 'processing',
           details: payloadAny.details || message.details || null,
-          status
+          status,
+          data: payloadAny.data || message.data || null // データフィールドを追加
         };
         
         console.log('進捗更新を追加:', progressUpdate);
@@ -453,6 +461,23 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
     return result;
   }, [sendMessage]);
   
+  // ユーザーフィードバック送信関数
+  const sendUserFeedback = useCallback((feedback: {
+    feedbackType: string;
+    topic?: string;
+    data?: any;
+  }) => {
+    console.log('ユーザーフィードバック送信:', feedback);
+    
+    // ユーザーフィードバック専用のメッセージタイプを使用
+    return sendMessage('user_feedback', {
+      roleModelId: currentRoleModelId,
+      feedbackType: feedback.feedbackType,
+      topic: feedback.topic || '',
+      data: feedback.data || {}
+    });
+  }, [sendMessage, currentRoleModelId]);
+
   return {
     isConnected,
     connecting,
@@ -468,6 +493,7 @@ function useUnifiedWebSocketManager(): UnifiedWebSocketContextType {
     sendCreateKnowledgeGraphRequest,
     sendCreateCollectionPlanRequest,
     sendCancelOperationRequest,
-    cancelOperation
+    cancelOperation,
+    sendUserFeedback
   };
 }

@@ -73,6 +73,13 @@ export default function AIGenerationButtonsContainer({
         onGeneratingChange={handleGraphGenerationStateChange}
       />
       
+      <UserFeedbackButton 
+        roleModelId={roleModelId}
+        industry={industry}
+        disabled={isAnyGenerating}
+        onGeneratingChange={handleFeedbackStateChange}
+      />
+      
       <CollectionPlanGenerationButton
         roleModelId={roleModelId}
         industry={industry}
