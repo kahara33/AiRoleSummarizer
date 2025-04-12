@@ -8,12 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import KnowledgeGraphViewer from '@/components/knowledge-graph/KnowledgeGraphViewer';
 import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
-import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
+import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
 import InformationPlanList from '@/components/collection-plan/InformationPlanList';
 import InformationPlanDetail from '@/components/collection-plan/InformationPlanDetail';
 
-import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
+import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket';
 // UIコンポーネントではなく、直接ボタンを使用
 import { 
   Plus, 
@@ -159,20 +159,24 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
         
         const agents = [
           { name: "オーケストレーター", type: "orchestrator" },
-          { name: "戦略プランナー", type: "strategy_planner" },
-          { name: "検索スペシャリスト", type: "search_specialist" },
-          { name: "コンテンツアナリスト", type: "content_analyst" },
-          { name: "ナレッジアーキテクト", type: "knowledge_architect" },
-          { name: "レポートライター", type: "report_writer" }
+          { name: "初期調査者", type: "initial_researcher" },
+          { name: "計画戦略者", type: "plan_strategist" },
+          { name: "検索実行者", type: "search_conductor" },
+          { name: "コンテンツ処理者", type: "content_processor" },
+          { name: "重複マネージャー", type: "duplication_manager" },
+          { name: "知識統合者", type: "knowledge_integrator" },
+          { name: "レポート作成者", type: "report_writer" }
         ];
         
         const thoughts = [
-          "ナレッジライブラリのプロセスを開始します。各エージェントに役割を割り当てました。",
-          "業界・キーワードから最適な情報収集戦略を設計しています。exa search APIの利用計画を立案中です。",
-          "最適な検索クエリを構築中です。exa search APIパラメータを最適化しています。",
-          "検索結果の詳細分析を行っています。重要情報の抽出と構造化を進めています。",
-          "情報のナレッジグラフへの統合を行っています。エンティティ関係のマッピングを進めています。",
-          "収集情報からレポートを作成しています。ユーザー好みに合わせた情報をキュレーションしています。"
+          "ナレッジライブラリのプロセスを開始します。新しい7エージェント構造で処理を進めます。",
+          "基礎データの収集と初期マッピングを実施しています。検索の基盤情報を整理中です。",
+          "業界・キーワードから最適な情報収集戦略を設計しています。検索クエリの最適化計画を立案中です。",
+          "Exa search APIを使用した効率的な検索を実行中です。検索パラメータを最適化し、結果を収集しています。",
+          "収集情報の抽出と構造化を行っています。重要情報の関連付けとパターン分析を進めています。",
+          "重複コンテンツの検出と削除を行っています。マルチレベルの重複判定で内容を最適化しています。",
+          "時系列に基づく知識構造の統合を行っています。情報の発展を時間軸で整理しています。",
+          "非冗長な包括的レポートを作成しています。発見された知識を統合し、適切な形式で提示しています。"
         ];
         
         let delay = 500;
