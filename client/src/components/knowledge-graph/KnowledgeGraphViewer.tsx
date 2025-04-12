@@ -1258,58 +1258,58 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                 }}
                 defaultViewport={{ x: 0, y: 0, zoom: 1 }}
               >
-              <Background color="#aaa" gap={16} />
-              <Controls 
-                position="bottom-left"
-                style={{ bottom: 42, left: 12 }}
-              />
-              <MiniMap
-                position="bottom-right"
-                style={{ bottom: 28, right: 12 }}
-                nodeStrokeWidth={3}
-                nodeColor={(node) => {
-                  return node.data?.color || '#1a192b';
-                }}
-              />
-              
-              {/* グラフ保存パネル */}
-              <Panel position="top-right" style={{ right: 10, top: 10 }}>
-                <KnowledgeGraphSavePanel 
-                  roleModelId={roleModelId} 
-                  onSaveSuccess={requestGraphData}
+                <Background color="#aaa" gap={16} />
+                <Controls 
+                  position="bottom-left"
+                  style={{ bottom: 42, left: 12 }}
                 />
-              </Panel>
-              
-              {/* 元に戻すボタン - Undoスタックに操作がある場合のみ表示 */}
-              {undoStack.length > 0 && (
-                <div 
-                  style={{ 
-                    position: 'absolute', 
-                    top: 10, 
-                    left: 10, 
-                    zIndex: 10 
+                <MiniMap
+                  position="bottom-right"
+                  style={{ bottom: 28, right: 12 }}
+                  nodeStrokeWidth={3}
+                  nodeColor={(node) => {
+                    return node.data?.color || '#1a192b';
                   }}
-                  className="bg-white dark:bg-gray-800 shadow-md rounded-md p-1"
-                >
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={handleUndo}
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left">
-                        <p>元に戻す (Ctrl+Z)</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              )}
+                />
+                
+                {/* グラフ保存パネル */}
+                <Panel position="top-right" style={{ right: 10, top: 10 }}>
+                  <KnowledgeGraphSavePanel 
+                    roleModelId={roleModelId} 
+                    onSaveSuccess={requestGraphData}
+                  />
+                </Panel>
+                
+                {/* 元に戻すボタン - Undoスタックに操作がある場合のみ表示 */}
+                {undoStack.length > 0 && (
+                  <div 
+                    style={{ 
+                      position: 'absolute', 
+                      top: 10, 
+                      left: 10, 
+                      zIndex: 10 
+                    }}
+                    className="bg-white dark:bg-gray-800 shadow-md rounded-md p-1"
+                  >
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={handleUndo}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">
+                          <p>元に戻す (Ctrl+Z)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                )}
               </ReactFlow>
             </div>
           </ReactFlowProvider>
