@@ -149,12 +149,12 @@ export async function runKnowledgeGraphCreationFlow(
   try {
     console.log(`ナレッジグラフ作成フロー開始: ${roleModelId}`, params);
     
-    // ========== フェーズ1: 初期化とオーケストレーション ==========
+    // ============== AI処理フェーズ1: 初期処理と概念構築 ==============
     
     // オーケストレーターの思考
     sendAgentThought(
       AgentType.ORCHESTRATOR,
-      'ナレッジグラフと情報収集プランの生成プロセスを開始します。6つの専門エージェントによる連携処理を実行します。',
+      'ナレッジグラフと情報収集プランの生成プロセスを開始します。6つの専門エージェントによる連携処理のフェーズ1を実行します。',
       roleModelId,
       ThoughtStatus.STARTING
     );
@@ -165,8 +165,6 @@ export async function runKnowledgeGraphCreationFlow(
       5,
       '初期データを分析中...'
     );
-    
-    // ========== フェーズ2: グラフ構築エージェントによる初期グラフ作成 ==========
     
     // グラフ構築エージェントの思考
     sendAgentThought(
@@ -214,15 +212,6 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.SUCCESS
     );
     
-    // ========== フェーズ3: 情報探索エージェントによる情報収集 ==========
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      25,
-      '外部情報ソースを探索中...'
-    );
-    
     // 情報探索エージェントの思考
     sendAgentThought(
       AgentType.INFORMATION_EXPLORER,
@@ -231,8 +220,15 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.THINKING
     );
     
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      25,
+      '外部情報ソースを探索中...'
+    );
+    
     // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     // 情報探索エージェントの思考（続き）
     sendAgentThought(
@@ -242,16 +238,13 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.WORKING
     );
     
-    // 基本検索パターンのテスト実行（表示のみ）
+    // 基本検索パターンのテスト実行
     const searchResults = await exaSearchService.searchWithExa({
       query: `${params.mainTopic} industry overview ${params.subTopics.join(' ')}`,
       numResults: 3,
       categoryFilters: [SearchCategory.WEB_SEARCH, SearchCategory.NEWS],
       timeRange: '6m'
     });
-    
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1500));
     
     // 情報探索エージェントの完了思考
     sendAgentThought(
@@ -261,21 +254,19 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.SUCCESS
     );
     
-    // ========== フェーズ4: コンテンツ評価エージェントによる情報評価 ==========
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      40,
-      '収集した情報の品質と関連性を評価中...'
-    );
-    
     // コンテンツ評価エージェントの思考
     sendAgentThought(
       AgentType.CONTENT_EVALUATOR,
       `収集された情報ソースの品質、信頼性、関連性を分析しています。情報の新鮮さと専門性を評価基準に適用中...`,
       roleModelId,
       ThoughtStatus.THINKING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      35,
+      '収集した情報の品質と関連性を評価中...'
     );
     
     // 少し待機
@@ -289,9 +280,6 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.WORKING
     );
     
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     // コンテンツ評価エージェントの完了思考
     sendAgentThought(
       AgentType.CONTENT_EVALUATOR,
@@ -300,21 +288,19 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.SUCCESS
     );
     
-    // ========== フェーズ5: サンプル要約エージェントによる要約パターン生成 ==========
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      55,
-      '5種類の要約レポートパターンを生成中...'
-    );
-    
     // サンプル要約エージェントの思考
     sendAgentThought(
       AgentType.SAMPLE_SUMMARIZER,
       `${params.mainTopic}業界に関する5種類の要約レポートパターンを生成しています。市場概要、技術トレンド、主要プレイヤー分析、課題と機会、将来展望のテンプレートを作成中...`,
       roleModelId,
       ThoughtStatus.THINKING
+    );
+    
+    // 進捗状況の更新
+    sendProgress(
+      roleModelId,
+      45,
+      '5種類の要約レポートパターンを生成中...'
     );
     
     // 要約サンプルパターンを生成
@@ -359,16 +345,21 @@ export async function runKnowledgeGraphCreationFlow(
       ThoughtStatus.SUCCESS
     );
     
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // ============== ユーザーフィードバックフェーズ ==============
     
-    // ========== フェーズ6: ヒアリングエージェントによるユーザーサンプル提示 ==========
+    // ヒアリングエージェントの思考
+    sendAgentThought(
+      AgentType.INTERVIEWER,
+      `生成した5種類の要約サンプルをユーザーに提示し、どのタイプの情報が最も有用かフィードバックを求めます。このフィードバックに基づいてナレッジグラフと検索戦略を最適化します。`,
+      roleModelId,
+      ThoughtStatus.THINKING
+    );
     
-    // 進捗状況の更新
+    // 進捗状況の更新 - ユーザーフィードバック待機状態
     sendProgress(
       roleModelId,
-      65,
-      'ユーザー向け要約サンプルを準備しています...',
+      60,
+      'ユーザーからのフィードバックを待機しています...',
       { 
         status: 'waiting_for_user_input',
         summarySamples,
@@ -376,161 +367,16 @@ export async function runKnowledgeGraphCreationFlow(
       }
     );
     
-    // ヒアリングエージェントの思考
-    sendAgentThought(
-      AgentType.INTERVIEWER,
-      `生成した5種類の要約サンプルをユーザーに提示し、どのタイプの情報が最も有用かフィードバックを求めています...`,
-      roleModelId,
-      ThoughtStatus.THINKING
-    );
+    // この時点でユーザーフィードバックを待機するため処理を中断
+    // 実際のアプリケーションでは、ユーザーがフィードバックを送信するとWebSocketハンドラが
+    // この後の処理を含む関数を呼び出して処理が続行される
     
-    // ユーザー入力待機（実際のアプリケーションでは、ここでクライアント側からの入力を受け取る）
-    // この例ではシミュレーションとして、ユーザーが「市場概要」と「技術トレンド」を選択したと仮定
-    
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // ヒアリングエージェントの思考
-    sendAgentThought(
-      AgentType.INTERVIEWER,
-      `ユーザーからのフィードバックを受け取りました。市場概要と技術トレンドの情報に特に関心があるようです。この嗜好に基づいて情報収集プランとナレッジグラフを最適化します。`,
-      roleModelId,
-      ThoughtStatus.SUCCESS
-    );
-    
-    // ========== フェーズ7: ユーザーフィードバックの反映 ==========
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      75,
-      'ユーザーのフィードバックをナレッジグラフに反映しています...'
-    );
-    
-    // ヒアリングエージェントの思考
-    sendAgentThought(
-      AgentType.INTERVIEWER,
-      `ユーザーのフィードバックを分析し、知識グラフの重み付けを調整しています。市場概要と技術トレンド関連のノードを強化します...`,
-      roleModelId,
-      ThoughtStatus.WORKING
-    );
-    
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // ナレッジグラフのユーザーフィードバック集約
-    const userPreferences = {
-      categories: ['市場概要', '技術トレンド'],
-      priorityKeywords: params.subTopics.slice(0, 2),
-      feedbackType: 'explicit'
-    };
-    
-    // ユーザーフィードバックをナレッジグラフサービスに送信（実際の実装ではこのデータを使用してグラフを調整）
-    await knowledgeGraphService.incorporateUserFeedback(roleModelId, initialGraphData, userPreferences);
-    
-    // ヒアリングエージェントの完了思考
-    sendAgentThought(
-      AgentType.INTERVIEWER,
-      `ユーザーフィードバックの反映が完了しました。ナレッジグラフの関連部分を強化し、優先度を更新しました。`,
-      roleModelId,
-      ThoughtStatus.SUCCESS
-    );
-    
-    // ========== フェーズ8: グラフ構築エージェントによるグラフ最終化 ==========
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      80,
-      'ナレッジグラフを最終化しています...'
-    );
-    
-    // グラフ構築エージェントの思考
-    sendAgentThought(
-      AgentType.GRAPH_BUILDER,
-      `収集した情報と分析結果に基づいてナレッジグラフを更新しています。エンティティ間の関係を強化し、階層構造を最適化中...`,
-      roleModelId,
-      ThoughtStatus.THINKING
-    );
-    
-    // 最終ナレッジグラフの生成（または更新）
-    const finalGraphData = await knowledgeGraphService.enhanceKnowledgeGraph(
-      roleModelId,
-      initialGraphData,
-      params.subTopics
-    );
-    
-    // グラフ構築エージェントの完了思考
-    sendAgentThought(
-      AgentType.GRAPH_BUILDER,
-      `ナレッジグラフの最終化が完了しました。合計${finalGraphData.nodes.length}ノード、${finalGraphData.edges.length}エッジを持つ包括的な知識構造が構築されました。`,
-      roleModelId,
-      ThoughtStatus.SUCCESS
-    );
-    
-    // ========== フェーズ8: プラン設計エージェントによる情報収集プラン作成 ==========
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      90,
-      '最適な情報収集プランを作成しています...'
-    );
-    
-    // プラン設計エージェントの思考
-    sendAgentThought(
-      AgentType.PLAN_DESIGNER,
-      `最終化されたナレッジグラフに基づいて最適な情報収集プランを設計しています。キーワード（${params.subTopics.join(', ')}）の特性に合わせた検索戦略を構築中...`,
-      roleModelId,
-      ThoughtStatus.THINKING
-    );
-    
-    // 情報収集プランのパターンを生成（拡張版）
-    const collectionPatterns = exaSearchService.generateCollectionPlanPatterns(
-      params.mainTopic,
-      params.subTopics
-    );
-    
-    // 少し待機
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // プラン設計エージェントの完了思考
-    sendAgentThought(
-      AgentType.PLAN_DESIGNER,
-      `${collectionPatterns.length}件の情報収集プランパターンの作成が完了しました。各プランには最適化された検索クエリと実行スケジュールが含まれています。`,
-      roleModelId,
-      ThoughtStatus.SUCCESS
-    );
-    
-    // ========== フェーズ9: オーケストレーターによる最終処理 ==========
-    
-    // オーケストレーターの完了思考
-    sendAgentThought(
-      AgentType.ORCHESTRATOR,
-      `ナレッジグラフ生成プロセスが完了しました。6つの専門エージェントの連携により、高品質なナレッジグラフ（${finalGraphData.nodes.length}ノード）と情報収集プラン（${collectionPatterns.length}種類）が作成されました。`,
-      roleModelId,
-      ThoughtStatus.SUCCESS
-    );
-    
-    // 進捗状況の更新
-    sendProgress(
-      roleModelId,
-      100,
-      'ナレッジグラフと情報収集プランの生成が完了しました',
-      { 
-        status: 'completed',
-        graphStats: {
-          nodes: finalGraphData.nodes.length,
-          edges: finalGraphData.edges.length
-        },
-        planStats: {
-          count: collectionPatterns.length,
-          categories: collectionPatterns.map(p => p.name)
-        }
-      }
-    );
-    
+    // 便宜上、処理成功として返す
     return true;
+    
+    // Note: 以下のコードは、ユーザーフィードバック後に別の関数で実行されるため、
+    // ここでの処理は一旦終了します。フィードバック後の処理はhandleProcessUserFeedback
+    // などの別関数で実装されます。
   } catch (err: any) {
     const error = err as Error;
     console.error('ナレッジグラフ作成フロー実行エラー:', error);
