@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import KnowledgeGraphGenerationButton from './KnowledgeGraphGenerationButton';
 import CollectionPlanGenerationButton from './CollectionPlanGenerationButton';
-import { useKnowledgeGraphGeneration } from '@/hooks/use-knowledge-graph-generation';
+import { useUnifiedWebSocket } from '@/hooks/use-unified-websocket';
 
 interface AIGenerationButtonsContainerProps {
   roleModelId: string;
@@ -30,7 +30,7 @@ export default function AIGenerationButtonsContainer({
   const [planGenerationActive, setPlanGenerationActive] = useState(false);
   
   // WebSocket接続を確立
-  const { connect, isConnected } = useKnowledgeGraphGeneration();
+  const { connect, isConnected } = useUnifiedWebSocket();
   
   // コンポーネントマウント時に接続を確保（roleModelIdが変更されたときに再実行）
   useEffect(() => {
