@@ -1007,7 +1007,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       console.log('%c === テスト用ナレッジグラフ生成ボタンがクリックされました ===', 
         'background: #4CAF50; color: white; font-weight: bold; padding: 5px; border-radius: 3px; font-size: 16px;');
       
-      console.log(`%c roleModelId: ${roleModelId}`, 'color: blue; font-weight: bold;');
+      console.log(`%c [KnowledgeGraphViewer] generateTestKnowledgeGraph: roleModelId=${roleModelId}, autoLoad=${autoLoad}`, 'color: blue; font-weight: bold;');
       
       if (!roleModelId) {
         console.error('%c エラー: roleModelIdが未定義です！', 'color: red; font-weight: bold;', { roleModelId });
@@ -1108,13 +1108,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       setProgressMessage(err instanceof Error ? err.message : '不明なエラーが発生しました');
       setGenerating(false);
     }
-  }, [roleModelId]);
+  }, [roleModelId, autoLoad]);
 
   // WebSocketから進捗と結果を受信（AI生成中の進捗表示用）
   useEffect(() => {
     if (!roleModelId || !generating) return;
     
-    console.log(`[KnowledgeGraphViewer] 進捗リスナーをセットアップ: roleModelId=${roleModelId}`);
+    console.log(`[KnowledgeGraphViewer] 進捗リスナーをセットアップ: roleModelId=${roleModelId}, autoLoad=${autoLoad}`);
     
     // 進捗更新リスナー
     const handleProgress = (data: any) => {
@@ -1182,7 +1182,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       removeSocketListener('agent_thoughts', handleAgentThoughts);
       console.log('Removed progress and agent_thoughts listeners');
     };
-  }, [roleModelId, requestGraphData, generating]);
+  }, [roleModelId, requestGraphData, generating, autoLoad]);
 
   return (
     <div className="flex flex-col w-full h-full" style={{ height: '100%' }}>
