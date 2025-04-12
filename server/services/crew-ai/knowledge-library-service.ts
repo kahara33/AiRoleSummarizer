@@ -336,7 +336,7 @@ export async function runKnowledgeLibraryProcess(
           });
           
           // メインノードとの関連付け
-          await neo4jService.createRelationship({
+          await graphService.createRelationship({
             sourceNodeId: mainNodeId,
             targetNodeId: nodeId,
             type: topic.type === 'insight' ? 'HAS_INSIGHT' : (topic.type === 'pattern' ? 'HAS_PATTERN' : 'HAS_GAP')
@@ -344,7 +344,7 @@ export async function runKnowledgeLibraryProcess(
         }
         
         // 最新のグラフデータを取得
-        const graphData = await neo4jService.getKnowledgeGraph(roleModelId);
+        const graphData = await graphService.getKnowledgeGraph(roleModelId);
         
         // WebSocketを通じてクライアントにグラフ更新を通知
         websocket.sendGraphUpdate(roleModelId, graphData);
@@ -771,8 +771,8 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
       
       console.log(`メインノード作成: ${mainNode[0].id}`);
       
-      // Neo4jにもノードを作成
-      await neo4jService.createNode('Concept', {
+      // グラフサービスにもノードを作成
+      await graphService.createNode('Concept', {
         id: mainNodeId,
         name: roleModelName,
         description: roleModelDescription || `${roleModelName}に関する知識グラフ`,
@@ -801,8 +801,8 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
             color: '#ED8936' // オレンジ色
           });
           
-          // Neo4jにノード追加
-          await neo4jService.createNode('Industry', {
+          // グラフサービスにノード追加
+          await graphService.createNode('Industry', {
             id: industryNodeId,
             name: industry.name,
             description: industry.description || `${industry.name}業界`,
@@ -811,8 +811,8 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
             roleModelId: roleModelId
           });
           
-          // Neo4jにエッジ追加
-          await neo4jService.createRelationship({
+          // グラフサービスにエッジ追加
+          await graphService.createRelationship({
             sourceNodeId: mainNodeId,
             targetNodeId: industryNodeId,
             type: 'HAS_INDUSTRY',
@@ -850,8 +850,8 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
             color: '#805AD5' // 紫色
           });
           
-          // Neo4jにノード追加
-          await neo4jService.createNode('Keyword', {
+          // グラフサービスにノード追加
+          await graphService.createNode('Keyword', {
             id: keywordNodeId,
             name: keyword.name,
             description: keyword.description || `${keyword.name}に関するキーワード`,
@@ -860,8 +860,8 @@ export async function generateKnowledgeLibraryWithCrewAI(input: {
             roleModelId: roleModelId
           });
           
-          // Neo4jにエッジ追加
-          await neo4jService.createRelationship({
+          // グラフサービスにエッジ追加
+          await graphService.createRelationship({
             sourceNodeId: mainNodeId,
             targetNodeId: keywordNodeId,
             type: 'HAS_KEYWORD',
@@ -1046,7 +1046,7 @@ export async function executeCollectionPlan(
     );
     
     // ナレッジグラフのメインノードを生成
-    const mainNodeId = await neo4jService.generateNewKnowledgeGraph(
+    const mainNodeId = await graphService.generateNewKnowledgeGraph(
       roleModelId,
       {
         mainTopic: plan.title || 'ナレッジライブラリ',
@@ -1059,11 +1059,11 @@ export async function executeCollectionPlan(
     // ソースからサブノードを生成
     for (const source of sources) {
       // サブノードを作成
-      const subNodeId = await neo4jService.createNode({
+      const subNodeId = await graphService.createNode({
         labels: ['Source', 'Content'],
         properties: {
           name: source.title || '無題',
-          description: source.content.substring(0, 200) + '...',
+          description: source.content ? source.content.substring(0, 200) + '...' : '',
           url: source.url,
           roleModelId,
           parentId: mainNodeId,
