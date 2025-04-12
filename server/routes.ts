@@ -26,6 +26,7 @@ import {
   insertRoleModelSchema,
   insertOrganizationSchema, // 組織スキーマに修正
   industries,
+  industrySubcategories, // 業界サブカテゴリテーブルをインポート
   roleModelIndustries,
   roleModelKeywords,
   keywords,
@@ -530,8 +531,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const industrySubcategoryIds = industryRelations.map(rel => rel.industryId);
       
       // 業界データの取得
-      const industriesData = industryIds.length ? 
-        await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
+      const industriesData = industrySubcategoryIds.length ? 
+        await db.select().from(industrySubcategories).where(inArray(industrySubcategories.id, industrySubcategoryIds)) : 
         [];
       
       // ロールモデルデータの整形
@@ -621,11 +622,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       ]);
       
       // 業界IDsの抽出
-      const industryIds = industryRelations.map(rel => rel.industryId);
+      const industrySubcategoryIds = industryRelations.map(rel => rel.industryId);
       
       // 業界データの取得
-      const industriesData = industryIds.length ? 
-        await db.select().from(industries).where(inArray(industries.id, industryIds)) : 
+      const industriesData = industrySubcategoryIds.length ? 
+        await db.select().from(industrySubcategories).where(inArray(industrySubcategories.id, industrySubcategoryIds)) : 
         [];
       
       // ロールモデルデータの整形
