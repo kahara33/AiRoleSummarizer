@@ -926,6 +926,12 @@ export async function executeCollectionPlan(
   options?: {
     searchDepth?: number;
     maxResults?: number;
+    timePeriod?: 'day' | 'week' | 'month' | 'year' | 'custom';
+    startDate?: string;
+    endDate?: string;
+    language?: string;
+    advancedQuery?: boolean;
+    sortBy?: 'relevance' | 'date';
   }
 ): Promise<{
   success: boolean;
@@ -963,11 +969,26 @@ export async function executeCollectionPlan(
     
     // Exa検索APIを使用して初期検索を実行
     const searchQuery = plan.title || 'ナレッジライブラリ';
-    const initialResults = await searchWithExa(
-      searchQuery,
-      options?.maxResults || 10,
-      roleModelId
+    
+    // 拡張検索オプションを使用
+    const searchResults = await executeSearchForCollectionPlan(
+      {
+        collectionPlanId: planId,
+        title: plan.title,
+        strategy: plan.strategy ? JSON.parse(plan.strategy) : {}
+      },
+      roleModelId,
+      {
+        timePeriod: options?.timePeriod || 'month', // デフォルトで過去1ヶ月を検索
+        searchType: 'hybrid',
+        language: 'ja',          // 日本語コンテンツを優先
+        advancedQuery: true,     // 高度なクエリ構文を使用
+        sortBy: 'relevance'      // 関連性でソート
+      }
     );
+    
+    // 結果を整形
+    const initialResults = searchResults.sources;
     
     // 検索結果をデータベースに保存
     const sources = await Promise.all(initialResults.map(async (result) => {

@@ -23,6 +23,10 @@ export interface ExaSearchOptions {
   startPublishedDate?: string;
   endPublishedDate?: string;
   useCache?: boolean; // キャッシュを使用するかどうか（実際のAPIに送信されず、ローカル処理のみで使用）
+  timePeriod?: 'day' | 'week' | 'month' | 'year' | 'custom'; // 事前定義された期間（customの場合はstartPublishedDateとendPublishedDateを使用）
+  sortBy?: 'relevance' | 'date'; // 結果のソート方法
+  language?: string; // 検索結果の言語フィルタ (例: 'ja', 'en')
+  advancedQuery?: boolean; // 高度なクエリ構文を使用するかどうか
 }
 
 /**
@@ -98,6 +102,59 @@ export async function searchWithExa(
       startPublishedDate: options.startPublishedDate,
       endPublishedDate: options.endPublishedDate
     };
+    
+    // 事前定義された期間の処理（timePeriodが指定されている場合）
+    if (options.timePeriod && options.timePeriod !== 'custom') {
+      const now = new Date();
+      let startDate = new Date();
+      
+      // 期間に応じてstartDate値を設定
+      switch (options.timePeriod) {
+        case 'day':
+          startDate.setDate(now.getDate() - 1);
+          break;
+        case 'week':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+      
+      // 日付をYYYY-MM-DD形式で設定
+      searchOptions.startPublishedDate = startDate.toISOString().split('T')[0];
+      searchOptions.endPublishedDate = now.toISOString().split('T')[0];
+    }
+    
+    // 高度なクエリ構文の使用
+    if (options.advancedQuery) {
+      // クエリが既に高度な構文を含んでいない場合のみ処理
+      if (!options.query.includes(':') && !options.query.includes('"')) {
+        const keywords = options.query.split(/\s+/).filter(k => k.length > 0);
+        
+        // 重要キーワードを引用符で囲む
+        if (keywords.length > 1) {
+          const mainKeywords = keywords.slice(0, Math.min(3, keywords.length));
+          const exactPhrase = `"${mainKeywords.join(' ')}"`;
+          const restKeywords = keywords.slice(Math.min(3, keywords.length)).join(' ');
+          searchOptions.query = exactPhrase + (restKeywords ? ' ' + restKeywords : '');
+        }
+      }
+    }
+    
+    // 言語フィルタが指定されている場合
+    if (options.language) {
+      searchOptions.query += ` language:${options.language}`;
+    }
+    
+    // ソート順序の設定
+    if (options.sortBy === 'date') {
+      // 日付順のソートを指定
+      searchOptions.query += ' sort:date';
+    }
 
     // デバッグログ：検索リクエスト情報
     console.log(`Exa検索実行: クエリ="${options.query}", 結果件数=${options.numResults}`);
@@ -293,10 +350,22 @@ export async function fetchContentWithExa(
  * 情報収集プランに基づいた検索を実行し、結果を処理する
  * @param plan 情報収集プラン (タイトル、キーワード等を含む)
  * @param roleModelId ロールモデルID
+ * @param options 追加検索オプション
  */
 export async function executeSearchForCollectionPlan(
   plan: any,
-  roleModelId: string
+  roleModelId: string,
+  options?: {
+    timePeriod?: 'day' | 'week' | 'month' | 'year' | 'custom';
+    startDate?: string;
+    endDate?: string;
+    searchType?: 'keyword' | 'neural' | 'hybrid';
+    language?: string;
+    advancedQuery?: boolean;
+    sortBy?: 'relevance' | 'date';
+    includeDomains?: string[];
+    excludeDomains?: string[];
+  }
 ): Promise<{
   sources: ExaSearchResult[];
   summary: string;
@@ -318,7 +387,16 @@ export async function executeSearchForCollectionPlan(
       highlights: true,
       useAutoprompt: true,
       maxDocuments: 10,
-      type: 'hybrid'
+      type: options?.searchType || 'hybrid',
+      // 以下、追加オプション
+      timePeriod: options?.timePeriod,
+      startPublishedDate: options?.startDate,
+      endPublishedDate: options?.endDate,
+      language: options?.language,
+      advancedQuery: options?.advancedQuery,
+      sortBy: options?.sortBy,
+      includeDomains: options?.includeDomains,
+      excludeDomains: options?.excludeDomains
     };
     
     // Exa検索を実行
