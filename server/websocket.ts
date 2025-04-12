@@ -392,6 +392,12 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         
       case 'get_knowledge_graph':
         // ナレッジグラフ取得リクエストの処理
+        console.log('ナレッジグラフ取得リクエストを処理します');
+        handleGetKnowledgeGraph(ws, data);
+        break;
+        
+      case 'get_knowledge_graph':
+        // ナレッジグラフ取得リクエストの処理
         console.log(`既存ナレッジグラフデータの取得リクエストを処理します: roleModelId=${specificRoleModelId}`);
         try {
           sendExistingKnowledgeGraph(ws, specificRoleModelId);
