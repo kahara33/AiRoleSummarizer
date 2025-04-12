@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import MultiAgentChatPanel from '@/components/chat/MultiAgentChatPanel';
 import { useMultiAgentWebSocket } from '@/hooks/use-multi-agent-websocket-fixed';
 import AgentConversation from '@/components/agent-activity/AgentConversation';
+import InformationPlanList from '@/components/collection-plan/InformationPlanList';
+import InformationPlanDetail from '@/components/collection-plan/InformationPlanDetail';
 
 import type { ProgressUpdate } from '@/hooks/use-multi-agent-websocket-fixed';
 // UIコンポーネントではなく、直接ボタンを使用
@@ -25,24 +27,6 @@ import {
   Send
 } from 'lucide-react';
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
-
-// モックデータ
-const mockCollectionPlans = [
-  { id: 'plan1', name: 'プラン1', createdAt: '2025/3/7', updatedAt: '2025/4/7' },
-  { id: 'plan2', name: 'プラン2', createdAt: '2025/3/15', updatedAt: '2025/4/5' },
-];
-
-// プラン詳細のモックデータ
-const mockPlanDetails = {
-  name: '収集プラン',
-  status: '実行単位',
-  completion: '通知先',
-  tools: ['Google', 'RSS'],
-  sources: [
-    { id: 'source1', media: 'https://example.com/news' },
-    { id: 'source2', media: 'https://example.org/blog' }
-  ]
-};
 
 interface InformationDashboardProps {
   id?: string;

@@ -1512,13 +1512,21 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
                 }}
               />
               
+              {/* グラフ保存パネル */}
+              <Panel position="top-right" style={{ right: 10, top: 10 }}>
+                <KnowledgeGraphSavePanel 
+                  roleModelId={roleModelId} 
+                  onSaveSuccess={fetchGraphData}
+                />
+              </Panel>
+              
               {/* 元に戻すボタン - Undoスタックに操作がある場合のみ表示 */}
               {undoStack.length > 0 && (
                 <div 
                   style={{ 
                     position: 'absolute', 
                     top: 10, 
-                    right: 10, 
+                    left: 10, 
                     zIndex: 10 
                   }}
                   className="bg-white dark:bg-gray-800 shadow-md rounded-md p-1"
