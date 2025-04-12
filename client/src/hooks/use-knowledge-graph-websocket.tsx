@@ -44,6 +44,8 @@ interface UseKnowledgeGraphReturn {
   saveGraph: (name: string, description?: string) => Promise<boolean>;
   loadGraph: (snapshotId: string) => Promise<boolean>;
   resetGraph: () => void;
+  // グラフデータを明示的にリクエストするメソッドを追加
+  requestGraphData: () => void;
 }
 
 export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn {
@@ -152,11 +154,9 @@ export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn 
     // カスタムイベントリスナーを登録
     window.addEventListener('knowledge_graph_update', handleGraphUpdate as EventListener);
     
-    // 初回読み込み時にグラフデータをリクエスト
-    if (isConnected && roleModelId) {
-      console.log('初期グラフデータをリクエスト:', roleModelId);
-      sendMessage('get_knowledge_graph', { roleModelId });
-    }
+    // 初回読み込み時の自動グラフデータリクエストを削除
+    // 自動的にリクエストするのではなく、明示的なユーザーアクションによってのみリクエストするように変更
+    console.log('WebSocket接続完了:', roleModelId, '- ユーザーがボタンをクリックするまで待機します');
     
     // クリーンアップ
     return () => {
@@ -249,6 +249,18 @@ export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn 
     setLastUpdateSource(null);
   }, []);
   
+  // グラフデータを明示的にリクエスト
+  const requestGraphData = useCallback(() => {
+    if (isConnected && roleModelId) {
+      console.log('ナレッジグラフデータをリクエスト:', roleModelId);
+      setLoading(true);
+      sendMessage('get_knowledge_graph', { roleModelId });
+    } else {
+      console.error('WebSocket接続がないため、グラフデータをリクエストできません');
+      setError('サーバーに接続できません。後でもう一度お試しください。');
+    }
+  }, [roleModelId, isConnected, sendMessage]);
+  
   return {
     nodes,
     edges,
@@ -259,6 +271,7 @@ export function useKnowledgeGraph(roleModelId: string): UseKnowledgeGraphReturn 
     lastUpdateSource,
     saveGraph,
     loadGraph,
-    resetGraph
+    resetGraph,
+    requestGraphData
   };
 }

@@ -75,7 +75,8 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     loadGraph: wsLoadGraph,
     isUpdating: wsUpdating,
     lastUpdateTime,
-    lastUpdateSource
+    lastUpdateSource,
+    requestGraphData // 明示的なグラフデータリクエスト関数を追加
   } = useKnowledgeGraph(roleModelId);
   
   // WebSocketコネクション用のカスタムフック
@@ -1048,11 +1049,11 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         duration: 3000,
       });
       
-      // グラフデータを再取得
-      console.log('グラフデータの再取得をスケジュール...');
+      // グラフデータを明示的にリクエスト
+      console.log('明示的なグラフデータリクエストをスケジュール...');
       setTimeout(() => {
-        console.log('グラフデータを再取得します');
-        fetchGraphData();
+        console.log('明示的にグラフデータをリクエストします');
+        requestGraphData(); // fetchGraphData()からrequestGraphData()に変更
       }, 1000);
       
     } catch (error) {
