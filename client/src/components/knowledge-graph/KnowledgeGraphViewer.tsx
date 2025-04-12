@@ -285,12 +285,37 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             ...node,
             label: node.name || 'No Name',
             color: node.color || color,
-            // ノード操作ハンドラを追加
-            onEdit: handleEditNode,
-            onDelete: handleDeleteNode,
-            onAddChild: handleAddChildNode,
-            onAddSibling: handleAddSiblingNode,
-            onExpand: handleExpandNode,
+            // ノード操作ハンドラを後でプロパティとして追加
+            onEdit: (nodeId: string) => {
+              console.log(`ノード編集: ${nodeId}`);
+              if (typeof handleEditNode === 'function') {
+                handleEditNode(nodeId);
+              }
+            },
+            onDelete: (nodeId: string) => {
+              console.log(`ノード削除: ${nodeId}`);
+              if (typeof handleDeleteNode === 'function') {
+                handleDeleteNode(nodeId);
+              }
+            },
+            onAddChild: (nodeId: string) => {
+              console.log(`子ノード追加: ${nodeId}`);
+              if (typeof handleAddChildNode === 'function') {
+                handleAddChildNode(nodeId);
+              }
+            },
+            onAddSibling: (nodeId: string) => {
+              console.log(`兄弟ノード追加: ${nodeId}`);
+              if (typeof handleAddSiblingNode === 'function') {
+                handleAddSiblingNode(nodeId);
+              }
+            },
+            onExpand: (nodeId: string) => {
+              console.log(`ノード展開: ${nodeId}`);
+              if (typeof handleExpandNode === 'function') {
+                handleExpandNode(nodeId);
+              }
+            },
           },
           style: {
             background: node.color || color,
@@ -437,7 +462,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         onDataStatus(false);
       }
     }
-  }, [roleModelId, autoLoad, handleEditNode, handleDeleteNode, handleAddChildNode, handleAddSiblingNode, handleExpandNode]);
+  }, [roleModelId, autoLoad, onGraphDataChange, onDataStatus]);
 
   // 初期ナレッジグラフの存在確認
   useEffect(() => {
