@@ -274,25 +274,125 @@ class GlobalWebSocketManager {
     this.currentRoleModelId = null;
   }
   
-  // メッセージ送信
+  // メッセージキュー
+  private messageQueue: {type: string, payload: any}[] = [];
+  private processingQueue = false;
+  private readonly maxQueueSize = 100;
+  
+  // メッセージ送信（改善版）
   public sendMessage(type: string, payload: any): boolean {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      console.error('WebSocketが接続されていないため、メッセージを送信できません');
+    // メッセージをキューに追加
+    if (this.messageQueue.length < this.maxQueueSize) {
+      console.log("送信メッセージ準備:", type, payload);
+      this.messageQueue.push({type, payload});
+      
+      // キュー処理を開始
+      this.processMessageQueue();
+      return true;
+    } else {
+      console.error('メッセージキューが満杯です。メッセージは破棄されました。');
       return false;
+    }
+  }
+  
+  // メッセージキューの処理
+  private processMessageQueue(): void {
+    // 既に処理中ならスキップ
+    if (this.processingQueue) {
+      return;
+    }
+    
+    this.processingQueue = true;
+    this.tryProcessNextMessage();
+  }
+  
+  // 次のメッセージを処理
+  private tryProcessNextMessage(): void {
+    // キューが空なら処理終了
+    if (this.messageQueue.length === 0) {
+      this.processingQueue = false;
+      return;
+    }
+    
+    // WebSocketの状態確認
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocketが未接続です。自動的に再接続を試みます。');
+      
+      // 自動再接続（currentRoleModelIdが設定されている場合のみ）
+      if (this.currentRoleModelId) {
+        const userId = localStorage.getItem('userId');
+        if (userId) {
+          // 再接続後にキューの処理を再開するコールバック
+          const onReconnected = (isConnected: boolean) => {
+            if (isConnected) {
+              // 接続成功したら500ms後に再試行
+              setTimeout(() => {
+                console.log('再接続に成功しました。メッセージを送信します。');
+                this.tryProcessNextMessage();
+              }, 500);
+            } else {
+              // 再接続失敗でも3秒後に再試行
+              setTimeout(() => {
+                this.processingQueue = false;
+                this.processMessageQueue();
+              }, 3000);
+            }
+          };
+          
+          // 前回の接続試行から一定時間経過していることを確認
+          const lastAttemptTime = this.lastReconnectTime || 0;
+          const currentTime = Date.now();
+          const timeSinceLastAttempt = currentTime - lastAttemptTime;
+          
+          if (timeSinceLastAttempt > 500) {
+            this.lastReconnectTime = currentTime;
+            this.connect(userId, this.currentRoleModelId, onReconnected);
+          } else {
+            console.log('短時間での再接続を防止します。前回の接続からの経過時間:', timeSinceLastAttempt, 'ms');
+            // 少し待機して再試行
+            setTimeout(() => {
+              this.processingQueue = false;
+              this.processMessageQueue();
+            }, 1000);
+          }
+          return;
+        }
+      }
+      
+      // 再接続できない場合は処理を中断
+      this.processingQueue = false;
+      return;
+    }
+    
+    // キューからメッセージを取得して送信
+    const message = this.messageQueue.shift();
+    if (!message) {
+      this.processingQueue = false;
+      return;
     }
     
     try {
       this.socket.send(JSON.stringify({
-        type,
-        payload,
+        type: message.type,
+        payload: message.payload,
         timestamp: new Date().toISOString()
       }));
-      return true;
+      
+      // 次のメッセージを処理（10ms後）
+      setTimeout(() => {
+        this.tryProcessNextMessage();
+      }, 10);
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
-      return false;
+      // エラーが発生しても次のメッセージを処理
+      setTimeout(() => {
+        this.tryProcessNextMessage();
+      }, 100);
     }
   }
+  
+  // 最後に再接続を試みた時間
+  private lastReconnectTime: number = 0;
   
   // メッセージイベントリスナーの登録
   public addMessageListener(type: string, callback: (data: any) => void): void {
@@ -478,6 +578,9 @@ export function MultiAgentWebSocketProvider({ children }: { children: ReactNode 
       console.warn('ユーザーがログインしていないため、WebSocket接続を確立できません');
       return;
     }
+    
+    // ユーザーIDをローカルストレージに保存（自動再接続のため）
+    localStorage.setItem('userId', user.id);
     
     // 短時間に複数の接続要求が発生するのを防ぐ（1秒以内の再接続を防止）
     const now = Date.now();
