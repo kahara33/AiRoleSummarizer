@@ -1234,10 +1234,71 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
     };
   }, [roleModelId, requestGraphData, generating, autoLoad]);
 
+  // デバッグ情報を生成
+  const debugInfo = {
+    roleModelId,
+    connectionStatus: {
+      isConnected,
+      wsStatus: wsLoading ? "loading" : wsError ? "error" : "connected"
+    },
+    stateInfo: {
+      loading,
+      error,
+      hasKnowledgeGraph,
+      loadingProgress,
+      loadingMessagesCount: loadingMessages.length,
+      nodesCount: nodes.length,
+      edgesCount: edges.length,
+    },
+    webSocketData: {
+      websocketNodesCount: websocketNodes.length,
+      websocketEdgesCount: websocketEdges.length,
+      lastUpdateTime,
+      lastUpdateSource
+    }
+  };
+
   return (
     <div className="flex flex-col w-full h-full" style={{ height: '100%' }}>
       <div className="flex justify-between items-center mb-1 px-2 py-1 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-semibold">ナレッジグラフビューワー</h3>
+        
+        {/* デバッグ情報表示エリア */}
+        <div className="mb-2 p-2 bg-yellow-50 rounded-md border border-yellow-200 text-xs overflow-auto" style={{ maxHeight: '350px', width: '100%' }}>
+          <h4 className="font-bold">デバッグ情報:</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p><strong>RoleModelID:</strong> {roleModelId}</p>
+              <p><strong>WebSocket接続状態:</strong> {isConnected ? '接続済み' : '未接続'}</p>
+              <p><strong>WebSocketステータス:</strong> {wsLoading ? "読込中" : wsError ? "エラー" : "接続済み"}</p>
+            </div>
+            <div>
+              <p><strong>ノード数:</strong> {nodes.length} (WebSocket: {websocketNodes.length})</p>
+              <p><strong>エッジ数:</strong> {edges.length} (WebSocket: {websocketEdges.length})</p>
+              <p><strong>ロード状態:</strong> {loading ? `読込中 (${loadingProgress}%)` : '完了'}</p>
+              <p><strong>グラフ存在:</strong> {hasKnowledgeGraph ? 'あり' : 'なし'}</p>
+            </div>
+          </div>
+          <div className="mt-1">
+            <p><strong>エラー:</strong> {error || 'なし'}</p>
+            <p><strong>最終更新:</strong> {lastUpdateTime ? new Date(lastUpdateTime).toLocaleString() : 'なし'}</p>
+            <p><strong>更新元:</strong> {lastUpdateSource || 'なし'}</p>
+          </div>
+          <pre className="mt-1 text-xs bg-gray-100 p-1 rounded overflow-auto">
+            {JSON.stringify(debugInfo, null, 2)}
+          </pre>
+
+          {/* WebSocketから受け取ったノードのサンプル */}
+          {websocketNodes.length > 0 && (
+            <div className="mt-1">
+              <p><strong>WebSocketノードサンプル:</strong></p>
+              <pre className="bg-gray-100 p-1 rounded overflow-auto" style={{ maxHeight: '100px' }}>
+                {JSON.stringify(websocketNodes[0], null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+        
         <div className="flex space-x-2">
           {hasKnowledgeGraph && (
             <TooltipProvider>
