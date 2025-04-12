@@ -145,6 +145,14 @@ export async function getKnowledgeGraphForRoleModel(roleModelId: string): Promis
  * @returns 子ノードの配列
  */
 export async function getChildNodes(nodeId: string, relationshipType?: string): Promise<Record<string, any>[]> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.getChildNodes(nodeId, relationshipType);
+    } catch (error) {
+      console.error('Neo4jでの子ノード取得に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.getChildNodes(nodeId, relationshipType);
 }
 
@@ -155,6 +163,14 @@ export async function getChildNodes(nodeId: string, relationshipType?: string): 
  * @returns 親ノードの配列
  */
 export async function getParentNodes(nodeId: string, relationshipType?: string): Promise<Record<string, any>[]> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.getParentNodes(nodeId, relationshipType);
+    } catch (error) {
+      console.error('Neo4jでの親ノード取得に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.getParentNodes(nodeId, relationshipType);
 }
 
@@ -173,6 +189,14 @@ export async function generateNewKnowledgeGraph(
     createdBy?: string;
   }
 ): Promise<string> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.generateNewKnowledgeGraph(roleModelId, options);
+    } catch (error) {
+      console.error('Neo4jでのナレッジグラフ生成に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.generateNewKnowledgeGraph(roleModelId, options);
 }
 
@@ -185,8 +209,40 @@ export async function getKnowledgeGraph(roleModelId: string): Promise<{
   nodes: any[];
   edges: any[];
 }> {
+  if (neo4jAvailable) {
+    try {
+      return await neo4jService.getKnowledgeGraph(roleModelId);
+    } catch (error) {
+      console.error('Neo4jでのナレッジグラフ取得に失敗しました。メモリベースに切り替えます:', error);
+      neo4jAvailable = false;
+    }
+  }
   return await memoryGraphService.getKnowledgeGraph(roleModelId);
 }
 
-// Neo4jは使用せず、常にメモリベースのグラフサービスを使用
-console.info('メモリベースのグラフサービスを使用します。');
+// 初期化関数
+(async function initialize() {
+  try {
+    // 環境変数をチェック
+    const hasNeo4jCredentials = process.env.NEO4J_URI && process.env.NEO4J_USERNAME && process.env.NEO4J_PASSWORD;
+    
+    if (!hasNeo4jCredentials) {
+      console.warn('Neo4j認証情報が設定されていません。メモリベースのグラフサービスを使用します。');
+      neo4jAvailable = false;
+      return;
+    }
+    
+    // Neo4j接続テスト
+    neo4jAvailable = await neo4jService.testConnection();
+    
+    if (neo4jAvailable) {
+      console.info('Neo4jグラフデータベースを優先的に使用します。Neo4j接続が失敗した場合はメモリベースのグラフサービスに自動的に切り替えます。');
+    } else {
+      console.info('メモリベースのグラフサービスを使用します。Neo4j接続が利用できない場合はこのモードを使用します。');
+    }
+  } catch (error) {
+    console.error('グラフサービス初期化エラー:', error);
+    neo4jAvailable = false;
+    console.info('メモリベースのグラフサービスを使用します。Neo4j接続が利用できない場合はこのモードを使用します。');
+  }
+})();

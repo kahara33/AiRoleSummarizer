@@ -11,10 +11,11 @@ let driver: Driver | null = null;
 
 // 認証情報とURLの取得
 const getNeo4jConfig = () => {
-  // IPv6 (::1) ではなく IPv4 (127.0.0.1) を使用
-  const url = process.env.NEO4J_URL || 'neo4j://127.0.0.1:7687';
+  // Neo4j Cloud URLまたはデフォルトのローカル接続
+  const url = process.env.NEO4J_URI || 'neo4j://127.0.0.1:7687';
   const username = process.env.NEO4J_USERNAME || 'neo4j';
   const password = process.env.NEO4J_PASSWORD || 'password';
+  console.log(`Neo4j接続情報: URL=${url}, ユーザー名=${username}`);
   return { url, username, password };
 };
 
