@@ -129,22 +129,27 @@ export default function CollectionPlanGenerationButton({
       // 情報収集プラン生成リクエストを送信
       console.log('情報収集プラン生成リクエスト送信:', roleModelId);
       
+      // 詳細なデバッグログを追加
+      console.log('情報収集プラン生成: sendCreateCollectionPlanRequest 関数の有無:', typeof sendCreateCollectionPlanRequest);
+      console.log('WebSocket接続状態:', isConnected ? '接続済み' : '未接続');
+      
+      const messagePayload = {
+        roleModelId,  // 明示的にroleModelIdを渡す
+        industry: industry || '一般',
+        keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
+        useExistingGraph: true,  // 既存グラフを使用する
+      };
+      
+      console.log('送信するペイロード:', messagePayload);
+      
       // 共通関数が利用可能ならそちらを使う
       if (typeof sendCreateCollectionPlanRequest === 'function') {
-        sendCreateCollectionPlanRequest({
-          roleModelId,  // 明示的にroleModelIdを渡す
-          industry: industry || '一般',
-          keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          useExistingGraph: true,  // 既存グラフを使用する
-        });
+        const success = sendCreateCollectionPlanRequest(messagePayload);
+        console.log('情報収集プラン生成リクエスト送信結果:', success ? '成功' : '失敗');
       } else {
         // フォールバック: 直接メッセージを送信
-        sendMessage('create_collection_plan', {
-          roleModelId,  // roleModelIdを必ず含める
-          industry: industry || '一般',
-          keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          useExistingGraph: true,  // 既存グラフを使用する
-        });
+        const success = sendMessage('create_collection_plan', messagePayload);
+        console.log('フォールバックメッセージ送信結果:', success ? '成功' : '失敗');
       }
 
       console.log('業界:', industry || '一般');

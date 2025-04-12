@@ -134,24 +134,28 @@ export default function KnowledgeGraphGenerationButton({
       // ナレッジグラフ生成リクエストを送信
       console.log('ナレッジグラフ生成リクエスト送信:', roleModelId);
       
+      // 詳細なデバッグログを追加
+      console.log('ナレッジグラフ生成: sendCreateKnowledgeGraphRequest 関数の有無:', typeof sendCreateKnowledgeGraphRequest);
+      console.log('WebSocket接続状態:', isConnected ? '接続済み' : '未接続');
+      
+      const messagePayload = {
+        roleModelId,  // 明示的にroleModelIdを渡す
+        includeCollectionPlan: true,  // ナレッジグラフ生成と情報収集プラン生成の両方を行う
+        industry: industry || '一般',
+        keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
+        useExistingGraph: false,  // 既存グラフを使用せず新規に生成
+      };
+      
+      console.log('送信するペイロード:', messagePayload);
+      
       // 共通関数が利用可能ならそちらを使う
       if (typeof sendCreateKnowledgeGraphRequest === 'function') {
-        sendCreateKnowledgeGraphRequest({
-          roleModelId,  // 明示的にroleModelIdを渡す
-          includeCollectionPlan: true,  // ナレッジグラフ生成と情報収集プラン生成の両方を行う
-          industry: industry || '一般',
-          keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          useExistingGraph: false,  // 既存グラフを使用せず新規に生成
-        });
+        const success = sendCreateKnowledgeGraphRequest(messagePayload);
+        console.log('ナレッジグラフ生成リクエスト送信結果:', success ? '成功' : '失敗');
       } else {
         // フォールバック: 直接メッセージを送信
-        sendMessage('create_knowledge_graph', {
-          roleModelId,  // roleModelIdを必ず含める
-          includeCollectionPlan: true,
-          industry: industry || '一般',
-          keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          useExistingGraph: false,  // 既存グラフを使用せず新規に生成
-        });
+        const success = sendMessage('create_knowledge_graph', messagePayload);
+        console.log('フォールバックメッセージ送信結果:', success ? '成功' : '失敗');
       }
 
       console.log('業界:', industry || '一般');

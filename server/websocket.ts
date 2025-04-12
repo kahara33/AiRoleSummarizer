@@ -70,11 +70,11 @@ export function initWebSocketServer(server: Server): void {
         console.error(`WebSocket error for role model ${roleModelId}:`, error);
       });
       
-      // メッセージ受信時の処理
-      ws.on('message', (message) => {
+      // WebSocketメッセージの処理を行う非同期関数
+      const handleMessage = async (message: WebSocket.Data, ws: WebSocket) => {
         try {
           const parsedMessage = JSON.parse(message.toString());
-          console.log(`Received message from role model ${roleModelId}:`, parsedMessage);
+          console.log(`WebSocketメッセージ受信: type=${parsedMessage.type}, roleModelId=${roleModelId}`);
           
           // Client->Server メッセージの処理
           const { type } = parsedMessage;
@@ -103,53 +103,116 @@ export function initWebSocketServer(server: Server): void {
             // ナレッジグラフ生成リクエスト（新規または既存グラフを使用するかのフラグ付き）
             console.log(`クライアントからのナレッジグラフ生成リクエスト:`, parsedMessage);
             
-            // websocket-handlersモジュールから動的にインポート
-            import('./websocket-handlers').then(handlers => {
-              handlers.handleCreateKnowledgeGraph(parsedMessage, roleModelId);
-            }).catch(error => {
-              console.error('ナレッジグラフハンドラのロードエラー:', error);
+            try {
+              // クライアントに受信確認メッセージを送信
+              ws.send(JSON.stringify({
+                type: 'request_received',
+                requestType: 'create_knowledge_graph',
+                message: 'ナレッジグラフ生成リクエストを受信しました。処理を開始します。',
+                timestamp: new Date().toISOString()
+              }));
+              
+              // 進捗状況の初期値を送信
+              sendProgressUpdate(
+                roleModelId,
+                5,
+                'ナレッジグラフ生成を開始します...'
+              );
+              
+              // 動的インポートでハンドラーモジュールを読み込む
+              const handlers = await import('./websocket-handlers');
+              const result = await handlers.handleCreateKnowledgeGraph(parsedMessage, roleModelId);
+              
+              console.log('ナレッジグラフ生成ハンドラ実行結果:', result ? '成功' : '失敗');
+            } catch (error) {
+              console.error('ナレッジグラフハンドラのロードまたは実行エラー:', error);
               
               ws.send(JSON.stringify({
                 type: 'error',
-                message: 'ナレッジグラフ生成ハンドラの読み込みに失敗しました',
-                error: error.message,
+                message: 'ナレッジグラフ生成処理中にエラーが発生しました',
+                error: error instanceof Error ? error.message : String(error),
                 timestamp: new Date().toISOString()
               }));
-            });
+              
+              // エラー進捗更新
+              sendProgressUpdate(
+                roleModelId,
+                0,
+                'ナレッジグラフ生成中にエラーが発生しました',
+                { status: 'error' }
+              );
+            }
           } else if (type === 'create_collection_plan') {
             // 情報収集プラン生成リクエスト（既存グラフを使用）
             console.log(`クライアントからの情報収集プラン生成リクエスト:`, parsedMessage);
             
-            // websocket-handlersモジュールから動的にインポート
-            import('./websocket-handlers').then(handlers => {
-              handlers.handleCreateCollectionPlan(parsedMessage, roleModelId);
-            }).catch(error => {
-              console.error('情報収集プランハンドラのロードエラー:', error);
+            try {
+              // クライアントに受信確認メッセージを送信
+              ws.send(JSON.stringify({
+                type: 'request_received',
+                requestType: 'create_collection_plan',
+                message: '情報収集プラン生成リクエストを受信しました。処理を開始します。',
+                timestamp: new Date().toISOString()
+              }));
+              
+              // 進捗状況の初期値を送信
+              sendProgressUpdate(
+                roleModelId,
+                5,
+                '情報収集プラン生成を開始します...'
+              );
+              
+              // 動的インポートでハンドラーモジュールを読み込む
+              const handlers = await import('./websocket-handlers');
+              const result = await handlers.handleCreateCollectionPlan(parsedMessage, roleModelId);
+              
+              console.log('情報収集プラン生成ハンドラ実行結果:', result ? '成功' : '失敗');
+            } catch (error) {
+              console.error('情報収集プランハンドラのロードまたは実行エラー:', error);
               
               ws.send(JSON.stringify({
                 type: 'error',
-                message: '情報収集プラン生成ハンドラの読み込みに失敗しました',
-                error: error.message,
+                message: '情報収集プラン生成処理中にエラーが発生しました',
+                error: error instanceof Error ? error.message : String(error),
                 timestamp: new Date().toISOString()
               }));
-            });
+              
+              // エラー進捗更新
+              sendProgressUpdate(
+                roleModelId,
+                0,
+                '情報収集プラン生成中にエラーが発生しました',
+                { status: 'error' }
+              );
+            }
           } else if (type === 'cancel_operation') {
             // 操作キャンセルリクエスト
             console.log(`クライアントからの操作キャンセルリクエスト:`, parsedMessage);
             
-            // websocket-handlersモジュールから動的にインポート
-            import('./websocket-handlers').then(handlers => {
-              handlers.handleCancelOperation(parsedMessage, roleModelId);
-            }).catch(error => {
-              console.error('キャンセルハンドラのロードエラー:', error);
+            try {
+              // クライアントに受信確認メッセージを送信
+              ws.send(JSON.stringify({
+                type: 'request_received',
+                requestType: 'cancel_operation',
+                message: 'キャンセルリクエストを受信しました。処理を中止します。',
+                timestamp: new Date().toISOString()
+              }));
+              
+              // 動的インポートでハンドラーモジュールを読み込む
+              const handlers = await import('./websocket-handlers');
+              const result = await handlers.handleCancelOperation(parsedMessage, roleModelId);
+              
+              console.log('キャンセル操作ハンドラ実行結果:', result ? '成功' : '失敗');
+            } catch (error) {
+              console.error('キャンセルハンドラのロードまたは実行エラー:', error);
               
               ws.send(JSON.stringify({
                 type: 'error',
-                message: 'キャンセル処理ハンドラの読み込みに失敗しました',
-                error: error.message,
+                message: 'キャンセル処理中にエラーが発生しました',
+                error: error instanceof Error ? error.message : String(error),
                 timestamp: new Date().toISOString()
               }));
-            });
+            }
           } else if (type === 'agent_thoughts' || type === 'progress' || type === 'graph_update') {
             // メッセージをそのまま処理（受信も送信も同じ型を使用）
             console.log(`Processing message type: ${type}`);
@@ -168,6 +231,14 @@ export function initWebSocketServer(server: Server): void {
         } catch (error) {
           console.error(`Error parsing message from role model ${roleModelId}:`, error);
         }
+      };
+      
+      // メッセージ受信時の処理（非同期関数に処理を委譲）
+      ws.on('message', (message) => {
+        console.log(`メッセージ受信: clientId=${clientId}, type=${JSON.parse(message.toString()).type}`);
+        handleMessage(message, ws).catch(err => {
+          console.error('WebSocketメッセージ処理エラー:', err);
+        });
       });
     } else {
       // ロールモデルIDが指定されていない場合は切断
