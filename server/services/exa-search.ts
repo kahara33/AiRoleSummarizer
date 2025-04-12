@@ -34,7 +34,8 @@ export interface ExaSearchResult {
   title: string;
   text: string;
   highlights?: string[];
-  score?: number;
+  score?: number;       // APIからのスコア値
+  relevanceScore?: number; // 内部計算用のスコア値
   publishedDate?: string;
   author?: string;
   source?: string;
@@ -57,15 +58,12 @@ export interface ExaSearchResponse {
  * @returns 検索結果
  */
 export async function searchWithExa(
-  query: string,
-  numResults: number = 10,
+  options: ExaSearchOptions,
   roleModelId?: string
-): Promise<ExaSearchResult[]> {
-  // 後方互換性のためにオプションオブジェクトに変換
-  const options: ExaSearchOptions = {
-    query: query,
-    numResults: numResults
-  };
+): Promise<{
+  sources: ExaSearchResult[];
+  summary: string;
+}> {
   try {
     // Exa API Key の取得
     const apiKey = process.env.EXA_API_KEY;
