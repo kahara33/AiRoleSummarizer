@@ -57,8 +57,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     console.error('Neo4j初期化エラー:', error);
   });
   
-  // WebSocketサーバーのセットアップ
-  initWebSocket(httpServer);
+  // WebSocketサーバーのセットアップはserver/index.tsで行われるため、ここでは不要
+  // initWebSocket(httpServer);
   
   // API エンドポイントの設定
   // システム状態の確認
