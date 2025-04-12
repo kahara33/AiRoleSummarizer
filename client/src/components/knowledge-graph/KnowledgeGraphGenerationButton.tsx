@@ -141,7 +141,7 @@ export default function KnowledgeGraphGenerationButton({
           includeCollectionPlan: true,  // ナレッジグラフ生成と情報収集プラン生成の両方を行う
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          forceOverwrite: true,  // 既存グラフがあっても強制的に上書き
+          useExistingGraph: false,  // 既存グラフを使用せず新規に生成
         });
       } else {
         // フォールバック: 直接メッセージを送信
@@ -150,7 +150,7 @@ export default function KnowledgeGraphGenerationButton({
           includeCollectionPlan: true,
           industry: industry || '一般',
           keywords: initialKeywords.length > 0 ? initialKeywords : ['情報収集', 'ナレッジグラフ'],
-          forceOverwrite: true,  // 既存グラフがあっても強制的に上書き
+          useExistingGraph: false,  // 既存グラフを使用せず新規に生成
         });
       }
 

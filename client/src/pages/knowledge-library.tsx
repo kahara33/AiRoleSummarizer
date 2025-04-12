@@ -719,7 +719,7 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
               <PanelResizeHandle className="w-1 bg-gray-200 hover:bg-blue-500 transition-colors" />
               
               <Panel id="right-panel" defaultSize={30} minSize={20} maxSize={50}>
-                <div className="h-full overflow-hidden flex flex-col border-l">
+                <div className="h-full flex flex-col border-l">
                   <div className="px-4 py-3 border-b bg-white flex justify-between items-center">
                     <h2 className="font-semibold text-sm">AIエージェント活動</h2>
                     <Button 
@@ -739,13 +739,13 @@ const KnowledgeLibrary: React.FC<KnowledgeLibraryProps> = () => {
                     </Button>
                   </div>
                   
-                  <div className="flex-1 overflow-auto">
+                  <div className="flex-1 overflow-hidden flex flex-col" style={{ height: 'calc(100% - 45px)' }}>
                     <AgentConversation 
                       agentThoughts={agentThoughts}
                       progressUpdates={progressUpdates}
                       isProcessing={isProcessing}
                       roleModelId={roleModelId}
-                      className="h-full"
+                      className="flex-1"
                     />
                   </div>
                   
