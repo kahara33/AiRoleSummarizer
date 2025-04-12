@@ -64,6 +64,23 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   height = '600px',
   onGraphDataChange,
 }) => {
+  // useKnowledgeGraphフックを使用してWebSocket通信を行う
+  const {
+    nodes: websocketNodes,
+    edges: websocketEdges,
+    loading: wsLoading,
+    error: wsError,
+    saveGraph: wsSaveGraph,
+    loadGraph: wsLoadGraph,
+    isUpdating: wsUpdating,
+    lastUpdateTime,
+    lastUpdateSource
+  } = useKnowledgeGraph(roleModelId);
+  
+  // WebSocketコネクション用のカスタムフック
+  const { isConnected, sendMessage } = useMultiAgentWebSocket();
+
+  // ReactFlowの状態管理
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -776,116 +793,109 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
 
   // グラフデータの初期ロード
+  // WebSocketからのノードとエッジデータを処理するuseEffect
   useEffect(() => {
-    console.log('Fetching graph data for roleModelId:', roleModelId);
-    fetchGraphData();
-  }, [fetchGraphData, roleModelId]);
-
-  // カスタムフックを使用したグラフデータとWebSocket連携
-  const {
-    nodes: graphNodes,
-    edges: graphEdges,
-    loading: graphLoading,
-    error: graphError,
-    isUpdating: graphUpdating,
-    lastUpdateTime,
-    lastUpdateSource,
-    saveGraph,
-    loadGraph,
-    resetGraph
-  } = useKnowledgeGraph(roleModelId || 'default');
-  
-  // リアルタイムグラフデータの更新処理
-  useEffect(() => {
-    if (graphLoading) {
-      console.log('ナレッジグラフデータを読み込み中...');
-      return;
-    }
-    
-    if (graphError) {
-      console.error('ナレッジグラフ読み込みエラー:', graphError);
-      toast({
-        title: 'エラー',
-        description: graphError,
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    // 有効なグラフデータがある場合、ReactFlowコンポーネント用に変換
-    if (graphNodes.length > 0 || graphEdges.length > 0) {
-      console.log(`グラフデータを更新: ノード数=${graphNodes.length}, エッジ数=${graphEdges.length}`);
-      
+    // websocketNodesとwebsocketEdgesが更新されたときに処理
+    if (websocketNodes.length > 0 || websocketEdges.length > 0) {
+      console.log('WebSocketからグラフデータを受信:', { nodes: websocketNodes, edges: websocketEdges });
       try {
-        // APIから取得したノードをReactFlowノードに変換
-        const newNodes = graphNodes.map((node: any) => {
-          const color = getNodeColor(node.type || 'default');
-          // レイアウトアルゴリズムで配置されるように初期位置をランダムに設定
-          const x = node.x || (Math.random() * 800 - 400);
-          const y = node.y || (Math.random() * 800 - 400);
+        // グラフエリアサイズの取得
+        const graphAreaWidth = window.innerWidth - 100;
+        const graphAreaHeight = window.innerHeight - 150;
+        const centerX = graphAreaWidth / 2;
+        const centerY = 150;
+        
+        // カラーマップの定義
+        const colorMap = [
+          '#4361ee', '#3a0ca3', '#7209b7', '#f72585', '#4cc9f0', 
+          '#4895ef', '#560bad', '#480ca8', '#b5179e', '#3f37c9'
+        ];
+        
+        // ノードをReactFlowノードに変換
+        const flowNodes: Node[] = websocketNodes.map((node: any, index: number) => {
+          // ノードのレベルを取得（またはデフォルト値を使用）
+          const level = node.level || 0;
+          // 色の選択
+          const color = colorMap[level % colorMap.length];
+          
+          // ノードの位置計算
+          let x = centerX + (index % 3 - 1) * 250; // 簡易的な水平配置
+          let y = centerY + (Math.floor(index / 3)) * 150; // 簡易的な垂直配置
+          
+          // ノードタイプの判定
+          const nodeType = node.type === 'agent' ? 'agent' : 'concept';
           
           return {
             id: node.id,
-            type: node.type === 'agent' ? 'agent' : 'concept',
+            type: nodeType,
             position: { x, y },
             data: {
               ...node,
               label: node.name,
               color: node.color || color,
+              // ノード操作ハンドラを追加
               onEdit: handleEditNode,
               onDelete: handleDeleteNode,
               onAddChild: handleAddChildNode,
               onAddSibling: handleAddSiblingNode,
               onExpand: handleExpandNode,
-            }
-          };
-        });
-        
-        // APIから取得したエッジをReactFlowエッジに変換
-        const newEdges = graphEdges.map((edge: any) => {
-          return {
-            id: edge.id,
-            source: edge.source || edge.sourceId,
-            target: edge.target || edge.targetId,
-            label: edge.label || edge.type || '',
-            type: 'dataFlow',
-            data: {
-              ...edge,
-              // エッジの編集と削除は現在サポートされていません
-              onEdit: undefined,
-              onDelete: undefined
             },
-            animated: edge.animated || false,
             style: {
-              stroke: edge.color || '#888',
-              strokeWidth: edge.strokeWidth || 1.5
-            }
+              background: node.color || color,
+              borderColor: color,
+            },
           };
         });
         
-        // グラフの複雑さによってレイアウト方法を選択
-        const hasHierarchy = newNodes.some(node => node.data && typeof node.data.level === 'number');
-        const hasMultipleLevels = new Set(newNodes.map(node => node.data?.level || 0)).size > 1;
-        const isComplex = newNodes.length > 15 || newEdges.length > 20;
+        // エッジの検証と変換
+        const validEdges = websocketEdges.filter((edge: any) => {
+          // sourceとtargetが存在するか確認
+          const sourceExists = flowNodes.some(node => node.id === edge.source || node.id === edge.sourceId);
+          const targetExists = flowNodes.some(node => node.id === edge.target || node.id === edge.targetId);
+          
+          return sourceExists && targetExists;
+        });
         
-        // レイアウト選択ロジック
+        // ReactFlowエッジに変換
+        const flowEdges: Edge[] = validEdges.map((edge: any) => {
+          const source = edge.sourceId || edge.source;
+          const target = edge.targetId || edge.target;
+          
+          return {
+            id: edge.id || `${source}-${target}-${Math.random().toString(36).substr(2, 9)}`,
+            source,
+            target,
+            type: 'dataFlow',
+            animated: edge.type === 'data-flow',
+            label: edge.label || '',
+            data: {
+              strength: edge.strength || 1,
+            },
+          };
+        });
+        
+        // グラフの複雑さに基づいてレイアウト選択
+        const hasHierarchy = flowNodes.some(node => node.data && typeof node.data.level === 'number');
+        const hasMultipleLevels = new Set(flowNodes.map(node => node.data?.level || 0)).size > 1;
+        const isComplex = flowNodes.length > 15 || flowEdges.length > 20;
+        
         const useHierarchicalLayout = hasHierarchy && (hasMultipleLevels || isComplex);
         
         if (useHierarchicalLayout) {
-          // 複雑なグラフや階層構造がある場合は最適化された階層レイアウトを使用
+          // 階層構造のあるグラフには階層レイアウトを使用
           console.log('階層レイアウトを適用します');
           const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedHierarchicalLayout(
-            newNodes,
-            newEdges
+            flowNodes,
+            flowEdges
           );
           setNodes(layoutedNodes);
           setEdges(layoutedEdges);
         } else {
-          // シンプルなグラフの場合は改良された基本レイアウトを使用
+          // シンプルなグラフには標準レイアウトを使用
           console.log('標準レイアウトを適用します');
           const { nodes: layoutedNodes, edges: layoutedEdges } = getImprovedLayoutedElements(
-            newNodes,
-            newEdges,
+            flowNodes,
+            flowEdges,
             { 
               direction: 'TB',
               nodesep: 120,
@@ -898,67 +908,45 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           setEdges(layoutedEdges);
         }
         
-        // ナレッジグラフの存在状態を更新
-        const hasData = newNodes.length > 0;
+        // データ状態の更新
+        setLoading(false);
+        const hasData = flowNodes.length > 0;
         setHasKnowledgeGraph(hasData);
         if (onGraphDataChange) {
           onGraphDataChange(hasData);
         }
-        
-        // 更新通知（最初の読み込み時は除く）
-        if (lastUpdateTime && !graphLoading) {
-          toast({
-            title: 'グラフ更新',
-            description: `${lastUpdateSource || 'システム'}からの更新を適用しました`,
-            variant: 'default'
-          });
-        }
       } catch (error) {
-        console.error('グラフデータの変換エラー:', error);
-        toast({
-          title: 'エラー',
-          description: 'グラフデータの変換中にエラーが発生しました',
-          variant: 'destructive'
-        });
-      } finally {
+        console.error('グラフデータの処理エラー:', error);
+        setError(error instanceof Error ? error.message : '不明なエラーが発生しました');
         setLoading(false);
       }
-    } else {
+    } else if (wsLoading) {
+      // WebSocket接続中
+      console.log('WebSocket接続中...');
+      setLoading(true);
+    } else if (wsError) {
+      // WebSocketエラー
+      console.error('WebSocketエラー:', wsError);
+      setError(wsError);
       setLoading(false);
     }
-    // グラフの状態が更新されたときに表示するトースト
-    if (graphUpdating) {
-      console.log('グラフ更新中...');
+  }, [websocketNodes, websocketEdges, wsLoading, wsError]);
+
+  // ナレッジグラフの更新通知用
+  useEffect(() => {
+    if (wsUpdating) {
+      toast({
+        title: 'グラフ更新中',
+        description: '知識グラフが更新されています...',
+        duration: 2000,
+      });
     }
-    
-    // ナレッジグラフが更新されるたびに、レイアウトを再適用
-    // これはuseKnowledgeGraphフックが内部でWebSocketリスナーを管理し、
-    // 最新のグラフデータを提供するようになったため、単純化されています
         
     return () => {
       // このコンポーネントがアンマウントされるときの処理
       console.log('ナレッジグラフビューワーのクリーンアップ');
     };
-  }, [
-    graphNodes, 
-    graphEdges, 
-    graphLoading, 
-    graphError, 
-    graphUpdating,
-    lastUpdateTime, 
-    lastUpdateSource,
-    roleModelId,
-    onGraphDataChange,
-    handleEditNode,
-    handleDeleteNode,
-    handleAddChildNode,
-    handleAddSiblingNode,
-    handleExpandNode,
-    fetchGraphData,
-    setHasKnowledgeGraph,
-    setLoading,
-    toast
-  ]);
+  }, [wsUpdating, toast]);
 
   // ノード選択のハンドラ
   const handleNodeClick = useCallback(

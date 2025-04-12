@@ -390,6 +390,22 @@ function handleClientMessage(ws: WebSocket, data: any): void {
         }
         break;
         
+      case 'get_knowledge_graph':
+        // ナレッジグラフ取得リクエストの処理
+        console.log(`既存ナレッジグラフデータの取得リクエストを処理します: roleModelId=${specificRoleModelId}`);
+        try {
+          sendExistingKnowledgeGraph(ws, specificRoleModelId);
+        } catch (error) {
+          console.error(`ナレッジグラフ取得エラー: ${error}`);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: 'ナレッジグラフの取得中にエラーが発生しました',
+            error: String(error),
+            timestamp: new Date().toISOString()
+          }));
+        }
+        break;
+        
       default:
         // その他のメッセージタイプの場合（デバッグログを追加）
         console.log(`未処理のメッセージタイプ: ${messageType}`);
