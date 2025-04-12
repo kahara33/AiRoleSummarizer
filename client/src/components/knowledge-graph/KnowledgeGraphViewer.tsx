@@ -132,7 +132,11 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   const [agentMessages, setAgentMessages] = useState<{agent: string, message: string, timestamp: string}[]>([]);
 
   // デバッグ情報
-  const [debugInfo, setDebugInfo] = useState<any>({});
+  const [debugInfo, setDebugInfo] = useState<any>({
+    roleModelId,
+    lastCheckTime: new Date().toISOString(),
+    wsStatus: isConnected ? 'connected' : 'disconnected'
+  });
 
   // サーバーからグラフデータを取得する関数（デバッグログ追加、エラー処理改善）
   const fetchGraphData = useCallback(async () => {
@@ -475,19 +479,50 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
 
   // 初期ナレッジグラフの存在確認
   useEffect(() => {
+    // roleModelIdが空の場合は処理をスキップ（主要なデバッグポイント）
+    if (!roleModelId) {
+      console.error('ロールモデルIDが指定されていないため、ナレッジグラフの確認をスキップします');
+      setDebugInfo(prev => ({
+        ...prev,
+        error: 'ロールモデルIDが指定されていません',
+        roleModelId: roleModelId || 'undefined/null',
+        checkTime: new Date().toISOString()
+      }));
+      return;
+    }
+
     // autoLoadが無効の場合は処理をスキップ
     if (autoLoad === false) {
       console.log('自動データロードが無効になっています - ナレッジグラフの確認をスキップします');
       return;
     }
+
+    console.log(`[KnowledgeGraphViewer] 存在確認を実行: roleModelId=${roleModelId}`);
     
     // ナレッジグラフが存在するか確認
     const checkKnowledgeGraphExists = async () => {
       try {
+        // デバッグ情報の更新
+        setDebugInfo(prev => ({
+          ...prev,
+          checking: true,
+          roleModelId,
+          checkUrl: `/api/knowledge-graph/${roleModelId}/exists`,
+          checkTime: new Date().toISOString()
+        }));
+        
         const response = await fetch(`/api/knowledge-graph/${roleModelId}/exists`);
         if (response.ok) {
           const data = await response.json();
           console.log('ナレッジグラフ存在確認結果:', data);
+          
+          // デバッグ情報の更新
+          setDebugInfo(prev => ({
+            ...prev,
+            checkResult: data,
+            checking: false,
+            lastCheckTime: new Date().toISOString()
+          }));
           
           // データが存在する場合、完全データを取得
           if (data.exists) {
@@ -505,7 +540,20 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
             }
           }
         } else {
-          console.error('ナレッジグラフ存在確認エラー:', response.statusText);
+          const errorText = await response.text();
+          console.error('ナレッジグラフ存在確認エラー:', response.statusText, errorText);
+          
+          // デバッグ情報の更新
+          setDebugInfo(prev => ({
+            ...prev,
+            checkError: {
+              status: response.status,
+              statusText: response.statusText,
+              text: errorText
+            },
+            checking: false
+          }));
+          
           setLoading(false);
           // エラー発生時も状態更新
           setHasKnowledgeGraph(false);
@@ -519,6 +567,17 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
         }
       } catch (err) {
         console.error('ナレッジグラフ存在確認中にエラーが発生しました:', err);
+        
+        // デバッグ情報の更新
+        setDebugInfo(prev => ({
+          ...prev,
+          checkError: {
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined
+          },
+          checking: false
+        }));
+        
         setLoading(false);
         setHasKnowledgeGraph(false);
         
@@ -1382,11 +1441,13 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
       </div>
       
       {/* デバッグ情報表示エリア */}
-      <div className="w-full mb-2 p-2 bg-yellow-50 rounded-md border border-yellow-200 text-xs overflow-auto" style={{ maxHeight: '350px' }}>
+      <div className={`w-full mb-2 p-2 rounded-md border text-xs overflow-auto ${!roleModelId ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`} style={{ maxHeight: '350px' }}>
         <h4 className="font-bold">デバッグ情報:</h4>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p><strong>RoleModelID:</strong> {roleModelId}</p>
+            <p className={!roleModelId ? 'text-red-600 font-semibold' : ''}>
+              <strong>RoleModelID:</strong> {roleModelId || '未設定 (必須パラメータ)'}
+            </p>
             <p><strong>WebSocket接続状態:</strong> {isConnected ? '接続済み' : '未接続'}</p>
             <p><strong>WebSocketステータス:</strong> {wsLoading ? "読込中" : wsError ? "エラー" : "接続済み"}</p>
           </div>
@@ -1398,7 +1459,7 @@ const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
           </div>
         </div>
         <div className="mt-1">
-          <p><strong>エラー:</strong> {error || 'なし'}</p>
+          <p className={error ? 'text-red-600 font-semibold' : ''}><strong>エラー:</strong> {error || 'なし'}</p>
           <p><strong>最終更新:</strong> {lastUpdateTime ? new Date(lastUpdateTime).toLocaleString() : 'なし'}</p>
           <p><strong>更新元:</strong> {lastUpdateSource || 'なし'}</p>
         </div>
